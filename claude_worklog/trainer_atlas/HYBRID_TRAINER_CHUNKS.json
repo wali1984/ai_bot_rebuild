@@ -1,0 +1,1329 @@
+{
+  "trainer_file": "/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py",
+  "line_count": 57250,
+  "chunk_lines": 1000,
+  "chunks": [
+    {
+      "chunk_id": "chunk_0001",
+      "line_start": 1,
+      "line_end": 1000,
+      "sha256": "59a6b1953cde7cc141249939bd73777becb6010da96e4bd9840d51a81b40580e",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "reward",
+        "risk",
+        "signal"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1 --end 1000"
+    },
+    {
+      "chunk_id": "chunk_0002",
+      "line_start": 1001,
+      "line_end": 2000,
+      "sha256": "fc4b696a191e46e712c617cbecbc11a49fc27f287b524017c95e7cf5ba8da95b",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "publish",
+        "reward",
+        "risk",
+        "signal",
+        "stale",
+        "xadd"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1001 --end 2000"
+    },
+    {
+      "chunk_id": "chunk_0003",
+      "line_start": 2001,
+      "line_end": 3000,
+      "sha256": "81af71ebdc05735cc4b1771936622934715653612f9b0f30f34872ce07841a93",
+      "keywords_found": [
+        "checkpoint",
+        "confidence",
+        "portfolio",
+        "position",
+        "publish",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 2001 --end 3000"
+    },
+    {
+      "chunk_id": "chunk_0004",
+      "line_start": 3001,
+      "line_end": 4000,
+      "sha256": "a1b7093000849adea24be380b7d4edfc2874e2ad3ebf35f767f8020c9538f451",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale",
+        "xadd"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 3001 --end 4000"
+    },
+    {
+      "chunk_id": "chunk_0005",
+      "line_start": 4001,
+      "line_end": 5000,
+      "sha256": "bbaf8e83855e578f55816abb91b34c64c8ce478376e0e547da5e31cacaaf43c1",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "orchestrator",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale",
+        "xadd"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 4001 --end 5000"
+    },
+    {
+      "chunk_id": "chunk_0006",
+      "line_start": 5001,
+      "line_end": 6000,
+      "sha256": "f4557b10a4694d33b74c3e15891f09ce6dc83cd4f9a4f6edbe57c230592ed858",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 5001 --end 6000"
+    },
+    {
+      "chunk_id": "chunk_0007",
+      "line_start": 6001,
+      "line_end": 7000,
+      "sha256": "d40af6cdee3d60b0d8f2e375f9d0eb2e841ae768e3a924250e24d565ec48d239",
+      "keywords_found": [
+        "checkpoint",
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 6001 --end 7000"
+    },
+    {
+      "chunk_id": "chunk_0008",
+      "line_start": 7001,
+      "line_end": 8000,
+      "sha256": "632e9cca8882ffc1a9f9ed1265049de821b2fd31c5740f9e2040a3764ae8ef91",
+      "keywords_found": [
+        "confidence",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 7001 --end 8000"
+    },
+    {
+      "chunk_id": "chunk_0009",
+      "line_start": 8001,
+      "line_end": 9000,
+      "sha256": "d7af12c43d3b67a284f0ccb425818f11eac49a51b79cd9314eb59dc92a0ba454",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 8001 --end 9000"
+    },
+    {
+      "chunk_id": "chunk_0010",
+      "line_start": 9001,
+      "line_end": 10000,
+      "sha256": "72f1030eaf1e0354eed21d5616287586871eb181026d6a1b58de78df1a0aff16",
+      "keywords_found": [
+        "confidence",
+        "orchestrator",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "xadd"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 9001 --end 10000"
+    },
+    {
+      "chunk_id": "chunk_0011",
+      "line_start": 10001,
+      "line_end": 11000,
+      "sha256": "149121ba910f1e72cb326b06dc1ff4d5ad4994f5e711ec95572eed13dd024856",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "reward",
+        "risk",
+        "signal",
+        "xadd"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10001 --end 11000"
+    },
+    {
+      "chunk_id": "chunk_0012",
+      "line_start": 11001,
+      "line_end": 12000,
+      "sha256": "a9913462e08f1d1bc93572f18173799e8db70bd8cf59868617aeb4564f03e558",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "reward",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 11001 --end 12000"
+    },
+    {
+      "chunk_id": "chunk_0013",
+      "line_start": 12001,
+      "line_end": 13000,
+      "sha256": "83264833e040ddd0f4f79a79a21e8eb79223585cdcd2629847d5dd2a0fd5619c",
+      "keywords_found": [
+        "checkpoint",
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "reward",
+        "risk",
+        "signal"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 12001 --end 13000"
+    },
+    {
+      "chunk_id": "chunk_0014",
+      "line_start": 13001,
+      "line_end": 14000,
+      "sha256": "f611af641daa86357259f09bcf84d803e96ada31b0d22e27e16c509e379a4457",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "reward",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 13001 --end 14000"
+    },
+    {
+      "chunk_id": "chunk_0015",
+      "line_start": 14001,
+      "line_end": 15000,
+      "sha256": "e55a7ce0d6a678be39943e0222dd9fda6446c0be67297dc840cf0186fde2cbe3",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 14001 --end 15000"
+    },
+    {
+      "chunk_id": "chunk_0016",
+      "line_start": 15001,
+      "line_end": 16000,
+      "sha256": "9131052ab0b89d70fd0a5700835df69f779fa5f5bd4dd5c757f2966b258b32ba",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 15001 --end 16000"
+    },
+    {
+      "chunk_id": "chunk_0017",
+      "line_start": 16001,
+      "line_end": 17000,
+      "sha256": "84b9c3e278af70109e8532e7845b1d9f1c66f2a89e4bf096a920d2b016b022eb",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "risk",
+        "signal"
+      ],
+      "risk_flags": [
+        "tier_a_touch"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 16001 --end 17000"
+    },
+    {
+      "chunk_id": "chunk_0018",
+      "line_start": 17001,
+      "line_end": 18000,
+      "sha256": "6b600177d813457217c83a16fe405e2fc22dec753c868b5670e4ba5838450707",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "orchestrator",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 17001 --end 18000"
+    },
+    {
+      "chunk_id": "chunk_0019",
+      "line_start": 18001,
+      "line_end": 19000,
+      "sha256": "16fba11e0ce0082b585200bddd2dd3c73b5651997d3abc41321c5d870339a73d",
+      "keywords_found": [
+        "checkpoint",
+        "confidence",
+        "orchestrator",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale",
+        "xadd"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 18001 --end 19000"
+    },
+    {
+      "chunk_id": "chunk_0020",
+      "line_start": 19001,
+      "line_end": 20000,
+      "sha256": "86f7344b85b6a02df961bc4085f37279ebf284f62e55b620e2a7cbebb23dd790",
+      "keywords_found": [
+        "confidence",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 19001 --end 20000"
+    },
+    {
+      "chunk_id": "chunk_0021",
+      "line_start": 20001,
+      "line_end": 21000,
+      "sha256": "33b4eaad821fdcef4796f8b3e0a2a1a447a41f7c868b613fe1739bd236aa676c",
+      "keywords_found": [
+        "confidence",
+        "portfolio",
+        "position",
+        "risk",
+        "signal"
+      ],
+      "risk_flags": [
+        "tier_a_touch"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 20001 --end 21000"
+    },
+    {
+      "chunk_id": "chunk_0022",
+      "line_start": 21001,
+      "line_end": 22000,
+      "sha256": "445b978455fd3e7eef0e76173e4873129e1b012c8a34d6eeca8a2d27ddd7d154",
+      "keywords_found": [
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 21001 --end 22000"
+    },
+    {
+      "chunk_id": "chunk_0023",
+      "line_start": 22001,
+      "line_end": 23000,
+      "sha256": "fa3f612bfb29feaa76f63b4ed62f6c83163efeb85925830a4ad228d8823f9926",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 22001 --end 23000"
+    },
+    {
+      "chunk_id": "chunk_0024",
+      "line_start": 23001,
+      "line_end": 24000,
+      "sha256": "ae271e92c2e376669d93f64d243694fc9eada7f09d3864c93485606a3ce8fc59",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23001 --end 24000"
+    },
+    {
+      "chunk_id": "chunk_0025",
+      "line_start": 24001,
+      "line_end": 25000,
+      "sha256": "69c38e465ad76ad6c463953da3d99b9ba7b3ea161a0d6fac76368656af0b8e4c",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24001 --end 25000"
+    },
+    {
+      "chunk_id": "chunk_0026",
+      "line_start": 25001,
+      "line_end": 26000,
+      "sha256": "41c423ed52912146f1e45a4e0b564b6bcfb4d95e21dcf5f75586631ae4c239d8",
+      "keywords_found": [
+        "confidence",
+        "position",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25001 --end 26000"
+    },
+    {
+      "chunk_id": "chunk_0027",
+      "line_start": 26001,
+      "line_end": 27000,
+      "sha256": "f01aa59203e346594c72a873f5dbd200c4041c854e91df62256c476ff4a8aba7",
+      "keywords_found": [
+        "confidence",
+        "position",
+        "risk",
+        "signal"
+      ],
+      "risk_flags": [
+        "tier_a_touch"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26001 --end 27000"
+    },
+    {
+      "chunk_id": "chunk_0028",
+      "line_start": 27001,
+      "line_end": 28000,
+      "sha256": "eca6e5a1ede3b7745fb49c4d290d48a25db1b01f229007199b47a06b4ea403d7",
+      "keywords_found": [
+        "MASS",
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "xadd"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 27001 --end 28000"
+    },
+    {
+      "chunk_id": "chunk_0029",
+      "line_start": 28001,
+      "line_end": 29000,
+      "sha256": "b0daedad8a3425ba1031c678c46483915f7cac90c5ae16f13ca256ce4f8284f8",
+      "keywords_found": [
+        "confidence",
+        "portfolio",
+        "position",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 28001 --end 29000"
+    },
+    {
+      "chunk_id": "chunk_0030",
+      "line_start": 29001,
+      "line_end": 30000,
+      "sha256": "8f3e837eb49f54c7ac3bcfa788827e043043a13bc42324724e8e6aee5a757e2d",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "xadd"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 29001 --end 30000"
+    },
+    {
+      "chunk_id": "chunk_0031",
+      "line_start": 30001,
+      "line_end": 31000,
+      "sha256": "957f732dd782b6f39100c6eef7095e129adfef70bb1dfedf3f70de3737442bbd",
+      "keywords_found": [
+        "MASS",
+        "confidence",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 30001 --end 31000"
+    },
+    {
+      "chunk_id": "chunk_0032",
+      "line_start": 31001,
+      "line_end": 32000,
+      "sha256": "78d288737efdae12cc3e1e2f1f0585426cb6289ce401164027b33766df00b95b",
+      "keywords_found": [
+        "checkpoint",
+        "confidence",
+        "live",
+        "position",
+        "publish",
+        "reward",
+        "risk",
+        "signal"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 31001 --end 32000"
+    },
+    {
+      "chunk_id": "chunk_0033",
+      "line_start": 32001,
+      "line_end": 33000,
+      "sha256": "9c81b188db57d646b7d22a544089750b62189ed62b1fdc6cdb13f8aa2484c117",
+      "keywords_found": [
+        "checkpoint",
+        "live",
+        "position",
+        "publish",
+        "reward",
+        "risk",
+        "signal"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 32001 --end 33000"
+    },
+    {
+      "chunk_id": "chunk_0034",
+      "line_start": 33001,
+      "line_end": 34000,
+      "sha256": "be0a34ab23009ac3e1791053f6696a448bede03e6dc348f1b897078989fd2f28",
+      "keywords_found": [
+        "checkpoint",
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "reward",
+        "risk",
+        "signal"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 33001 --end 34000"
+    },
+    {
+      "chunk_id": "chunk_0035",
+      "line_start": 34001,
+      "line_end": 35000,
+      "sha256": "d9e096be598d1d0f68c6f3728033ef3cf422151096e323645577ef0d2e462590",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "reward",
+        "risk",
+        "signal"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34001 --end 35000"
+    },
+    {
+      "chunk_id": "chunk_0036",
+      "line_start": 35001,
+      "line_end": 36000,
+      "sha256": "24c2e7d345507287d4d48399a77f8788d50b3339bab96d36b3ab9ec66e09f942",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 35001 --end 36000"
+    },
+    {
+      "chunk_id": "chunk_0037",
+      "line_start": 36001,
+      "line_end": 37000,
+      "sha256": "9b17ab5509dd0e02fed6fa5dbb59e6599877ba597f2dc98eead2a6951e73f6a9",
+      "keywords_found": [
+        "confidence",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 36001 --end 37000"
+    },
+    {
+      "chunk_id": "chunk_0038",
+      "line_start": 37001,
+      "line_end": 38000,
+      "sha256": "a475098717f23a2e8d0e87615dc45234c266eb54f47edfe5361862e107ebad7e",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 37001 --end 38000"
+    },
+    {
+      "chunk_id": "chunk_0039",
+      "line_start": 38001,
+      "line_end": 39000,
+      "sha256": "49cff6d2cf3eeccaa581f3a74418ffb927d13193a5830978606aea13340546f3",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "orchestrator",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale",
+        "xadd"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "confidence",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 38001 --end 39000"
+    },
+    {
+      "chunk_id": "chunk_0040",
+      "line_start": 39001,
+      "line_end": 40000,
+      "sha256": "b40fa320e9228bdc8d947055ad370c06535b5b06e2bf8624d68a62eeae6d05dc",
+      "keywords_found": [
+        "confidence",
+        "orchestrator",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 39001 --end 40000"
+    },
+    {
+      "chunk_id": "chunk_0041",
+      "line_start": 40001,
+      "line_end": 41000,
+      "sha256": "1c39679ad9e60d73f24db6f3477feb98a549fc0dbe2bcc4a10737a80c0f56124",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "orchestrator",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "confidence",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 40001 --end 41000"
+    },
+    {
+      "chunk_id": "chunk_0042",
+      "line_start": 41001,
+      "line_end": 42000,
+      "sha256": "2d80e1a7700e68b7ec65713d0028fb054514966fe793d010426218897b1b41f9",
+      "keywords_found": [
+        "MASS",
+        "confidence",
+        "live",
+        "position",
+        "publish",
+        "reward",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 41001 --end 42000"
+    },
+    {
+      "chunk_id": "chunk_0043",
+      "line_start": 42001,
+      "line_end": 43000,
+      "sha256": "4012466e9f31c5ae938443a0aeae49a97512d02cade3cc03e249a89c6b5d2e09",
+      "keywords_found": [
+        "confidence",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale",
+        "xadd"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 42001 --end 43000"
+    },
+    {
+      "chunk_id": "chunk_0044",
+      "line_start": 43001,
+      "line_end": 44000,
+      "sha256": "3ae97fc21968b2a540ebad36d8393d9be428cae73435aef89072cff7a2f576a3",
+      "keywords_found": [
+        "confidence",
+        "orchestrator",
+        "position",
+        "publish",
+        "reward",
+        "risk",
+        "signal",
+        "stale",
+        "xadd"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 43001 --end 44000"
+    },
+    {
+      "chunk_id": "chunk_0045",
+      "line_start": 44001,
+      "line_end": 45000,
+      "sha256": "105a160c6cd2684d8a15327c45d9b46074376e950c9209a0f29cef8f6f6806da",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "orchestrator",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 44001 --end 45000"
+    },
+    {
+      "chunk_id": "chunk_0046",
+      "line_start": 45001,
+      "line_end": 46000,
+      "sha256": "ccc3683cac4675dcf9f7936f5fe3c8b30cc6ff01c784acf50f6cbe5ff2359812",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "reward",
+        "risk",
+        "signal"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 45001 --end 46000"
+    },
+    {
+      "chunk_id": "chunk_0047",
+      "line_start": 46001,
+      "line_end": 47000,
+      "sha256": "35a5aeeb32ab325a73fe0677242446e1addb53ef1061cd17d3a2dad333c48e0d",
+      "keywords_found": [
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "reward",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 46001 --end 47000"
+    },
+    {
+      "chunk_id": "chunk_0048",
+      "line_start": 47001,
+      "line_end": 48000,
+      "sha256": "e0b78bfb120c1b536fb3951ed7f3ac4ea395e30579bd261349d780ef97b1c9aa",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 47001 --end 48000"
+    },
+    {
+      "chunk_id": "chunk_0049",
+      "line_start": 48001,
+      "line_end": 49000,
+      "sha256": "5ea7656a4f9b2fe27d4f45d787ede466a84b0ac4b44b0cdfeda6135e3e519cd3",
+      "keywords_found": [
+        "MASS",
+        "checkpoint",
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "reward",
+        "risk",
+        "signal"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 48001 --end 49000"
+    },
+    {
+      "chunk_id": "chunk_0050",
+      "line_start": 49001,
+      "line_end": 50000,
+      "sha256": "1654d9571499305ab625ef561daf37cc0f1a4d6496dae623ee191b2ec8ad6ca7",
+      "keywords_found": [
+        "checkpoint",
+        "live",
+        "publish",
+        "reward",
+        "signal"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 49001 --end 50000"
+    },
+    {
+      "chunk_id": "chunk_0051",
+      "line_start": 50001,
+      "line_end": 51000,
+      "sha256": "931ff5f1663fe014d513d22724cf62bb9da0f0c0711a4907c5cb444f2c59886e",
+      "keywords_found": [
+        "checkpoint",
+        "confidence",
+        "live",
+        "orchestrator",
+        "portfolio",
+        "position",
+        "publish",
+        "reward",
+        "risk",
+        "signal",
+        "xadd"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 50001 --end 51000"
+    },
+    {
+      "chunk_id": "chunk_0052",
+      "line_start": 51001,
+      "line_end": 52000,
+      "sha256": "7183a632b13e2b0cb5435a11f777970b505cc2a158630da7dc18cd51bd2e5f0d",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 51001 --end 52000"
+    },
+    {
+      "chunk_id": "chunk_0053",
+      "line_start": 52001,
+      "line_end": 53000,
+      "sha256": "17a69599c88ed46fe9e1c4323ab923fc180dfc5e83e09047dd1131a5662893ae",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale",
+        "xadd"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 52001 --end 53000"
+    },
+    {
+      "chunk_id": "chunk_0054",
+      "line_start": 53001,
+      "line_end": 54000,
+      "sha256": "40a67dcc9c5ae4ccda379421a9d0a8d8a4e1c0220ec5fe8c6647c376809000a3",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "orchestrator",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale",
+        "xadd"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 53001 --end 54000"
+    },
+    {
+      "chunk_id": "chunk_0055",
+      "line_start": 54001,
+      "line_end": 55000,
+      "sha256": "e91a9ffe85999505d8b7326edb17af23e2af50fe2d1ca3174ea03a17e574fb4d",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "orchestrator",
+        "position",
+        "publish",
+        "reward",
+        "risk",
+        "signal",
+        "stale",
+        "xadd"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 54001 --end 55000"
+    },
+    {
+      "chunk_id": "chunk_0056",
+      "line_start": 55001,
+      "line_end": 56000,
+      "sha256": "c2efe875bd656de54f094ab2d30a8f707128500152d8dfc51524eef73166f81b",
+      "keywords_found": [
+        "confidence",
+        "live",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale",
+        "xadd"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 55001 --end 56000"
+    },
+    {
+      "chunk_id": "chunk_0057",
+      "line_start": 56001,
+      "line_end": 57000,
+      "sha256": "d7dfcf075fc1710844d5aa3cf0ef1f55abe8174bce30a49c26fbeb9fdcae9092",
+      "keywords_found": [
+        "confidence",
+        "orchestrator",
+        "portfolio",
+        "position",
+        "publish",
+        "risk",
+        "signal",
+        "stale",
+        "xadd"
+      ],
+      "risk_flags": [
+        "tier_a_touch",
+        "redis_write_candidate"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 56001 --end 57000"
+    },
+    {
+      "chunk_id": "chunk_0058",
+      "line_start": 57001,
+      "line_end": 57250,
+      "sha256": "a1657b46a3fbc644fa63bf7f313646ee1dcd1343dd3a9f4fcc7ef1e87ae674f7",
+      "keywords_found": [
+        "checkpoint",
+        "live",
+        "portfolio",
+        "position",
+        "reward",
+        "signal",
+        "stale"
+      ],
+      "risk_flags": [
+        "tier_a_touch"
+      ],
+      "chunk_category": "reward",
+      "tier_candidate": "Tier A",
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 57001 --end 57250"
+    }
+  ],
+  "unclassified_chunks": 0
+}

@@ -1,0 +1,3400 @@
+{
+  "functions": [
+    {
+      "name": "_mdv2_escape",
+      "line_start": 162,
+      "line_end": 169,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 162 --end 169"
+    },
+    {
+      "name": "get_prediction_loop_interval_seconds",
+      "line_start": 176,
+      "line_end": 210,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 176 --end 210"
+    },
+    {
+      "name": "get_post_training_pause_seconds",
+      "line_start": 213,
+      "line_end": 249,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 213 --end 249"
+    },
+    {
+      "name": "get_rollout_params",
+      "line_start": 252,
+      "line_end": 347,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 252 --end 347"
+    },
+    {
+      "name": "_make_subproc_env",
+      "line_start": 350,
+      "line_end": 437,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 350 --end 437"
+    },
+    {
+      "name": "cleanup_resources",
+      "line_start": 443,
+      "line_end": 458,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 443 --end 458"
+    },
+    {
+      "name": "is_shutting_down",
+      "line_start": 467,
+      "line_end": 469,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 467 --end 469"
+    },
+    {
+      "name": "signal_handler",
+      "line_start": 471,
+      "line_end": 480,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 471 --end 480"
+    },
+    {
+      "name": "create_rtx5080_policy_kwargs",
+      "line_start": 901,
+      "line_end": 908,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 901 --end 908"
+    },
+    {
+      "name": "create_tailored_policy_kwargs",
+      "line_start": 911,
+      "line_end": 967,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 911 --end 967"
+    },
+    {
+      "name": "create_hedge_recovery_policy_kwargs",
+      "line_start": 969,
+      "line_end": 976,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 969 --end 976"
+    },
+    {
+      "name": "safe_close_vecenv",
+      "line_start": 998,
+      "line_end": 1114,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 998 --end 1114"
+    },
+    {
+      "name": "get_min_conf_for_tf",
+      "line_start": 1123,
+      "line_end": 1150,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1123 --end 1150"
+    },
+    {
+      "name": "get_active_symbols",
+      "line_start": 1158,
+      "line_end": 1169,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1158 --end 1169"
+    },
+    {
+      "name": "safe_redis_operation",
+      "line_start": 1200,
+      "line_end": 1231,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1200 --end 1231"
+    },
+    {
+      "name": "gpu_operation_timeout",
+      "line_start": 1233,
+      "line_end": 1273,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1233 --end 1273"
+    },
+    {
+      "name": "_lookup_natr_atr_pct",
+      "line_start": 1327,
+      "line_end": 1351,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1327 --end 1351"
+    },
+    {
+      "name": "_compute_price_target",
+      "line_start": 1354,
+      "line_end": 1444,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1354 --end 1444"
+    },
+    {
+      "name": "apply_aggressive_gpu_optimizations",
+      "line_start": 10472,
+      "line_end": 10490,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10472 --end 10490"
+    },
+    {
+      "name": "setup_gpu_memory_optimization",
+      "line_start": 10493,
+      "line_end": 10512,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10493 --end 10512"
+    },
+    {
+      "name": "consume_execution_event_for_audit",
+      "line_start": 57035,
+      "line_end": 57051,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 57035 --end 57051"
+    },
+    {
+      "name": "main",
+      "line_start": 57053,
+      "line_end": 57230,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 57053 --end 57230"
+    },
+    {
+      "name": "__init__",
+      "line_start": 31,
+      "line_end": 32,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 31 --end 32"
+    },
+    {
+      "name": "write",
+      "line_start": 34,
+      "line_end": 38,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34 --end 38"
+    },
+    {
+      "name": "flush",
+      "line_start": 40,
+      "line_end": 44,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 40 --end 44"
+    },
+    {
+      "name": "__getattr__",
+      "line_start": 46,
+      "line_end": 47,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 46 --end 47"
+    },
+    {
+      "name": "__init__",
+      "line_start": 90,
+      "line_end": 93,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 90 --end 93"
+    },
+    {
+      "name": "filter",
+      "line_start": 95,
+      "line_end": 108,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 95 --end 108"
+    },
+    {
+      "name": "__init__",
+      "line_start": 710,
+      "line_end": 786,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 710 --end 786"
+    },
+    {
+      "name": "_initialize_weights",
+      "line_start": 788,
+      "line_end": 800,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 788 --end 800"
+    },
+    {
+      "name": "forward",
+      "line_start": 802,
+      "line_end": 828,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 802 --end 828"
+    },
+    {
+      "name": "__init__",
+      "line_start": 834,
+      "line_end": 840,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 834 --end 840"
+    },
+    {
+      "name": "__init__",
+      "line_start": 851,
+      "line_end": 869,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 851 --end 869"
+    },
+    {
+      "name": "forward",
+      "line_start": 871,
+      "line_end": 898,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 871 --end 898"
+    },
+    {
+      "name": "_close",
+      "line_start": 1012,
+      "line_end": 1017,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1012 --end 1017"
+    },
+    {
+      "name": "decorator",
+      "line_start": 1235,
+      "line_end": 1272,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1235 --end 1272"
+    },
+    {
+      "name": "__init__",
+      "line_start": 1278,
+      "line_end": 1291,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1278 --end 1291"
+    },
+    {
+      "name": "get_gpu_stats",
+      "line_start": 1293,
+      "line_end": 1324,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1293 --end 1324"
+    },
+    {
+      "name": "_excluded_save_params",
+      "line_start": 1459,
+      "line_end": 1462,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1459 --end 1462"
+    },
+    {
+      "name": "save",
+      "line_start": 1464,
+      "line_end": 1504,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1464 --end 1504"
+    },
+    {
+      "name": "__init__",
+      "line_start": 1506,
+      "line_end": 1607,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1506 --end 1607"
+    },
+    {
+      "name": "train",
+      "line_start": 1609,
+      "line_end": 1636,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1609 --end 1636"
+    },
+    {
+      "name": "_train_return_head",
+      "line_start": 1638,
+      "line_end": 1693,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1638 --end 1693"
+    },
+    {
+      "name": "set_training_mode",
+      "line_start": 1695,
+      "line_end": 1710,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1695 --end 1710"
+    },
+    {
+      "name": "_setup_model",
+      "line_start": 1712,
+      "line_end": 1776,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1712 --end 1776"
+    },
+    {
+      "name": "_signal_debug_stream",
+      "line_start": 1778,
+      "line_end": 1780,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1778 --end 1780"
+    },
+    {
+      "name": "_emit_debug_signal",
+      "line_start": 1782,
+      "line_end": 1798,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1782 --end 1798"
+    },
+    {
+      "name": "_is_flip_action",
+      "line_start": 1800,
+      "line_end": 1814,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1800 --end 1814"
+    },
+    {
+      "name": "_normalize_action_name",
+      "line_start": 1824,
+      "line_end": 1878,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1824 --end 1878"
+    },
+    {
+      "name": "_is_open_risk_action",
+      "line_start": 1880,
+      "line_end": 1894,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1880 --end 1894"
+    },
+    {
+      "name": "_should_bypass_gating_for_big_move",
+      "line_start": 1896,
+      "line_end": 2043,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1896 --end 2043"
+    },
+    {
+      "name": "_classify_action_type",
+      "line_start": 2045,
+      "line_end": 2060,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 2045 --end 2060"
+    },
+    {
+      "name": "_get_min_conf_entry",
+      "line_start": 2069,
+      "line_end": 2091,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 2069 --end 2091"
+    },
+    {
+      "name": "_get_min_conf_exit",
+      "line_start": 2093,
+      "line_end": 2098,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 2093 --end 2098"
+    },
+    {
+      "name": "_check_hedge_build_state",
+      "line_start": 2109,
+      "line_end": 2126,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 2109 --end 2126"
+    },
+    {
+      "name": "_enter_hedge_build_state",
+      "line_start": 2128,
+      "line_end": 2153,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 2128 --end 2153"
+    },
+    {
+      "name": "_exit_hedge_build_state",
+      "line_start": 2155,
+      "line_end": 2167,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 2155 --end 2167"
+    },
+    {
+      "name": "_process_trail_exit_feedback",
+      "line_start": 2169,
+      "line_end": 2220,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 2169 --end 2220"
+    },
+    {
+      "name": "_apply_hedge_intent",
+      "line_start": 2226,
+      "line_end": 2393,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 2226 --end 2393"
+    },
+    {
+      "name": "_check_adaptive_hedge_opportunities",
+      "line_start": 2399,
+      "line_end": 2749,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 2399 --end 2749"
+    },
+    {
+      "name": "_maybe_publish_recovery_reduction",
+      "line_start": 2755,
+      "line_end": 3136,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 2755 --end 3136"
+    },
+    {
+      "name": "_build_trade_signal",
+      "line_start": 3138,
+      "line_end": 4105,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 3138 --end 4105"
+    },
+    {
+      "name": "_has_opposite_position",
+      "line_start": 4107,
+      "line_end": 4128,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 4107 --end 4128"
+    },
+    {
+      "name": "_ecf_free_margin_handler",
+      "line_start": 4133,
+      "line_end": 4307,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 4133 --end 4307"
+    },
+    {
+      "name": "_compute_dynamic_headroom_reserve",
+      "line_start": 4312,
+      "line_end": 4387,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 4312 --end 4387"
+    },
+    {
+      "name": "_apply_global_leverage_cap",
+      "line_start": 4389,
+      "line_end": 4421,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 4389 --end 4421"
+    },
+    {
+      "name": "_compute_adaptive_leverage",
+      "line_start": 4423,
+      "line_end": 4632,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 4423 --end 4632"
+    },
+    {
+      "name": "_build_signal_payload_margin_v1",
+      "line_start": 4634,
+      "line_end": 4792,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 4634 --end 4792"
+    },
+    {
+      "name": "_publish_signal_payload",
+      "line_start": 4794,
+      "line_end": 9456,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 4794 --end 9456"
+    },
+    {
+      "name": "_emit_structured_decision_log",
+      "line_start": 9458,
+      "line_end": 9543,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 9458 --end 9543"
+    },
+    {
+      "name": "_publish_skip_event",
+      "line_start": 9545,
+      "line_end": 9671,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 9545 --end 9671"
+    },
+    {
+      "name": "_build_overlay_trading_payload",
+      "line_start": 9673,
+      "line_end": 9787,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 9673 --end 9787"
+    },
+    {
+      "name": "_blend_masa_ppo_logits_legacy",
+      "line_start": 9793,
+      "line_end": 9877,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 9793 --end 9877"
+    },
+    {
+      "name": "_setup_masa_blending",
+      "line_start": 9879,
+      "line_end": 9974,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 9879 --end 9974"
+    },
+    {
+      "name": "collect_rollouts",
+      "line_start": 9976,
+      "line_end": 10029,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 9976 --end 10029"
+    },
+    {
+      "name": "__getstate__",
+      "line_start": 10035,
+      "line_end": 10051,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10035 --end 10051"
+    },
+    {
+      "name": "__setstate__",
+      "line_start": 10053,
+      "line_end": 10066,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10053 --end 10066"
+    },
+    {
+      "name": "__init__",
+      "line_start": 10080,
+      "line_end": 10169,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10080 --end 10169"
+    },
+    {
+      "name": "step_async",
+      "line_start": 10171,
+      "line_end": 10224,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10171 --end 10224"
+    },
+    {
+      "name": "step_wait",
+      "line_start": 10226,
+      "line_end": 10410,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10226 --end 10410"
+    },
+    {
+      "name": "_get_batched_features_for_all_envs",
+      "line_start": 10412,
+      "line_end": 10416,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10412 --end 10416"
+    },
+    {
+      "name": "reset",
+      "line_start": 10418,
+      "line_end": 10435,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10418 --end 10435"
+    },
+    {
+      "name": "close",
+      "line_start": 10437,
+      "line_end": 10441,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10437 --end 10441"
+    },
+    {
+      "name": "env_is_wrapped",
+      "line_start": 10443,
+      "line_end": 10445,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10443 --end 10445"
+    },
+    {
+      "name": "env_method",
+      "line_start": 10447,
+      "line_end": 10450,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10447 --end 10450"
+    },
+    {
+      "name": "get_attr",
+      "line_start": 10452,
+      "line_end": 10455,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10452 --end 10455"
+    },
+    {
+      "name": "set_attr",
+      "line_start": 10457,
+      "line_end": 10461,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10457 --end 10461"
+    },
+    {
+      "name": "_get_target_envs",
+      "line_start": 10463,
+      "line_end": 10469,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10463 --end 10469"
+    },
+    {
+      "name": "__init__",
+      "line_start": 10518,
+      "line_end": 10520,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10518 --end 10520"
+    },
+    {
+      "name": "__getattr__",
+      "line_start": 10522,
+      "line_end": 10523,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10522 --end 10523"
+    },
+    {
+      "name": "__init__",
+      "line_start": 10545,
+      "line_end": 10613,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10545 --end 10613"
+    },
+    {
+      "name": "__getstate__",
+      "line_start": 10615,
+      "line_end": 10634,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10615 --end 10634"
+    },
+    {
+      "name": "__setstate__",
+      "line_start": 10636,
+      "line_end": 10641,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10636 --end 10641"
+    },
+    {
+      "name": "_ensure_redis",
+      "line_start": 10645,
+      "line_end": 10661,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10645 --end 10661"
+    },
+    {
+      "name": "device",
+      "line_start": 10664,
+      "line_end": 10668,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10664 --end 10668"
+    },
+    {
+      "name": "_initialize_cuda",
+      "line_start": 10670,
+      "line_end": 10708,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10670 --end 10708"
+    },
+    {
+      "name": "_create_gpu_feature_processor",
+      "line_start": 10710,
+      "line_end": 10716,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10710 --end 10716"
+    },
+    {
+      "name": "_get_price",
+      "line_start": 10718,
+      "line_end": 10757,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10718 --end 10757"
+    },
+    {
+      "name": "_get_price_from_redis",
+      "line_start": 10760,
+      "line_end": 10762,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10760 --end 10762"
+    },
+    {
+      "name": "_normalize_features",
+      "line_start": 10764,
+      "line_end": 10825,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10764 --end 10825"
+    },
+    {
+      "name": "_update_normalization_stats",
+      "line_start": 10827,
+      "line_end": 10886,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10827 --end 10886"
+    },
+    {
+      "name": "get_current_features_gpu",
+      "line_start": 10888,
+      "line_end": 11022,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 10888 --end 11022"
+    },
+    {
+      "name": "_is_feature_metadata_key",
+      "line_start": 11025,
+      "line_end": 11055,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 11025 --end 11055"
+    },
+    {
+      "name": "_normalize_feature_vector_robust",
+      "line_start": 11058,
+      "line_end": 11072,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 11058 --end 11072"
+    },
+    {
+      "name": "_extract_liq_features_tf",
+      "line_start": 11074,
+      "line_end": 11118,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 11074 --end 11118"
+    },
+    {
+      "name": "_maybe_log_liq_tf",
+      "line_start": 11120,
+      "line_end": 11134,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 11120 --end 11134"
+    },
+    {
+      "name": "_compute_liq_reward",
+      "line_start": 11136,
+      "line_end": 11205,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 11136 --end 11205"
+    },
+    {
+      "name": "_get_onchain_features_gpu",
+      "line_start": 11207,
+      "line_end": 11231,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 11207 --end 11231"
+    },
+    {
+      "name": "_get_expected_feature_keys",
+      "line_start": 11233,
+      "line_end": 11303,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 11233 --end 11303"
+    },
+    {
+      "name": "_get_default_features_gpu",
+      "line_start": 11305,
+      "line_end": 11308,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 11305 --end 11308"
+    },
+    {
+      "name": "_get_cached_default_features_gpu",
+      "line_start": 11310,
+      "line_end": 11314,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 11310 --end 11314"
+    },
+    {
+      "name": "_load_global_features",
+      "line_start": 11316,
+      "line_end": 11402,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 11316 --end 11402"
+    },
+    {
+      "name": "_load_historical_features",
+      "line_start": 11404,
+      "line_end": 11496,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 11404 --end 11496"
+    },
+    {
+      "name": "get_state_gpu",
+      "line_start": 11499,
+      "line_end": 11523,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 11499 --end 11523"
+    },
+    {
+      "name": "step_gpu",
+      "line_start": 11525,
+      "line_end": 11854,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 11525 --end 11854"
+    },
+    {
+      "name": "_decode_action_7way_gpu",
+      "line_start": 11856,
+      "line_end": 11926,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 11856 --end 11926"
+    },
+    {
+      "name": "_execute_trades_gpu",
+      "line_start": 11928,
+      "line_end": 11953,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 11928 --end 11953"
+    },
+    {
+      "name": "_get_current_prices_gpu",
+      "line_start": 11955,
+      "line_end": 12003,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 11955 --end 12003"
+    },
+    {
+      "name": "_execute_symbol_trade_gpu",
+      "line_start": 12005,
+      "line_end": 12294,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 12005 --end 12294"
+    },
+    {
+      "name": "_close_position_with_reward",
+      "line_start": 12296,
+      "line_end": 12381,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 12296 --end 12381"
+    },
+    {
+      "name": "_partial_close_position",
+      "line_start": 12383,
+      "line_end": 12435,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 12383 --end 12435"
+    },
+    {
+      "name": "_calculate_portfolio_value_gpu",
+      "line_start": 12437,
+      "line_end": 12462,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 12437 --end 12462"
+    },
+    {
+      "name": "reset_gpu",
+      "line_start": 12464,
+      "line_end": 12483,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 12464 --end 12483"
+    },
+    {
+      "name": "warm_up_gpu",
+      "line_start": 12485,
+      "line_end": 12499,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 12485 --end 12499"
+    },
+    {
+      "name": "__init__",
+      "line_start": 12508,
+      "line_end": 12611,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 12508 --end 12611"
+    },
+    {
+      "name": "__init__",
+      "line_start": 12616,
+      "line_end": 13311,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 12616 --end 13311"
+    },
+    {
+      "name": "_init_confidence_pipeline",
+      "line_start": 13314,
+      "line_end": 13364,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 13314 --end 13364"
+    },
+    {
+      "name": "_update_dynamic_masa_weight",
+      "line_start": 13366,
+      "line_end": 13415,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 13366 --end 13415"
+    },
+    {
+      "name": "_run_threshold_ramper",
+      "line_start": 13417,
+      "line_end": 13442,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 13417 --end 13442"
+    },
+    {
+      "name": "_init_enterprise_modules",
+      "line_start": 13444,
+      "line_end": 13600,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 13444 --end 13600"
+    },
+    {
+      "name": "_send_trainer_startup_alert",
+      "line_start": 13602,
+      "line_end": 13672,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 13602 --end 13672"
+    },
+    {
+      "name": "_start_stream_heartbeat",
+      "line_start": 13678,
+      "line_end": 13729,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 13678 --end 13729"
+    },
+    {
+      "name": "_expected_obs_dim",
+      "line_start": 13735,
+      "line_end": 13765,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 13735 --end 13765"
+    },
+    {
+      "name": "_normalize_obs_vector",
+      "line_start": 13767,
+      "line_end": 13809,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 13767 --end 13809"
+    },
+    {
+      "name": "_enter_reversal_watch",
+      "line_start": 13815,
+      "line_end": 13823,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 13815 --end 13823"
+    },
+    {
+      "name": "_exit_reversal_watch",
+      "line_start": 13825,
+      "line_end": 13830,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 13825 --end 13830"
+    },
+    {
+      "name": "_is_in_reversal_watch",
+      "line_start": 13832,
+      "line_end": 13844,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 13832 --end 13844"
+    },
+    {
+      "name": "_detect_reversal_watch_entry",
+      "line_start": 13846,
+      "line_end": 13875,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 13846 --end 13875"
+    },
+    {
+      "name": "_check_profit_ladder",
+      "line_start": 13877,
+      "line_end": 13929,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 13877 --end 13929"
+    },
+    {
+      "name": "_check_fast_reversal_hedges",
+      "line_start": 13941,
+      "line_end": 14352,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 13941 --end 14352"
+    },
+    {
+      "name": "_check_adaptive_hedge_opportunities_v2",
+      "line_start": 14358,
+      "line_end": 14794,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 14358 --end 14794"
+    },
+    {
+      "name": "_format_profit_scanner_reason",
+      "line_start": 14802,
+      "line_end": 14891,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 14802 --end 14891"
+    },
+    {
+      "name": "_proactive_profit_scanner",
+      "line_start": 14893,
+      "line_end": 16205,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 14893 --end 16205"
+    },
+    {
+      "name": "_flash_move_auto_hedge_generator",
+      "line_start": 16212,
+      "line_end": 16408,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 16212 --end 16408"
+    },
+    {
+      "name": "_favorable_add_margin_generator",
+      "line_start": 16416,
+      "line_end": 16558,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 16416 --end 16558"
+    },
+    {
+      "name": "_emit_reversal_hedge",
+      "line_start": 16560,
+      "line_end": 16598,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 16560 --end 16598"
+    },
+    {
+      "name": "_log_runtime_config_dump",
+      "line_start": 16600,
+      "line_end": 16658,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 16600 --end 16658"
+    },
+    {
+      "name": "_get_symbol_atr_pct",
+      "line_start": 16664,
+      "line_end": 16683,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 16664 --end 16683"
+    },
+    {
+      "name": "_process_trail_exit_feedback",
+      "line_start": 16685,
+      "line_end": 17050,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 16685 --end 17050"
+    },
+    {
+      "name": "_enter_hedge_build_state",
+      "line_start": 17052,
+      "line_end": 17089,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 17052 --end 17089"
+    },
+    {
+      "name": "_is_hedge_build_active",
+      "line_start": 17091,
+      "line_end": 17106,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 17091 --end 17106"
+    },
+    {
+      "name": "_publish_signal_payload",
+      "line_start": 17108,
+      "line_end": 17118,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 17108 --end 17118"
+    },
+    {
+      "name": "_publish_signal_unified",
+      "line_start": 17120,
+      "line_end": 17517,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 17120 --end 17517"
+    },
+    {
+      "name": "_emit_proposal",
+      "line_start": 17519,
+      "line_end": 18277,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 17519 --end 18277"
+    },
+    {
+      "name": "_publish_skip_event",
+      "line_start": 18279,
+      "line_end": 18284,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 18279 --end 18284"
+    },
+    {
+      "name": "_publish_exec_event",
+      "line_start": 18286,
+      "line_end": 18320,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 18286 --end 18320"
+    },
+    {
+      "name": "_maybe_emit_canary",
+      "line_start": 18322,
+      "line_end": 18379,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 18322 --end 18379"
+    },
+    {
+      "name": "_classify_action_type",
+      "line_start": 18381,
+      "line_end": 18399,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 18381 --end 18399"
+    },
+    {
+      "name": "_get_min_conf_entry",
+      "line_start": 18405,
+      "line_end": 18430,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 18405 --end 18430"
+    },
+    {
+      "name": "_get_min_conf_exit",
+      "line_start": 18432,
+      "line_end": 18439,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 18432 --end 18439"
+    },
+    {
+      "name": "_get_position_pnl_pct",
+      "line_start": 18441,
+      "line_end": 18487,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 18441 --end 18487"
+    },
+    {
+      "name": "_build_tf_stack",
+      "line_start": 18489,
+      "line_end": 18601,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 18489 --end 18601"
+    },
+    {
+      "name": "_log_tf_stack",
+      "line_start": 18603,
+      "line_end": 18679,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 18603 --end 18679"
+    },
+    {
+      "name": "_is_stack_aligned",
+      "line_start": 18681,
+      "line_end": 18749,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 18681 --end 18749"
+    },
+    {
+      "name": "_get_market_context",
+      "line_start": 18751,
+      "line_end": 18849,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 18751 --end 18849"
+    },
+    {
+      "name": "_compute_contextual_conf_threshold",
+      "line_start": 18851,
+      "line_end": 18889,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 18851 --end 18889"
+    },
+    {
+      "name": "_check_cooldown",
+      "line_start": 18895,
+      "line_end": 18925,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 18895 --end 18925"
+    },
+    {
+      "name": "_check_budget",
+      "line_start": 18927,
+      "line_end": 18973,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 18927 --end 18973"
+    },
+    {
+      "name": "_increment_budget_counter",
+      "line_start": 18975,
+      "line_end": 19002,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 18975 --end 19002"
+    },
+    {
+      "name": "_set_cooldown",
+      "line_start": 19004,
+      "line_end": 19029,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 19004 --end 19029"
+    },
+    {
+      "name": "_consume_execution_feedback",
+      "line_start": 19035,
+      "line_end": 19065,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 19035 --end 19065"
+    },
+    {
+      "name": "_enter_hedge_build",
+      "line_start": 19067,
+      "line_end": 19099,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 19067 --end 19099"
+    },
+    {
+      "name": "_is_hedge_build_active",
+      "line_start": 19101,
+      "line_end": 19171,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 19101 --end 19171"
+    },
+    {
+      "name": "_check_hedge_build_block",
+      "line_start": 19173,
+      "line_end": 19255,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 19173 --end 19255"
+    },
+    {
+      "name": "_exec_gate_decision",
+      "line_start": 19261,
+      "line_end": 19340,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 19261 --end 19340"
+    },
+    {
+      "name": "_track_trade_execution",
+      "line_start": 19346,
+      "line_end": 19409,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 19346 --end 19409"
+    },
+    {
+      "name": "_emit_perf_summary",
+      "line_start": 19411,
+      "line_end": 19464,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 19411 --end 19464"
+    },
+    {
+      "name": "_check_risk_gates",
+      "line_start": 19466,
+      "line_end": 19714,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 19466 --end 19714"
+    },
+    {
+      "name": "_check_portfolio_concentration",
+      "line_start": 19716,
+      "line_end": 19869,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 19716 --end 19869"
+    },
+    {
+      "name": "_check_liquidity_gates",
+      "line_start": 19871,
+      "line_end": 20284,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 19871 --end 20284"
+    },
+    {
+      "name": "_get_all_positions",
+      "line_start": 20286,
+      "line_end": 20299,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 20286 --end 20299"
+    },
+    {
+      "name": "_get_binance_positions",
+      "line_start": 20301,
+      "line_end": 20321,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 20301 --end 20321"
+    },
+    {
+      "name": "_apply_liquidation_aware_hedge",
+      "line_start": 20323,
+      "line_end": 20414,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 20323 --end 20414"
+    },
+    {
+      "name": "_check_rebalancing_needed",
+      "line_start": 20416,
+      "line_end": 20492,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 20416 --end 20492"
+    },
+    {
+      "name": "_check_margin_allocation",
+      "line_start": 20494,
+      "line_end": 20569,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 20494 --end 20569"
+    },
+    {
+      "name": "_check_and_adjust_gpu_scaling",
+      "line_start": 20571,
+      "line_end": 20646,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 20571 --end 20646"
+    },
+    {
+      "name": "_update_drawdown_tracking",
+      "line_start": 20648,
+      "line_end": 20667,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 20648 --end 20667"
+    },
+    {
+      "name": "_calculate_volatility_targeted_size",
+      "line_start": 20670,
+      "line_end": 20678,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 20670 --end 20678"
+    },
+    {
+      "name": "_calculate_liquidity_aware_size",
+      "line_start": 20680,
+      "line_end": 20699,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 20680 --end 20699"
+    },
+    {
+      "name": "_calculate_performance_based_size",
+      "line_start": 20701,
+      "line_end": 20723,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 20701 --end 20723"
+    },
+    {
+      "name": "_calculate_volatility_based_stop",
+      "line_start": 20726,
+      "line_end": 20751,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 20726 --end 20751"
+    },
+    {
+      "name": "_update_trailing_stop",
+      "line_start": 20753,
+      "line_end": 20827,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 20753 --end 20827"
+    },
+    {
+      "name": "_get_symbol_atr_pct",
+      "line_start": 20829,
+      "line_end": 20905,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 20829 --end 20905"
+    },
+    {
+      "name": "_get_liquidity_stop_adjustment",
+      "line_start": 20907,
+      "line_end": 20946,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 20907 --end 20946"
+    },
+    {
+      "name": "_compute_liquidation_proximity",
+      "line_start": 20948,
+      "line_end": 21006,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 20948 --end 21006"
+    },
+    {
+      "name": "_update_drawdown_tracking",
+      "line_start": 21008,
+      "line_end": 21027,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 21008 --end 21027"
+    },
+    {
+      "name": "_blend_masa_ppo_logits",
+      "line_start": 21029,
+      "line_end": 21145,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 21029 --end 21145"
+    },
+    {
+      "name": "_log_contract",
+      "line_start": 21147,
+      "line_end": 21158,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 21147 --end 21158"
+    },
+    {
+      "name": "setup_gpu",
+      "line_start": 21160,
+      "line_end": 21229,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 21160 --end 21229"
+    },
+    {
+      "name": "update_status",
+      "line_start": 21231,
+      "line_end": 21238,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 21231 --end 21238"
+    },
+    {
+      "name": "refresh_status_periodically",
+      "line_start": 21240,
+      "line_end": 21251,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 21240 --end 21251"
+    },
+    {
+      "name": "_init_binance_client",
+      "line_start": 21253,
+      "line_end": 21311,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 21253 --end 21311"
+    },
+    {
+      "name": "_init_realtime_price_provider",
+      "line_start": 21313,
+      "line_end": 21395,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 21313 --end 21395"
+    },
+    {
+      "name": "_start_realtime_price_provider",
+      "line_start": 21397,
+      "line_end": 21452,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 21397 --end 21452"
+    },
+    {
+      "name": "_stop_realtime_price_provider",
+      "line_start": 21454,
+      "line_end": 21472,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 21454 --end 21472"
+    },
+    {
+      "name": "_get_realtime_price_from_provider",
+      "line_start": 21474,
+      "line_end": 21501,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 21474 --end 21501"
+    },
+    {
+      "name": "sync_real_portfolio",
+      "line_start": 21503,
+      "line_end": 21865,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 21503 --end 21865"
+    },
+    {
+      "name": "update_risk_metrics",
+      "line_start": 21867,
+      "line_end": 21913,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 21867 --end 21913"
+    },
+    {
+      "name": "_add_trader_position",
+      "line_start": 21915,
+      "line_end": 21958,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 21915 --end 21958"
+    },
+    {
+      "name": "sync_trader_positions",
+      "line_start": 21960,
+      "line_end": 22172,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 21960 --end 22172"
+    },
+    {
+      "name": "_why_no_open_risk_record",
+      "line_start": 22177,
+      "line_end": 22202,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 22177 --end 22202"
+    },
+    {
+      "name": "_why_no_open_risk_mark_published",
+      "line_start": 22204,
+      "line_end": 22211,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 22204 --end 22211"
+    },
+    {
+      "name": "_why_no_open_risk_flat_symbols",
+      "line_start": 22213,
+      "line_end": 22233,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 22213 --end 22233"
+    },
+    {
+      "name": "_why_no_open_risk_emit_cycle",
+      "line_start": 22235,
+      "line_end": 22283,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 22235 --end 22283"
+    },
+    {
+      "name": "validate_margin_for_trade",
+      "line_start": 22285,
+      "line_end": 22629,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 22285 --end 22629"
+    },
+    {
+      "name": "analyze_market_microstructure",
+      "line_start": 22631,
+      "line_end": 23135,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 22631 --end 23135"
+    },
+    {
+      "name": "detect_market_maker_patterns",
+      "line_start": 23137,
+      "line_end": 23201,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23137 --end 23201"
+    },
+    {
+      "name": "detect_fake_breakouts",
+      "line_start": 23203,
+      "line_end": 23234,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23203 --end 23234"
+    },
+    {
+      "name": "calculate_scalp_opportunity",
+      "line_start": 23236,
+      "line_end": 23269,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23236 --end 23269"
+    },
+    {
+      "name": "_analyze_liquidation_levels",
+      "line_start": 23271,
+      "line_end": 23377,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23271 --end 23377"
+    },
+    {
+      "name": "_validate_margin_for_trade_legacy",
+      "line_start": 23383,
+      "line_end": 23387,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23383 --end 23387"
+    },
+    {
+      "name": "get_current_price",
+      "line_start": 23389,
+      "line_end": 23448,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23389 --end 23448"
+    },
+    {
+      "name": "get_position_for_symbol",
+      "line_start": 23450,
+      "line_end": 23456,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23450 --end 23456"
+    },
+    {
+      "name": "get_all_positions_for_symbol",
+      "line_start": 23458,
+      "line_end": 23531,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23458 --end 23531"
+    },
+    {
+      "name": "get_dynamic_market_state",
+      "line_start": 23533,
+      "line_end": 23720,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23533 --end 23720"
+    },
+    {
+      "name": "_handle_extreme_market_scenarios",
+      "line_start": 23722,
+      "line_end": 23846,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23722 --end 23846"
+    },
+    {
+      "name": "_detect_liquidity_crisis",
+      "line_start": 23848,
+      "line_end": 23863,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23848 --end 23863"
+    },
+    {
+      "name": "_detect_gap_event",
+      "line_start": 23865,
+      "line_end": 23879,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23865 --end 23879"
+    },
+    {
+      "name": "_simulate_exchange_issues",
+      "line_start": 23881,
+      "line_end": 23896,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23881 --end 23896"
+    },
+    {
+      "name": "_detect_regulatory_event",
+      "line_start": 23898,
+      "line_end": 23905,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23898 --end 23905"
+    },
+    {
+      "name": "_is_low_liquidity_period",
+      "line_start": 23907,
+      "line_end": 23919,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23907 --end 23919"
+    },
+    {
+      "name": "_send_emergency_alert",
+      "line_start": 23921,
+      "line_end": 23939,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23921 --end 23939"
+    },
+    {
+      "name": "_get_live_position",
+      "line_start": 23941,
+      "line_end": 23959,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23941 --end 23959"
+    },
+    {
+      "name": "_send_ai_signal_alert",
+      "line_start": 23961,
+      "line_end": 24220,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23961 --end 24220"
+    },
+    {
+      "name": "_gather_realtime_context",
+      "line_start": 24222,
+      "line_end": 24433,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24222 --end 24433"
+    },
+    {
+      "name": "_format_signal_telegram",
+      "line_start": 24435,
+      "line_end": 24555,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24435 --end 24555"
+    },
+    {
+      "name": "_send_telegram",
+      "line_start": 24557,
+      "line_end": 24578,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24557 --end 24578"
+    },
+    {
+      "name": "_classify_market_regime_per_symbol_tf",
+      "line_start": 24580,
+      "line_end": 24649,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24580 --end 24649"
+    },
+    {
+      "name": "_classify_market_regime",
+      "line_start": 24651,
+      "line_end": 24764,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24651 --end 24764"
+    },
+    {
+      "name": "_get_tf_features_for_structural",
+      "line_start": 24769,
+      "line_end": 24784,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24769 --end 24784"
+    },
+    {
+      "name": "_pick_float",
+      "line_start": 24786,
+      "line_end": 24793,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24786 --end 24793"
+    },
+    {
+      "name": "_extract_close_ts",
+      "line_start": 24795,
+      "line_end": 24816,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24795 --end 24816"
+    },
+    {
+      "name": "_update_structural_series",
+      "line_start": 24818,
+      "line_end": 24836,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24818 --end 24836"
+    },
+    {
+      "name": "_get_structural_series",
+      "line_start": 24838,
+      "line_end": 24851,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24838 --end 24851"
+    },
+    {
+      "name": "_structural_regime_severity",
+      "line_start": 24853,
+      "line_end": 24861,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24853 --end 24861"
+    },
+    {
+      "name": "_compute_structural_metrics",
+      "line_start": 24863,
+      "line_end": 24963,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24863 --end 24963"
+    },
+    {
+      "name": "_update_recovery_failures",
+      "line_start": 24965,
+      "line_end": 25055,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24965 --end 25055"
+    },
+    {
+      "name": "_determine_structural_regime",
+      "line_start": 25057,
+      "line_end": 25197,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25057 --end 25197"
+    },
+    {
+      "name": "_ema_update",
+      "line_start": 25202,
+      "line_end": 25210,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25202 --end 25210"
+    },
+    {
+      "name": "_get_return_from_features",
+      "line_start": 25212,
+      "line_end": 25220,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25212 --end 25220"
+    },
+    {
+      "name": "_compute_regime_axes",
+      "line_start": 25222,
+      "line_end": 25400,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25222 --end 25400"
+    },
+    {
+      "name": "_regime_one_hot",
+      "line_start": 25402,
+      "line_end": 25422,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25402 --end 25422"
+    },
+    {
+      "name": "_regime_label_one_hot",
+      "line_start": 25424,
+      "line_end": 25433,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25424 --end 25433"
+    },
+    {
+      "name": "_regime_action_allowed",
+      "line_start": 25435,
+      "line_end": 25457,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25435 --end 25457"
+    },
+    {
+      "name": "_get_structural_regime_context",
+      "line_start": 25459,
+      "line_end": 25484,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25459 --end 25484"
+    },
+    {
+      "name": "_calculate_overall_symbol_regime",
+      "line_start": 25486,
+      "line_end": 25541,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25486 --end 25541"
+    },
+    {
+      "name": "_log_regime_analysis_for_signals",
+      "line_start": 25543,
+      "line_end": 25581,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25543 --end 25581"
+    },
+    {
+      "name": "_calculate_regime_consensus",
+      "line_start": 25583,
+      "line_end": 25600,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25583 --end 25600"
+    },
+    {
+      "name": "_determine_trading_bias",
+      "line_start": 25602,
+      "line_end": 25636,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25602 --end 25636"
+    },
+    {
+      "name": "_check_for_regime_alerts",
+      "line_start": 25638,
+      "line_end": 25655,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25638 --end 25655"
+    },
+    {
+      "name": "_validate_adaptive_profit_taking",
+      "line_start": 25657,
+      "line_end": 25772,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25657 --end 25772"
+    },
+    {
+      "name": "_simple_regime_classification",
+      "line_start": 25774,
+      "line_end": 25793,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25774 --end 25793"
+    },
+    {
+      "name": "_get_unified_features_for_regime_analysis",
+      "line_start": 25795,
+      "line_end": 25845,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25795 --end 25845"
+    },
+    {
+      "name": "_analyze_regime_with_lstm",
+      "line_start": 25847,
+      "line_end": 25943,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25847 --end 25943"
+    },
+    {
+      "name": "_extract_lstm_regime_features",
+      "line_start": 25945,
+      "line_end": 26005,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25945 --end 26005"
+    },
+    {
+      "name": "_fallback_temporal_analysis",
+      "line_start": 26007,
+      "line_end": 26013,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26007 --end 26013"
+    },
+    {
+      "name": "_safe_float",
+      "line_start": 26015,
+      "line_end": 26031,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26015 --end 26031"
+    },
+    {
+      "name": "_heuristic_regime_from_features",
+      "line_start": 26033,
+      "line_end": 26060,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26033 --end 26060"
+    },
+    {
+      "name": "_get_default_lstm_features",
+      "line_start": 26062,
+      "line_end": 26070,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26062 --end 26070"
+    },
+    {
+      "name": "_calculate_crisis_indicators",
+      "line_start": 26072,
+      "line_end": 26099,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26072 --end 26099"
+    },
+    {
+      "name": "_analyze_trend_strength",
+      "line_start": 26101,
+      "line_end": 26144,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26101 --end 26144"
+    },
+    {
+      "name": "_classify_volatility_regime",
+      "line_start": 26146,
+      "line_end": 26175,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26146 --end 26175"
+    },
+    {
+      "name": "_analyze_liquidity_conditions",
+      "line_start": 26177,
+      "line_end": 26203,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26177 --end 26203"
+    },
+    {
+      "name": "_classify_sentiment_regime",
+      "line_start": 26205,
+      "line_end": 26244,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26205 --end 26244"
+    },
+    {
+      "name": "_analyze_cross_market_regime",
+      "line_start": 26246,
+      "line_end": 26268,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26246 --end 26268"
+    },
+    {
+      "name": "_calculate_adaptive_trailing_stop",
+      "line_start": 26270,
+      "line_end": 26538,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26270 --end 26538"
+    },
+    {
+      "name": "_add_intelligent_trailing_stop",
+      "line_start": 26540,
+      "line_end": 26613,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26540 --end 26613"
+    },
+    {
+      "name": "check_multi_timeframe_confidence",
+      "line_start": 26615,
+      "line_end": 26696,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26615 --end 26696"
+    },
+    {
+      "name": "summarize_tf_state",
+      "line_start": 26698,
+      "line_end": 26787,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26698 --end 26787"
+    },
+    {
+      "name": "classify_trade_opportunity",
+      "line_start": 26789,
+      "line_end": 26893,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26789 --end 26893"
+    },
+    {
+      "name": "_get_latest_predictions",
+      "line_start": 26895,
+      "line_end": 26929,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26895 --end 26929"
+    },
+    {
+      "name": "get_tf_predictions_for_symbol",
+      "line_start": 26931,
+      "line_end": 27070,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26931 --end 27070"
+    },
+    {
+      "name": "detect_market_regime",
+      "line_start": 27072,
+      "line_end": 27148,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 27072 --end 27148"
+    },
+    {
+      "name": "get_regime_for_all_timeframes",
+      "line_start": 27150,
+      "line_end": 27163,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 27150 --end 27163"
+    },
+    {
+      "name": "analyze_liquidation_zones",
+      "line_start": 27165,
+      "line_end": 27267,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 27165 --end 27267"
+    },
+    {
+      "name": "get_support_resistance_levels",
+      "line_start": 27269,
+      "line_end": 27366,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 27269 --end 27366"
+    },
+    {
+      "name": "calculate_initial_hedge_sizes",
+      "line_start": 27368,
+      "line_end": 27512,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 27368 --end 27512"
+    },
+    {
+      "name": "should_generate_signal",
+      "line_start": 27514,
+      "line_end": 27737,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 27514 --end 27737"
+    },
+    {
+      "name": "calculate_dynamic_thresholds",
+      "line_start": 27739,
+      "line_end": 27865,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 27739 --end 27865"
+    },
+    {
+      "name": "get_liquidation_distance",
+      "line_start": 27867,
+      "line_end": 27921,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 27867 --end 27921"
+    },
+    {
+      "name": "manage_trailing_stops",
+      "line_start": 27923,
+      "line_end": 27984,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 27923 --end 27984"
+    },
+    {
+      "name": "check_stop_loss",
+      "line_start": 27986,
+      "line_end": 28178,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 27986 --end 28178"
+    },
+    {
+      "name": "_evaluate_microstructure_quick_profit",
+      "line_start": 28180,
+      "line_end": 28338,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 28180 --end 28338"
+    },
+    {
+      "name": "_evaluate_portfolio_rebalance",
+      "line_start": 28340,
+      "line_end": 28454,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 28340 --end 28454"
+    },
+    {
+      "name": "_is_healthy_swing_not_reversal",
+      "line_start": 28456,
+      "line_end": 28533,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 28456 --end 28533"
+    },
+    {
+      "name": "_evaluate_exit_and_hedge",
+      "line_start": 28535,
+      "line_end": 28825,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 28535 --end 28825"
+    },
+    {
+      "name": "enhance_masa_analysis",
+      "line_start": 28827,
+      "line_end": 28899,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 28827 --end 28899"
+    },
+    {
+      "name": "should_use_ultra_fast_signals",
+      "line_start": 28901,
+      "line_end": 28921,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 28901 --end 28921"
+    },
+    {
+      "name": "generate_ultra_fast_signal",
+      "line_start": 28923,
+      "line_end": 29141,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 28923 --end 29141"
+    },
+    {
+      "name": "check_multi_tf_confirmation",
+      "line_start": 29143,
+      "line_end": 29222,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 29143 --end 29222"
+    },
+    {
+      "name": "calculate_enhanced_position_size",
+      "line_start": 29224,
+      "line_end": 29403,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 29224 --end 29403"
+    },
+    {
+      "name": "should_open_position",
+      "line_start": 29405,
+      "line_end": 30754,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 29405 --end 30754"
+    },
+    {
+      "name": "warm_gpu_memory",
+      "line_start": 30756,
+      "line_end": 30789,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 30756 --end 30789"
+    },
+    {
+      "name": "create_env",
+      "line_start": 30791,
+      "line_end": 30865,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 30791 --end 30865"
+    },
+    {
+      "name": "create_vec_env",
+      "line_start": 30867,
+      "line_end": 30889,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 30867 --end 30889"
+    },
+    {
+      "name": "_create_dummy_vec_env",
+      "line_start": 30891,
+      "line_end": 30945,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 30891 --end 30945"
+    },
+    {
+      "name": "_create_async_vec_env",
+      "line_start": 30947,
+      "line_end": 31025,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 30947 --end 31025"
+    },
+    {
+      "name": "_create_subproc_vec_env",
+      "line_start": 31027,
+      "line_end": 31089,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 31027 --end 31089"
+    },
+    {
+      "name": "_create_gpu_batched_vec_env",
+      "line_start": 31091,
+      "line_end": 31118,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 31091 --end 31118"
+    },
+    {
+      "name": "setup_models",
+      "line_start": 31120,
+      "line_end": 31692,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 31120 --end 31692"
+    },
+    {
+      "name": "_check_and_fix_ppo_collapse",
+      "line_start": 31694,
+      "line_end": 31806,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 31694 --end 31806"
+    },
+    {
+      "name": "_periodic_collapse_check",
+      "line_start": 31808,
+      "line_end": 32065,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 31808 --end 32065"
+    },
+    {
+      "name": "_log_startup_config",
+      "line_start": 32067,
+      "line_end": 32103,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 32067 --end 32103"
+    },
+    {
+      "name": "_init_env_index_map",
+      "line_start": 32105,
+      "line_end": 32185,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 32105 --end 32185"
+    },
+    {
+      "name": "train",
+      "line_start": 32187,
+      "line_end": 33204,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 32187 --end 33204"
+    },
+    {
+      "name": "_publish_rl_metrics_to_redis",
+      "line_start": 33210,
+      "line_end": 33323,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 33210 --end 33323"
+    },
+    {
+      "name": "enforce_hedge_positions",
+      "line_start": 33329,
+      "line_end": 33447,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 33329 --end 33447"
+    },
+    {
+      "name": "get_all_symbol_hedge_status",
+      "line_start": 33449,
+      "line_end": 33558,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 33449 --end 33558"
+    },
+    {
+      "name": "generate_hedge_signals",
+      "line_start": 33560,
+      "line_end": 33594,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 33560 --end 33594"
+    },
+    {
+      "name": "_calculate_training_level",
+      "line_start": 33596,
+      "line_end": 33619,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 33596 --end 33619"
+    },
+    {
+      "name": "_estimate_market_volatility",
+      "line_start": 33621,
+      "line_end": 33645,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 33621 --end 33645"
+    },
+    {
+      "name": "_calculate_optimal_position_size",
+      "line_start": 33647,
+      "line_end": 33732,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 33647 --end 33732"
+    },
+    {
+      "name": "_calculate_risk_score",
+      "line_start": 33734,
+      "line_end": 33747,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 33734 --end 33747"
+    },
+    {
+      "name": "_calculate_trade_urgency",
+      "line_start": 33749,
+      "line_end": 33761,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 33749 --end 33761"
+    },
+    {
+      "name": "_estimate_hold_time",
+      "line_start": 33763,
+      "line_end": 33787,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 33763 --end 33787"
+    },
+    {
+      "name": "_generate_trade_reasoning",
+      "line_start": 33789,
+      "line_end": 33847,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 33789 --end 33847"
+    },
+    {
+      "name": "_get_real_time_market_analysis",
+      "line_start": 33849,
+      "line_end": 33890,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 33849 --end 33890"
+    },
+    {
+      "name": "_get_coinank_insights",
+      "line_start": 33892,
+      "line_end": 33990,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 33892 --end 33990"
+    },
+    {
+      "name": "_get_tokenmetrics_insights",
+      "line_start": 33992,
+      "line_end": 33995,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 33992 --end 33995"
+    },
+    {
+      "name": "_get_technical_insights",
+      "line_start": 33997,
+      "line_end": 34042,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 33997 --end 34042"
+    },
+    {
+      "name": "_get_volume_insights",
+      "line_start": 34044,
+      "line_end": 34081,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34044 --end 34081"
+    },
+    {
+      "name": "_get_market_structure_insights",
+      "line_start": 34083,
+      "line_end": 34118,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34083 --end 34118"
+    },
+    {
+      "name": "_get_enhanced_market_analysis",
+      "line_start": 34120,
+      "line_end": 34155,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34120 --end 34155"
+    },
+    {
+      "name": "_get_coinank_analysis",
+      "line_start": 34157,
+      "line_end": 34214,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34157 --end 34214"
+    },
+    {
+      "name": "_get_tokenmetrics_analysis",
+      "line_start": 34216,
+      "line_end": 34219,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34216 --end 34219"
+    },
+    {
+      "name": "_get_technical_analysis",
+      "line_start": 34221,
+      "line_end": 34255,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34221 --end 34255"
+    },
+    {
+      "name": "_get_volume_analysis",
+      "line_start": 34257,
+      "line_end": 34274,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34257 --end 34274"
+    },
+    {
+      "name": "_analyze_comprehensive_market_data",
+      "line_start": 34276,
+      "line_end": 34311,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34276 --end 34311"
+    },
+    {
+      "name": "_extract_coinank_insights",
+      "line_start": 34313,
+      "line_end": 34378,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34313 --end 34378"
+    },
+    {
+      "name": "_extract_tokenmetrics_insights",
+      "line_start": 34380,
+      "line_end": 34383,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34380 --end 34383"
+    },
+    {
+      "name": "_extract_technical_insights",
+      "line_start": 34385,
+      "line_end": 34424,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34385 --end 34424"
+    },
+    {
+      "name": "_extract_market_structure_insights",
+      "line_start": 34426,
+      "line_end": 34457,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34426 --end 34457"
+    },
+    {
+      "name": "_analyze_feature_importance",
+      "line_start": 34459,
+      "line_end": 34519,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34459 --end 34519"
+    },
+    {
+      "name": "_calculate_optimal_leverage",
+      "line_start": 34521,
+      "line_end": 34600,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34521 --end 34600"
+    },
+    {
+      "name": "_get_fastlane_protective_action",
+      "line_start": 34602,
+      "line_end": 34645,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34602 --end 34645"
+    },
+    {
+      "name": "_build_fastlane_signal_payload",
+      "line_start": 34647,
+      "line_end": 34745,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34647 --end 34745"
+    },
+    {
+      "name": "attach_signal_publisher",
+      "line_start": 34747,
+      "line_end": 34795,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34747 --end 34795"
+    },
+    {
+      "name": "_aggregate_signals_by_symbol",
+      "line_start": 34802,
+      "line_end": 34854,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34802 --end 34854"
+    },
+    {
+      "name": "_deconflict_signals",
+      "line_start": 34856,
+      "line_end": 34922,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34856 --end 34922"
+    },
+    {
+      "name": "_check_position_and_adjust_action",
+      "line_start": 34924,
+      "line_end": 35014,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 34924 --end 35014"
+    },
+    {
+      "name": "_aggregate_signals_by_symbol_from_payloads",
+      "line_start": 35025,
+      "line_end": 35042,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 35025 --end 35042"
+    },
+    {
+      "name": "_emit_tf_conflict_signals",
+      "line_start": 35044,
+      "line_end": 35264,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 35044 --end 35264"
+    },
+    {
+      "name": "_deconflict_signals_from_grouped",
+      "line_start": 35266,
+      "line_end": 35968,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 35266 --end 35968"
+    },
+    {
+      "name": "_inject_mtf_dca_signals",
+      "line_start": 35970,
+      "line_end": 36027,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 35970 --end 36027"
+    },
+    {
+      "name": "_apply_direction_stability_gate",
+      "line_start": 36029,
+      "line_end": 36096,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 36029 --end 36096"
+    },
+    {
+      "name": "_apply_direction_alignment_gate",
+      "line_start": 36098,
+      "line_end": 36171,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 36098 --end 36171"
+    },
+    {
+      "name": "_apply_proactive_microstructure",
+      "line_start": 36173,
+      "line_end": 36821,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 36173 --end 36821"
+    },
+    {
+      "name": "_apply_aggregation",
+      "line_start": 36823,
+      "line_end": 37117,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 36823 --end 37117"
+    },
+    {
+      "name": "_check_position_and_adjust_action_for_payload",
+      "line_start": 37119,
+      "line_end": 37751,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 37119 --end 37751"
+    },
+    {
+      "name": "_parse_redis_price",
+      "line_start": 37754,
+      "line_end": 37788,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 37754 --end 37788"
+    },
+    {
+      "name": "_record_prediction_for_accuracy",
+      "line_start": 37790,
+      "line_end": 37819,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 37790 --end 37819"
+    },
+    {
+      "name": "_evaluate_prediction_accuracy",
+      "line_start": 37821,
+      "line_end": 37922,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 37821 --end 37922"
+    },
+    {
+      "name": "_compute_dynamic_churn_cooldown",
+      "line_start": 37924,
+      "line_end": 37984,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 37924 --end 37984"
+    },
+    {
+      "name": "_publish_buffered_signals",
+      "line_start": 37986,
+      "line_end": 40181,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 37986 --end 40181"
+    },
+    {
+      "name": "_is_feature_metadata_key",
+      "line_start": 40192,
+      "line_end": 40222,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 40192 --end 40222"
+    },
+    {
+      "name": "_should_exclude_feature",
+      "line_start": 40224,
+      "line_end": 40238,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 40224 --end 40238"
+    },
+    {
+      "name": "_get_or_build_feature_key_order",
+      "line_start": 40240,
+      "line_end": 40292,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 40240 --end 40292"
+    },
+    {
+      "name": "_normalize_feature_vector_robust",
+      "line_start": 40294,
+      "line_end": 40311,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 40294 --end 40311"
+    },
+    {
+      "name": "_preprocess_features_gpu",
+      "line_start": 40313,
+      "line_end": 40482,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 40313 --end 40482"
+    },
+    {
+      "name": "_calculate_confidence_gpu",
+      "line_start": 40484,
+      "line_end": 40505,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 40484 --end 40505"
+    },
+    {
+      "name": "_extract_ppo_logits_1d",
+      "line_start": 40507,
+      "line_end": 40533,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 40507 --end 40533"
+    },
+    {
+      "name": "_sample_ppo_actions",
+      "line_start": 40535,
+      "line_end": 40560,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 40535 --end 40560"
+    },
+    {
+      "name": "_should_allow_predictions_during_training",
+      "line_start": 40565,
+      "line_end": 40579,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 40565 --end 40579"
+    },
+    {
+      "name": "_is_training_step_in_progress",
+      "line_start": 40581,
+      "line_end": 40587,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 40581 --end 40587"
+    },
+    {
+      "name": "_ensure_inference_policy_snapshot",
+      "line_start": 40589,
+      "line_end": 40681,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 40589 --end 40681"
+    },
+    {
+      "name": "_refresh_inference_policy_snapshot",
+      "line_start": 40683,
+      "line_end": 40757,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 40683 --end 40757"
+    },
+    {
+      "name": "_get_policy_for_inference",
+      "line_start": 40759,
+      "line_end": 40766,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 40759 --end 40766"
+    },
+    {
+      "name": "_make_batch_predictions_gpu",
+      "line_start": 40768,
+      "line_end": 43797,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 40768 --end 43797"
+    },
+    {
+      "name": "_log_decision_record",
+      "line_start": 43804,
+      "line_end": 43962,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 43804 --end 43962"
+    },
+    {
+      "name": "_emit_decision_coverage_sweep",
+      "line_start": 43964,
+      "line_end": 44084,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 43964 --end 44084"
+    },
+    {
+      "name": "_publish_decision",
+      "line_start": 44087,
+      "line_end": 44829,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 44087 --end 44829"
+    },
+    {
+      "name": "_publish_batch_predictions",
+      "line_start": 44831,
+      "line_end": 44904,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 44831 --end 44904"
+    },
+    {
+      "name": "_publish_decisions_batch",
+      "line_start": 44906,
+      "line_end": 44981,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 44906 --end 44981"
+    },
+    {
+      "name": "_publish_decisions_batch_v2",
+      "line_start": 44983,
+      "line_end": 45138,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 44983 --end 45138"
+    },
+    {
+      "name": "_get_current_position",
+      "line_start": 45140,
+      "line_end": 45507,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 45140 --end 45507"
+    },
+    {
+      "name": "_empty_position_dict",
+      "line_start": 45509,
+      "line_end": 45527,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 45509 --end 45527"
+    },
+    {
+      "name": "_calc_leverage_cap",
+      "line_start": 45533,
+      "line_end": 45579,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 45533 --end 45579"
+    },
+    {
+      "name": "_monitor_leverage_caps",
+      "line_start": 45581,
+      "line_end": 45646,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 45581 --end 45646"
+    },
+    {
+      "name": "_run_leverage_monitor_sync",
+      "line_start": 45648,
+      "line_end": 45659,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 45648 --end 45659"
+    },
+    {
+      "name": "_consume_execution_event_for_audit",
+      "line_start": 45665,
+      "line_end": 45681,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 45665 --end 45681"
+    },
+    {
+      "name": "_consume_execution_feedback_async",
+      "line_start": 45683,
+      "line_end": 45928,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 45683 --end 45928"
+    },
+    {
+      "name": "_run_execution_feedback_consumer_sync",
+      "line_start": 45930,
+      "line_end": 45941,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 45930 --end 45941"
+    },
+    {
+      "name": "_start_event_driven_listener",
+      "line_start": 45948,
+      "line_end": 45966,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 45948 --end 45966"
+    },
+    {
+      "name": "_run_event_driven_listener_sync",
+      "line_start": 45968,
+      "line_end": 46038,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 45968 --end 46038"
+    },
+    {
+      "name": "_trigger_single_prediction",
+      "line_start": 46040,
+      "line_end": 46092,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 46040 --end 46092"
+    },
+    {
+      "name": "_stop_event_driven_listener",
+      "line_start": 46094,
+      "line_end": 46097,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 46094 --end 46097"
+    },
+    {
+      "name": "_resolve_target_account",
+      "line_start": 46099,
+      "line_end": 46116,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 46099 --end 46116"
+    },
+    {
+      "name": "_sanitize_tensor",
+      "line_start": 46118,
+      "line_end": 46123,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 46118 --end 46123"
+    },
+    {
+      "name": "_repair_model_nonfinite",
+      "line_start": 46125,
+      "line_end": 46146,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 46125 --end 46146"
+    },
+    {
+      "name": "_masa_safe_forward",
+      "line_start": 46148,
+      "line_end": 46250,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 46148 --end 46250"
+    },
+    {
+      "name": "_get_portfolio_state",
+      "line_start": 46252,
+      "line_end": 47002,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 46252 --end 47002"
+    },
+    {
+      "name": "_fetch_equity_snapshot",
+      "line_start": 47004,
+      "line_end": 47208,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 47004 --end 47208"
+    },
+    {
+      "name": "_get_realtime_price",
+      "line_start": 47210,
+      "line_end": 47328,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 47210 --end 47328"
+    },
+    {
+      "name": "_calculate_position_pnl",
+      "line_start": 47330,
+      "line_end": 47377,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 47330 --end 47377"
+    },
+    {
+      "name": "_find_weakest_position_to_close",
+      "line_start": 47379,
+      "line_end": 47547,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 47379 --end 47547"
+    },
+    {
+      "name": "_generate_contextual_action",
+      "line_start": 47549,
+      "line_end": 47976,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 47549 --end 47976"
+    },
+    {
+      "name": "_publish_decisions_with_reasoning",
+      "line_start": 47978,
+      "line_end": 48162,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 47978 --end 48162"
+    },
+    {
+      "name": "_pre_warm_gpu",
+      "line_start": 48167,
+      "line_end": 48215,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 48167 --end 48215"
+    },
+    {
+      "name": "_get_gpu_utilization",
+      "line_start": 48218,
+      "line_end": 48226,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 48218 --end 48226"
+    },
+    {
+      "name": "_monitor_cuda_memory",
+      "line_start": 48228,
+      "line_end": 48318,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 48228 --end 48318"
+    },
+    {
+      "name": "_cleanup_cuda_memory",
+      "line_start": 48320,
+      "line_end": 48328,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 48320 --end 48328"
+    },
+    {
+      "name": "_check_gpu_health",
+      "line_start": 48330,
+      "line_end": 48344,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 48330 --end 48344"
+    },
+    {
+      "name": "_audit_post_training_signals",
+      "line_start": 48346,
+      "line_end": 48439,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 48346 --end 48439"
+    },
+    {
+      "name": "_create_training_callback",
+      "line_start": 48441,
+      "line_end": 48785,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 48441 --end 48785"
+    },
+    {
+      "name": "load_latest_models",
+      "line_start": 48787,
+      "line_end": 48859,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 48787 --end 48859"
+    },
+    {
+      "name": "load_models",
+      "line_start": 48861,
+      "line_end": 49282,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 48861 --end 49282"
+    },
+    {
+      "name": "models_loaded",
+      "line_start": 49284,
+      "line_end": 49291,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 49284 --end 49291"
+    },
+    {
+      "name": "cleanup_prediction_resources",
+      "line_start": 49293,
+      "line_end": 49307,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 49293 --end 49307"
+    },
+    {
+      "name": "__getstate__",
+      "line_start": 49309,
+      "line_end": 49328,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 49309 --end 49328"
+    },
+    {
+      "name": "__setstate__",
+      "line_start": 49330,
+      "line_end": 49344,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 49330 --end 49344"
+    },
+    {
+      "name": "save_models",
+      "line_start": 49346,
+      "line_end": 49359,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 49346 --end 49359"
+    },
+    {
+      "name": "_pickle_probe",
+      "line_start": 49361,
+      "line_end": 49401,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 49361 --end 49401"
+    },
+    {
+      "name": "_sb3_save_sanitize",
+      "line_start": 49404,
+      "line_end": 49496,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 49404 --end 49496"
+    },
+    {
+      "name": "_checkpoint_corrupt_dir",
+      "line_start": 49498,
+      "line_end": 49501,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 49498 --end 49501"
+    },
+    {
+      "name": "_quarantine_checkpoint",
+      "line_start": 49503,
+      "line_end": 49513,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 49503 --end 49513"
+    },
+    {
+      "name": "_is_checkpoint_valid",
+      "line_start": 49515,
+      "line_end": 49537,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 49515 --end 49537"
+    },
+    {
+      "name": "_checkpoint_lock",
+      "line_start": 49540,
+      "line_end": 49555,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 49540 --end 49555"
+    },
+    {
+      "name": "_fsync_file",
+      "line_start": 49557,
+      "line_end": 49562,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 49557 --end 49562"
+    },
+    {
+      "name": "_atomic_replace",
+      "line_start": 49564,
+      "line_end": 49575,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 49564 --end 49575"
+    },
+    {
+      "name": "_atomic_write_json",
+      "line_start": 49577,
+      "line_end": 49583,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 49577 --end 49583"
+    },
+    {
+      "name": "save_training_checkpoint",
+      "line_start": 49585,
+      "line_end": 49963,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 49585 --end 49963"
+    },
+    {
+      "name": "load_latest_checkpoint",
+      "line_start": 49967,
+      "line_end": 50113,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 49967 --end 50113"
+    },
+    {
+      "name": "_require_checkpoint_live",
+      "line_start": 50115,
+      "line_end": 50122,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 50115 --end 50122"
+    },
+    {
+      "name": "_emit_trainer_heartbeat",
+      "line_start": 50124,
+      "line_end": 50201,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 50124 --end 50201"
+    },
+    {
+      "name": "_cleanup_old_checkpoints",
+      "line_start": 50203,
+      "line_end": 50242,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 50203 --end 50242"
+    },
+    {
+      "name": "run_hybrid_training_with_predictions",
+      "line_start": 50244,
+      "line_end": 51617,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 50244 --end 51617"
+    },
+    {
+      "name": "run_realtime_predictions",
+      "line_start": 51619,
+      "line_end": 51725,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 51619 --end 51725"
+    },
+    {
+      "name": "_get_feature_age_snapshot",
+      "line_start": 51727,
+      "line_end": 51822,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 51727 --end 51822"
+    },
+    {
+      "name": "_update_reversal_override",
+      "line_start": 51824,
+      "line_end": 52010,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 51824 --end 52010"
+    },
+    {
+      "name": "_generate_realtime_predictions",
+      "line_start": 52012,
+      "line_end": 54085,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 52012 --end 54085"
+    },
+    {
+      "name": "_convert_features_to_array",
+      "line_start": 54087,
+      "line_end": 54206,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 54087 --end 54206"
+    },
+    {
+      "name": "_make_prediction",
+      "line_start": 54208,
+      "line_end": 54250,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 54208 --end 54250"
+    },
+    {
+      "name": "_initialize_fresh_masa",
+      "line_start": 54252,
+      "line_end": 54294,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 54252 --end 54294"
+    },
+    {
+      "name": "_make_ppo_prediction",
+      "line_start": 54296,
+      "line_end": 56811,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 54296 --end 56811"
+    },
+    {
+      "name": "_make_rule_based_prediction",
+      "line_start": 56813,
+      "line_end": 56925,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 56813 --end 56925"
+    },
+    {
+      "name": "_generate_intelligent_reasoning",
+      "line_start": 56927,
+      "line_end": 56939,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 56927 --end 56939"
+    },
+    {
+      "name": "_portfolio_sync_worker",
+      "line_start": 56941,
+      "line_end": 56956,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 56941 --end 56956"
+    },
+    {
+      "name": "_fetch_portfolio_snapshot_once",
+      "line_start": 56958,
+      "line_end": 57013,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 56958 --end 57013"
+    },
+    {
+      "name": "get_portfolio_snapshot",
+      "line_start": 57015,
+      "line_end": 57032,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 57015 --end 57032"
+    },
+    {
+      "name": "worker_timeout_handler",
+      "line_start": 409,
+      "line_end": 410,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 409 --end 410"
+    },
+    {
+      "name": "wrapper",
+      "line_start": 1237,
+      "line_end": 1270,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1237 --end 1270"
+    },
+    {
+      "name": "_safe_float",
+      "line_start": 2926,
+      "line_end": 2930,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 2926 --end 2930"
+    },
+    {
+      "name": "_pos_unrealized_usd",
+      "line_start": 2932,
+      "line_end": 2941,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 2932 --end 2941"
+    },
+    {
+      "name": "_pos_has_pnl_signal",
+      "line_start": 2943,
+      "line_end": 2955,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 2943 --end 2955"
+    },
+    {
+      "name": "_pos_pnl_pct",
+      "line_start": 2957,
+      "line_end": 2969,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 2957 --end 2969"
+    },
+    {
+      "name": "_f",
+      "line_start": 4502,
+      "line_end": 4507,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 4502 --end 4507"
+    },
+    {
+      "name": "_infer_close_side",
+      "line_start": 8346,
+      "line_end": 8358,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 8346 --end 8358"
+    },
+    {
+      "name": "_load_leg_pnl_pct",
+      "line_start": 8360,
+      "line_end": 8374,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 8360 --end 8374"
+    },
+    {
+      "name": "_safe_tensor",
+      "line_start": 9798,
+      "line_end": 9808,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 9798 --end 9808"
+    },
+    {
+      "name": "get_adaptive_masa_weight",
+      "line_start": 9889,
+      "line_end": 9921,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 9889 --end 9921"
+    },
+    {
+      "name": "blended_forward",
+      "line_start": 9923,
+      "line_end": 9970,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 9923 --end 9970"
+    },
+    {
+      "name": "_heartbeat_worker",
+      "line_start": 13690,
+      "line_end": 13724,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 13690 --end 13724"
+    },
+    {
+      "name": "_meta_get",
+      "line_start": 17600,
+      "line_end": 17625,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 17600 --end 17625"
+    },
+    {
+      "name": "_has_value",
+      "line_start": 17627,
+      "line_end": 17634,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 17627 --end 17634"
+    },
+    {
+      "name": "_decode_hash",
+      "line_start": 18776,
+      "line_end": 18785,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 18776 --end 18785"
+    },
+    {
+      "name": "_f",
+      "line_start": 18787,
+      "line_end": 18794,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 18787 --end 18794"
+    },
+    {
+      "name": "_gate_log",
+      "line_start": 19472,
+      "line_end": 19484,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 19472 --end 19484"
+    },
+    {
+      "name": "_safe_tensor",
+      "line_start": 21042,
+      "line_end": 21051,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 21042 --end 21051"
+    },
+    {
+      "name": "_notional",
+      "line_start": 23519,
+      "line_end": 23528,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23519 --end 23528"
+    },
+    {
+      "name": "_decode_map",
+      "line_start": 24245,
+      "line_end": 24259,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24245 --end 24259"
+    },
+    {
+      "name": "_safe_float",
+      "line_start": 24261,
+      "line_end": 24268,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24261 --end 24268"
+    },
+    {
+      "name": "_regime_from_feats",
+      "line_start": 24361,
+      "line_end": 24372,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24361 --end 24372"
+    },
+    {
+      "name": "bias",
+      "line_start": 26716,
+      "line_end": 26725,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26716 --end 26725"
+    },
+    {
+      "name": "make_env",
+      "line_start": 30911,
+      "line_end": 30933,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 30911 --end 30933"
+    },
+    {
+      "name": "_corr_group",
+      "line_start": 38364,
+      "line_end": 38369,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 38364 --end 38369"
+    },
+    {
+      "name": "_parse_equity_payload",
+      "line_start": 38371,
+      "line_end": 38466,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 38371 --end 38466"
+    },
+    {
+      "name": "safe_blend",
+      "line_start": 40788,
+      "line_end": 40798,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 40788 --end 40798"
+    },
+    {
+      "name": "_run_forward",
+      "line_start": 46171,
+      "line_end": 46185,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 46171 --end 46185"
+    },
+    {
+      "name": "heartbeat_worker",
+      "line_start": 50368,
+      "line_end": 50466,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 50368 --end 50466"
+    },
+    {
+      "name": "prediction_worker",
+      "line_start": 50468,
+      "line_end": 51562,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 50468 --end 51562"
+    },
+    {
+      "name": "_safe_int",
+      "line_start": 51743,
+      "line_end": 51747,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 51743 --end 51747"
+    },
+    {
+      "name": "_safe_json_get",
+      "line_start": 51749,
+      "line_end": 51761,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 51749 --end 51761"
+    },
+    {
+      "name": "_ret_over",
+      "line_start": 51884,
+      "line_end": 51895,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 51884 --end 51895"
+    },
+    {
+      "name": "_fget",
+      "line_start": 51900,
+      "line_end": 51907,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 51900 --end 51907"
+    },
+    {
+      "name": "target",
+      "line_start": 1245,
+      "line_end": 1250,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1245 --end 1250"
+    },
+    {
+      "name": "_infer_close_side",
+      "line_start": 8949,
+      "line_end": 8961,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 8949 --end 8961"
+    },
+    {
+      "name": "_notional_usd",
+      "line_start": 14408,
+      "line_end": 14421,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 14408 --end 14421"
+    },
+    {
+      "name": "_to_str",
+      "line_start": 14912,
+      "line_end": 14913,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 14912 --end 14913"
+    },
+    {
+      "name": "_float",
+      "line_start": 14915,
+      "line_end": 14923,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 14915 --end 14923"
+    },
+    {
+      "name": "_notional_usd",
+      "line_start": 14925,
+      "line_end": 14935,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 14925 --end 14935"
+    },
+    {
+      "name": "_roe_pct",
+      "line_start": 14937,
+      "line_end": 14967,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 14937 --end 14967"
+    },
+    {
+      "name": "_entry_price",
+      "line_start": 14969,
+      "line_end": 14970,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 14969 --end 14970"
+    },
+    {
+      "name": "_ride_move_status",
+      "line_start": 14972,
+      "line_end": 15013,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 14972 --end 15013"
+    },
+    {
+      "name": "_ride_move_any",
+      "line_start": 15015,
+      "line_end": 15033,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 15015 --end 15033"
+    },
+    {
+      "name": "_profit_data_ok",
+      "line_start": 15040,
+      "line_end": 15108,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 15040 --end 15108"
+    },
+    {
+      "name": "_vol_ratio_from_market",
+      "line_start": 15114,
+      "line_end": 15147,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 15114 --end 15147"
+    },
+    {
+      "name": "_vol_ratio",
+      "line_start": 15149,
+      "line_end": 15176,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 15149 --end 15176"
+    },
+    {
+      "name": "_decode_pos_field",
+      "line_start": 15181,
+      "line_end": 15188,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 15181 --end 15188"
+    },
+    {
+      "name": "_notional_usd",
+      "line_start": 16236,
+      "line_end": 16249,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 16236 --end 16249"
+    },
+    {
+      "name": "run_provider",
+      "line_start": 21427,
+      "line_end": 21439,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 21427 --end 21439"
+    },
+    {
+      "name": "_infer_target_dir",
+      "line_start": 23986,
+      "line_end": 24017,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23986 --end 24017"
+    },
+    {
+      "name": "_compute_price_target_local",
+      "line_start": 24019,
+      "line_end": 24046,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24019 --end 24046"
+    },
+    {
+      "name": "_compute_consensus_tfs",
+      "line_start": 24048,
+      "line_end": 24064,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24048 --end 24064"
+    },
+    {
+      "name": "_send",
+      "line_start": 24208,
+      "line_end": 24214,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24208 --end 24214"
+    },
+    {
+      "name": "_rv",
+      "line_start": 24925,
+      "line_end": 24933,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 24925 --end 24933"
+    },
+    {
+      "name": "_safe_float",
+      "line_start": 25863,
+      "line_end": 25867,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 25863 --end 25867"
+    },
+    {
+      "name": "_f",
+      "line_start": 26294,
+      "line_end": 26299,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26294 --end 26299"
+    },
+    {
+      "name": "_get",
+      "line_start": 26916,
+      "line_end": 26920,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26916 --end 26920"
+    },
+    {
+      "name": "_init",
+      "line_start": 30912,
+      "line_end": 30932,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 30912 --end 30932"
+    },
+    {
+      "name": "make_cpu_env",
+      "line_start": 30980,
+      "line_end": 31005,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 30980 --end 31005"
+    },
+    {
+      "name": "_nearest_divisor_at_or_below",
+      "line_start": 31144,
+      "line_end": 31151,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 31144 --end 31151"
+    },
+    {
+      "name": "loop_watchdog",
+      "line_start": 32442,
+      "line_end": 32483,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 32442 --end 32483"
+    },
+    {
+      "name": "_action_name",
+      "line_start": 35403,
+      "line_end": 35404,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 35403 --end 35404"
+    },
+    {
+      "name": "_is_entry_like",
+      "line_start": 35406,
+      "line_end": 35412,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 35406 --end 35412"
+    },
+    {
+      "name": "_get_acct_equity_usd",
+      "line_start": 36275,
+      "line_end": 36297,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 36275 --end 36297"
+    },
+    {
+      "name": "_acct_util_and_avail",
+      "line_start": 40029,
+      "line_end": 40040,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 40029 --end 40040"
+    },
+    {
+      "name": "_best_liquidation_price",
+      "line_start": 45341,
+      "line_end": 45362,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 45341 --end 45362"
+    },
+    {
+      "name": "_normalize_ts",
+      "line_start": 47015,
+      "line_end": 47022,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 47015 --end 47022"
+    },
+    {
+      "name": "_parse_equity_payload",
+      "line_start": 47024,
+      "line_end": 47126,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 47024 --end 47126"
+    },
+    {
+      "name": "check_multitf_reversal_confirmation",
+      "line_start": 47618,
+      "line_end": 47644,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 47618 --end 47644"
+    },
+    {
+      "name": "__init__",
+      "line_start": 48444,
+      "line_end": 48483,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 48444 --end 48483"
+    },
+    {
+      "name": "_on_rollout_start",
+      "line_start": 48485,
+      "line_end": 48512,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 48485 --end 48512"
+    },
+    {
+      "name": "_on_rollout_end",
+      "line_start": 48514,
+      "line_end": 48633,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 48514 --end 48633"
+    },
+    {
+      "name": "_on_training_end",
+      "line_start": 48635,
+      "line_end": 48652,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 48635 --end 48652"
+    },
+    {
+      "name": "_on_step",
+      "line_start": 48654,
+      "line_end": 48783,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 48654 --end 48783"
+    },
+    {
+      "name": "_resolve_candidate_paths",
+      "line_start": 49992,
+      "line_end": 50021,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 49992 --end 50021"
+    },
+    {
+      "name": "_iter_metadata_files",
+      "line_start": 50023,
+      "line_end": 50033,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 50023 --end 50033"
+    },
+    {
+      "name": "_f",
+      "line_start": 3251,
+      "line_end": 3255,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 3251 --end 3255"
+    },
+    {
+      "name": "_parse_live_price",
+      "line_start": 3257,
+      "line_end": 3284,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 3257 --end 3284"
+    },
+    {
+      "name": "_f",
+      "line_start": 5353,
+      "line_end": 5357,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 5353 --end 5357"
+    },
+    {
+      "name": "_parse_live_price",
+      "line_start": 5359,
+      "line_end": 5384,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 5359 --end 5384"
+    },
+    {
+      "name": "_load_leg_pos",
+      "line_start": 5562,
+      "line_end": 5576,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 5562 --end 5576"
+    },
+    {
+      "name": "_pos_exists",
+      "line_start": 5578,
+      "line_end": 5590,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 5578 --end 5590"
+    },
+    {
+      "name": "_pos_notional_usd",
+      "line_start": 5592,
+      "line_end": 5609,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 5592 --end 5609"
+    },
+    {
+      "name": "_account_has_position",
+      "line_start": 8147,
+      "line_end": 8194,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 8147 --end 8194"
+    },
+    {
+      "name": "get_action_category",
+      "line_start": 17585,
+      "line_end": 17586,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 17585 --end 17586"
+    },
+    {
+      "name": "_fetch_account",
+      "line_start": 21681,
+      "line_end": 21682,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 21681 --end 21682"
+    },
+    {
+      "name": "safe_float",
+      "line_start": 23545,
+      "line_end": 23551,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 23545 --end 23551"
+    },
+    {
+      "name": "_hr",
+      "line_start": 27591,
+      "line_end": 27597,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 27591 --end 27597"
+    },
+    {
+      "name": "_act_name",
+      "line_start": 35120,
+      "line_end": 35121,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 35120 --end 35121"
+    },
+    {
+      "name": "_load_leg_pnl_pct",
+      "line_start": 37202,
+      "line_end": 37214,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 37202 --end 37214"
+    },
+    {
+      "name": "_ts_ms_from_obj",
+      "line_start": 38389,
+      "line_end": 38396,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 38389 --end 38396"
+    },
+    {
+      "name": "_send_ai_signal",
+      "line_start": 45123,
+      "line_end": 45130,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 45123 --end 45130"
+    },
+    {
+      "name": "_age_ms",
+      "line_start": 51914,
+      "line_end": 51930,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 51914 --end 51930"
+    },
+    {
+      "name": "make_env",
+      "line_start": 57139,
+      "line_end": 57140,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 57139 --end 57140"
+    },
+    {
+      "name": "_getf",
+      "line_start": 1992,
+      "line_end": 2001,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 1992 --end 2001"
+    },
+    {
+      "name": "_getb",
+      "line_start": 4524,
+      "line_end": 4527,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 4524 --end 4527"
+    },
+    {
+      "name": "_build_increase_position_snapshot",
+      "line_start": 5206,
+      "line_end": 5264,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 5206 --end 5264"
+    },
+    {
+      "name": "_uf_get",
+      "line_start": 7095,
+      "line_end": 7102,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 7095 --end 7102"
+    },
+    {
+      "name": "_load_eq",
+      "line_start": 29617,
+      "line_end": 29628,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 29617 --end 29628"
+    },
+    {
+      "name": "_stat",
+      "line_start": 43589,
+      "line_end": 43600,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 43589 --end 43600"
+    },
+    {
+      "name": "_load_eq",
+      "line_start": 46289,
+      "line_end": 46300,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 46289 --end 46300"
+    },
+    {
+      "name": "_load_eq",
+      "line_start": 46608,
+      "line_end": 46619,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 46608 --end 46619"
+    },
+    {
+      "name": "create_env_target",
+      "line_start": 49080,
+      "line_end": 49085,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 49080 --end 49085"
+    },
+    {
+      "name": "_has_leg",
+      "line_start": 2265,
+      "line_end": 2276,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 2265 --end 2276"
+    },
+    {
+      "name": "_get",
+      "line_start": 26965,
+      "line_end": 26971,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 26965 --end 26971"
+    },
+    {
+      "name": "_parse_live_price",
+      "line_start": 44604,
+      "line_end": 44629,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 44604 --end 44629"
+    },
+    {
+      "name": "_norm_acct",
+      "line_start": 52403,
+      "line_end": 52409,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 52403 --end 52409"
+    },
+    {
+      "name": "_price_before",
+      "line_start": 22806,
+      "line_end": 22811,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 22806 --end 22811"
+    },
+    {
+      "name": "_ret_pct",
+      "line_start": 22819,
+      "line_end": 22822,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 22819 --end 22822"
+    },
+    {
+      "name": "_p_unrealized_usd",
+      "line_start": 16913,
+      "line_end": 16923,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 16913 --end 16923"
+    },
+    {
+      "name": "_p_roe_pct",
+      "line_start": 16925,
+      "line_end": 16932,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 16925 --end 16932"
+    },
+    {
+      "name": "_pos_ok",
+      "line_start": 7338,
+      "line_end": 7348,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 7338 --end 7348"
+    },
+    {
+      "name": "_roe",
+      "line_start": 51201,
+      "line_end": 51205,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 51201 --end 51205"
+    },
+    {
+      "name": "_calc_notional",
+      "line_start": 51210,
+      "line_end": 51228,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 51210 --end 51228"
+    },
+    {
+      "name": "_pos_from_raw",
+      "line_start": 51042,
+      "line_end": 51051,
+      "verification_command": "python3 tools/show_file_range.py --file \"/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py\" --start 51042 --end 51051"
+    }
+  ]
+}

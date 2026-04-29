@@ -1,0 +1,28 @@
+Wed Apr 29 15:59:47 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 5080        On  |   00000000:01:00.0  On |                  N/A |
+|  0%   46C    P1             57W /  360W |    2227MiB /  16303MiB |      2%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A          130305      G   /usr/lib/xorg/Xorg                      267MiB |
+|    0   N/A  N/A          130438      G   .../teamviewer/tv_bin/TeamViewer          4MiB |
+|    0   N/A  N/A          130496      G   /usr/bin/gnome-shell                     32MiB |
+|    0   N/A  N/A          131531      G   .../8191/usr/lib/firefox/firefox        171MiB |
+|    0   N/A  N/A          133412      G   /usr/share/cursor/cursor                 57MiB |
+|    0   N/A  N/A          135296      G   ...pareRendererForSitePerProcess         28MiB |
+|    0   N/A  N/A          137829      G   /usr/share/code/code                     98MiB |
+|    0   N/A  N/A          143125      C   python3                                1398MiB |
+|    0   N/A  N/A         2035530      G   /usr/bin/gnome-text-editor               14MiB |
++-----------------------------------------------------------------------------------------+

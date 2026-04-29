@@ -1,0 +1,61 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./legacy_reference/.env)",
+      "Read(./legacy_reference/.env.*)",
+      "Read(./v2/.env)",
+      "Read(./v2/.env.*)",
+      "Read(./**/secrets/**)",
+      "Read(./**/*secret*)",
+      "Edit(./legacy_reference/**)",
+      "Write(./legacy_reference/**)",
+      "Edit(../AI BOT/**)",
+      "Write(../AI BOT/**)",
+      "Bash(redis-cli DEL:*)",
+      "Bash(redis-cli XDEL:*)",
+      "Bash(redis-cli XTRIM:*)",
+      "Bash(redis-cli FLUSHALL:*)",
+      "Bash(redis-cli FLUSHDB:*)"
+    ],
+    "ask": [
+      "Bash(docker compose up:*)",
+      "Bash(docker compose down:*)",
+      "Bash(npm install:*)",
+      "Bash(pip install:*)",
+      "Bash(alembic upgrade:*)",
+      "Bash(pytest:*)",
+      "Bash(codex:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.claude/hooks/block_dangerous.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.claude/hooks/block_dangerous.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.claude/hooks/block_dangerous.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

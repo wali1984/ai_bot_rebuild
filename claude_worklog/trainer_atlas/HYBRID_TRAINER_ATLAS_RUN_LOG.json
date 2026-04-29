@@ -1,0 +1,72 @@
+{
+  "trainer": "/home/wali/Desktop/AI BOT REBUILD/legacy_reference/rl/hybrid_trainer.py",
+  "tool_runs": [
+    {
+      "tool": "split_hybrid_trainer.py",
+      "rc": 0,
+      "output": "Wrote 58 chunks\n"
+    },
+    {
+      "tool": "index_hybrid_trainer_ast.py",
+      "rc": 0,
+      "output": ""
+    },
+    {
+      "tool": "extract_trainer_imports.py",
+      "rc": 0,
+      "output": ""
+    },
+    {
+      "tool": "extract_trainer_functions.py",
+      "rc": 0,
+      "output": ""
+    },
+    {
+      "tool": "extract_trainer_classes.py",
+      "rc": 0,
+      "output": ""
+    },
+    {
+      "tool": "extract_trainer_redis_usage.py",
+      "rc": 0,
+      "output": ""
+    },
+    {
+      "tool": "extract_trainer_config_usage.py",
+      "rc": 0,
+      "output": ""
+    },
+    {
+      "tool": "extract_trainer_signal_paths.py",
+      "rc": 0,
+      "output": ""
+    },
+    {
+      "tool": "extract_trainer_reward_paths.py",
+      "rc": 0,
+      "output": ""
+    },
+    {
+      "tool": "extract_trainer_confidence_paths.py",
+      "rc": 0,
+      "output": ""
+    },
+    {
+      "tool": "extract_trainer_feature_paths.py",
+      "rc": 0,
+      "output": ""
+    },
+    {
+      "tool": "extract_trainer_checkpoint_paths.py",
+      "rc": 0,
+      "output": ""
+    },
+    {
+      "tool": "extract_trainer_entrypoints.py",
+      "rc": 0,
+      "output": ""
+    }
+  ],
+  "decision": "GO",
+  "reasons": []
+}
