@@ -1,0 +1,109 @@
+{
+  "dns": {
+    "api.binance.com": {
+      "host": "api.binance.com",
+      "ips": [
+        "3.168.103.185"
+      ],
+      "ok": true
+    },
+    "fapi.binance.com": {
+      "host": "fapi.binance.com",
+      "ips": [
+        "108.138.128.128",
+        "108.138.128.5",
+        "108.138.128.52",
+        "108.138.128.6"
+      ],
+      "ok": true
+    },
+    "fstream.binance.com": {
+      "host": "fstream.binance.com",
+      "ips": [
+        "13.158.101.51",
+        "18.180.190.136",
+        "35.75.97.116",
+        "35.76.60.0",
+        "54.238.246.58",
+        "54.248.191.15",
+        "54.249.106.5",
+        "54.92.30.136"
+      ],
+      "ok": true
+    },
+    "stream.binance.com": {
+      "host": "stream.binance.com",
+      "ips": [
+        "13.192.249.59",
+        "13.230.188.85",
+        "18.179.181.116",
+        "52.198.115.40",
+        "52.198.7.66",
+        "57.181.250.90"
+      ],
+      "ok": true
+    }
+  },
+  "public_ip": {
+    "body_prefix": "181.214.244.184",
+    "elapsed_ms": 707.88,
+    "error": null,
+    "ok": true,
+    "status": 200
+  },
+  "python": "/usr/bin/python3.12",
+  "rest": {
+    "futures_time": {
+      "body_prefix": "{\"serverTime\":1777521939325}",
+      "elapsed_ms": 1528.19,
+      "error": null,
+      "ok": true,
+      "status": 200
+    },
+    "spot_time": {
+      "body_prefix": "{\"serverTime\":1777521937803}",
+      "elapsed_ms": 1141.78,
+      "error": null,
+      "ok": true,
+      "status": 200
+    }
+  },
+  "summary": {
+    "futures_status": 200,
+    "public_ip": "181.214.244.184",
+    "rest_ok": true,
+    "spot_status": 200
+  },
+  "timestamp": "2026-04-30T04:05:33.502243+00:00",
+  "tls": {
+    "api.binance.com": {
+      "elapsed_ms": 691.97,
+      "host": "api.binance.com",
+      "ok": true,
+      "port": 443,
+      "tls_version": "TLSv1.3"
+    },
+    "fapi.binance.com": {
+      "elapsed_ms": 1031.29,
+      "host": "fapi.binance.com",
+      "ok": true,
+      "port": 443,
+      "tls_version": "TLSv1.3"
+    },
+    "fstream.binance.com_443": {
+      "elapsed_ms": 366.27,
+      "host": "fstream.binance.com",
+      "ok": true,
+      "port": 443,
+      "tls_version": "TLSv1.3"
+    },
+    "stream.binance.com_443": {
+      "elapsed_ms": 535.96,
+      "host": "stream.binance.com",
+      "ok": true,
+      "port": 443,
+      "tls_version": "TLSv1.2"
+    }
+  },
+  "version": "3.12.3 (main, Mar 23 2026, 19:04:32) [GCC 13.3.0]"
+}
