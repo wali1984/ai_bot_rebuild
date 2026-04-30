@@ -34,6 +34,20 @@ STREAMS = (
     "wma:trainer:predictions",
 )
 
+TRAINER_LOG_CANDIDATES = (
+    Path("/home/wali/Desktop/AI BOT/logs/hybrid_trainer.log"),
+    Path("/home/wali/Desktop/AI BOT/.logs/hybrid_trainer.log"),
+)
+
+FATAL_TRAINER_SIGNATURES = (
+    "Prediction worker stopped",
+    "Worker exiting",
+    "Broken pipe",
+    "Session failed",
+    "Traceback",
+    "Exception",
+)
+
 HEARTBEAT_KEYS = (
     "orchestrator:heartbeat_ms",
     "heartbeat:FeaturePipeline",
@@ -126,6 +140,158 @@ def _parse_json_maybe(s: str) -> Any:
         return json.loads(s)
     except Exception:
         return s
+
+
+def _parse_log_prefix_ts_ms(line: str) -> Optional[int]:
+    m = re.match(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})(?:,(\d{1,6}))?", line)
+    if not m:
+        return None
+    base = m.group(1)
+    frac = m.group(2) or "0"
+    frac = (frac + "000000")[:6]
+    try:
+        dt = datetime.strptime(base, "%Y-%m-%d %H:%M:%S")
+        dt = dt.replace(microsecond=int(frac), tzinfo=timezone.utc)
+        return int(dt.timestamp() * 1000)
+    except Exception:
+        return None
+
+
+def _ts_ms_to_iso(ts_ms: Optional[int]) -> Optional[str]:
+    if ts_ms is None:
+        return None
+    try:
+        return datetime.fromtimestamp(ts_ms / 1000.0, tz=timezone.utc).isoformat()
+    except Exception:
+        return None
+
+
+def _tail_lines(path: Path, max_lines: int = 3000) -> List[str]:
+    if not path.exists() or not path.is_file():
+        return []
+    try:
+        dq: deque[str] = deque(maxlen=max_lines)
+        with path.open("r", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                dq.append(line.rstrip("\n"))
+        return list(dq)
+    except Exception:
+        return []
+
+
+def stream_last_ts_ms(stream: str) -> Optional[int]:
+    ok, out = redis_cmd("XREVRANGE", stream, "+", "-", "COUNT", "1")
+    if not ok or not out:
+        return None
+    try:
+        rid = out.splitlines()[0].strip()
+        return int(rid.split("-")[0])
+    except Exception:
+        return None
+
+
+def trainer_process_alive() -> bool:
+    try:
+        p = subprocess.run(
+            ["pgrep", "-af", "rl.hybrid_trainer|hybrid_trainer.py|hybrid_trainer"],
+            capture_output=True,
+            text=True,
+            timeout=8,
+        )
+        if p.returncode != 0:
+            return False
+        text = (p.stdout or "")
+        return any("hybrid_trainer" in ln for ln in text.splitlines())
+    except Exception:
+        return False
+
+
+def parse_heartbeat_ts_ms(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s or "WRONGTYPE" in s.upper():
+        return None
+    if s.isdigit():
+        try:
+            n = int(s)
+            if n > 10_000_000_000:
+                return n
+            return n * 1000
+        except Exception:
+            pass
+    try:
+        parsed = json.loads(s)
+        return _extract_ts_ms_from_obj(parsed)
+    except Exception:
+        return None
+
+
+def trainer_heartbeat_fresh(hb: Dict[str, Any], now_ms: int, max_age_ms: int = 120_000) -> bool:
+    candidates: List[Optional[int]] = []
+    for k in ("heartbeat:trainer", "heartbeat:Trainer", "signals:trainer:heartbeat"):
+        v = (hb.get(k) or {}).get("value")
+        candidates.append(parse_heartbeat_ts_ms(v))
+    parsed = [x for x in candidates if x is not None]
+    if not parsed:
+        return False
+    last = max(parsed)
+    return (now_ms - last) <= max_age_ms
+
+
+def collect_trainer_log_liveness(now_ms: int) -> Dict[str, Any]:
+    last_prediction_entry_ts: Optional[int] = None
+    last_gpu_batch_ts: Optional[int] = None
+    last_deconflict_ts: Optional[int] = None
+    last_proposal_from_log_ts: Optional[int] = None
+    last_worker_started_ts: Optional[int] = None
+    last_worker_stopped_ts: Optional[int] = None
+    fatal_signature = "NONE"
+    fatal_signature_ts: Optional[int] = None
+
+    for log_path in TRAINER_LOG_CANDIDATES:
+        for ln in _tail_lines(log_path, max_lines=4000):
+            ts_ms = _parse_log_prefix_ts_ms(ln)
+            if ts_ms is None:
+                continue
+            upper = ln.upper()
+            if "_GENERATE_REALTIME_PREDICTIONS" in upper:
+                last_prediction_entry_ts = max(last_prediction_entry_ts or 0, ts_ms)
+            if "GPU_BATCH" in upper:
+                last_gpu_batch_ts = max(last_gpu_batch_ts or 0, ts_ms)
+            if "DECONFLICT" in upper:
+                last_deconflict_ts = max(last_deconflict_ts or 0, ts_ms)
+            if "PUBLISHED" in upper and "DECONFLICT" in upper:
+                last_proposal_from_log_ts = max(last_proposal_from_log_ts or 0, ts_ms)
+            if "PREDICTION WORKER STARTED" in upper:
+                last_worker_started_ts = max(last_worker_started_ts or 0, ts_ms)
+            if ("PREDICTION WORKER STOPPED" in upper) or ("WORKER EXITING" in upper):
+                last_worker_stopped_ts = max(last_worker_stopped_ts or 0, ts_ms)
+
+            for sig in FATAL_TRAINER_SIGNATURES:
+                if sig.upper() in upper:
+                    if fatal_signature_ts is None or ts_ms >= fatal_signature_ts:
+                        fatal_signature_ts = ts_ms
+                        fatal_signature = f"{sig} @ {log_path.name}"
+
+    prediction_worker_alive = True
+    if last_worker_stopped_ts is not None:
+        prediction_worker_alive = bool(
+            last_worker_started_ts is not None and last_worker_started_ts > last_worker_stopped_ts
+        )
+
+    if last_prediction_entry_ts is not None and (now_ms - last_prediction_entry_ts) > 900_000:
+        prediction_worker_alive = False
+
+    return {
+        "prediction_worker_alive": prediction_worker_alive,
+        "last_prediction_entry_ts_ms": last_prediction_entry_ts,
+        "last_gpu_batch_ts_ms": last_gpu_batch_ts,
+        "last_deconflict_ts_ms": last_deconflict_ts,
+        "last_proposal_from_log_ts_ms": last_proposal_from_log_ts,
+        "fatal_trainer_log_signature": fatal_signature,
+        "fatal_trainer_log_signature_ts_ms": fatal_signature_ts,
+    }
 
 
 def xrevrange_json(stream: str, count: int = 200) -> List[Dict[str, Any]]:
@@ -626,8 +792,41 @@ def run_dry_validation(output_dir: Path, packet_dir: Path) -> int:
     }
     checks["packet_schema_ok"] = all(k in sample for k in required_packet_fields)
     checks["redis_ping_ok"] = redis_cmd("PING")[0]
+
+    liveness_sample = {
+        "trainer_process_alive": True,
+        "trainer_heartbeat_fresh": True,
+        "prediction_worker_alive": True,
+        "last_prediction_entry_ts": now_utc().isoformat(),
+        "last_gpu_batch_ts": now_utc().isoformat(),
+        "last_deconflict_ts": now_utc().isoformat(),
+        "last_proposal_ts": now_utc().isoformat(),
+        "prediction_stream_growth_rate": 0.0,
+        "proposal_stream_growth_rate": 0.0,
+        "fatal_trainer_log_signature": "NONE",
+        "trainer_internal_liveness_status": "OK",
+    }
+    required_liveness_fields = [
+        "trainer_process_alive",
+        "trainer_heartbeat_fresh",
+        "prediction_worker_alive",
+        "last_prediction_entry_ts",
+        "last_gpu_batch_ts",
+        "last_deconflict_ts",
+        "last_proposal_ts",
+        "prediction_stream_growth_rate",
+        "proposal_stream_growth_rate",
+        "fatal_trainer_log_signature",
+        "trainer_internal_liveness_status",
+    ]
+    checks["trainer_internal_liveness_schema_ok"] = all(
+        k in liveness_sample for k in required_liveness_fields
+    )
     checks["validation_passed"] = bool(
-        checks["output_dir_exists"] and checks["packet_schema_ok"] and checks["redis_ping_ok"]
+        checks["output_dir_exists"]
+        and checks["packet_schema_ok"]
+        and checks["trainer_internal_liveness_schema_ok"]
+        and checks["redis_ping_ok"]
     )
 
     report_path = output_dir.parent / "continuous_monitoring_impl" / "VALIDATION_REPORT.md"
@@ -641,6 +840,7 @@ def run_dry_validation(output_dir: Path, packet_dir: Path) -> int:
         f"- service_mutation: {checks['service_mutation']}",
         f"- output_dir_exists: {checks['output_dir_exists']}",
         f"- packet_schema_ok: {checks['packet_schema_ok']}",
+        f"- trainer_internal_liveness_schema_ok: {checks['trainer_internal_liveness_schema_ok']}",
         f"- redis_ping_ok: {checks['redis_ping_ok']}",
         f"- validation_passed: {checks['validation_passed']}",
         "",
@@ -682,6 +882,11 @@ def main() -> int:
     tick = 0
     stop_requested = False
     mem_samples: deque[Tuple[int, float]] = deque(maxlen=2000)
+    prev_lengths: Dict[str, Optional[int]] = {
+        "wma:trainer:predictions": None,
+        "wma:proposals": None,
+    }
+    prev_growth_ts_ms: Optional[int] = None
 
     last_hourly_emit = 0.0
     last_daily_key: Optional[str] = None
@@ -733,11 +938,69 @@ def main() -> int:
         lengths = {s: xlen(s) for s in STREAMS}
         rec["stream_xlen"] = lengths
 
+        pred_growth_rate: Optional[float] = None
+        prop_growth_rate: Optional[float] = None
+        if prev_growth_ts_ms is not None:
+            delta_sec = max(1.0, (now_ms - prev_growth_ts_ms) / 1000.0)
+            cur_pred = lengths.get("wma:trainer:predictions")
+            cur_prop = lengths.get("wma:proposals")
+            prev_pred = prev_lengths.get("wma:trainer:predictions")
+            prev_prop = prev_lengths.get("wma:proposals")
+            if cur_pred is not None and prev_pred is not None:
+                pred_growth_rate = round(((cur_pred - prev_pred) / delta_sec) * 60.0, 6)
+            if cur_prop is not None and prev_prop is not None:
+                prop_growth_rate = round(((cur_prop - prev_prop) / delta_sec) * 60.0, 6)
+        prev_lengths["wma:trainer:predictions"] = lengths.get("wma:trainer:predictions")
+        prev_lengths["wma:proposals"] = lengths.get("wma:proposals")
+        prev_growth_ts_ms = now_ms
+
         hb = {}
         for k in HEARTBEAT_KEYS:
             ok, v = redis_cmd("GET", k)
             hb[k] = {"ok": ok, "value": _redact(v[:500] if v else "")}
         rec["heartbeats"] = hb
+
+        process_alive = trainer_process_alive()
+        heartbeat_fresh = trainer_heartbeat_fresh(hb, now_ms)
+        log_live = collect_trainer_log_liveness(now_ms)
+
+        last_proposal_stream_ts_ms = stream_last_ts_ms("wma:proposals")
+        last_proposal_ts_ms = max(
+            [x for x in [log_live.get("last_proposal_from_log_ts_ms"), last_proposal_stream_ts_ms] if x is not None],
+            default=None,
+        )
+
+        fatal_sig = str(log_live.get("fatal_trainer_log_signature") or "NONE")
+        pred_stalled = log_live.get("last_prediction_entry_ts_ms") is None or (
+            now_ms - int(log_live["last_prediction_entry_ts_ms"]) > 300_000
+        )
+        proposal_stalled = (last_proposal_ts_ms is None) or ((now_ms - int(last_proposal_ts_ms)) > 300_000)
+        zero_growth = (
+            (pred_growth_rate is not None and pred_growth_rate <= 0.0)
+            and (prop_growth_rate is not None and prop_growth_rate <= 0.0)
+        )
+
+        status = "OK"
+        if process_alive and heartbeat_fresh and (not log_live.get("prediction_worker_alive", True)):
+            status = "CRITICAL"
+        elif process_alive and heartbeat_fresh and (pred_stalled and proposal_stalled and zero_growth):
+            status = "CRITICAL"
+        elif process_alive and heartbeat_fresh and fatal_sig != "NONE":
+            status = "CRITICAL"
+        elif (not process_alive) or (not heartbeat_fresh) or pred_stalled or proposal_stalled:
+            status = "DEGRADED"
+
+        rec["trainer_process_alive"] = process_alive
+        rec["trainer_heartbeat_fresh"] = heartbeat_fresh
+        rec["prediction_worker_alive"] = bool(log_live.get("prediction_worker_alive", False))
+        rec["last_prediction_entry_ts"] = _ts_ms_to_iso(log_live.get("last_prediction_entry_ts_ms"))
+        rec["last_gpu_batch_ts"] = _ts_ms_to_iso(log_live.get("last_gpu_batch_ts_ms"))
+        rec["last_deconflict_ts"] = _ts_ms_to_iso(log_live.get("last_deconflict_ts_ms"))
+        rec["last_proposal_ts"] = _ts_ms_to_iso(last_proposal_ts_ms)
+        rec["prediction_stream_growth_rate"] = pred_growth_rate
+        rec["proposal_stream_growth_rate"] = prop_growth_rate
+        rec["fatal_trainer_log_signature"] = fatal_sig
+        rec["trainer_internal_liveness_status"] = status
 
         exec_rows = xrevrange_json("executed_signals", 400)
         prim_rows = xrevrange_json("signals:trading:primary", 100)
@@ -776,6 +1039,17 @@ def main() -> int:
             "redis_ping_ok": ok_ping,
             "memory_ratio_pct": ratio,
             "memory_threshold_class": threshold_band(ratio),
+            "trainer_process_alive": rec["trainer_process_alive"],
+            "trainer_heartbeat_fresh": rec["trainer_heartbeat_fresh"],
+            "prediction_worker_alive": rec["prediction_worker_alive"],
+            "last_prediction_entry_ts": rec["last_prediction_entry_ts"],
+            "last_gpu_batch_ts": rec["last_gpu_batch_ts"],
+            "last_deconflict_ts": rec["last_deconflict_ts"],
+            "last_proposal_ts": rec["last_proposal_ts"],
+            "prediction_stream_growth_rate": rec["prediction_stream_growth_rate"],
+            "proposal_stream_growth_rate": rec["proposal_stream_growth_rate"],
+            "fatal_trainer_log_signature": rec["fatal_trainer_log_signature"],
+            "trainer_internal_liveness_status": rec["trainer_internal_liveness_status"],
         }
         with trainer_metrics_path.open("a", encoding="utf-8") as tf:
             tf.write(json.dumps(_redact(trainer_metric), separators=(",", ":")) + "\n")
@@ -791,6 +1065,8 @@ def main() -> int:
             anomalies.append("missing_confidence")
         if rec["attribution_completeness"]["missing_lineage_tuple_execution_rows"] > 0:
             anomalies.append("execution_lineage_incomplete")
+        if rec["trainer_internal_liveness_status"] == "CRITICAL":
+            anomalies.append("TRAINER_INTERNAL_LIVENESS_CRITICAL")
 
         packet_metrics = {
             "ingestor_key_freshness": feature_freshness["status_counts"],
@@ -814,6 +1090,19 @@ def main() -> int:
             "memory_trend_6h": rec["redis_memory"].get("memory_trend_6h"),
             "memory_trend_24h": rec["redis_memory"].get("memory_trend_24h"),
             "threshold_class": rec["redis_memory"].get("threshold_class"),
+            "trainer_internal_liveness": {
+                "trainer_process_alive": rec["trainer_process_alive"],
+                "trainer_heartbeat_fresh": rec["trainer_heartbeat_fresh"],
+                "prediction_worker_alive": rec["prediction_worker_alive"],
+                "last_prediction_entry_ts": rec["last_prediction_entry_ts"],
+                "last_gpu_batch_ts": rec["last_gpu_batch_ts"],
+                "last_deconflict_ts": rec["last_deconflict_ts"],
+                "last_proposal_ts": rec["last_proposal_ts"],
+                "prediction_stream_growth_rate": rec["prediction_stream_growth_rate"],
+                "proposal_stream_growth_rate": rec["proposal_stream_growth_rate"],
+                "fatal_trainer_log_signature": rec["fatal_trainer_log_signature"],
+                "trainer_internal_liveness_status": rec["trainer_internal_liveness_status"],
+            },
         }
 
         common_payload = packet_common(

@@ -57,6 +57,22 @@ def read_json(path: Path) -> Dict[str, Any]:
         return {}
 
 
+def read_last_jsonl_obj(path: Path) -> Dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        last = ""
+        with path.open("r", encoding="utf-8", errors="replace") as fh:
+            for ln in fh:
+                if ln.strip():
+                    last = ln.strip()
+        if not last:
+            return {}
+        return json.loads(last)
+    except Exception:
+        return {}
+
+
 def parse_iso_ts(value: str) -> Optional[datetime]:
     if not value:
         return None
@@ -206,6 +222,19 @@ def packet_readiness(packet_root: Path) -> Dict[str, Any]:
         "execution_lineage_completeness_pct": "UNKNOWN",
     }
     mem_band = "UNKNOWN"
+    trainer_internal_liveness = {
+        "trainer_process_alive": "UNKNOWN",
+        "trainer_heartbeat_fresh": "UNKNOWN",
+        "prediction_worker_alive": "UNKNOWN",
+        "last_prediction_entry_ts": "UNKNOWN",
+        "last_gpu_batch_ts": "UNKNOWN",
+        "last_deconflict_ts": "UNKNOWN",
+        "last_proposal_ts": "UNKNOWN",
+        "prediction_stream_growth_rate": "UNKNOWN",
+        "proposal_stream_growth_rate": "UNKNOWN",
+        "fatal_trainer_log_signature": "UNKNOWN",
+        "trainer_internal_liveness_status": "UNKNOWN",
+    }
 
     metrics = (latest_hourly_payload or {}).get("metric_values") or {}
     if metrics:
@@ -224,6 +253,8 @@ def packet_readiness(packet_root: Path) -> Dict[str, Any]:
             "execution_lineage_complete_rate", "UNKNOWN"
         )
         mem_band = metrics.get("threshold_class", "UNKNOWN")
+        if isinstance(metrics.get("trainer_internal_liveness"), dict):
+            trainer_internal_liveness.update(metrics.get("trainer_internal_liveness") or {})
 
     alert_class = "NONE"
     alert_component = "UNKNOWN"
@@ -248,6 +279,7 @@ def packet_readiness(packet_root: Path) -> Dict[str, Any]:
         "feature_visibility_classification": feature_visibility,
         "attribution": attribution,
         "redis_memory_threshold_band": mem_band,
+        "trainer_internal_liveness": trainer_internal_liveness,
     }
 
 
@@ -444,6 +476,53 @@ def print_dashboard(root: Path, refresh_seconds: int, target_hours: float, min_h
     ollama = parse_ollama_status(ollama_path)
     feature_class = parse_feature_classification(gap_path)
     packet = packet_readiness(packet_root)
+    latest_snapshot = read_last_jsonl_obj(snap_path)
+    liveness = {
+        "trainer_process_alive": latest_snapshot.get(
+            "trainer_process_alive",
+            packet.get("trainer_internal_liveness", {}).get("trainer_process_alive", "UNKNOWN"),
+        ),
+        "trainer_heartbeat_fresh": latest_snapshot.get(
+            "trainer_heartbeat_fresh",
+            packet.get("trainer_internal_liveness", {}).get("trainer_heartbeat_fresh", "UNKNOWN"),
+        ),
+        "prediction_worker_alive": latest_snapshot.get(
+            "prediction_worker_alive",
+            packet.get("trainer_internal_liveness", {}).get("prediction_worker_alive", "UNKNOWN"),
+        ),
+        "last_prediction_entry_ts": latest_snapshot.get(
+            "last_prediction_entry_ts",
+            packet.get("trainer_internal_liveness", {}).get("last_prediction_entry_ts", "UNKNOWN"),
+        ),
+        "last_gpu_batch_ts": latest_snapshot.get(
+            "last_gpu_batch_ts",
+            packet.get("trainer_internal_liveness", {}).get("last_gpu_batch_ts", "UNKNOWN"),
+        ),
+        "last_deconflict_ts": latest_snapshot.get(
+            "last_deconflict_ts",
+            packet.get("trainer_internal_liveness", {}).get("last_deconflict_ts", "UNKNOWN"),
+        ),
+        "last_proposal_ts": latest_snapshot.get(
+            "last_proposal_ts",
+            packet.get("trainer_internal_liveness", {}).get("last_proposal_ts", "UNKNOWN"),
+        ),
+        "prediction_stream_growth_rate": latest_snapshot.get(
+            "prediction_stream_growth_rate",
+            packet.get("trainer_internal_liveness", {}).get("prediction_stream_growth_rate", "UNKNOWN"),
+        ),
+        "proposal_stream_growth_rate": latest_snapshot.get(
+            "proposal_stream_growth_rate",
+            packet.get("trainer_internal_liveness", {}).get("proposal_stream_growth_rate", "UNKNOWN"),
+        ),
+        "fatal_trainer_log_signature": latest_snapshot.get(
+            "fatal_trainer_log_signature",
+            packet.get("trainer_internal_liveness", {}).get("fatal_trainer_log_signature", "UNKNOWN"),
+        ),
+        "trainer_internal_liveness_status": latest_snapshot.get(
+            "trainer_internal_liveness_status",
+            packet.get("trainer_internal_liveness", {}).get("trainer_internal_liveness_status", "UNKNOWN"),
+        ),
+    }
 
     try:
         ram_avail_kib = int(mem.get("ram_avail_kib", "0"))
@@ -542,7 +621,21 @@ def print_dashboard(root: Path, refresh_seconds: int, target_hours: float, min_h
     print(f"redis memory threshold band: {packet['redis_memory_threshold_band']}")
     print()
 
-    print("[9] Recommendation")
+    print("[9] Trainer internal liveness")
+    print(f"trainer process alive: {liveness['trainer_process_alive']}")
+    print(f"trainer heartbeat fresh: {liveness['trainer_heartbeat_fresh']}")
+    print(f"prediction worker alive: {liveness['prediction_worker_alive']}")
+    print(f"last prediction timestamp: {liveness['last_prediction_entry_ts']}")
+    print(f"last GPU_BATCH timestamp: {liveness['last_gpu_batch_ts']}")
+    print(f"last DECONFLICT timestamp: {liveness['last_deconflict_ts']}")
+    print(f"last proposal timestamp: {liveness['last_proposal_ts']}")
+    print(f"prediction stream growth rate: {liveness['prediction_stream_growth_rate']}")
+    print(f"proposal stream growth rate: {liveness['proposal_stream_growth_rate']}")
+    print(f"fatal trainer log signature: {liveness['fatal_trainer_log_signature']}")
+    print(f"trainer internal liveness status: {liveness['trainer_internal_liveness_status']}")
+    print()
+
+    print("[10] Recommendation")
     print(f"status: {rec}")
     if rec == "CONTINUE_GOOD":
         print("Next action: Keep monitor running.")
@@ -565,6 +658,7 @@ def print_dashboard(root: Path, refresh_seconds: int, target_hours: float, min_h
         "hourly_ready": packet["hourly_ready"],
         "daily_ready": packet["daily_ready"],
         "alert_ready": packet["alert_ready"],
+        "trainer_internal_liveness_status": liveness["trainer_internal_liveness_status"],
     }
 
 
