@@ -1,0 +1,110 @@
+{
+  "dns": {
+    "api.binance.com": {
+      "host": "api.binance.com",
+      "ips": [
+        "3.168.103.185"
+      ],
+      "ok": true
+    },
+    "fapi.binance.com": {
+      "host": "fapi.binance.com",
+      "ips": [
+        "108.138.128.128",
+        "108.138.128.5",
+        "108.138.128.52",
+        "108.138.128.6"
+      ],
+      "ok": true
+    },
+    "fstream.binance.com": {
+      "host": "fstream.binance.com",
+      "ips": [
+        "13.159.81.86",
+        "13.193.11.251",
+        "13.193.238.40",
+        "176.34.50.8",
+        "52.193.59.179",
+        "52.196.190.28",
+        "54.178.79.90",
+        "57.182.77.106"
+      ],
+      "ok": true
+    },
+    "stream.binance.com": {
+      "host": "stream.binance.com",
+      "ips": [
+        "18.179.116.136",
+        "3.115.234.82",
+        "52.192.242.231",
+        "52.68.233.58",
+        "54.64.146.141",
+        "54.65.246.194",
+        "54.95.240.155"
+      ],
+      "ok": true
+    }
+  },
+  "public_ip": {
+    "body_prefix": "98.116.148.30",
+    "elapsed_ms": 49.1,
+    "error": null,
+    "ok": true,
+    "status": 200
+  },
+  "python": "/usr/bin/python3.12",
+  "rest": {
+    "futures_time": {
+      "body_prefix": "{\n  \"code\": 0,\n  \"msg\": \"Service unavailable from a restricted location according to 'b. Eligibility' in https://www.binance.com/en/terms. Please contact customer service if you believe you received this message in error.\"\n}",
+      "elapsed_ms": 39.13,
+      "error": "<HTTPError 451: ''>",
+      "ok": false,
+      "status": 451
+    },
+    "spot_time": {
+      "body_prefix": "{\n  \"code\": 0,\n  \"msg\": \"Service unavailable from a restricted location according to 'b. Eligibility' in https://www.binance.com/en/terms. Please contact customer service if you believe you received this message in error.\"\n}",
+      "elapsed_ms": 28.36,
+      "error": "<HTTPError 451: ''>",
+      "ok": false,
+      "status": 451
+    }
+  },
+  "summary": {
+    "futures_status": 451,
+    "public_ip": "98.116.148.30",
+    "rest_ok": false,
+    "spot_status": 451
+  },
+  "timestamp": "2026-04-30T03:40:31.764918+00:00",
+  "tls": {
+    "api.binance.com": {
+      "elapsed_ms": 29.71,
+      "host": "api.binance.com",
+      "ok": true,
+      "port": 443,
+      "tls_version": "TLSv1.3"
+    },
+    "fapi.binance.com": {
+      "elapsed_ms": 41.0,
+      "host": "fapi.binance.com",
+      "ok": true,
+      "port": 443,
+      "tls_version": "TLSv1.3"
+    },
+    "fstream.binance.com_443": {
+      "elapsed_ms": 354.19,
+      "host": "fstream.binance.com",
+      "ok": true,
+      "port": 443,
+      "tls_version": "TLSv1.3"
+    },
+    "stream.binance.com_443": {
+      "elapsed_ms": 515.65,
+      "host": "stream.binance.com",
+      "ok": true,
+      "port": 443,
+      "tls_version": "TLSv1.2"
+    }
+  },
+  "version": "3.12.3 (main, Mar 23 2026, 19:04:32) [GCC 13.3.0]"
+}
