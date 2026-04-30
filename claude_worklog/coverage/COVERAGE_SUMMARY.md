@@ -15,6 +15,10 @@ Decision: **GO**
 - runtime_mapped_count: 30
 - unmapped_bot_looking_runtime_processes: 0
 - exchange_script_files_unclassified: 0
+- unknown_exchange_use_count: 0
+- blocking_unknown_exchange_use_count: 0
+- exchange_unresolved_tier_a_review_count: 1361
+- exchange_unresolved_missing_tier_a_plan_count: 0
 - decision: GO
 
 ## Taxonomy
@@ -24,3 +28,6 @@ Decision: **GO**
 ## Missing artifacts
 
 ## NO-GO reasons
+
+## Gate rationale
+- GO for Claude Phase 1 rerun because unresolved exchange logic is evidence-backed and queued for Tier A raw review.

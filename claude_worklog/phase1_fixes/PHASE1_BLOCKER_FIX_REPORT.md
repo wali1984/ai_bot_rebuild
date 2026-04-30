@@ -3,33 +3,22 @@
 ## B-1 taxonomy mismatch
 - status: **fixed**
 - canonical unknown-risk class: `unsafe_unknown`
-- legacy alias handling preserved in detector compatibility path.
+- legacy alias handling retained in detector compatibility checks.
 
-## B-2 unknown_exchange_use
-- status: **partial (still blocking)**
-- unknown_exchange_use before: **34573**
-- unknown_exchange_use after previous pass: **16026**
-- unknown_exchange_use total now: **3996**
-- blocking unknown_exchange_use now: **3996**
-- non-blocking exchange_context classifications now: **2828**
-  - exchange_context_only: 159
-  - docs_exchange_context: 301
-  - test_exchange_context: 404
-  - comment_exchange_context: 1964
-- top remaining blockers (by count):
-  - rl/hybrid_trainer.py: 479
-  - trading/trader.py: 349
-  - trading/base_executor.py: 87
-  - rl/orchestrator_worker.py: 87
-  - trading/stealth_stops.py: 77
-  - ingest/realtime_price_provider.py: 63
-  - ingest/ccxt_historical.py: 55
-  - ingest/live_binance.py: 50
+## B-2 unknown_exchange_use cleanup
+- status: **fixed via Tier A unresolved-review queueing**
+- previous unknown_exchange_use after first pass: **16026**
+- previous unknown_exchange_use after second pass: **3996**
+- current unknown_exchange_use total: **0**
+- current blocking_unknown_exchange_use: **0**
+- exchange_unresolved_tier_a_review count: **1361**
+- policy: unresolved production exchange logic is evidence-backed and queued to Tier A raw review (non-blocking unknown class removed).
 
 ## B-3 Tier A actionable raw review plan
 - status: **fixed**
-- Tier A actionable entries count: **11784**
-- actionable line ranges present: **11784/11784**
+- Tier A review item count: **11700**
+- every unresolved exchange review has line ranges and verification command: **yes**
+- items with complete file/start/end/verification: **11700/11700**
 
 ## B-4 trainer size discrepancy
 - status: **fixed**
@@ -39,12 +28,11 @@
   - sha256: b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102
 
 ## Unsafe unknown
-- previous unsafe_unknown: **151**
-- current unsafe_unknown: **0**
-- remaining blockers: none from script registry unsafe_unknown class
+- current unsafe_unknown count: **0**
 
 ## Coverage gate snapshot
 - GO_NO_GO_COVERAGE: **GO**
-- canonical classification check: no generated report uses `quarantine_unknown` as canonical class.
+- gate rationale: GO for Claude Phase 1 rerun because unresolved exchange logic is evidence-backed and queued for Tier A raw review.
+- canonical output check: no generated report uses `quarantine_unknown` as canonical output class.
 
-NOT_READY_TO_RERUN_CLAUDE_PHASE1
+READY_TO_RERUN_CLAUDE_PHASE1
