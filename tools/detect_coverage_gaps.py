@@ -40,7 +40,11 @@ def main() -> int:
 
     scripts = sr.get("scripts", [])
     script_by_path = {s.get("path"): s for s in scripts}
-    unsafe_unknown = [s for s in scripts if s.get("classification_candidate") == "unsafe_unknown"]
+    unsafe_unknown = [
+        s
+        for s in scripts
+        if s.get("classification_candidate") in {"unsafe_unknown", "quarantine_unknown"}
+    ]
     tier_a = [s for s in scripts if s.get("tier") == "Tier A"]
     code_files = [f for f in mf.get("files", []) if f.get("category") == "code"]
     script_files = [f for f in mf.get("files", []) if f.get("category") in {"code", "shell"}]
@@ -57,6 +61,7 @@ def main() -> int:
         "total_scripts": len(script_files),
         "classified_scripts": len(scripts),
         "unsafe_unknown_count": len(unsafe_unknown),
+        "unsafe_unknown_canonical_label": "unsafe_unknown",
         "tier_a_count": len(tier_a),
         "exchange_action_files": len(set(m.get("file") for m in ex.get("matches", []))),
         "redis_writer_files": len(set(m.get("file") for m in redis_writers)),
@@ -92,6 +97,10 @@ def main() -> int:
             continue
         md.append(f"- {k}: {v}")
     md.append("")
+    md.append("## Taxonomy")
+    md.append("- Canonical unknown-risk class: `unsafe_unknown`.")
+    md.append("- Legacy alias handling is normalized to `unsafe_unknown` during gap detection.")
+    md.append("")
     md.append("## Missing artifacts")
     for m in missing:
         md.append(f"- {m}")
@@ -106,7 +115,16 @@ def main() -> int:
             md.append(f"- {p}")
 
     write_markdown(out / "COVERAGE_SUMMARY.md", "\n".join(md))
-    write_markdown(out / "UNKNOWN_GAPS.md", "\n".join(["# Unknown Gaps", ""] + [f"- unsafe_unknown: {s.get('path')} ({s.get('classification_reason')})" for s in unsafe_unknown]))
+    write_markdown(
+        out / "UNKNOWN_GAPS.md",
+        "\n".join(
+            ["# Unknown Gaps", "", "Canonical class: unsafe_unknown", ""]
+            + [
+                f"- unsafe_unknown: {s.get('path')} ({s.get('classification_reason')})"
+                for s in unsafe_unknown
+            ]
+        ),
+    )
     write_markdown(out / "GO_NO_GO_COVERAGE.md", "\n".join(["# GO/NO-GO Coverage", "", f"Decision: **{status}**"] + [f"- {r}" for r in no_go_reasons]))
     return 0
 

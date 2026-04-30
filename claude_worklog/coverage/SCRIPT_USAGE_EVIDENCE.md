@@ -55,7 +55,7 @@
 | api/routes/service_routes.py | active_wrapper | startup reference found in docs |
 | api/routes/system_routes.py | active_wrapper | startup reference found in docs |
 | api/routes/trading_routes.py | active_wrapper | startup reference found in docs |
-| apply_churn_prevention.py | quarantine_unknown | insufficient deterministic evidence |
+| apply_churn_prevention.py | unsafe_unknown | insufficient deterministic evidence |
 | apply_immediate_fixes.sh | active_wrapper | startup reference found in shell |
 | apply_qa_fixes.py | active_wrapper | startup reference found in docs |
 | audit_asjad_futures_deposits_30d.py | active_wrapper | startup reference found in docs |
@@ -66,21 +66,21 @@
 | catch_fake_alerts.py | active_wrapper | startup reference found in docs |
 | check_coinank_data.py | active_wrapper | startup reference found in docs |
 | check_keys.py | active_wrapper | startup reference found in docs |
-| check_ltc_precision.py | quarantine_unknown | insufficient deterministic evidence |
+| check_ltc_precision.py | unsafe_unknown | insufficient deterministic evidence |
 | check_new_coins_status.sh | active_wrapper | startup reference found in docs |
 | check_order_history.py | active_wrapper | startup reference found in docs |
 | check_orderbook_data.py | active_wrapper | startup reference found in docs |
 | check_redis_features.py | active_wrapper | startup reference found in docs |
 | check_services_detailed.sh | active_wrapper | startup reference found in docs |
 | check_status.sh | active_wrapper | startup reference found in docs |
-| check_torch_location.py | quarantine_unknown | insufficient deterministic evidence |
+| check_torch_location.py | unsafe_unknown | insufficient deterministic evidence |
 | check_trainer_status.py | active_wrapper | startup reference found in docs |
 | check_unified_features.py | active_wrapper | startup reference found in docs |
 | circuit_breaker.py | active_wrapper | startup reference found in docs |
 | clean_start_training.py | active_wrapper | startup reference found in docs |
 | cleanup_coinank_keys.py | active_wrapper | startup reference found in docs |
 | cleanup_summary.py | active_wrapper | startup reference found in docs |
-| clear_redis.py | quarantine_unknown | high-risk script name without deterministic invocation evidence |
+| clear_redis.py | unsafe_unknown | high-risk script name without deterministic invocation evidence |
 | complete_setup.sh | active_wrapper | startup reference found in shell |
 | comprehensive_error_investigation.py | active_wrapper | startup reference found in docs |
 | comprehensive_feature_extractor.py | active_wrapper | startup reference found in docs |
@@ -132,7 +132,7 @@
 | find_sol_features.py | active_wrapper | startup reference found in docs |
 | fix_and_restart.sh | active_wrapper | startup reference found in docs |
 | fix_feature_pipeline_performance.py | active_wrapper | startup reference found in docs |
-| fix_gpu_batch_indent.py | quarantine_unknown | insufficient deterministic evidence |
+| fix_gpu_batch_indent.py | unsafe_unknown | insufficient deterministic evidence |
 | fix_redis_position_access.py | active_wrapper | startup reference found in docs |
 | fix_trader.py | active_wrapper | startup reference found in docs |
 | fix_trading_signals_production.py | active_wrapper | startup reference found in docs |
@@ -196,44 +196,44 @@
 | frontend/.next/types/cache-life.d.ts | legacy_dead | compiled/archive artifact; no runtime/startup/import evidence |
 | frontend/.next/types/routes.d.ts | legacy_dead | compiled/archive artifact; no runtime/startup/import evidence |
 | frontend/.next/types/validator.ts | legacy_dead | compiled/archive artifact; no runtime/startup/import evidence |
-| frontend/eslint.config.mjs | quarantine_unknown | insufficient deterministic evidence |
+| frontend/eslint.config.mjs | unsafe_unknown | insufficient deterministic evidence |
 | frontend/next-env.d.ts | active_wrapper | startup reference found in docs |
-| frontend/next.config.js | quarantine_unknown | insufficient deterministic evidence |
-| frontend/next.config.ts | quarantine_unknown | insufficient deterministic evidence |
-| frontend/postcss.config.mjs | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/app/dashboard/page.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/app/layout.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/app/login/page.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/app/page.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/app/providers.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/app/trading/page.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/components/DashboardLayout.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/components/ProtectedRoute.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/components/ui/alert-dialog.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/components/ui/alert.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/components/ui/badge.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/components/ui/button.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/components/ui/card.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/components/ui/dialog.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/components/ui/dropdown-menu.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/components/ui/input.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/components/ui/label.tsx | quarantine_unknown | insufficient deterministic evidence |
+| frontend/next.config.js | unsafe_unknown | insufficient deterministic evidence |
+| frontend/next.config.ts | unsafe_unknown | insufficient deterministic evidence |
+| frontend/postcss.config.mjs | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/app/dashboard/page.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/app/layout.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/app/login/page.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/app/page.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/app/providers.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/app/trading/page.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/components/DashboardLayout.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/components/ProtectedRoute.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/components/ui/alert-dialog.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/components/ui/alert.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/components/ui/badge.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/components/ui/button.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/components/ui/card.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/components/ui/dialog.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/components/ui/dropdown-menu.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/components/ui/input.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/components/ui/label.tsx | unsafe_unknown | insufficient deterministic evidence |
 | frontend/src/components/ui/select.tsx | active_imported | imported by other discovered code |
-| frontend/src/components/ui/separator.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/components/ui/slider.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/components/ui/switch.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/components/ui/tabs.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/components/ui/tooltip.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/contexts/AuthContext.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/src/contexts/WebSocketContext.tsx | quarantine_unknown | insufficient deterministic evidence |
+| frontend/src/components/ui/separator.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/components/ui/slider.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/components/ui/switch.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/components/ui/tabs.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/components/ui/tooltip.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/contexts/AuthContext.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/src/contexts/WebSocketContext.tsx | unsafe_unknown | insufficient deterministic evidence |
 | frontend/src/lib/api.ts | active_wrapper | startup reference found in docs |
 | frontend/src/lib/utils.ts | active_wrapper | startup reference found in docs |
-| frontend/trading-command-center/eslint.config.mjs | quarantine_unknown | insufficient deterministic evidence |
+| frontend/trading-command-center/eslint.config.mjs | unsafe_unknown | insufficient deterministic evidence |
 | frontend/trading-command-center/next-env.d.ts | active_wrapper | startup reference found in docs |
-| frontend/trading-command-center/next.config.ts | quarantine_unknown | insufficient deterministic evidence |
-| frontend/trading-command-center/postcss.config.mjs | quarantine_unknown | insufficient deterministic evidence |
-| frontend/trading-command-center/src/app/layout.tsx | quarantine_unknown | insufficient deterministic evidence |
-| frontend/trading-command-center/src/app/page.tsx | quarantine_unknown | insufficient deterministic evidence |
+| frontend/trading-command-center/next.config.ts | unsafe_unknown | insufficient deterministic evidence |
+| frontend/trading-command-center/postcss.config.mjs | unsafe_unknown | insufficient deterministic evidence |
+| frontend/trading-command-center/src/app/layout.tsx | unsafe_unknown | insufficient deterministic evidence |
+| frontend/trading-command-center/src/app/page.tsx | unsafe_unknown | insufficient deterministic evidence |
 | frontend/trading-command-center/src/lib/utils.ts | active_wrapper | startup reference found in docs |
 | get_channel_id.py | active_wrapper | startup reference found in docs |
 | gpu_optimizer.py | active_wrapper | startup reference found in docs |
@@ -263,13 +263,13 @@
 | ingest/load_historical.py | active_wrapper | startup reference found in docs |
 | ingest/realtime_price_provider.py | active_runtime | mapped runtime process references this script |
 | ingest/technical_analysis.py | active_wrapper | startup reference found in docs |
-| ingest/tm_ids.py | quarantine_unknown | insufficient deterministic evidence |
+| ingest/tm_ids.py | unsafe_unknown | insufficient deterministic evidence |
 | ingest/tm_spec.py | active_wrapper | startup reference found in docs |
-| install_everything.sh | quarantine_unknown | insufficient deterministic evidence |
+| install_everything.sh | unsafe_unknown | insufficient deterministic evidence |
 | install_talib.sh | active_wrapper | startup reference found in shell |
 | investigate_telegram_alerts.py | active_wrapper | startup reference found in docs |
 | investigate_why_no_closes.py | active_wrapper | startup reference found in docs |
-| launch_hybrid_trainer.sh | quarantine_unknown | insufficient deterministic evidence |
+| launch_hybrid_trainer.sh | unsafe_unknown | insufficient deterministic evidence |
 | launch_monitors.py | active_wrapper | startup reference found in docs |
 | ltc_trading_test.py | active_wrapper | startup reference found in docs |
 | merge_checkpoints.py | active_wrapper | startup reference found in docs |
@@ -288,7 +288,7 @@
 | monitor_summary.sh | active_manual | executable shell script without startup evidence |
 | monitor_system.sh | active_manual | executable shell script without startup evidence |
 | monitor_system_health.py | active_wrapper | startup reference found in docs |
-| monitor_system_memory.py | active_runtime | mapped runtime process references this script |
+| monitor_system_memory.py | active_wrapper | startup reference found in docs |
 | monitor_trader_execution.py | active_wrapper | startup reference found in docs |
 | monitor_trainer_features.py | active_wrapper | startup reference found in docs |
 | monitor_trainer_fixes.py | active_wrapper | startup reference found in docs |
@@ -313,7 +313,7 @@
 | optimize_feature_pipeline_aggressive.py | active_wrapper | startup reference found in docs |
 | periodic_status_monitor.py | active_wrapper | startup reference found in docs |
 | production_safe_fix.py | active_wrapper | startup reference found in docs |
-| quick_check_binance_normalized.py | quarantine_unknown | insufficient deterministic evidence |
+| quick_check_binance_normalized.py | unsafe_unknown | insufficient deterministic evidence |
 | quick_feature_analysis.py | active_wrapper | startup reference found in docs |
 | quick_import_test.py | active_wrapper | startup reference found in docs |
 | quick_proof.sh | active_wrapper | startup reference found in docs |
@@ -329,7 +329,7 @@
 | restart_hybrid_trainer_checkpoints.py | active_wrapper | startup reference found in docs |
 | restart_trainer.py | active_wrapper | startup reference found in docs |
 | restart_trainer_fixed.py | active_wrapper | startup reference found in docs |
-| restart_trainer_fixed_thresholds.sh | quarantine_unknown | insufficient deterministic evidence |
+| restart_trainer_fixed_thresholds.sh | unsafe_unknown | insufficient deterministic evidence |
 | restart_trainer_gpu.sh | active_wrapper | startup reference found in docs |
 | risk/__init__.py | active_wrapper | startup reference found in docs |
 | risk/adaptive_gate.py | active_wrapper | startup reference found in docs |
@@ -389,7 +389,7 @@
 | rl/global_safety_checks.py | active_wrapper | startup reference found in docs |
 | rl/gpu_batch_env.py | active_wrapper | startup reference found in docs |
 | rl/gpu_cnn_policy.py | active_wrapper | startup reference found in docs |
-| rl/gpu_env_wrapper.py | quarantine_unknown | insufficient deterministic evidence |
+| rl/gpu_env_wrapper.py | unsafe_unknown | insufficient deterministic evidence |
 | rl/gpu_environment.py | active_wrapper | startup reference found in docs |
 | rl/gpu_forced_ppo.py | active_wrapper | startup reference found in docs |
 | rl/gpu_optimized_trainer.py | active_wrapper | startup reference found in docs |
@@ -451,7 +451,7 @@
 | rl/scripts/replay_decision.py | active_wrapper | startup reference found in docs |
 | rl/scripts/train_churn_veto.py | active_wrapper | startup reference found in docs |
 | rl/signal_state_manager.py | active_wrapper | startup reference found in docs |
-| rl/stable_gpu_trainer.py | quarantine_unknown | insufficient deterministic evidence |
+| rl/stable_gpu_trainer.py | unsafe_unknown | insufficient deterministic evidence |
 | rl/supervised_pretrainer.py | active_wrapper | startup reference found in docs |
 | rl/supervised_trainer.py | active_wrapper | startup reference found in docs |
 | rl/ta_direction_oracle.py | active_imported | imported by other discovered code |
@@ -481,7 +481,7 @@
 | run_paper_trader.sh | active_wrapper | startup reference found in docs |
 | run_supervised_pretrain.py | active_wrapper | startup reference found in docs |
 | run_trader.sh | active_wrapper | startup reference found in shell |
-| scripts/_check_services.sh | quarantine_unknown | insufficient deterministic evidence |
+| scripts/_check_services.sh | unsafe_unknown | insufficient deterministic evidence |
 | scripts/acceptance_metrics_report.py | active_wrapper | startup reference found in shell |
 | scripts/analyze_binance_performance.py | active_wrapper | startup reference found in shell |
 | scripts/audit_48h_live.py | active_wrapper | startup reference found in docs |
@@ -492,7 +492,7 @@
 | scripts/audit_last_hours_pnl.py | active_wrapper | startup reference found in docs |
 | scripts/audit_last_hours_streams.py | active_wrapper | startup reference found in docs |
 | scripts/audit_orchestrator_last30m.py | active_wrapper | startup reference found in docs |
-| scripts/audit_pipeline_health.py | quarantine_unknown | insufficient deterministic evidence |
+| scripts/audit_pipeline_health.py | unsafe_unknown | insufficient deterministic evidence |
 | scripts/audit_trade_attribution.py | active_wrapper | startup reference found in docs |
 | scripts/auto_recovery.sh | active_wrapper | startup reference found in docs |
 | scripts/breadth_allocator_audit.py | active_wrapper | startup reference found in docs |
@@ -501,7 +501,7 @@
 | scripts/check_fastlane_health.sh | active_wrapper | startup reference found in docs |
 | scripts/check_hybrid_health.sh | active_wrapper | startup reference found in docs |
 | scripts/check_trainer_signal_health.py | active_wrapper | startup reference found in docs |
-| scripts/check_unified_features.sh | quarantine_unknown | insufficient deterministic evidence |
+| scripts/check_unified_features.sh | unsafe_unknown | insufficient deterministic evidence |
 | scripts/close_all_positions.py | active_wrapper | startup reference found in docs |
 | scripts/coinapi_health_check.py | active_wrapper | startup reference found in docs |
 | scripts/comprehensive_24h_audit.py | active_wrapper | startup reference found in docs |
@@ -531,7 +531,7 @@
 | scripts/inspect_liq_keys.py | active_wrapper | startup reference found in docs |
 | scripts/integration_test_trainer.sh | active_wrapper | startup reference found in docs |
 | scripts/launch_confidence_monitor.sh | active_manual | executable shell script without startup evidence |
-| scripts/launch_dashboard.sh | quarantine_unknown | insufficient deterministic evidence |
+| scripts/launch_dashboard.sh | unsafe_unknown | insufficient deterministic evidence |
 | scripts/live_progress_loop.sh | active_wrapper | startup reference found in docs |
 | scripts/live_system_monitor.sh | active_wrapper | startup reference found in docs |
 | scripts/manage_limit_orders.py | active_wrapper | startup reference found in docs |
@@ -543,7 +543,7 @@
 | scripts/monitor_system_health.sh | active_manual | executable shell script without startup evidence |
 | scripts/monitor_trainer_predictions.py | active_runtime | mapped runtime process references this script |
 | scripts/monitor_trainer_prices.py | active_runtime | mapped runtime process references this script |
-| scripts/mtf_blocker_validation_report.py | quarantine_unknown | insufficient deterministic evidence |
+| scripts/mtf_blocker_validation_report.py | unsafe_unknown | insufficient deterministic evidence |
 | scripts/nightly_restart_trainer.sh | active_wrapper | startup reference found in shell |
 | scripts/ops_env_patch.sh | active_wrapper | startup reference found in docs |
 | scripts/organize_desktop_icons.sh | active_wrapper | startup reference found in docs |
@@ -589,7 +589,7 @@
 | scripts/stop_ingestors.sh | active_wrapper | startup reference found in shell |
 | scripts/stop_system.sh | active_wrapper | startup reference found in shell |
 | scripts/stop_trader.sh | active_wrapper | startup reference found in shell |
-| scripts/stop_trader_asjad.sh | quarantine_unknown | insufficient deterministic evidence |
+| scripts/stop_trader_asjad.sh | unsafe_unknown | insufficient deterministic evidence |
 | scripts/stop_trainer.sh | active_wrapper | startup reference found in shell |
 | scripts/stop_vpn_monitor.sh | active_wrapper | startup reference found in docs |
 | scripts/symbol_carry_dashboard.py | active_wrapper | startup reference found in docs |
@@ -598,8 +598,8 @@
 | scripts/test_dashboard.sh | active_wrapper | startup reference found in docs |
 | scripts/test_fastlane_detector.py | active_wrapper | startup reference found in docs |
 | scripts/test_fixed_main.sh | active_manual | executable shell script without startup evidence |
-| scripts/test_hedge_build.py | quarantine_unknown | insufficient deterministic evidence |
-| scripts/test_liq_pipeline.py | quarantine_unknown | insufficient deterministic evidence |
+| scripts/test_hedge_build.py | unsafe_unknown | insufficient deterministic evidence |
+| scripts/test_liq_pipeline.py | unsafe_unknown | insufficient deterministic evidence |
 | scripts/test_visible_terminals.sh | active_manual | executable shell script without startup evidence |
 | scripts/test_xterm.sh | active_wrapper | startup reference found in docs |
 | scripts/top_movers_futures.py | active_wrapper | startup reference found in docs |
@@ -607,8 +607,8 @@
 | scripts/trace_symbol_e2e.py | active_wrapper | startup reference found in docs |
 | scripts/trace_trade_lifecycle.py | active_wrapper | startup reference found in docs |
 | scripts/train_historical.sh | active_manual | executable shell script without startup evidence |
-| scripts/ultimate_desktop_fix.sh | quarantine_unknown | insufficient deterministic evidence |
-| scripts/update_symbols.py | quarantine_unknown | insufficient deterministic evidence |
+| scripts/ultimate_desktop_fix.sh | unsafe_unknown | insufficient deterministic evidence |
+| scripts/update_symbols.py | unsafe_unknown | insufficient deterministic evidence |
 | scripts/validate_action_taxonomy.py | active_wrapper | startup reference found in docs |
 | scripts/validate_all_fixes.sh | active_manual | executable shell script without startup evidence |
 | scripts/validate_flash_hedge_system.sh | active_wrapper | startup reference found in docs |
@@ -620,16 +620,16 @@
 | scripts/validate_symbol_universe_data.py | active_wrapper | startup reference found in docs |
 | scripts/validate_trader_alignment.py | active_wrapper | startup reference found in docs |
 | scripts/validation_helper.sh | active_wrapper | startup reference found in docs |
-| scripts/verify_gpu_optimizations.py | quarantine_unknown | insufficient deterministic evidence |
-| scripts/verify_heartbeat_segregation.py | quarantine_unknown | insufficient deterministic evidence |
-| scripts/verify_no_behavior_change.py | quarantine_unknown | insufficient deterministic evidence |
+| scripts/verify_gpu_optimizations.py | unsafe_unknown | insufficient deterministic evidence |
+| scripts/verify_heartbeat_segregation.py | unsafe_unknown | insufficient deterministic evidence |
+| scripts/verify_no_behavior_change.py | unsafe_unknown | insufficient deterministic evidence |
 | scripts/verify_regime_pipeline.py | active_wrapper | startup reference found in docs |
 | scripts/verify_system.py | active_wrapper | startup reference found in docs |
 | scripts/verify_trader_consumption.py | active_wrapper | startup reference found in docs |
 | scripts/visual_feature_report.py | active_wrapper | startup reference found in docs |
 | scripts/vscode_memory_limiter.sh | active_wrapper | startup reference found in docs |
-| scripts/why_hedged_timeline.py | quarantine_unknown | insufficient deterministic evidence |
-| send_enhancement_summary.py | quarantine_unknown | insufficient deterministic evidence |
+| scripts/why_hedged_timeline.py | unsafe_unknown | insufficient deterministic evidence |
+| send_enhancement_summary.py | unsafe_unknown | insufficient deterministic evidence |
 | send_live_announcement.py | active_wrapper | startup reference found in docs |
 | send_status_alert.py | active_wrapper | startup reference found in docs |
 | send_system_updates.py | active_wrapper | startup reference found in docs |
@@ -650,8 +650,8 @@
 | sim_past_hour.py | active_wrapper | startup reference found in docs |
 | simple_feature_pipeline.py | active_wrapper | startup reference found in docs |
 | simple_launch_monitors.py | active_wrapper | startup reference found in docs |
-| simple_test.py | quarantine_unknown | insufficient deterministic evidence |
-| simple_validation.py | quarantine_unknown | insufficient deterministic evidence |
+| simple_test.py | unsafe_unknown | insufficient deterministic evidence |
+| simple_validation.py | unsafe_unknown | insufficient deterministic evidence |
 | start_all_services.sh | active_wrapper | startup reference found in docs |
 | start_api.sh | active_wrapper | startup reference found in docs |
 | start_comprehensive_monitor.sh | active_manual | executable shell script without startup evidence |
@@ -668,10 +668,10 @@
 | start_paper_monitor.sh | active_manual | executable shell script without startup evidence |
 | start_production_services.sh | active_wrapper | startup reference found in shell |
 | start_system.sh | active_wrapper | startup reference found in docs |
-| start_system_with_binance.sh | quarantine_unknown | insufficient deterministic evidence |
+| start_system_with_binance.sh | unsafe_unknown | insufficient deterministic evidence |
 | start_trainer_wsl.sh | active_manual | executable shell script without startup evidence |
 | status_production_services.sh | active_wrapper | startup reference found in shell |
-| status_report.py | quarantine_unknown | insufficient deterministic evidence |
+| status_report.py | unsafe_unknown | insufficient deterministic evidence |
 | stop_all_services.py | active_wrapper | startup reference found in docs |
 | stop_multi_account.sh | active_wrapper | startup reference found in shell |
 | stop_production_services.sh | active_wrapper | startup reference found in shell |
@@ -679,117 +679,117 @@
 | system_monitor.py | active_wrapper | startup reference found in docs |
 | system_recovery.py | active_wrapper | startup reference found in docs |
 | system_status.py | active_wrapper | startup reference found in docs |
-| system_telegram_monitor.py | active_runtime | mapped runtime process references this script |
+| system_telegram_monitor.py | active_wrapper | startup reference found in shell |
 | system_watchdog.py | active_wrapper | startup reference found in docs |
 | technical_analysis.py | active_runtime | mapped runtime process references this script |
 | telegram_alerts.py | active_wrapper | startup reference found in docs |
 | telegram_forwarder.py | active_wrapper | startup reference found in docs |
-| test_143_features.py | quarantine_unknown | insufficient deterministic evidence |
-| test_action_fix.py | quarantine_unknown | insufficient deterministic evidence |
+| test_143_features.py | unsafe_unknown | insufficient deterministic evidence |
+| test_action_fix.py | unsafe_unknown | insufficient deterministic evidence |
 | test_adaptive_trader.py | active_wrapper | startup reference found in docs |
-| test_ai_signals.py | quarantine_unknown | insufficient deterministic evidence |
-| test_ai_signals_channel.py | quarantine_unknown | insufficient deterministic evidence |
-| test_all.py | quarantine_unknown | insufficient deterministic evidence |
+| test_ai_signals.py | unsafe_unknown | insufficient deterministic evidence |
+| test_ai_signals_channel.py | unsafe_unknown | insufficient deterministic evidence |
+| test_all.py | unsafe_unknown | insufficient deterministic evidence |
 | test_audit_fixes.sh | active_wrapper | startup reference found in docs |
 | test_binance_connection.py | active_wrapper | startup reference found in docs |
 | test_binance_connections.py | active_wrapper | startup reference found in docs |
 | test_binance_direct.py | active_wrapper | startup reference found in docs |
 | test_binance_hedge_mode.py | active_wrapper | startup reference found in docs |
-| test_binance_imports.py | quarantine_unknown | insufficient deterministic evidence |
+| test_binance_imports.py | unsafe_unknown | insufficient deterministic evidence |
 | test_binance_live.py | active_wrapper | startup reference found in docs |
 | test_binance_testnet_connection.py | active_wrapper | startup reference found in docs |
 | test_binance_testnet_orders.py | active_wrapper | startup reference found in docs |
-| test_channel_routing.py | quarantine_unknown | insufficient deterministic evidence |
+| test_channel_routing.py | unsafe_unknown | insufficient deterministic evidence |
 | test_close_signal.py | active_wrapper | startup reference found in docs |
-| test_complete_alerts.py | quarantine_unknown | insufficient deterministic evidence |
+| test_complete_alerts.py | unsafe_unknown | insufficient deterministic evidence |
 | test_complete_system.py | active_wrapper | startup reference found in shell |
-| test_complete_trainer_pipeline.py | quarantine_unknown | insufficient deterministic evidence |
+| test_complete_trainer_pipeline.py | unsafe_unknown | insufficient deterministic evidence |
 | test_complete_trainer_validation.py | active_wrapper | startup reference found in docs |
 | test_comprehensive_coinank.py | active_wrapper | startup reference found in docs |
-| test_comprehensive_features.py | quarantine_unknown | insufficient deterministic evidence |
-| test_comprehensive_talib.py | quarantine_unknown | insufficient deterministic evidence |
+| test_comprehensive_features.py | unsafe_unknown | insufficient deterministic evidence |
+| test_comprehensive_talib.py | unsafe_unknown | insufficient deterministic evidence |
 | test_confidence_monitor.py | active_wrapper | startup reference found in docs |
-| test_config.py | quarantine_unknown | insufficient deterministic evidence |
-| test_continuous_operation.py | quarantine_unknown | insufficient deterministic evidence |
-| test_cpu_optimizations.py | quarantine_unknown | insufficient deterministic evidence |
+| test_config.py | unsafe_unknown | insufficient deterministic evidence |
+| test_continuous_operation.py | unsafe_unknown | insufficient deterministic evidence |
+| test_cpu_optimizations.py | unsafe_unknown | insufficient deterministic evidence |
 | test_crash_escalation_direct.py | active_wrapper | startup reference found in docs |
-| test_dual_positions.py | quarantine_unknown | insufficient deterministic evidence |
+| test_dual_positions.py | unsafe_unknown | insufficient deterministic evidence |
 | test_emergency_alerts.py | active_wrapper | startup reference found in docs |
-| test_enhanced_alerts.py | quarantine_unknown | insufficient deterministic evidence |
-| test_enhanced_reasoning.py | quarantine_unknown | insufficient deterministic evidence |
+| test_enhanced_alerts.py | unsafe_unknown | insufficient deterministic evidence |
+| test_enhanced_reasoning.py | unsafe_unknown | insufficient deterministic evidence |
 | test_enhanced_telegram_regime_integration.py | active_wrapper | startup reference found in docs |
 | test_enhanced_trade_alerts.py | active_wrapper | startup reference found in docs |
 | test_environment_features.py | active_wrapper | startup reference found in docs |
-| test_extraction.py | quarantine_unknown | insufficient deterministic evidence |
-| test_file_writers.py | quarantine_unknown | insufficient deterministic evidence |
+| test_extraction.py | unsafe_unknown | insufficient deterministic evidence |
+| test_file_writers.py | unsafe_unknown | insufficient deterministic evidence |
 | test_fixed_conversion.py | active_wrapper | startup reference found in docs |
-| test_fixes.py | quarantine_unknown | insufficient deterministic evidence |
-| test_forwarding.py | quarantine_unknown | insufficient deterministic evidence |
-| test_fresh_masa.py | quarantine_unknown | insufficient deterministic evidence |
-| test_fresh_unified.py | quarantine_unknown | insufficient deterministic evidence |
+| test_fixes.py | unsafe_unknown | insufficient deterministic evidence |
+| test_forwarding.py | unsafe_unknown | insufficient deterministic evidence |
+| test_fresh_masa.py | unsafe_unknown | insufficient deterministic evidence |
+| test_fresh_unified.py | unsafe_unknown | insufficient deterministic evidence |
 | test_freshness.py | active_wrapper | startup reference found in docs |
-| test_gpu_environment.py | quarantine_unknown | insufficient deterministic evidence |
+| test_gpu_environment.py | unsafe_unknown | insufficient deterministic evidence |
 | test_gpu_utilization.sh | active_manual | executable shell script without startup evidence |
-| test_hedge_trading.py | quarantine_unknown | insufficient deterministic evidence |
+| test_hedge_trading.py | unsafe_unknown | insufficient deterministic evidence |
 | test_hybrid_prediction.py | active_wrapper | startup reference found in docs |
 | test_hybrid_trainer.py | active_wrapper | startup reference found in docs |
 | test_hybrid_trainer_gpu.py | active_wrapper | startup reference found in docs |
-| test_import.py | quarantine_unknown | insufficient deterministic evidence |
-| test_imports_quick.py | quarantine_unknown | insufficient deterministic evidence |
-| test_intelligent_trainer.py | quarantine_unknown | insufficient deterministic evidence |
-| test_interrupt_lock.py | quarantine_unknown | insufficient deterministic evidence |
+| test_import.py | unsafe_unknown | insufficient deterministic evidence |
+| test_imports_quick.py | unsafe_unknown | insufficient deterministic evidence |
+| test_intelligent_trainer.py | unsafe_unknown | insufficient deterministic evidence |
+| test_interrupt_lock.py | unsafe_unknown | insufficient deterministic evidence |
 | test_latency_optimizations.py | active_wrapper | startup reference found in docs |
-| test_leverage_adjustment.py | quarantine_unknown | insufficient deterministic evidence |
-| test_leverage_proper.py | quarantine_unknown | insufficient deterministic evidence |
-| test_leverage_usage.py | quarantine_unknown | insufficient deterministic evidence |
+| test_leverage_adjustment.py | unsafe_unknown | insufficient deterministic evidence |
+| test_leverage_proper.py | unsafe_unknown | insufficient deterministic evidence |
+| test_leverage_usage.py | unsafe_unknown | insufficient deterministic evidence |
 | test_lstm_training_mode.py | active_wrapper | startup reference found in docs |
-| test_ltc_trading.py | quarantine_unknown | insufficient deterministic evidence |
-| test_masa_gpu.py | quarantine_unknown | insufficient deterministic evidence |
-| test_masa_loading.py | quarantine_unknown | insufficient deterministic evidence |
-| test_masa_real_features.py | quarantine_unknown | insufficient deterministic evidence |
+| test_ltc_trading.py | unsafe_unknown | insufficient deterministic evidence |
+| test_masa_gpu.py | unsafe_unknown | insufficient deterministic evidence |
+| test_masa_loading.py | unsafe_unknown | insufficient deterministic evidence |
+| test_masa_real_features.py | unsafe_unknown | insufficient deterministic evidence |
 | test_monitors.py | active_wrapper | startup reference found in docs |
 | test_multi_account.sh | active_wrapper | startup reference found in docs |
 | test_ohlcv_access.py | active_wrapper | startup reference found in docs |
 | test_ohlcv_parsing.py | active_wrapper | startup reference found in docs |
-| test_old_trainer_implementation.py | quarantine_unknown | insufficient deterministic evidence |
+| test_old_trainer_implementation.py | unsafe_unknown | insufficient deterministic evidence |
 | test_phase3_onchain.py | active_wrapper | startup reference found in docs |
 | test_phase3_trainer.py | active_wrapper | startup reference found in docs |
 | test_pipeline.py | active_wrapper | startup reference found in docs |
 | test_pnl_formatting.py | active_wrapper | startup reference found in docs |
 | test_pnl_integration.py | active_wrapper | startup reference found in docs |
-| test_portfolio_alert.py | quarantine_unknown | insufficient deterministic evidence |
-| test_portfolio_summary.py | quarantine_unknown | insufficient deterministic evidence |
+| test_portfolio_alert.py | unsafe_unknown | insufficient deterministic evidence |
+| test_portfolio_summary.py | unsafe_unknown | insufficient deterministic evidence |
 | test_position_aware_comprehensive.py | active_wrapper | startup reference found in docs |
 | test_position_aware_signals.py | active_wrapper | startup reference found in docs |
 | test_position_closing.py | active_wrapper | startup reference found in docs |
-| test_position_detection.py | quarantine_unknown | insufficient deterministic evidence |
-| test_position_detection_directly.py | quarantine_unknown | insufficient deterministic evidence |
-| test_ppo_gpu.py | quarantine_unknown | insufficient deterministic evidence |
-| test_ppo_prediction.py | quarantine_unknown | insufficient deterministic evidence |
+| test_position_detection.py | unsafe_unknown | insufficient deterministic evidence |
+| test_position_detection_directly.py | unsafe_unknown | insufficient deterministic evidence |
+| test_ppo_gpu.py | unsafe_unknown | insufficient deterministic evidence |
+| test_ppo_prediction.py | unsafe_unknown | insufficient deterministic evidence |
 | test_price_lookup_fix.py | active_wrapper | startup reference found in docs |
 | test_production_api.py | active_wrapper | startup reference found in docs |
 | test_production_ta_section7.py | active_wrapper | startup reference found in docs |
 | test_production_trader.py | active_wrapper | startup reference found in docs |
-| test_production_trading.py | quarantine_unknown | insufficient deterministic evidence |
+| test_production_trading.py | unsafe_unknown | insufficient deterministic evidence |
 | test_protection_integration.sh | active_manual | executable shell script without startup evidence |
-| test_real_integration.py | quarantine_unknown | insufficient deterministic evidence |
+| test_real_integration.py | unsafe_unknown | insufficient deterministic evidence |
 | test_real_trader.py | active_wrapper | startup reference found in docs |
 | test_real_trading.py | active_wrapper | startup reference found in docs |
-| test_realtime_trainer_integration.py | quarantine_unknown | insufficient deterministic evidence |
-| test_rtx5080.py | quarantine_unknown | insufficient deterministic evidence |
-| test_rtx5080_blackwell.py | quarantine_unknown | insufficient deterministic evidence |
+| test_realtime_trainer_integration.py | unsafe_unknown | insufficient deterministic evidence |
+| test_rtx5080.py | unsafe_unknown | insufficient deterministic evidence |
+| test_rtx5080_blackwell.py | unsafe_unknown | insufficient deterministic evidence |
 | test_send_telegram_signal.py | active_wrapper | startup reference found in docs |
-| test_signal_clarity.py | quarantine_unknown | insufficient deterministic evidence |
-| test_signal_data_fix.py | quarantine_unknown | insufficient deterministic evidence |
+| test_signal_clarity.py | unsafe_unknown | insufficient deterministic evidence |
+| test_signal_data_fix.py | unsafe_unknown | insufficient deterministic evidence |
 | test_signal_deconfliction.py | active_wrapper | startup reference found in docs |
 | test_signal_pipeline.py | active_wrapper | startup reference found in docs |
 | test_stop_loss_logic.py | active_wrapper | startup reference found in docs |
 | test_stop_loss_signals.py | active_wrapper | startup reference found in docs |
-| test_stop_loss_take_profit.py | quarantine_unknown | insufficient deterministic evidence |
-| test_subproc_fix.py | quarantine_unknown | insufficient deterministic evidence |
+| test_stop_loss_take_profit.py | unsafe_unknown | insufficient deterministic evidence |
+| test_subproc_fix.py | unsafe_unknown | insufficient deterministic evidence |
 | test_system.py | active_wrapper | startup reference found in docs |
-| test_systematic_fixes.py | quarantine_unknown | insufficient deterministic evidence |
-| test_talib.py | quarantine_unknown | insufficient deterministic evidence |
+| test_systematic_fixes.py | unsafe_unknown | insufficient deterministic evidence |
+| test_talib.py | unsafe_unknown | insufficient deterministic evidence |
 | test_telegram.py | active_wrapper | startup reference found in docs |
 | test_telegram_channels.py | active_wrapper | startup reference found in docs |
 | test_telegram_filtering.py | active_wrapper | startup reference found in docs |
@@ -798,18 +798,18 @@
 | test_telegram_forwarding.py | active_wrapper | startup reference found in docs |
 | test_telegram_integration.py | active_wrapper | startup reference found in docs |
 | test_telegram_pipeline.py | active_wrapper | startup reference found in docs |
-| test_trade_channel.py | quarantine_unknown | insufficient deterministic evidence |
-| test_trader_advanced.py | quarantine_unknown | insufficient deterministic evidence |
-| test_trader_real.py | quarantine_unknown | insufficient deterministic evidence |
-| test_trading_signals.py | quarantine_unknown | insufficient deterministic evidence |
-| test_trainer_enhancements.py | quarantine_unknown | insufficient deterministic evidence |
-| test_trainer_positions.py | quarantine_unknown | insufficient deterministic evidence |
+| test_trade_channel.py | unsafe_unknown | insufficient deterministic evidence |
+| test_trader_advanced.py | unsafe_unknown | insufficient deterministic evidence |
+| test_trader_real.py | unsafe_unknown | insufficient deterministic evidence |
+| test_trading_signals.py | unsafe_unknown | insufficient deterministic evidence |
+| test_trainer_enhancements.py | unsafe_unknown | insufficient deterministic evidence |
+| test_trainer_positions.py | unsafe_unknown | insufficient deterministic evidence |
 | test_trainer_realtime_validation.py | active_wrapper | startup reference found in docs |
 | test_training_pipeline.py | active_wrapper | startup reference found in docs |
-| test_ultra_fast_real_trader.py | quarantine_unknown | insufficient deterministic evidence |
+| test_ultra_fast_real_trader.py | unsafe_unknown | insufficient deterministic evidence |
 | test_ultra_fast_trader.py | active_wrapper | startup reference found in docs |
 | test_unified_trainer.py | active_wrapper | startup reference found in docs |
-| test_wsl_gpu_optimization.py | quarantine_unknown | insufficient deterministic evidence |
+| test_wsl_gpu_optimization.py | unsafe_unknown | insufficient deterministic evidence |
 | tests/coinak_test_symbols.py | active_wrapper | startup reference found in docs |
 | tests/test_action_head.py | active_wrapper | startup reference found in docs |
 | tests/test_coinapi_integration.py | active_test | test path |
@@ -835,36 +835,36 @@
 | tests/test_stream_reader.py | active_test | test path |
 | tests/test_telegram_alerts_execution_state.py | active_wrapper | startup reference found in docs |
 | tests/test_trainer_implementations.py | active_wrapper | startup reference found in docs |
-| timing_summary.py | quarantine_unknown | insufficient deterministic evidence |
+| timing_summary.py | unsafe_unknown | insufficient deterministic evidence |
 | timing_test.py | active_wrapper | startup reference found in docs |
 | tools/audit_48h.py | active_wrapper | startup reference found in docs |
 | tools/audit_since_boot.py | active_wrapper | startup reference found in docs |
 | tools/audit_trainer_predictions.py | active_wrapper | startup reference found in docs |
-| tools/build_runtime_contracts.py | quarantine_unknown | insufficient deterministic evidence |
+| tools/build_runtime_contracts.py | unsafe_unknown | insufficient deterministic evidence |
 | tools/check_tf_stack_redis.py | active_wrapper | startup reference found in docs |
 | tools/fetch_crypto_icons.py | active_wrapper | startup reference found in docs |
-| tools/filter_runtime_contracts.py | quarantine_unknown | insufficient deterministic evidence |
-| tools/gen_contracts_md.py | quarantine_unknown | insufficient deterministic evidence |
-| tools/gen_module_runbooks.py | quarantine_unknown | insufficient deterministic evidence |
-| tools/gen_runbook.py | quarantine_unknown | insufficient deterministic evidence |
+| tools/filter_runtime_contracts.py | unsafe_unknown | insufficient deterministic evidence |
+| tools/gen_contracts_md.py | unsafe_unknown | insufficient deterministic evidence |
+| tools/gen_module_runbooks.py | unsafe_unknown | insufficient deterministic evidence |
+| tools/gen_runbook.py | unsafe_unknown | insufficient deterministic evidence |
 | tools/health.py | active_wrapper | startup reference found in docs |
-| tools/liquidation_levels_from_stream.py | quarantine_unknown | insufficient deterministic evidence |
-| tools/liquidation_levels_report.py | quarantine_unknown | insufficient deterministic evidence |
-| tools/merge_call_edges.py | quarantine_unknown | insufficient deterministic evidence |
+| tools/liquidation_levels_from_stream.py | unsafe_unknown | insufficient deterministic evidence |
+| tools/liquidation_levels_report.py | unsafe_unknown | insufficient deterministic evidence |
+| tools/merge_call_edges.py | unsafe_unknown | insufficient deterministic evidence |
 | tools/preflight_account.py | active_wrapper | startup reference found in docs |
 | tools/proof_report.py | active_wrapper | startup reference found in docs |
 | tools/py_index.py | active_wrapper | startup reference found in docs |
-| tools/redis_contract_scan.py | quarantine_unknown | insufficient deterministic evidence |
-| tools/repo_blueprint.py | quarantine_unknown | insufficient deterministic evidence |
+| tools/redis_contract_scan.py | unsafe_unknown | insufficient deterministic evidence |
+| tools/repo_blueprint.py | unsafe_unknown | insufficient deterministic evidence |
 | tools/smoke_decision_id.py | active_wrapper | startup reference found in docs |
-| tools/smoke_publish_test.py | quarantine_unknown | insufficient deterministic evidence |
+| tools/smoke_publish_test.py | unsafe_unknown | insufficient deterministic evidence |
 | tools/smoke_test_pipeline.py | active_wrapper | startup reference found in docs |
 | tools/trace_calls.py | active_wrapper | startup reference found in docs |
 | trading/action_constants.py | active_wrapper | startup reference found in docs |
 | trading/adaptive_edge_gate.py | active_wrapper | startup reference found in docs |
 | trading/adaptive_hedge_builder.py | active_wrapper | startup reference found in docs |
 | trading/adaptive_threshold_engine.py | active_imported | imported by other discovered code |
-| trading/assert_governor.py | quarantine_unknown | insufficient deterministic evidence |
+| trading/assert_governor.py | unsafe_unknown | insufficient deterministic evidence |
 | trading/base_executor.py | active_wrapper | startup reference found in docs |
 | trading/churn_prevention.py | active_wrapper | startup reference found in docs |
 | trading/coinank_signal_adapter.py | active_wrapper | startup reference found in docs |
@@ -896,14 +896,14 @@
 | trading/trader.py | active_runtime | mapped runtime process references this script |
 | trading/trader_websocket_helper.py | active_wrapper | startup reference found in docs |
 | trading_dashboard.py | active_wrapper | startup reference found in docs |
-| trainer_dimension_patch.py | quarantine_unknown | insufficient deterministic evidence |
+| trainer_dimension_patch.py | unsafe_unknown | insufficient deterministic evidence |
 | trainer_fixes.py | active_wrapper | startup reference found in docs |
 | trainer_startup_guide.sh | active_manual | executable shell script without startup evidence |
 | training_confidence_monitor.py | active_wrapper | startup reference found in docs |
 | training_confidence_monitor_backup.py | active_wrapper | startup reference found in docs |
 | training_monitor.py | active_wrapper | startup reference found in docs |
 | ubuntu_setup.sh | active_wrapper | startup reference found in shell |
-| update_channel_id.py | quarantine_unknown | insufficient deterministic evidence |
+| update_channel_id.py | unsafe_unknown | insufficient deterministic evidence |
 | utils/ai_coins_manager.py | active_wrapper | startup reference found in docs |
 | utils/binance_rate_limiter.py | active_wrapper | startup reference found in docs |
 | utils/data_manager.py | active_wrapper | startup reference found in docs |
@@ -927,16 +927,16 @@
 | utils/websocket_limits.py | active_wrapper | startup reference found in docs |
 | validate_action_alignment.py | active_wrapper | startup reference found in docs |
 | validate_alert_system.py | active_wrapper | startup reference found in docs |
-| validate_all_implementations.py | quarantine_unknown | insufficient deterministic evidence |
+| validate_all_implementations.py | unsafe_unknown | insufficient deterministic evidence |
 | validate_all_traders.py | active_wrapper | startup reference found in docs |
 | validate_and_backfill_data.py | active_wrapper | startup reference found in docs |
 | validate_coinank.py | active_wrapper | startup reference found in docs |
-| validate_config.py | quarantine_unknown | insufficient deterministic evidence |
+| validate_config.py | unsafe_unknown | insufficient deterministic evidence |
 | validate_final.sh | active_manual | executable shell script without startup evidence |
-| validate_fixes.py | quarantine_unknown | insufficient deterministic evidence |
+| validate_fixes.py | unsafe_unknown | insufficient deterministic evidence |
 | validate_historical_checkpoint.py | active_wrapper | startup reference found in docs |
 | validate_hybrid_trainer.py | active_wrapper | startup reference found in docs |
-| validate_implementation.py | quarantine_unknown | insufficient deterministic evidence |
+| validate_implementation.py | unsafe_unknown | insufficient deterministic evidence |
 | validate_increase_integration.py | active_wrapper | startup reference found in docs |
 | validate_persistence.py | active_wrapper | startup reference found in docs |
 | validate_production_system.py | active_wrapper | startup reference found in docs |
@@ -948,14 +948,14 @@
 | validate_trainer.py | active_wrapper | startup reference found in docs |
 | validate_trainer_data.py | active_wrapper | startup reference found in docs |
 | validate_ubuntu_setup.py | active_wrapper | startup reference found in shell |
-| validate_ultra_fast_trader.py | quarantine_unknown | insufficient deterministic evidence |
-| verify_all_imports.py | quarantine_unknown | insufficient deterministic evidence |
+| validate_ultra_fast_trader.py | unsafe_unknown | insufficient deterministic evidence |
+| verify_all_imports.py | unsafe_unknown | insufficient deterministic evidence |
 | verify_confidence_consolidation.sh | active_manual | executable shell script without startup evidence |
-| verify_imports.py | quarantine_unknown | insufficient deterministic evidence |
-| verify_rtx5080_cuda.py | quarantine_unknown | insufficient deterministic evidence |
-| verify_rtx5080_setup.py | quarantine_unknown | insufficient deterministic evidence |
+| verify_imports.py | unsafe_unknown | insufficient deterministic evidence |
+| verify_rtx5080_cuda.py | unsafe_unknown | insufficient deterministic evidence |
+| verify_rtx5080_setup.py | unsafe_unknown | insufficient deterministic evidence |
 | verify_system.py | active_wrapper | startup reference found in docs |
 | verify_wsl_gpu_training.py | active_wrapper | startup reference found in docs |
-| verify_wsl_scripts.py | quarantine_unknown | insufficient deterministic evidence |
-| vpn_monitor.py | active_runtime | mapped runtime process references this script |
+| verify_wsl_scripts.py | unsafe_unknown | insufficient deterministic evidence |
+| vpn_monitor.py | active_wrapper | startup reference found in shell |
 | wsl_system_validation.py | active_wrapper | startup reference found in docs |

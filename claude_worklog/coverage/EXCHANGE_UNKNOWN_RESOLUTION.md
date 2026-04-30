@@ -1,0 +1,229 @@
+# Exchange Unknown Resolution
+
+- count before: 34573
+- count after: 16026
+- remaining unknown_exchange_use: 16026
+
+## Top files with unresolved unknowns
+- rl/hybrid_trainer.py: 2839 (blocker)
+- trading/trader.py: 1771 (blocker)
+- trading/stealth_stops.py: 806 (blocker)
+- rl/orchestrator_worker.py: 683 (blocker)
+- config.py: 522 (blocker)
+- .backups/fix_signals_20251012_191330/hybrid_trainer.py: 431 (acceptable_false_positive)
+- .backups/fix_signals_20251012_191010/hybrid_trainer.py: 431 (acceptable_false_positive)
+- risk/auto_deleverager.py: 203 (blocker)
+- .backups/fix_signals_20251012_191330/paper_trader.py: 200 (acceptable_false_positive)
+- .backups/fix_signals_20251012_191010/paper_trader.py: 200 (acceptable_false_positive)
+- rl/portfolio_policy_manager.py: 191 (blocker)
+- monitoring/deep_troubleshooter.py: 147 (blocker)
+- risk/margin_governor.py: 140 (blocker)
+- Public Dashboard/api.py: 115 (blocker)
+- rl/POSITION_MANAGER.py: 109 (blocker)
+- rl/hybrid_action_space.py: 104 (blocker)
+- monitoring/live_system_auditor.py: 101 (blocker)
+- scripts/close_all_positions.py: 97 (blocker)
+- rl/hedge_position_manager.py: 95 (blocker)
+- .backups/fix_signals_20251012_191330/trader.py: 89 (acceptable_false_positive)
+- .backups/fix_signals_20251012_191010/trader.py: 89 (acceptable_false_positive)
+- rl/underwater_recovery_controller.py: 88 (blocker)
+- rl/advanced_risk_management.py: 86 (blocker)
+- rl/tradeplan_orchestrator.py: 81 (blocker)
+- rl/hedge_manager_v3.py: 81 (blocker)
+- trading/dynamic_adaptive_hedge.py: 79 (blocker)
+- rl/CRITICAL_HEDGE_AND_PORTFOLIO_FIX.py: 75 (blocker)
+- trading/dynamic_margin_manager.py: 70 (blocker)
+- risk/phase_controller.py: 68 (blocker)
+- rl/dynamic_runner_hedge.py: 67 (blocker)
+- scripts/comprehensive_system_audit.py: 67 (blocker)
+- trading/dynamic_adaptive_stops.py: 65 (blocker)
+- rl/target_exposure_controller.py: 65 (blocker)
+- telegram_alerts.py: 63 (blocker)
+- rl/position_monitor.py: 63 (blocker)
+- risk/assertions.py: 62 (blocker)
+- risk/halt_manager.py: 62 (blocker)
+- scripts/stop_trader.sh: 59 (blocker)
+- sim_past_hour.py: 58 (blocker)
+- comprehensive_validation_analysis.py: 57 (blocker)
+- rl/hedge_action_space.py: 57 (blocker)
+- test_position_aware_comprehensive.py: 56 (blocker)
+- scripts/visual_feature_report.py: 56 (blocker)
+- utils/unified_position_loader.py: 56 (blocker)
+- fix_redis_position_access.py: 55 (blocker)
+- trading/hedge_intelligence_engine.py: 54 (blocker)
+- scripts/stop_trader_asjad.sh: 52 (blocker)
+- trading/hedge_context.py: 51 (blocker)
+- rl/liquidation_prevention.py: 51 (blocker)
+- services/portfolio_state.py: 51 (blocker)
+- rl/microstructure_proactive.py: 49 (blocker)
+- api/routes/trading_routes.py: 47 (blocker)
+- apply_immediate_fixes.sh: 45 (blocker)
+- test_production_ta_section7.py: 44 (blocker)
+- trading/base_executor.py: 41 (blocker)
+- trading/market_intelligence.py: 41 (blocker)
+- dashboard/api.py: 41 (blocker)
+- test_binance_testnet_orders.py: 40 (blocker)
+- test_leverage_proper.py: 39 (blocker)
+- test_position_aware_signals.py: 39 (blocker)
+- rl/gpu_environment.py: 39 (blocker)
+- ingest/realtime_price_provider.py: 39 (blocker)
+- test_leverage_adjustment.py: 38 (blocker)
+- test_training_pipeline.py: 38 (blocker)
+- trading/position_reporter.py: 38 (blocker)
+- rl/supervised_trainer.py: 37 (blocker)
+- scripts/trace_trade_lifecycle.py: 37 (blocker)
+- monitor_trainer_signals.py: 36 (blocker)
+- scripts/stop_system.sh: 36 (blocker)
+- scripts/stop_all_services_production.sh: 36 (blocker)
+- tests/test_patch_tasks.py: 36 (acceptable_false_positive)
+- test_trader_real.py: 35 (blocker)
+- rl/increase_signal_validator.py: 35 (blocker)
+- test_position_closing.py: 34 (blocker)
+- test_position_detection.py: 34 (blocker)
+- trading/exit_coordinator.py: 34 (blocker)
+- trading/redesign_v2_helpers.py: 34 (blocker)
+- rl/cpu_env.py: 34 (blocker)
+- rl/signal_state_manager.py: 33 (blocker)
+- monitor_portfolio_primary.py: 32 (blocker)
+- test_stop_loss_take_profit.py: 32 (blocker)
+- risk/intelligent_close_guard.py: 32 (blocker)
+- ingest/ccxt_historical.py: 32 (blocker)
+- test_binance_hedge_mode.py: 31 (blocker)
+- monitor_portfolio_asjad.py: 31 (blocker)
+- test_leverage_usage.py: 31 (blocker)
+- scripts/audit_last_hours_pnl.py: 31 (blocker)
+- investigate_why_no_closes.py: 30 (blocker)
+- ADD_REMAINING_FEATURES.py: 30 (blocker)
+- rl/environment.py: 30 (blocker)
+- scripts/audit_48h_live.py: 30 (blocker)
+- services/onchain_analyzer.py: 30 (blocker)
+- debug_trainer_positions.py: 29 (blocker)
+- test_ltc_trading.py: 29 (blocker)
+- analyze_trade_performance.py: 29 (blocker)
+- trading/stealth_dynamic_integration.py: 29 (blocker)
+- ingest/live_coinank.py: 29 (blocker)
+- test_real_trading.py: 28 (blocker)
+- trading/leg_manager.py: 28 (blocker)
+- scripts/replay_sanity_check.py: 28 (blocker)
+
+## Raw evidence pointers
+- validate_regime_integration.py:184 -> python3 tools/show_file_range.py --file ./legacy_reference/validate_regime_integration.py --start 181 --end 187
+- validate_regime_integration.py:185 -> python3 tools/show_file_range.py --file ./legacy_reference/validate_regime_integration.py --start 182 --end 188
+- validate_regime_integration.py:215 -> python3 tools/show_file_range.py --file ./legacy_reference/validate_regime_integration.py --start 212 --end 218
+- validate_regime_integration.py:226 -> python3 tools/show_file_range.py --file ./legacy_reference/validate_regime_integration.py --start 223 --end 229
+- audit_asjad_futures_deposits_30d.py:14 -> python3 tools/show_file_range.py --file ./legacy_reference/audit_asjad_futures_deposits_30d.py --start 11 --end 17
+- audit_asjad_futures_deposits_30d.py:15 -> python3 tools/show_file_range.py --file ./legacy_reference/audit_asjad_futures_deposits_30d.py --start 12 --end 18
+- audit_asjad_futures_deposits_30d.py:131 -> python3 tools/show_file_range.py --file ./legacy_reference/audit_asjad_futures_deposits_30d.py --start 128 --end 134
+- audit_asjad_futures_deposits_30d.py:240 -> python3 tools/show_file_range.py --file ./legacy_reference/audit_asjad_futures_deposits_30d.py --start 237 --end 243
+- audit_asjad_futures_deposits_30d.py:241 -> python3 tools/show_file_range.py --file ./legacy_reference/audit_asjad_futures_deposits_30d.py --start 238 --end 244
+- start_hybrid_trainer_live.sh:96 -> python3 tools/show_file_range.py --file ./legacy_reference/start_hybrid_trainer_live.sh --start 93 --end 99
+- start_hybrid_trainer_live.sh:99 -> python3 tools/show_file_range.py --file ./legacy_reference/start_hybrid_trainer_live.sh --start 96 --end 102
+- start_hybrid_trainer_live.sh:122 -> python3 tools/show_file_range.py --file ./legacy_reference/start_hybrid_trainer_live.sh --start 119 --end 125
+- start_hybrid_trainer_live.sh:162 -> python3 tools/show_file_range.py --file ./legacy_reference/start_hybrid_trainer_live.sh --start 159 --end 165
+- start_hybrid_trainer_live.sh:193 -> python3 tools/show_file_range.py --file ./legacy_reference/start_hybrid_trainer_live.sh --start 190 --end 196
+- check_order_history.py:48 -> python3 tools/show_file_range.py --file ./legacy_reference/check_order_history.py --start 45 --end 51
+- check_order_history.py:50 -> python3 tools/show_file_range.py --file ./legacy_reference/check_order_history.py --start 47 --end 53
+- check_order_history.py:59 -> python3 tools/show_file_range.py --file ./legacy_reference/check_order_history.py --start 56 --end 62
+- debug_trainer_positions.py:14 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 11 --end 17
+- debug_trainer_positions.py:17 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 14 --end 20
+- debug_trainer_positions.py:18 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 15 --end 21
+- debug_trainer_positions.py:20 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 17 --end 23
+- debug_trainer_positions.py:22 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 19 --end 25
+- debug_trainer_positions.py:23 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 20 --end 26
+- debug_trainer_positions.py:34 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 31 --end 37
+- debug_trainer_positions.py:35 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 32 --end 38
+- debug_trainer_positions.py:37 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 34 --end 40
+- debug_trainer_positions.py:46 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 43 --end 49
+- debug_trainer_positions.py:47 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 44 --end 50
+- debug_trainer_positions.py:55 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 52 --end 58
+- debug_trainer_positions.py:56 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 53 --end 59
+- debug_trainer_positions.py:57 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 54 --end 60
+- debug_trainer_positions.py:60 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 57 --end 63
+- debug_trainer_positions.py:62 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 59 --end 65
+- debug_trainer_positions.py:65 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 62 --end 68
+- debug_trainer_positions.py:68 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 65 --end 71
+- debug_trainer_positions.py:74 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 71 --end 77
+- debug_trainer_positions.py:84 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 81 --end 87
+- debug_trainer_positions.py:86 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 83 --end 89
+- debug_trainer_positions.py:87 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 84 --end 90
+- debug_trainer_positions.py:93 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 90 --end 96
+- debug_trainer_positions.py:101 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 98 --end 104
+- debug_trainer_positions.py:102 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 99 --end 105
+- debug_trainer_positions.py:104 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 101 --end 107
+- debug_trainer_positions.py:107 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 104 --end 110
+- debug_trainer_positions.py:108 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 105 --end 111
+- debug_trainer_positions.py:113 -> python3 tools/show_file_range.py --file ./legacy_reference/debug_trainer_positions.py --start 110 --end 116
+- test_production_ta_section7.py:6 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 3 --end 9
+- test_production_ta_section7.py:9 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 6 --end 12
+- test_production_ta_section7.py:62 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 59 --end 65
+- test_production_ta_section7.py:68 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 65 --end 71
+- test_production_ta_section7.py:69 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 66 --end 72
+- test_production_ta_section7.py:70 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 67 --end 73
+- test_production_ta_section7.py:75 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 72 --end 78
+- test_production_ta_section7.py:76 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 73 --end 79
+- test_production_ta_section7.py:77 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 74 --end 80
+- test_production_ta_section7.py:78 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 75 --end 81
+- test_production_ta_section7.py:79 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 76 --end 82
+- test_production_ta_section7.py:80 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 77 --end 83
+- test_production_ta_section7.py:91 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 88 --end 94
+- test_production_ta_section7.py:93 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 90 --end 96
+- test_production_ta_section7.py:95 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 92 --end 98
+- test_production_ta_section7.py:279 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 276 --end 282
+- test_production_ta_section7.py:356 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 353 --end 359
+- test_production_ta_section7.py:357 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 354 --end 360
+- test_production_ta_section7.py:358 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 355 --end 361
+- test_production_ta_section7.py:359 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 356 --end 362
+- test_production_ta_section7.py:368 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 365 --end 371
+- test_production_ta_section7.py:369 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 366 --end 372
+- test_production_ta_section7.py:374 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 371 --end 377
+- test_production_ta_section7.py:375 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 372 --end 378
+- test_production_ta_section7.py:377 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 374 --end 380
+- test_production_ta_section7.py:378 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 375 --end 381
+- test_production_ta_section7.py:379 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 376 --end 382
+- test_production_ta_section7.py:380 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 377 --end 383
+- test_production_ta_section7.py:381 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 378 --end 384
+- test_production_ta_section7.py:399 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 396 --end 402
+- test_production_ta_section7.py:400 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 397 --end 403
+- test_production_ta_section7.py:401 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 398 --end 404
+- test_production_ta_section7.py:402 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 399 --end 405
+- test_production_ta_section7.py:423 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 420 --end 426
+- test_production_ta_section7.py:424 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 421 --end 427
+- test_production_ta_section7.py:425 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 422 --end 428
+- test_production_ta_section7.py:433 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 430 --end 436
+- test_production_ta_section7.py:437 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 434 --end 440
+- test_production_ta_section7.py:440 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 437 --end 443
+- test_production_ta_section7.py:441 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 438 --end 444
+- test_production_ta_section7.py:444 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 441 --end 447
+- test_production_ta_section7.py:446 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 443 --end 449
+- test_production_ta_section7.py:447 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 444 --end 450
+- test_production_ta_section7.py:449 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_ta_section7.py --start 446 --end 452
+- test_production_trading.py:64 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_trading.py --start 61 --end 67
+- test_production_trading.py:80 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_trading.py --start 77 --end 83
+- test_production_trading.py:81 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_trading.py --start 78 --end 84
+- test_production_trading.py:88 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_trading.py --start 85 --end 91
+- test_production_trading.py:89 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_trading.py --start 86 --end 92
+- test_production_trading.py:97 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_trading.py --start 94 --end 100
+- test_production_trading.py:101 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_trading.py --start 98 --end 104
+- test_production_trading.py:126 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_trading.py --start 123 --end 129
+- test_production_trading.py:127 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_trading.py --start 124 --end 130
+- test_production_trading.py:128 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_trading.py --start 125 --end 131
+- test_production_trading.py:145 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_trading.py --start 142 --end 148
+- test_production_trading.py:182 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_trading.py --start 179 --end 185
+- test_production_trading.py:185 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_trading.py --start 182 --end 188
+- test_production_trading.py:186 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_trading.py --start 183 --end 189
+- test_production_trading.py:217 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_trading.py --start 214 --end 220
+- test_production_trading.py:251 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_trading.py --start 248 --end 254
+- test_production_trading.py:254 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_trading.py --start 251 --end 257
+- test_production_trading.py:255 -> python3 tools/show_file_range.py --file ./legacy_reference/test_production_trading.py --start 252 --end 258
+- test_complete_trainer_validation.py:108 -> python3 tools/show_file_range.py --file ./legacy_reference/test_complete_trainer_validation.py --start 105 --end 111
+- test_complete_trainer_validation.py:111 -> python3 tools/show_file_range.py --file ./legacy_reference/test_complete_trainer_validation.py --start 108 --end 114
+- test_complete_trainer_validation.py:113 -> python3 tools/show_file_range.py --file ./legacy_reference/test_complete_trainer_validation.py --start 110 --end 116
+- test_complete_trainer_validation.py:114 -> python3 tools/show_file_range.py --file ./legacy_reference/test_complete_trainer_validation.py --start 111 --end 117
+- test_complete_trainer_validation.py:115 -> python3 tools/show_file_range.py --file ./legacy_reference/test_complete_trainer_validation.py --start 112 --end 118
+- test_complete_trainer_validation.py:130 -> python3 tools/show_file_range.py --file ./legacy_reference/test_complete_trainer_validation.py --start 127 --end 133
+- test_complete_trainer_validation.py:132 -> python3 tools/show_file_range.py --file ./legacy_reference/test_complete_trainer_validation.py --start 129 --end 135
+- test_complete_trainer_validation.py:133 -> python3 tools/show_file_range.py --file ./legacy_reference/test_complete_trainer_validation.py --start 130 --end 136
+- test_complete_trainer_validation.py:142 -> python3 tools/show_file_range.py --file ./legacy_reference/test_complete_trainer_validation.py --start 139 --end 145
+- test_complete_trainer_validation.py:147 -> python3 tools/show_file_range.py --file ./legacy_reference/test_complete_trainer_validation.py --start 144 --end 150
+- test_complete_trainer_validation.py:150 -> python3 tools/show_file_range.py --file ./legacy_reference/test_complete_trainer_validation.py --start 147 --end 153
+- test_complete_trainer_validation.py:154 -> python3 tools/show_file_range.py --file ./legacy_reference/test_complete_trainer_validation.py --start 151 --end 157

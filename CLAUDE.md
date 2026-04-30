@@ -89,9 +89,15 @@ Before V2 build:
 - every unsafe_unknown must be resolved or block progress
 - Codex must perform adversarial coverage review
 
-## 250k-Line Trainer Rule
+## Trainer Size Reconciliation Rule
 
-The legacy trainer is over 250k lines and must be treated as a subsystem.
+The trainer subsystem was initially believed to be >250k lines.
+The current snapshot’s primary hybrid trainer file size is tracked in
+`claude_worklog/trainer_atlas/TRAINER_SIZE_RECONCILIATION.md` and
+must be treated as the canonical measurement for line count/bytes/hash.
+
+The broader trainer subsystem may include additional files; exact subsystem
+size must be computed from the manifest and trainer-atlas candidate scan.
 
 Do not read it end-to-end as one raw context dump.
 

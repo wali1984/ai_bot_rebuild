@@ -136,10 +136,10 @@ def main() -> int:
             cls = "active_manual"
             reason = "executable shell script without startup evidence"
         elif any(tok in rel.lower() for tok in ["clear_redis", "flush", "delete", "destroy", "nuke", "kill_"]):
-            cls = "quarantine_unknown"
+            cls = "unsafe_unknown"
             reason = "high-risk script name without deterministic invocation evidence"
         else:
-            cls = "quarantine_unknown"
+            cls = "unsafe_unknown"
             reason = "insufficient deterministic evidence"
             risk = "unknown" if risk == "low" else risk
 
