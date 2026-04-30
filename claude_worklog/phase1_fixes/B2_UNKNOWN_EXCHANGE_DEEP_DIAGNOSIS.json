@@ -1,0 +1,1025 @@
+{
+  "unknown_exchange_use_total": 16026,
+  "top_50_files_by_unknown_count": [
+    {
+      "file": "rl/hybrid_trainer.py",
+      "count": 2839
+    },
+    {
+      "file": "trading/trader.py",
+      "count": 1771
+    },
+    {
+      "file": "trading/stealth_stops.py",
+      "count": 806
+    },
+    {
+      "file": "rl/orchestrator_worker.py",
+      "count": 683
+    },
+    {
+      "file": "config.py",
+      "count": 522
+    },
+    {
+      "file": ".backups/fix_signals_20251012_191330/hybrid_trainer.py",
+      "count": 431
+    },
+    {
+      "file": ".backups/fix_signals_20251012_191010/hybrid_trainer.py",
+      "count": 431
+    },
+    {
+      "file": "risk/auto_deleverager.py",
+      "count": 203
+    },
+    {
+      "file": ".backups/fix_signals_20251012_191330/paper_trader.py",
+      "count": 200
+    },
+    {
+      "file": ".backups/fix_signals_20251012_191010/paper_trader.py",
+      "count": 200
+    },
+    {
+      "file": "rl/portfolio_policy_manager.py",
+      "count": 191
+    },
+    {
+      "file": "monitoring/deep_troubleshooter.py",
+      "count": 147
+    },
+    {
+      "file": "risk/margin_governor.py",
+      "count": 140
+    },
+    {
+      "file": "Public Dashboard/api.py",
+      "count": 115
+    },
+    {
+      "file": "rl/POSITION_MANAGER.py",
+      "count": 109
+    },
+    {
+      "file": "rl/hybrid_action_space.py",
+      "count": 104
+    },
+    {
+      "file": "monitoring/live_system_auditor.py",
+      "count": 101
+    },
+    {
+      "file": "scripts/close_all_positions.py",
+      "count": 97
+    },
+    {
+      "file": "rl/hedge_position_manager.py",
+      "count": 95
+    },
+    {
+      "file": ".backups/fix_signals_20251012_191330/trader.py",
+      "count": 89
+    },
+    {
+      "file": ".backups/fix_signals_20251012_191010/trader.py",
+      "count": 89
+    },
+    {
+      "file": "rl/underwater_recovery_controller.py",
+      "count": 88
+    },
+    {
+      "file": "rl/advanced_risk_management.py",
+      "count": 86
+    },
+    {
+      "file": "rl/tradeplan_orchestrator.py",
+      "count": 81
+    },
+    {
+      "file": "rl/hedge_manager_v3.py",
+      "count": 81
+    },
+    {
+      "file": "trading/dynamic_adaptive_hedge.py",
+      "count": 79
+    },
+    {
+      "file": "rl/CRITICAL_HEDGE_AND_PORTFOLIO_FIX.py",
+      "count": 75
+    },
+    {
+      "file": "trading/dynamic_margin_manager.py",
+      "count": 70
+    },
+    {
+      "file": "risk/phase_controller.py",
+      "count": 68
+    },
+    {
+      "file": "rl/dynamic_runner_hedge.py",
+      "count": 67
+    },
+    {
+      "file": "scripts/comprehensive_system_audit.py",
+      "count": 67
+    },
+    {
+      "file": "trading/dynamic_adaptive_stops.py",
+      "count": 65
+    },
+    {
+      "file": "rl/target_exposure_controller.py",
+      "count": 65
+    },
+    {
+      "file": "telegram_alerts.py",
+      "count": 63
+    },
+    {
+      "file": "rl/position_monitor.py",
+      "count": 63
+    },
+    {
+      "file": "risk/assertions.py",
+      "count": 62
+    },
+    {
+      "file": "risk/halt_manager.py",
+      "count": 62
+    },
+    {
+      "file": "scripts/stop_trader.sh",
+      "count": 59
+    },
+    {
+      "file": "sim_past_hour.py",
+      "count": 58
+    },
+    {
+      "file": "comprehensive_validation_analysis.py",
+      "count": 57
+    },
+    {
+      "file": "rl/hedge_action_space.py",
+      "count": 57
+    },
+    {
+      "file": "test_position_aware_comprehensive.py",
+      "count": 56
+    },
+    {
+      "file": "scripts/visual_feature_report.py",
+      "count": 56
+    },
+    {
+      "file": "utils/unified_position_loader.py",
+      "count": 56
+    },
+    {
+      "file": "fix_redis_position_access.py",
+      "count": 55
+    },
+    {
+      "file": "trading/hedge_intelligence_engine.py",
+      "count": 54
+    },
+    {
+      "file": "scripts/stop_trader_asjad.sh",
+      "count": 52
+    },
+    {
+      "file": "trading/hedge_context.py",
+      "count": 51
+    },
+    {
+      "file": "rl/liquidation_prevention.py",
+      "count": 51
+    },
+    {
+      "file": "services/portfolio_state.py",
+      "count": 51
+    }
+  ],
+  "unknown_counts_by_file_category": {
+    "production_code": 11284,
+    "docs": 498,
+    "comments_only": 2443,
+    "unknown": 596,
+    "tests": 903,
+    "config": 302
+  },
+  "top_100_unique_matched_text_snippets": [
+    {
+      "snippet": "for pos in positions:",
+      "count": 27
+    },
+    {
+      "snippet": "position_side: str,",
+      "count": 19
+    },
+    {
+      "snippet": "if not has_position:",
+      "count": 18
+    },
+    {
+      "snippet": "from config import SYMBOL_LEVERAGE_CONFIG",
+      "count": 16
+    },
+    {
+      "snippet": "self.steps_in_position = 0",
+      "count": 15
+    },
+    {
+      "snippet": "if not positions:",
+      "count": 14
+    },
+    {
+      "snippet": "if position_side == \"LONG\":",
+      "count": 14
+    },
+    {
+      "snippet": "positions = []",
+      "count": 13
+    },
+    {
+      "snippet": "for p in positions:",
+      "count": 12
+    },
+    {
+      "snippet": "stopped=1",
+      "count": 12
+    },
+    {
+      "snippet": "if [ -f '/tmp/aibot-control/${service_name}.stop' ]; then",
+      "count": 12
+    },
+    {
+      "snippet": "echo '\ud83d\uded1 Stop signal received for ${service_name}, exiting...'",
+      "count": 12
+    },
+    {
+      "snippet": "def stop(self):",
+      "count": 11
+    },
+    {
+      "snippet": "\"min_free_margin_ratio\": 0.0,",
+      "count": 11
+    },
+    {
+      "snippet": "if positions:",
+      "count": 11
+    },
+    {
+      "snippet": "req_margin = 0.0",
+      "count": 11
+    },
+    {
+      "snippet": "margin_util = 0.0",
+      "count": 10
+    },
+    {
+      "snippet": "\"mu_util=%.3f | free_margin=%.3f | headroom_usd=%.2f\",",
+      "count": 10
+    },
+    {
+      "snippet": "stop.symbol,",
+      "count": 10
+    },
+    {
+      "snippet": "for ex in EXCHANGES:",
+      "count": 10
+    },
+    {
+      "snippet": "self.report_position(symbol, {",
+      "count": 10
+    },
+    {
+      "snippet": "amt = float(pos['positionAmt'])",
+      "count": 9
+    },
+    {
+      "snippet": "'size': abs(position_amt),",
+      "count": 9
+    },
+    {
+      "snippet": "leverage = 1.0",
+      "count": 9
+    },
+    {
+      "snippet": "current_position=current_position,",
+      "count": 9
+    },
+    {
+      "snippet": "'available_margin': available_margin,",
+      "count": 9
+    },
+    {
+      "snippet": "elif position_side == 'SHORT':",
+      "count": 9
+    },
+    {
+      "snippet": "\"recommended_leverage\": int(recommended_leverage),",
+      "count": 8
+    },
+    {
+      "snippet": "exchange_info = self.client.futures_exchange_info()",
+      "count": 8
+    },
+    {
+      "snippet": "symbol_info = next((s for s in exchange_info['symbols'] if s['symbol'] == symbol), None)",
+      "count": 8
+    },
+    {
+      "snippet": "pm_margin_util,",
+      "count": 8
+    },
+    {
+      "snippet": "_hold_steps = getattr(self, 'steps_in_position', 0)",
+      "count": 8
+    },
+    {
+      "snippet": "'margin_utilization': margin_utilization,",
+      "count": 8
+    },
+    {
+      "snippet": "elif position_side == 'LONG':",
+      "count": 8
+    },
+    {
+      "snippet": "self.paper_positions[symbol]['trailing_base_price'] = current_price",
+      "count": 8
+    },
+    {
+      "snippet": "del self.paper_positions[symbol]",
+      "count": 8
+    },
+    {
+      "snippet": "'leverage': 10,",
+      "count": 7
+    },
+    {
+      "snippet": "position_hash = redis_client.hgetall(position_key)",
+      "count": 7
+    },
+    {
+      "snippet": "key = f\"portfolio:positions:{account_id}\"",
+      "count": 7
+    },
+    {
+      "snippet": "pos_key = f\"portfolio:positions:{account_id}\"",
+      "count": 7
+    },
+    {
+      "snippet": "position_size: float,",
+      "count": 7
+    },
+    {
+      "snippet": "position_side,",
+      "count": 7
+    },
+    {
+      "snippet": "cur_margin = 0.0",
+      "count": 7
+    },
+    {
+      "snippet": "lev0 = float(winner.get(\"leverage\") or 1.0)",
+      "count": 7
+    },
+    {
+      "snippet": "'side': 'LONG' if position_amt > 0 else 'SHORT',",
+      "count": 7
+    },
+    {
+      "snippet": "'max_positions': MAX_CONCURRENT_POSITIONS,",
+      "count": 7
+    },
+    {
+      "snippet": "'position_count': position_count,",
+      "count": 7
+    },
+    {
+      "snippet": "'required_margin': required_margin,",
+      "count": 7
+    },
+    {
+      "snippet": "has_both_sides = len(all_positions) >= 2",
+      "count": 7
+    },
+    {
+      "snippet": "'has_position': True,",
+      "count": 7
+    },
+    {
+      "snippet": "'has_position': False,",
+      "count": 7
+    },
+    {
+      "snippet": "'leverage': 1,",
+      "count": 7
+    },
+    {
+      "snippet": "'margin_used': 0.0,",
+      "count": 7
+    },
+    {
+      "snippet": "echo 'Control: Stop with Ctrl+C or ./scripts/stop_all_services.sh'",
+      "count": 7
+    },
+    {
+      "snippet": "position_key = f\"positions:paper:{symbol}\"",
+      "count": 6
+    },
+    {
+      "snippet": "'leverage': leverage,",
+      "count": 6
+    },
+    {
+      "snippet": "\"leverage\": lev,",
+      "count": 6
+    },
+    {
+      "snippet": "active_positions.append({",
+      "count": 6
+    },
+    {
+      "snippet": "if position_data:",
+      "count": 6
+    },
+    {
+      "snippet": "position = json.loads(position_data)",
+      "count": 6
+    },
+    {
+      "snippet": "# Get position details",
+      "count": 6
+    },
+    {
+      "snippet": "if not position:",
+      "count": 6
+    },
+    {
+      "snippet": "# Close position",
+      "count": 6
+    },
+    {
+      "snippet": "positions.append({",
+      "count": 6
+    },
+    {
+      "snippet": "margin_usd: float,",
+      "count": 6
+    },
+    {
+      "snippet": "amt = float(_get(raw_live.get(b\"position_amt\") or raw_live.get(\"position_amt\") or 0.0))",
+      "count": 6
+    },
+    {
+      "snippet": "projected_margin_usage = new_position_margin + estimated_fees_usd",
+      "count": 6
+    },
+    {
+      "snippet": "if side and position['side'] != side:",
+      "count": 6
+    },
+    {
+      "snippet": "position_side_current = position['side']",
+      "count": 6
+    },
+    {
+      "snippet": "order_side = 'SELL' if position_side_current == 'LONG' else 'BUY'",
+      "count": 6
+    },
+    {
+      "snippet": "entry_price = position['entry_price']",
+      "count": 6
+    },
+    {
+      "snippet": "leverage: float",
+      "count": 6
+    },
+    {
+      "snippet": "side_mult = 1.0 if position_side.upper() == \"LONG\" else -1.0",
+      "count": 6
+    },
+    {
+      "snippet": "\"margin_util\": float(margin_util),",
+      "count": 6
+    },
+    {
+      "snippet": "raw_live = self.redis.hgetall(f\"positions:live:{account_id}:{symbol}\") or {}",
+      "count": 6
+    },
+    {
+      "snippet": "cur_margin = float(winner.get(\"margin_usd\") or 0.0)",
+      "count": 6
+    },
+    {
+      "snippet": "if position_type == 'LONG':",
+      "count": 6
+    },
+    {
+      "snippet": "pos = self._get_current_position(symbol)",
+      "count": 6
+    },
+    {
+      "snippet": "logger.error(f\"Error calculating adaptive trailing stop: {e}\")",
+      "count": 6
+    },
+    {
+      "snippet": "for field in ['ccxt_close', 'close']:",
+      "count": 6
+    },
+    {
+      "snippet": "for key, pos in self.positions.items():",
+      "count": 6
+    },
+    {
+      "snippet": "# Remove any existing stop signal",
+      "count": 6
+    },
+    {
+      "snippet": "rm -f \"/tmp/aibot-control/${service_name}.stop\"",
+      "count": 6
+    },
+    {
+      "snippet": "echo '   (Press Ctrl+C to stop, or use ./scripts/stop_all_services.sh)'",
+      "count": 6
+    },
+    {
+      "snippet": "position = {",
+      "count": 6
+    },
+    {
+      "snippet": "if symbol not in self.paper_positions:",
+      "count": 6
+    },
+    {
+      "snippet": "pos = self.paper_positions[symbol]",
+      "count": 6
+    },
+    {
+      "snippet": "self.report_position(symbol, pos)",
+      "count": 6
+    },
+    {
+      "snippet": "'side': position['side'],",
+      "count": 6
+    },
+    {
+      "snippet": "position = self.paper_positions[symbol]",
+      "count": 6
+    },
+    {
+      "snippet": "symbol_features.extend([0.0] * 5)  # CCXT (no hardcoded prices)",
+      "count": 6
+    },
+    {
+      "snippet": "leverage_config = self.symbol_leverage_ranges.get(symbol, self.symbol_leverage_ranges['default'])",
+      "count": 6
+    },
+    {
+      "snippet": "position_data = {",
+      "count": 5
+    },
+    {
+      "snippet": "if all_positions:",
+      "count": 5
+    },
+    {
+      "snippet": "positions.pop(sym, None)",
+      "count": 5
+    },
+    {
+      "snippet": "position_amt = float(pos['positionAmt'])",
+      "count": 5
+    },
+    {
+      "snippet": "self.redis.delete(position_key)",
+      "count": 5
+    },
+    {
+      "snippet": "\"positionSide\": position_side,",
+      "count": 5
+    },
+    {
+      "snippet": "- Position sizing calculations (trainer provides)",
+      "count": 5
+    },
+    {
+      "snippet": "self.positions_cache = {}",
+      "count": 5
+    }
+  ],
+  "top_100_unique_normalized_tokens": [
+    {
+      "token": "position",
+      "count": 2757
+    },
+    {
+      "token": "get",
+      "count": 2020
+    },
+    {
+      "token": "if",
+      "count": 1983
+    },
+    {
+      "token": "float",
+      "count": 1864
+    },
+    {
+      "token": "self",
+      "count": 1820
+    },
+    {
+      "token": "positions",
+      "count": 1680
+    },
+    {
+      "token": "or",
+      "count": 1621
+    },
+    {
+      "token": "leverage",
+      "count": 1523
+    },
+    {
+      "token": "symbol",
+      "count": 1470
+    },
+    {
+      "token": "stop",
+      "count": 1224
+    },
+    {
+      "token": "for",
+      "count": 1207
+    },
+    {
+      "token": "margin",
+      "count": 984
+    },
+    {
+      "token": "in",
+      "count": 971
+    },
+    {
+      "token": "and",
+      "count": 821
+    },
+    {
+      "token": "to",
+      "count": 778
+    },
+    {
+      "token": "side",
+      "count": 732
+    },
+    {
+      "token": "logger",
+      "count": 680
+    },
+    {
+      "token": "print",
+      "count": 647
+    },
+    {
+      "token": "long",
+      "count": 600
+    },
+    {
+      "token": "str",
+      "count": 581
+    },
+    {
+      "token": "not",
+      "count": 514
+    },
+    {
+      "token": "size",
+      "count": 451
+    },
+    {
+      "token": "short",
+      "count": 451
+    },
+    {
+      "token": "margin_usd",
+      "count": 415
+    },
+    {
+      "token": "pos",
+      "count": 414
+    },
+    {
+      "token": "is",
+      "count": 401
+    },
+    {
+      "token": "else",
+      "count": 380
+    },
+    {
+      "token": "from",
+      "count": 377
+    },
+    {
+      "token": "def",
+      "count": 375
+    },
+    {
+      "token": "hedge",
+      "count": 371
+    },
+    {
+      "token": "info",
+      "count": 359
+    },
+    {
+      "token": "max",
+      "count": 354
+    },
+    {
+      "token": "the",
+      "count": 348
+    },
+    {
+      "token": "none",
+      "count": 341
+    },
+    {
+      "token": "no",
+      "count": 320
+    },
+    {
+      "token": "close",
+      "count": 315
+    },
+    {
+      "token": "check",
+      "count": 302
+    },
+    {
+      "token": "position_side",
+      "count": 300
+    },
+    {
+      "token": "with",
+      "count": 288
+    },
+    {
+      "token": "signal",
+      "count": 288
+    },
+    {
+      "token": "account_id",
+      "count": 287
+    },
+    {
+      "token": "confidence",
+      "count": 287
+    },
+    {
+      "token": "echo",
+      "count": 280
+    },
+    {
+      "token": "true",
+      "count": 272
+    },
+    {
+      "token": "dict",
+      "count": 271
+    },
+    {
+      "token": "int",
+      "count": 258
+    },
+    {
+      "token": "redis",
+      "count": 257
+    },
+    {
+      "token": "return",
+      "count": 253
+    },
+    {
+      "token": "append",
+      "count": 249
+    },
+    {
+      "token": "stops",
+      "count": 248
+    },
+    {
+      "token": "os",
+      "count": 241
+    },
+    {
+      "token": "trailing",
+      "count": 239
+    },
+    {
+      "token": "getenv",
+      "count": 235
+    },
+    {
+      "token": "trainer",
+      "count": 232
+    },
+    {
+      "token": "portfolio",
+      "count": 227
+    },
+    {
+      "token": "stopped",
+      "count": 224
+    },
+    {
+      "token": "all",
+      "count": 219
+    },
+    {
+      "token": "on",
+      "count": 216
+    },
+    {
+      "token": "open",
+      "count": 215
+    },
+    {
+      "token": "error",
+      "count": 215
+    },
+    {
+      "token": "data",
+      "count": 212
+    },
+    {
+      "token": "entry_price",
+      "count": 208
+    },
+    {
+      "token": "margin_util",
+      "count": 200
+    },
+    {
+      "token": "false",
+      "count": 200
+    },
+    {
+      "token": "len",
+      "count": 192
+    },
+    {
+      "token": "current_position",
+      "count": 192
+    },
+    {
+      "token": "of",
+      "count": 190
+    },
+    {
+      "token": "account",
+      "count": 188
+    },
+    {
+      "token": "test",
+      "count": 186
+    },
+    {
+      "token": "payload",
+      "count": 186
+    },
+    {
+      "token": "when",
+      "count": 184
+    },
+    {
+      "token": "this",
+      "count": 183
+    },
+    {
+      "token": "getattr",
+      "count": 183
+    },
+    {
+      "token": "action",
+      "count": 181
+    },
+    {
+      "token": "current",
+      "count": 179
+    },
+    {
+      "token": "margin_used",
+      "count": 176
+    },
+    {
+      "token": "config",
+      "count": 176
+    },
+    {
+      "token": "debug",
+      "count": 172
+    },
+    {
+      "token": "min",
+      "count": 172
+    },
+    {
+      "token": "sizing",
+      "count": 169
+    },
+    {
+      "token": "state",
+      "count": 168
+    },
+    {
+      "token": "abs",
+      "count": 168
+    },
+    {
+      "token": "existing",
+      "count": 167
+    },
+    {
+      "token": "high",
+      "count": 166
+    },
+    {
+      "token": "exchange",
+      "count": 163
+    },
+    {
+      "token": "pnl",
+      "count": 162
+    },
+    {
+      "token": "only",
+      "count": 161
+    },
+    {
+      "token": "by",
+      "count": 156
+    },
+    {
+      "token": "at",
+      "count": 155
+    },
+    {
+      "token": "cap",
+      "count": 155
+    },
+    {
+      "token": "profit",
+      "count": 154
+    },
+    {
+      "token": "equity",
+      "count": 154
+    },
+    {
+      "token": "reason",
+      "count": 152
+    },
+    {
+      "token": "has_position",
+      "count": 151
+    },
+    {
+      "token": "upper",
+      "count": 150
+    },
+    {
+      "token": "position_size_pct",
+      "count": 149
+    },
+    {
+      "token": "loss",
+      "count": 149
+    },
+    {
+      "token": "any",
+      "count": 147
+    },
+    {
+      "token": "positionamt",
+      "count": 146
+    },
+    {
+      "token": "trader",
+      "count": 145
+    }
+  ],
+  "generic_words_only_unknown_count": 24,
+  "unknown_cause_assessment": {
+    "ambiguous production code": 13234,
+    "comments/docs": 540,
+    "scanner overmatching": 1250,
+    "tests/examples": 1002
+  },
+  "unsafe_unknown_script_count_current_registry": 151
+}

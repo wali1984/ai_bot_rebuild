@@ -1,0 +1,1213 @@
+{
+  "previous_unsafe_unknown_count": 151,
+  "items": [
+    {
+      "path": "apply_churn_prevention.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/apply_churn_prevention.py --start 1 --end 80"
+    },
+    {
+      "path": "check_ltc_precision.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/check_ltc_precision.py --start 1 --end 80"
+    },
+    {
+      "path": "check_torch_location.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/check_torch_location.py --start 1 --end 80"
+    },
+    {
+      "path": "clear_redis.py",
+      "previous_reason": "high-risk script name without deterministic invocation evidence",
+      "evidence_found": "high-risk manual script; explicit invocation only",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/clear_redis.py --start 1 --end 80"
+    },
+    {
+      "path": "fix_gpu_batch_indent.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/fix_gpu_batch_indent.py --start 1 --end 80"
+    },
+    {
+      "path": "frontend/eslint.config.mjs",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "configuration path",
+      "new_proposed_classification": "config_only",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/eslint.config.mjs --start 1 --end 80"
+    },
+    {
+      "path": "frontend/next.config.js",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "configuration path",
+      "new_proposed_classification": "config_only",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/next.config.js --start 1 --end 80"
+    },
+    {
+      "path": "frontend/next.config.ts",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "configuration path",
+      "new_proposed_classification": "config_only",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/next.config.ts --start 1 --end 80"
+    },
+    {
+      "path": "frontend/postcss.config.mjs",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "configuration path",
+      "new_proposed_classification": "config_only",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/postcss.config.mjs --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/app/dashboard/page.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/app/dashboard/page.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/app/layout.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/app/layout.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/app/login/page.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/app/login/page.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/app/page.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/app/page.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/app/providers.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/app/providers.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/app/trading/page.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/app/trading/page.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/components/DashboardLayout.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/components/DashboardLayout.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/components/ProtectedRoute.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/components/ProtectedRoute.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/components/ui/alert-dialog.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/components/ui/alert-dialog.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/components/ui/alert.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/components/ui/alert.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/components/ui/badge.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/components/ui/badge.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/components/ui/button.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/components/ui/button.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/components/ui/card.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/components/ui/card.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/components/ui/dialog.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/components/ui/dialog.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/components/ui/dropdown-menu.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/components/ui/dropdown-menu.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/components/ui/input.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/components/ui/input.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/components/ui/label.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/components/ui/label.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/components/ui/separator.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/components/ui/separator.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/components/ui/slider.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/components/ui/slider.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/components/ui/switch.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/components/ui/switch.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/components/ui/tabs.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/components/ui/tabs.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/components/ui/tooltip.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/components/ui/tooltip.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/contexts/AuthContext.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/contexts/AuthContext.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/src/contexts/WebSocketContext.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/src/contexts/WebSocketContext.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/trading-command-center/eslint.config.mjs",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "configuration path",
+      "new_proposed_classification": "config_only",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/trading-command-center/eslint.config.mjs --start 1 --end 80"
+    },
+    {
+      "path": "frontend/trading-command-center/next.config.ts",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "configuration path",
+      "new_proposed_classification": "config_only",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/trading-command-center/next.config.ts --start 1 --end 80"
+    },
+    {
+      "path": "frontend/trading-command-center/postcss.config.mjs",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "configuration path",
+      "new_proposed_classification": "config_only",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/trading-command-center/postcss.config.mjs --start 1 --end 80"
+    },
+    {
+      "path": "frontend/trading-command-center/src/app/layout.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/trading-command-center/src/app/layout.tsx --start 1 --end 80"
+    },
+    {
+      "path": "frontend/trading-command-center/src/app/page.tsx",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/frontend/trading-command-center/src/app/page.tsx --start 1 --end 80"
+    },
+    {
+      "path": "ingest/tm_ids.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/ingest/tm_ids.py --start 1 --end 80"
+    },
+    {
+      "path": "install_everything.sh",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/install_everything.sh --start 1 --end 80"
+    },
+    {
+      "path": "launch_hybrid_trainer.sh",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/launch_hybrid_trainer.sh --start 1 --end 80"
+    },
+    {
+      "path": "quick_check_binance_normalized.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/quick_check_binance_normalized.py --start 1 --end 80"
+    },
+    {
+      "path": "restart_trainer_fixed_thresholds.sh",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/restart_trainer_fixed_thresholds.sh --start 1 --end 80"
+    },
+    {
+      "path": "rl/gpu_env_wrapper.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/rl/gpu_env_wrapper.py --start 1 --end 80"
+    },
+    {
+      "path": "rl/stable_gpu_trainer.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/rl/stable_gpu_trainer.py --start 1 --end 80"
+    },
+    {
+      "path": "scripts/_check_services.sh",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/scripts/_check_services.sh --start 1 --end 80"
+    },
+    {
+      "path": "scripts/audit_pipeline_health.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/scripts/audit_pipeline_health.py --start 1 --end 80"
+    },
+    {
+      "path": "scripts/check_unified_features.sh",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/scripts/check_unified_features.sh --start 1 --end 80"
+    },
+    {
+      "path": "scripts/launch_dashboard.sh",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/scripts/launch_dashboard.sh --start 1 --end 80"
+    },
+    {
+      "path": "scripts/mtf_blocker_validation_report.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/scripts/mtf_blocker_validation_report.py --start 1 --end 80"
+    },
+    {
+      "path": "scripts/stop_trader_asjad.sh",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/scripts/stop_trader_asjad.sh --start 1 --end 80"
+    },
+    {
+      "path": "scripts/test_hedge_build.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/scripts/test_hedge_build.py --start 1 --end 80"
+    },
+    {
+      "path": "scripts/test_liq_pipeline.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/scripts/test_liq_pipeline.py --start 1 --end 80"
+    },
+    {
+      "path": "scripts/ultimate_desktop_fix.sh",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/scripts/ultimate_desktop_fix.sh --start 1 --end 80"
+    },
+    {
+      "path": "scripts/update_symbols.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/scripts/update_symbols.py --start 1 --end 80"
+    },
+    {
+      "path": "scripts/verify_gpu_optimizations.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/scripts/verify_gpu_optimizations.py --start 1 --end 80"
+    },
+    {
+      "path": "scripts/verify_heartbeat_segregation.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/scripts/verify_heartbeat_segregation.py --start 1 --end 80"
+    },
+    {
+      "path": "scripts/verify_no_behavior_change.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/scripts/verify_no_behavior_change.py --start 1 --end 80"
+    },
+    {
+      "path": "scripts/why_hedged_timeline.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/scripts/why_hedged_timeline.py --start 1 --end 80"
+    },
+    {
+      "path": "send_enhancement_summary.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/send_enhancement_summary.py --start 1 --end 80"
+    },
+    {
+      "path": "simple_test.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/simple_test.py --start 1 --end 80"
+    },
+    {
+      "path": "simple_validation.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/simple_validation.py --start 1 --end 80"
+    },
+    {
+      "path": "start_system_with_binance.sh",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/start_system_with_binance.sh --start 1 --end 80"
+    },
+    {
+      "path": "status_report.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/status_report.py --start 1 --end 80"
+    },
+    {
+      "path": "test_143_features.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_143_features.py --start 1 --end 80"
+    },
+    {
+      "path": "test_action_fix.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_action_fix.py --start 1 --end 80"
+    },
+    {
+      "path": "test_ai_signals.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_ai_signals.py --start 1 --end 80"
+    },
+    {
+      "path": "test_ai_signals_channel.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_ai_signals_channel.py --start 1 --end 80"
+    },
+    {
+      "path": "test_all.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_all.py --start 1 --end 80"
+    },
+    {
+      "path": "test_binance_imports.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_binance_imports.py --start 1 --end 80"
+    },
+    {
+      "path": "test_channel_routing.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_channel_routing.py --start 1 --end 80"
+    },
+    {
+      "path": "test_complete_alerts.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_complete_alerts.py --start 1 --end 80"
+    },
+    {
+      "path": "test_complete_trainer_pipeline.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_complete_trainer_pipeline.py --start 1 --end 80"
+    },
+    {
+      "path": "test_comprehensive_features.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_comprehensive_features.py --start 1 --end 80"
+    },
+    {
+      "path": "test_comprehensive_talib.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_comprehensive_talib.py --start 1 --end 80"
+    },
+    {
+      "path": "test_config.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "configuration path",
+      "new_proposed_classification": "config_only",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_config.py --start 1 --end 80"
+    },
+    {
+      "path": "test_continuous_operation.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_continuous_operation.py --start 1 --end 80"
+    },
+    {
+      "path": "test_cpu_optimizations.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_cpu_optimizations.py --start 1 --end 80"
+    },
+    {
+      "path": "test_dual_positions.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_dual_positions.py --start 1 --end 80"
+    },
+    {
+      "path": "test_enhanced_alerts.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_enhanced_alerts.py --start 1 --end 80"
+    },
+    {
+      "path": "test_enhanced_reasoning.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_enhanced_reasoning.py --start 1 --end 80"
+    },
+    {
+      "path": "test_extraction.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_extraction.py --start 1 --end 80"
+    },
+    {
+      "path": "test_file_writers.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_file_writers.py --start 1 --end 80"
+    },
+    {
+      "path": "test_fixes.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_fixes.py --start 1 --end 80"
+    },
+    {
+      "path": "test_forwarding.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_forwarding.py --start 1 --end 80"
+    },
+    {
+      "path": "test_fresh_masa.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_fresh_masa.py --start 1 --end 80"
+    },
+    {
+      "path": "test_fresh_unified.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_fresh_unified.py --start 1 --end 80"
+    },
+    {
+      "path": "test_gpu_environment.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_gpu_environment.py --start 1 --end 80"
+    },
+    {
+      "path": "test_hedge_trading.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_hedge_trading.py --start 1 --end 80"
+    },
+    {
+      "path": "test_import.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_import.py --start 1 --end 80"
+    },
+    {
+      "path": "test_imports_quick.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_imports_quick.py --start 1 --end 80"
+    },
+    {
+      "path": "test_intelligent_trainer.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_intelligent_trainer.py --start 1 --end 80"
+    },
+    {
+      "path": "test_interrupt_lock.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_interrupt_lock.py --start 1 --end 80"
+    },
+    {
+      "path": "test_leverage_adjustment.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_leverage_adjustment.py --start 1 --end 80"
+    },
+    {
+      "path": "test_leverage_proper.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_leverage_proper.py --start 1 --end 80"
+    },
+    {
+      "path": "test_leverage_usage.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_leverage_usage.py --start 1 --end 80"
+    },
+    {
+      "path": "test_ltc_trading.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_ltc_trading.py --start 1 --end 80"
+    },
+    {
+      "path": "test_masa_gpu.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_masa_gpu.py --start 1 --end 80"
+    },
+    {
+      "path": "test_masa_loading.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_masa_loading.py --start 1 --end 80"
+    },
+    {
+      "path": "test_masa_real_features.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_masa_real_features.py --start 1 --end 80"
+    },
+    {
+      "path": "test_old_trainer_implementation.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_old_trainer_implementation.py --start 1 --end 80"
+    },
+    {
+      "path": "test_portfolio_alert.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_portfolio_alert.py --start 1 --end 80"
+    },
+    {
+      "path": "test_portfolio_summary.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_portfolio_summary.py --start 1 --end 80"
+    },
+    {
+      "path": "test_position_detection.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_position_detection.py --start 1 --end 80"
+    },
+    {
+      "path": "test_position_detection_directly.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_position_detection_directly.py --start 1 --end 80"
+    },
+    {
+      "path": "test_ppo_gpu.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_ppo_gpu.py --start 1 --end 80"
+    },
+    {
+      "path": "test_ppo_prediction.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_ppo_prediction.py --start 1 --end 80"
+    },
+    {
+      "path": "test_production_trading.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_production_trading.py --start 1 --end 80"
+    },
+    {
+      "path": "test_real_integration.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_real_integration.py --start 1 --end 80"
+    },
+    {
+      "path": "test_realtime_trainer_integration.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_realtime_trainer_integration.py --start 1 --end 80"
+    },
+    {
+      "path": "test_rtx5080.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_rtx5080.py --start 1 --end 80"
+    },
+    {
+      "path": "test_rtx5080_blackwell.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_rtx5080_blackwell.py --start 1 --end 80"
+    },
+    {
+      "path": "test_signal_clarity.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_signal_clarity.py --start 1 --end 80"
+    },
+    {
+      "path": "test_signal_data_fix.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_signal_data_fix.py --start 1 --end 80"
+    },
+    {
+      "path": "test_stop_loss_take_profit.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_stop_loss_take_profit.py --start 1 --end 80"
+    },
+    {
+      "path": "test_subproc_fix.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_subproc_fix.py --start 1 --end 80"
+    },
+    {
+      "path": "test_systematic_fixes.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_systematic_fixes.py --start 1 --end 80"
+    },
+    {
+      "path": "test_talib.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_talib.py --start 1 --end 80"
+    },
+    {
+      "path": "test_trade_channel.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_trade_channel.py --start 1 --end 80"
+    },
+    {
+      "path": "test_trader_advanced.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_trader_advanced.py --start 1 --end 80"
+    },
+    {
+      "path": "test_trader_real.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_trader_real.py --start 1 --end 80"
+    },
+    {
+      "path": "test_trading_signals.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_trading_signals.py --start 1 --end 80"
+    },
+    {
+      "path": "test_trainer_enhancements.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_trainer_enhancements.py --start 1 --end 80"
+    },
+    {
+      "path": "test_trainer_positions.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_trainer_positions.py --start 1 --end 80"
+    },
+    {
+      "path": "test_ultra_fast_real_trader.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_ultra_fast_real_trader.py --start 1 --end 80"
+    },
+    {
+      "path": "test_wsl_gpu_optimization.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "test path",
+      "new_proposed_classification": "active_test",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/test_wsl_gpu_optimization.py --start 1 --end 80"
+    },
+    {
+      "path": "timing_summary.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/timing_summary.py --start 1 --end 80"
+    },
+    {
+      "path": "tools/build_runtime_contracts.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/tools/build_runtime_contracts.py --start 1 --end 80"
+    },
+    {
+      "path": "tools/filter_runtime_contracts.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/tools/filter_runtime_contracts.py --start 1 --end 80"
+    },
+    {
+      "path": "tools/gen_contracts_md.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/tools/gen_contracts_md.py --start 1 --end 80"
+    },
+    {
+      "path": "tools/gen_module_runbooks.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/tools/gen_module_runbooks.py --start 1 --end 80"
+    },
+    {
+      "path": "tools/gen_runbook.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/tools/gen_runbook.py --start 1 --end 80"
+    },
+    {
+      "path": "tools/liquidation_levels_from_stream.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/tools/liquidation_levels_from_stream.py --start 1 --end 80"
+    },
+    {
+      "path": "tools/liquidation_levels_report.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/tools/liquidation_levels_report.py --start 1 --end 80"
+    },
+    {
+      "path": "tools/merge_call_edges.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/tools/merge_call_edges.py --start 1 --end 80"
+    },
+    {
+      "path": "tools/redis_contract_scan.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/tools/redis_contract_scan.py --start 1 --end 80"
+    },
+    {
+      "path": "tools/repo_blueprint.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/tools/repo_blueprint.py --start 1 --end 80"
+    },
+    {
+      "path": "tools/smoke_publish_test.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/tools/smoke_publish_test.py --start 1 --end 80"
+    },
+    {
+      "path": "trading/assert_governor.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/trading/assert_governor.py --start 1 --end 80"
+    },
+    {
+      "path": "trainer_dimension_patch.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/trainer_dimension_patch.py --start 1 --end 80"
+    },
+    {
+      "path": "update_channel_id.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/update_channel_id.py --start 1 --end 80"
+    },
+    {
+      "path": "validate_all_implementations.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/validate_all_implementations.py --start 1 --end 80"
+    },
+    {
+      "path": "validate_config.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "configuration path",
+      "new_proposed_classification": "config_only",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/validate_config.py --start 1 --end 80"
+    },
+    {
+      "path": "validate_fixes.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/validate_fixes.py --start 1 --end 80"
+    },
+    {
+      "path": "validate_implementation.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/validate_implementation.py --start 1 --end 80"
+    },
+    {
+      "path": "validate_ultra_fast_trader.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/validate_ultra_fast_trader.py --start 1 --end 80"
+    },
+    {
+      "path": "verify_all_imports.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/verify_all_imports.py --start 1 --end 80"
+    },
+    {
+      "path": "verify_imports.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/verify_imports.py --start 1 --end 80"
+    },
+    {
+      "path": "verify_rtx5080_cuda.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/verify_rtx5080_cuda.py --start 1 --end 80"
+    },
+    {
+      "path": "verify_rtx5080_setup.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/verify_rtx5080_setup.py --start 1 --end 80"
+    },
+    {
+      "path": "verify_wsl_scripts.py",
+      "previous_reason": "insufficient deterministic evidence",
+      "evidence_found": "manual/adhoc script without deterministic startup evidence",
+      "new_proposed_classification": "active_manual",
+      "still_blocker": "no",
+      "verification_command": "python3 tools/show_file_range.py --file ./legacy_reference/verify_wsl_scripts.py --start 1 --end 80"
+    }
+  ]
+}

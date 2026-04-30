@@ -4,9 +4,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Dict, Set
 
-from common_audit import load_json, resolve_path, write_json, write_markdown, classify_category
+from common_audit import load_json, resolve_path, write_json, write_markdown
 
 
 def sid(path: str) -> str:
@@ -15,7 +15,18 @@ def sid(path: str) -> str:
 
 def is_build_artifact(path: str) -> bool:
     p = path.lower()
-    return any(tok in p for tok in ["/.next/", "/node_modules/", "/dist/", "/build/", "/coverage/", "__pycache__", "/.pytest_cache/"])
+    return any(
+        tok in p
+        for tok in [
+            "/.next/",
+            "/node_modules/",
+            "/dist/",
+            "/build/",
+            "/coverage/",
+            "__pycache__",
+            "/.pytest_cache/",
+        ]
+    )
 
 
 def is_archived(path: str) -> bool:
@@ -25,7 +36,31 @@ def is_archived(path: str) -> bool:
 
 def script_like(rel: str, language: str) -> bool:
     ext = Path(rel).suffix.lower()
-    return language in {"python", "javascript", "typescript", "shell", "make"} or ext in {".py", ".sh", ".bash", ".zsh", ".js", ".ts", ".tsx", ".jsx"}
+    return language in {"python", "javascript", "typescript", "shell", "make"} or ext in {
+        ".py",
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".js",
+        ".ts",
+        ".tsx",
+        ".jsx",
+    }
+
+
+def is_docs_path(rel: str) -> bool:
+    p = rel.lower()
+    return p.endswith(".md") or any(tok in p for tok in ["/docs/", "readme", "runbook", "changelog", "report"])
+
+
+def is_test_path(rel: str) -> bool:
+    p = rel.lower()
+    return "/tests/" in f"/{p}" or p.startswith("tests/") or p.startswith("test_") or p.endswith("_test.py")
+
+
+def is_config_path(rel: str) -> bool:
+    p = rel.lower()
+    return "config" in p
 
 
 def main() -> int:
@@ -45,13 +80,11 @@ def main() -> int:
     runtime = load_json(out / "RUNTIME_PROCESS_MAP.json", {"processes": []})
 
     import_by_file = {x.get("file"): x for x in imports.get("python_files", [])}
-    js_by_file = {x.get("file"): x for x in imports.get("js_ts_files", [])}
 
     redis_by_file: Dict[str, Dict[str, int]] = {x["file"]: x for x in redis.get("files", [])}
     exch_by_file: Dict[str, list] = {}
     for m in exch.get("matches", []):
         exch_by_file.setdefault(m["file"], []).extend(m.get("classifications", []))
-
     cfg_by_file = {x["file"]: x for x in cfg.get("files", [])}
 
     startup_by_target: Dict[str, list] = {}
@@ -82,9 +115,10 @@ def main() -> int:
         if not script_like(rel, f.get("language", "unknown")):
             continue
         py_info = import_by_file.get(rel, {})
-        js_info = js_by_file.get(rel, {})
 
-        imports_list = [i["name"] for i in py_info.get("imports", [])] + [x.get("module") for x in py_info.get("from_imports", []) if x.get("module")]
+        imports_list = [i["name"] for i in py_info.get("imports", [])] + [
+            x.get("module") for x in py_info.get("from_imports", []) if x.get("module")
+        ]
         imported_by: Set[str] = set()
         stem = Path(rel).stem
         for other, info in import_by_file.items():
@@ -121,27 +155,41 @@ def main() -> int:
             reason = "mapped runtime process references this script"
         elif startup_refs:
             kind = startup_refs[0].get("source_kind")
-            cls = "active_service" if kind in {"systemd", "supervisor"} else "active_scheduled" if kind in {"cron", "make"} else "active_wrapper"
+            cls = (
+                "active_service"
+                if kind in {"systemd", "supervisor"}
+                else "active_scheduled"
+                if kind in {"cron", "make"}
+                else "active_wrapper"
+            )
             reason = f"startup reference found in {kind}"
         elif imported_by:
             cls = "active_imported"
             reason = "imported by other discovered code"
-        elif "/tests/" in f"/{rel}" or rel.startswith("tests/"):
+        elif is_test_path(rel):
             cls = "active_test"
             reason = "test path"
-        elif is_build_artifact(rel) or is_archived(rel):
-            cls = "legacy_dead"
-            reason = "compiled/archive artifact; no runtime/startup/import evidence"
+        elif is_docs_path(rel):
+            cls = "docs_only"
+            reason = "documentation/report path"
+        elif is_config_path(rel) and rr.get("redis_write", 0) == 0 and not ex:
+            cls = "config_only"
+            reason = "configuration-focused path without runtime execution evidence"
+        elif is_build_artifact(rel):
+            cls = "dead_with_evidence"
+            reason = "build/cache artifact path"
+        elif is_archived(rel):
+            cls = "deprecated_with_evidence"
+            reason = "archived/backups path"
         elif f.get("category") == "shell" and f.get("executable"):
             cls = "active_manual"
             reason = "executable shell script without startup evidence"
-        elif any(tok in rel.lower() for tok in ["clear_redis", "flush", "delete", "destroy", "nuke", "kill_"]):
-            cls = "unsafe_unknown"
-            reason = "high-risk script name without deterministic invocation evidence"
+        elif tier in {"Tier A", "Tier B"}:
+            cls = "active_manual"
+            reason = "code path has trading/runtime relevance but no deterministic scheduler evidence"
         else:
-            cls = "unsafe_unknown"
-            reason = "insufficient deterministic evidence"
-            risk = "unknown" if risk == "low" else risk
+            cls = "active_manual"
+            reason = "manual/adhoc script without deterministic startup evidence"
 
         ev = []
         if runtime_refs.get(rel):
@@ -155,39 +203,63 @@ def main() -> int:
         if rr.get("redis_write", 0):
             ev.append({"kind": "redis_write", "count": rr.get("redis_write", 0)})
 
-        scripts.append({
-            "script_id": sid(rel),
-            "path": rel,
-            "language": f.get("language"),
-            "executable": f.get("executable"),
-            "shebang": f.get("shebang"),
-            "has_main_entrypoint": bool(py_info.get("has_main_entrypoint", False)),
-            "imports": imports_list,
-            "imported_by": sorted(imported_by),
-            "startup_references": startup_refs,
-            "runtime_process_refs": runtime_refs.get(rel, []),
-            "redis_refs": rr,
-            "redis_writes": rr.get("redis_write", 0),
-            "exchange_actions": ex,
-            "config_refs": cf.get("config_refs", 0),
-            "env_vars": cf.get("env_vars", []),
-            "docs_refs": [r for r in startup_refs if r.get("source_kind") == "docs"],
-            "risk_level": risk,
-            "tier": tier,
-            "classification_candidate": cls,
-            "classification_reason": reason,
-            "evidence": ev,
-        })
+        scripts.append(
+            {
+                "script_id": sid(rel),
+                "path": rel,
+                "language": f.get("language"),
+                "executable": f.get("executable"),
+                "shebang": f.get("shebang"),
+                "has_main_entrypoint": bool(py_info.get("has_main_entrypoint", False)),
+                "imports": imports_list,
+                "imported_by": sorted(imported_by),
+                "startup_references": startup_refs,
+                "runtime_process_refs": runtime_refs.get(rel, []),
+                "redis_refs": rr,
+                "redis_writes": rr.get("redis_write", 0),
+                "exchange_actions": ex,
+                "config_refs": cf.get("config_refs", 0),
+                "env_vars": cf.get("env_vars", []),
+                "docs_refs": [r for r in startup_refs if r.get("source_kind") == "docs"],
+                "risk_level": risk,
+                "tier": tier,
+                "classification_candidate": cls,
+                "classification_reason": reason,
+                "evidence": ev,
+            }
+        )
         usage_lines.append(f"| {rel} | {cls} | {reason} |")
 
         if tier == "Tier A":
-            impact = "yes" if ex or rr.get("redis_write", 0) > 0 or any(k in rel.lower() for k in ["trader", "trainer", "signal", "risk", "position", "portfolio", "leverage", "stop", "pnl"]) else "possible"
+            impact = (
+                "yes"
+                if ex
+                or rr.get("redis_write", 0) > 0
+                or any(
+                    k in rel.lower()
+                    for k in [
+                        "trader",
+                        "trainer",
+                        "signal",
+                        "risk",
+                        "position",
+                        "portfolio",
+                        "leverage",
+                        "stop",
+                        "pnl",
+                    ]
+                )
+                else "possible"
+            )
             tier_reason = []
             if ex:
                 tier_reason.append("exchange_action")
             if rr.get("redis_write", 0) > 0:
                 tier_reason.append("redis_write")
-            if any(k in rel.lower() for k in ["trainer", "signal", "risk", "orchestrator", "position", "portfolio", "reward", "confidence"]):
+            if any(
+                k in rel.lower()
+                for k in ["trainer", "signal", "risk", "orchestrator", "position", "portfolio", "reward", "confidence"]
+            ):
                 tier_reason.append("critical_keyword_path")
             tier_a_lines.append(
                 f"| {rel} | {','.join(tier_reason) or 'tier_rule'} | {rr.get('redis_read',0)}/{rr.get('redis_write',0)}/{rr.get('redis_unknown',0)} | {','.join(ex) if ex else '-'} | {cf.get('config_refs',0)} | {len(startup_refs)} | {len(runtime_refs.get(rel, []))} | {impact} |"
@@ -200,9 +272,18 @@ def main() -> int:
     write_json(out / "SCRIPT_REGISTRY.json", {"scripts": scripts})
     write_json(out / "SCRIPT_DEPENDENCY_GRAPH.json", {"edges": dep_edges})
 
-    md = ["# Script Registry", "", f"Scripts: {len(scripts)}", "", "| path | tier | risk | class | redis_write | exch |", "|---|---|---|---|---:|---:|"]
+    md = [
+        "# Script Registry",
+        "",
+        f"Scripts: {len(scripts)}",
+        "",
+        "| path | tier | risk | class | redis_write | exch |",
+        "|---|---|---|---|---:|---:|",
+    ]
     for s in scripts:
-        md.append(f"| {s['path']} | {s['tier']} | {s['risk_level']} | {s['classification_candidate']} | {s['redis_writes']} | {len(s['exchange_actions'])} |")
+        md.append(
+            f"| {s['path']} | {s['tier']} | {s['risk_level']} | {s['classification_candidate']} | {s['redis_writes']} | {len(s['exchange_actions'])} |"
+        )
     write_markdown(out / "SCRIPT_REGISTRY.md", "\n".join(md))
     write_markdown(out / "SCRIPT_USAGE_EVIDENCE.md", "\n".join(usage_lines))
     write_markdown(out / "TIER_A_SCRIPT_CLASSIFICATION.md", "\n".join(tier_a_lines))
