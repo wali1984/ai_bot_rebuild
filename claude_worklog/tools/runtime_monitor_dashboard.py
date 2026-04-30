@@ -5,12 +5,11 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 
 MONITOR_TMUX_SESSION = "ai_bot_read_only_monitor"
@@ -47,6 +46,15 @@ def run_cmd(cmd, timeout=10) -> CmdResult:
         return CmdResult(False, "", "timeout", 124)
     except Exception as exc:  # pragma: no cover
         return CmdResult(False, "", str(exc), 1)
+
+
+def read_json(path: Path) -> Dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except Exception:
+        return {}
 
 
 def parse_iso_ts(value: str) -> Optional[datetime]:
@@ -166,6 +174,81 @@ def parse_feature_classification(path: Path) -> str:
         if token in txt:
             return token
     return "UNKNOWN"
+
+
+def _latest_packet(path: Path) -> Optional[Path]:
+    if not path.exists() or not path.is_dir():
+        return None
+    files = sorted([p for p in path.glob("*.json") if p.is_file()])
+    return files[-1] if files else None
+
+
+def packet_readiness(packet_root: Path) -> Dict[str, Any]:
+    hourly = _latest_packet(packet_root / "hourly")
+    daily = _latest_packet(packet_root / "daily")
+    alert = _latest_packet(packet_root / "alerts")
+
+    latest_alert_payload = read_json(alert) if alert else {}
+    latest_hourly_payload = read_json(hourly) if hourly else {}
+
+    def age_seconds(packet: Optional[Path]) -> Optional[int]:
+        if not packet:
+            return None
+        try:
+            mt = datetime.fromtimestamp(packet.stat().st_mtime, tz=timezone.utc)
+            return int((datetime.now(timezone.utc) - mt).total_seconds())
+        except Exception:
+            return None
+
+    feature_visibility = "UNKNOWN"
+    attribution = {
+        "signal_attribution_completeness_pct": "UNKNOWN",
+        "execution_lineage_completeness_pct": "UNKNOWN",
+    }
+    mem_band = "UNKNOWN"
+
+    metrics = (latest_hourly_payload or {}).get("metric_values") or {}
+    if metrics:
+        if isinstance(metrics.get("feature_key_freshness"), dict):
+            fk = metrics["feature_key_freshness"]
+            miss = int(fk.get("missing", 0) or 0)
+            unk = int(fk.get("unknown", 0) or 0)
+            feature_visibility = "complete" if miss == 0 and unk == 0 else "partial"
+            if miss > 0 and miss >= (fk.get("fresh", 0) or 0):
+                feature_visibility = "missing"
+
+        attribution["signal_attribution_completeness_pct"] = metrics.get(
+            "lineage_chain_complete_rate", "UNKNOWN"
+        )
+        attribution["execution_lineage_completeness_pct"] = metrics.get(
+            "execution_lineage_complete_rate", "UNKNOWN"
+        )
+        mem_band = metrics.get("threshold_class", "UNKNOWN")
+
+    alert_class = "NONE"
+    alert_component = "UNKNOWN"
+    if latest_alert_payload:
+        anomaly = latest_alert_payload.get("anomaly_classification") or []
+        affected = latest_alert_payload.get("affected_component") or []
+        if anomaly:
+            alert_class = ",".join(str(x) for x in anomaly[:3])
+        if affected:
+            alert_component = ",".join(str(x) for x in affected[:3])
+
+    return {
+        "hourly_ready": bool(hourly),
+        "daily_ready": bool(daily),
+        "alert_ready": bool(alert),
+        "latest_hourly": str(hourly) if hourly else "",
+        "latest_daily": str(daily) if daily else "",
+        "latest_alert": str(alert) if alert else "",
+        "latest_alert_class": alert_class,
+        "latest_alert_component": alert_component,
+        "latest_alert_age_seconds": age_seconds(alert),
+        "feature_visibility_classification": feature_visibility,
+        "attribution": attribution,
+        "redis_memory_threshold_band": mem_band,
+    }
 
 
 def parse_log_health(log_text: str) -> Tuple[int, int]:
@@ -315,6 +398,7 @@ def print_dashboard(root: Path, refresh_seconds: int, target_hours: float, min_h
     midrun_path = mon_dir / "RUNTIME_MONITOR_MIDRUN_CHECK.md"
     gap_path = mon_dir / "FEATURE_KEY_MONITORING_GAP_AUDIT.md"
     natural_summary = root / "claude_worklog" / "monitoring_summary.md"
+    packet_root = root / "claude_worklog" / "continuous_monitoring" / "packets"
 
     snap_count, first_ts, last_ts, snap_parse_err = read_jsonl_stats(snap_path)
     metrics_count, _, _, metrics_parse_err = read_jsonl_stats(metrics_path)
@@ -359,6 +443,7 @@ def print_dashboard(root: Path, refresh_seconds: int, target_hours: float, min_h
     pia = pia_status()
     ollama = parse_ollama_status(ollama_path)
     feature_class = parse_feature_classification(gap_path)
+    packet = packet_readiness(packet_root)
 
     try:
         ram_avail_kib = int(mem.get("ram_avail_kib", "0"))
@@ -437,7 +522,27 @@ def print_dashboard(root: Path, refresh_seconds: int, target_hours: float, min_h
     print(f"ollama status: {ollama}")
     print()
 
-    print("[8] Recommendation")
+    print("[8] Continuous packet readiness")
+    print(f"hourly packet ready: {'YES' if packet['hourly_ready'] else 'NO'}")
+    print(f"daily packet ready: {'YES' if packet['daily_ready'] else 'NO'}")
+    print(f"alert packet ready: {'YES' if packet['alert_ready'] else 'NO'}")
+    print(f"latest alert: {packet['latest_alert_class']}")
+    print(f"latest alert component: {packet['latest_alert_component']}")
+    print(
+        f"latest alert age(s): {packet['latest_alert_age_seconds'] if packet['latest_alert_age_seconds'] is not None else 'UNKNOWN'}"
+    )
+    print(
+        f"feature visibility classification: {packet['feature_visibility_classification']}"
+    )
+    print(
+        "attribution completeness (signal/execution): "
+        f"{packet['attribution']['signal_attribution_completeness_pct']} / "
+        f"{packet['attribution']['execution_lineage_completeness_pct']}"
+    )
+    print(f"redis memory threshold band: {packet['redis_memory_threshold_band']}")
+    print()
+
+    print("[9] Recommendation")
     print(f"status: {rec}")
     if rec == "CONTINUE_GOOD":
         print("Next action: Keep monitor running.")
@@ -457,6 +562,9 @@ def print_dashboard(root: Path, refresh_seconds: int, target_hours: float, min_h
         "snap_count": snap_count,
         "metrics_count": metrics_count,
         "redis_ratio": redis.get("ratio", "UNKNOWN"),
+        "hourly_ready": packet["hourly_ready"],
+        "daily_ready": packet["daily_ready"],
+        "alert_ready": packet["alert_ready"],
     }
 
 
@@ -479,4 +587,5 @@ def main():
 
 
 if __name__ == "__main__":
+    raise SystemExit(main())
     sys.exit(main())
