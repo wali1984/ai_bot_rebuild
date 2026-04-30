@@ -80,6 +80,12 @@ TS_FIELD_HINTS = (
     "updated_ts_ms",
 )
 
+# Assumption for trainer log timestamps:
+# hybrid_trainer.log lines use a naive timestamp prefix (no explicit timezone).
+# We interpret those naive values as the local timezone of the monitor host,
+# then convert to epoch milliseconds for age calculations.
+LOCAL_LOG_TZ = datetime.now().astimezone().tzinfo or timezone.utc
+
 
 def _redact(obj: Any) -> Any:
     if isinstance(obj, str):
@@ -151,7 +157,7 @@ def _parse_log_prefix_ts_ms(line: str) -> Optional[int]:
     frac = (frac + "000000")[:6]
     try:
         dt = datetime.strptime(base, "%Y-%m-%d %H:%M:%S")
-        dt = dt.replace(microsecond=int(frac), tzinfo=timezone.utc)
+        dt = dt.replace(microsecond=int(frac), tzinfo=LOCAL_LOG_TZ)
         return int(dt.timestamp() * 1000)
     except Exception:
         return None
@@ -188,6 +194,42 @@ def stream_last_ts_ms(stream: str) -> Optional[int]:
         return int(rid.split("-")[0])
     except Exception:
         return None
+
+
+def stream_latest_meta(stream: str, now_ms: int) -> Dict[str, Any]:
+    latest_stream_id: Optional[str] = None
+    latest_stream_id_ts_ms: Optional[int] = None
+    latest_stream_id_age_ms: Optional[int] = None
+    xlen_val = xlen(stream)
+
+    ok, out = redis_cmd("XREVRANGE", stream, "+", "-", "COUNT", "1")
+    if ok and out:
+        try:
+            latest_stream_id = out.splitlines()[0].strip()
+            latest_stream_id_ts_ms = int(latest_stream_id.split("-")[0])
+            latest_stream_id_age_ms = max(0, now_ms - latest_stream_id_ts_ms)
+        except Exception:
+            latest_stream_id = None
+            latest_stream_id_ts_ms = None
+            latest_stream_id_age_ms = None
+
+    xinfo_last_generated_id: Optional[str] = None
+    ok_info, out_info = redis_cmd("XINFO", "STREAM", stream)
+    if ok_info and out_info:
+        lines = [ln.strip() for ln in out_info.splitlines() if ln.strip()]
+        for i, ln in enumerate(lines):
+            if ln.lower().endswith("last-generated-id") and i + 1 < len(lines):
+                xinfo_last_generated_id = lines[i + 1].strip().strip('"')
+                break
+
+    return {
+        "stream": stream,
+        "xlen": xlen_val,
+        "latest_stream_id": latest_stream_id,
+        "latest_stream_id_ts_ms": latest_stream_id_ts_ms,
+        "latest_stream_id_age_ms": latest_stream_id_age_ms,
+        "xinfo_last_generated_id": xinfo_last_generated_id,
+    }
 
 
 def trainer_process_alive() -> bool:
@@ -286,11 +328,24 @@ def collect_trainer_log_liveness(now_ms: int) -> Dict[str, Any]:
     return {
         "prediction_worker_alive": prediction_worker_alive,
         "last_prediction_entry_ts_ms": last_prediction_entry_ts,
+        "last_prediction_entry_age_ms": (
+            max(0, now_ms - int(last_prediction_entry_ts)) if last_prediction_entry_ts is not None else None
+        ),
         "last_gpu_batch_ts_ms": last_gpu_batch_ts,
+        "last_gpu_batch_age_ms": (
+            max(0, now_ms - int(last_gpu_batch_ts)) if last_gpu_batch_ts is not None else None
+        ),
         "last_deconflict_ts_ms": last_deconflict_ts,
+        "last_deconflict_age_ms": (
+            max(0, now_ms - int(last_deconflict_ts)) if last_deconflict_ts is not None else None
+        ),
         "last_proposal_from_log_ts_ms": last_proposal_from_log_ts,
+        "last_proposal_from_log_age_ms": (
+            max(0, now_ms - int(last_proposal_from_log_ts)) if last_proposal_from_log_ts is not None else None
+        ),
         "fatal_trainer_log_signature": fatal_signature,
         "fatal_trainer_log_signature_ts_ms": fatal_signature_ts,
+        "log_timestamp_assumption": f"naive_log_ts_interpreted_as_local_tz:{LOCAL_LOG_TZ}",
     }
 
 
@@ -798,12 +853,29 @@ def run_dry_validation(output_dir: Path, packet_dir: Path) -> int:
         "trainer_heartbeat_fresh": True,
         "prediction_worker_alive": True,
         "last_prediction_entry_ts": now_utc().isoformat(),
+        "last_prediction_entry_age_ms": 0,
         "last_gpu_batch_ts": now_utc().isoformat(),
         "last_deconflict_ts": now_utc().isoformat(),
         "last_proposal_ts": now_utc().isoformat(),
         "prediction_stream_growth_rate": 0.0,
         "proposal_stream_growth_rate": 0.0,
         "fatal_trainer_log_signature": "NONE",
+        "log_timestamp_assumption": "naive_log_ts_interpreted_as_local_tz:UTC",
+        "latest_stream_ids": {
+            "wma:proposals": {"latest_stream_id": "0-0", "latest_stream_id_ts_ms": 0},
+            "signals:trading:primary": {"latest_stream_id": "0-0", "latest_stream_id_ts_ms": 0},
+            "signals:trading:asjad": {"latest_stream_id": "0-0", "latest_stream_id_ts_ms": 0},
+            "signals:trading": {"latest_stream_id": "0-0", "latest_stream_id_ts_ms": 0},
+            "wma:trainer:predictions": {"latest_stream_id": "0-0", "latest_stream_id_ts_ms": 0},
+        },
+        "capped_stream_warning": [],
+        "publish_surface_used": ["wma:proposals"],
+        "trainer_process_liveness": "OK",
+        "heartbeat_liveness": "OK",
+        "prediction_loop_liveness": "OK",
+        "publish_surface_liveness": "OK",
+        "stream_growth_evidence_quality": "HIGH",
+        "liveness_confidence_level": "high",
         "trainer_internal_liveness_status": "OK",
     }
     required_liveness_fields = [
@@ -811,12 +883,23 @@ def run_dry_validation(output_dir: Path, packet_dir: Path) -> int:
         "trainer_heartbeat_fresh",
         "prediction_worker_alive",
         "last_prediction_entry_ts",
+        "last_prediction_entry_age_ms",
         "last_gpu_batch_ts",
         "last_deconflict_ts",
         "last_proposal_ts",
         "prediction_stream_growth_rate",
         "proposal_stream_growth_rate",
         "fatal_trainer_log_signature",
+        "log_timestamp_assumption",
+        "latest_stream_ids",
+        "capped_stream_warning",
+        "publish_surface_used",
+        "trainer_process_liveness",
+        "heartbeat_liveness",
+        "prediction_loop_liveness",
+        "publish_surface_liveness",
+        "stream_growth_evidence_quality",
+        "liveness_confidence_level",
         "trainer_internal_liveness_status",
     ]
     checks["trainer_internal_liveness_schema_ok"] = all(
@@ -885,6 +968,16 @@ def main() -> int:
     prev_lengths: Dict[str, Optional[int]] = {
         "wma:trainer:predictions": None,
         "wma:proposals": None,
+        "signals:trading:primary": None,
+        "signals:trading:asjad": None,
+        "signals:trading": None,
+    }
+    prev_stream_id_ts_ms: Dict[str, Optional[int]] = {
+        "wma:trainer:predictions": None,
+        "wma:proposals": None,
+        "signals:trading:primary": None,
+        "signals:trading:asjad": None,
+        "signals:trading": None,
     }
     prev_growth_ts_ms: Optional[int] = None
 
@@ -938,20 +1031,48 @@ def main() -> int:
         lengths = {s: xlen(s) for s in STREAMS}
         rec["stream_xlen"] = lengths
 
+        stream_meta_names = [
+            "wma:proposals",
+            "signals:trading:primary",
+            "signals:trading:asjad",
+            "signals:trading",
+            "wma:trainer:predictions",
+        ]
+        stream_meta: Dict[str, Dict[str, Any]] = {
+            s: stream_latest_meta(s, now_ms) for s in stream_meta_names
+        }
+
         pred_growth_rate: Optional[float] = None
         prop_growth_rate: Optional[float] = None
+        capped_stream_warnings: List[str] = []
         if prev_growth_ts_ms is not None:
             delta_sec = max(1.0, (now_ms - prev_growth_ts_ms) / 1000.0)
-            cur_pred = lengths.get("wma:trainer:predictions")
-            cur_prop = lengths.get("wma:proposals")
-            prev_pred = prev_lengths.get("wma:trainer:predictions")
-            prev_prop = prev_lengths.get("wma:proposals")
-            if cur_pred is not None and prev_pred is not None:
-                pred_growth_rate = round(((cur_pred - prev_pred) / delta_sec) * 60.0, 6)
-            if cur_prop is not None and prev_prop is not None:
-                prop_growth_rate = round(((cur_prop - prev_prop) / delta_sec) * 60.0, 6)
-        prev_lengths["wma:trainer:predictions"] = lengths.get("wma:trainer:predictions")
-        prev_lengths["wma:proposals"] = lengths.get("wma:proposals")
+
+            pred_cur_ts = stream_meta.get("wma:trainer:predictions", {}).get("latest_stream_id_ts_ms")
+            pred_prev_ts = prev_stream_id_ts_ms.get("wma:trainer:predictions")
+            if pred_cur_ts is not None and pred_prev_ts is not None:
+                pred_growth_rate = round(((int(pred_cur_ts) - int(pred_prev_ts)) / 1000.0 / delta_sec) * 60.0, 6)
+
+            prop_cur_ts = stream_meta.get("wma:proposals", {}).get("latest_stream_id_ts_ms")
+            prop_prev_ts = prev_stream_id_ts_ms.get("wma:proposals")
+            if prop_cur_ts is not None and prop_prev_ts is not None:
+                prop_growth_rate = round(((int(prop_cur_ts) - int(prop_prev_ts)) / 1000.0 / delta_sec) * 60.0, 6)
+
+            for s in stream_meta_names:
+                cur_xlen = stream_meta.get(s, {}).get("xlen")
+                prev_xlen = prev_lengths.get(s)
+                cur_ts = stream_meta.get(s, {}).get("latest_stream_id_ts_ms")
+                prev_ts = prev_stream_id_ts_ms.get(s)
+                if (
+                    cur_xlen is not None and prev_xlen is not None and int(cur_xlen) == int(prev_xlen)
+                    and cur_ts is not None and prev_ts is not None and int(cur_ts) > int(prev_ts)
+                    and int(cur_xlen) >= 10_000
+                ):
+                    capped_stream_warnings.append(s)
+
+        for s in stream_meta_names:
+            prev_lengths[s] = stream_meta.get(s, {}).get("xlen")
+            prev_stream_id_ts_ms[s] = stream_meta.get(s, {}).get("latest_stream_id_ts_ms")
         prev_growth_ts_ms = now_ms
 
         hb = {}
@@ -964,30 +1085,71 @@ def main() -> int:
         heartbeat_fresh = trainer_heartbeat_fresh(hb, now_ms)
         log_live = collect_trainer_log_liveness(now_ms)
 
-        last_proposal_stream_ts_ms = stream_last_ts_ms("wma:proposals")
+        last_proposal_stream_ts_ms = stream_meta.get("wma:proposals", {}).get("latest_stream_id_ts_ms")
         last_proposal_ts_ms = max(
             [x for x in [log_live.get("last_proposal_from_log_ts_ms"), last_proposal_stream_ts_ms] if x is not None],
             default=None,
         )
 
         fatal_sig = str(log_live.get("fatal_trainer_log_signature") or "NONE")
-        pred_stalled = log_live.get("last_prediction_entry_ts_ms") is None or (
-            now_ms - int(log_live["last_prediction_entry_ts_ms"]) > 300_000
-        )
-        proposal_stalled = (last_proposal_ts_ms is None) or ((now_ms - int(last_proposal_ts_ms)) > 300_000)
-        zero_growth = (
-            (pred_growth_rate is not None and pred_growth_rate <= 0.0)
-            and (prop_growth_rate is not None and prop_growth_rate <= 0.0)
+        pred_age_ms = log_live.get("last_prediction_entry_age_ms")
+        if pred_age_ms is None:
+            prediction_loop_liveness = "UNKNOWN"
+        elif int(pred_age_ms) <= 300_000:
+            prediction_loop_liveness = "OK"
+        elif int(pred_age_ms) <= 900_000:
+            prediction_loop_liveness = "DEGRADED"
+        else:
+            prediction_loop_liveness = "CRITICAL"
+
+        process_liveness = "OK" if process_alive else "CRITICAL"
+        heartbeat_liveness = "OK" if heartbeat_fresh else "DEGRADED"
+
+        active_surfaces: List[str] = []
+        for s in ("wma:proposals", "signals:trading:primary", "signals:trading:asjad", "signals:trading"):
+            age_ms = stream_meta.get(s, {}).get("latest_stream_id_age_ms")
+            if age_ms is not None and int(age_ms) <= 300_000:
+                active_surfaces.append(s)
+        publish_surface_liveness = "OK" if active_surfaces else "DEGRADED"
+
+        # signals:trading global stream can be idle in orchestrator/per-account mode; non-fatal
+        global_stream_empty_non_fatal = (
+            (lengths.get("signals:trading") in (0, None))
+            and any(s in active_surfaces for s in ("wma:proposals", "signals:trading:primary", "signals:trading:asjad"))
         )
 
+        evidence_flags: List[str] = []
+        if capped_stream_warnings:
+            evidence_flags.append("capped_stream_xlen_flat_with_id_progress")
+        if global_stream_empty_non_fatal:
+            evidence_flags.append("global_stream_idle_in_per_account_or_orch_mode")
+
+        if fatal_sig != "NONE":
+            stream_growth_evidence_quality = "HIGH"
+        elif capped_stream_warnings:
+            stream_growth_evidence_quality = "MEDIUM"
+        else:
+            stream_growth_evidence_quality = "HIGH"
+
+        if stream_growth_evidence_quality == "HIGH" and prediction_loop_liveness in {"OK", "DEGRADED"}:
+            liveness_confidence_level = "high"
+        elif stream_growth_evidence_quality == "MEDIUM":
+            liveness_confidence_level = "medium"
+        else:
+            liveness_confidence_level = "low"
+
         status = "OK"
-        if process_alive and heartbeat_fresh and (not log_live.get("prediction_worker_alive", True)):
+        if process_liveness == "CRITICAL":
             status = "CRITICAL"
-        elif process_alive and heartbeat_fresh and (pred_stalled and proposal_stalled and zero_growth):
+        elif fatal_sig != "NONE":
             status = "CRITICAL"
-        elif process_alive and heartbeat_fresh and fatal_sig != "NONE":
+        elif heartbeat_liveness != "OK":
+            status = "DEGRADED"
+        elif prediction_loop_liveness == "CRITICAL" and publish_surface_liveness != "OK":
             status = "CRITICAL"
-        elif (not process_alive) or (not heartbeat_fresh) or pred_stalled or proposal_stalled:
+        elif prediction_loop_liveness in {"DEGRADED", "CRITICAL"}:
+            status = "DEGRADED"
+        elif publish_surface_liveness != "OK":
             status = "DEGRADED"
 
         rec["trainer_process_alive"] = process_alive
@@ -1000,6 +1162,29 @@ def main() -> int:
         rec["prediction_stream_growth_rate"] = pred_growth_rate
         rec["proposal_stream_growth_rate"] = prop_growth_rate
         rec["fatal_trainer_log_signature"] = fatal_sig
+        rec["log_timestamp_assumption"] = log_live.get("log_timestamp_assumption")
+        rec["last_prediction_entry_age_ms"] = log_live.get("last_prediction_entry_age_ms")
+        rec["last_gpu_batch_age_ms"] = log_live.get("last_gpu_batch_age_ms")
+        rec["last_deconflict_age_ms"] = log_live.get("last_deconflict_age_ms")
+        rec["latest_stream_ids"] = {
+            s: {
+                "latest_stream_id": stream_meta.get(s, {}).get("latest_stream_id"),
+                "latest_stream_id_ts_ms": stream_meta.get(s, {}).get("latest_stream_id_ts_ms"),
+                "latest_stream_id_age_ms": stream_meta.get(s, {}).get("latest_stream_id_age_ms"),
+                "xlen": stream_meta.get(s, {}).get("xlen"),
+            }
+            for s in stream_meta_names
+        }
+        rec["capped_stream_warning"] = capped_stream_warnings
+        rec["publish_surface_used"] = active_surfaces
+        rec["global_stream_idle_non_fatal"] = global_stream_empty_non_fatal
+        rec["trainer_process_liveness"] = process_liveness
+        rec["heartbeat_liveness"] = heartbeat_liveness
+        rec["prediction_loop_liveness"] = prediction_loop_liveness
+        rec["publish_surface_liveness"] = publish_surface_liveness
+        rec["stream_growth_evidence_quality"] = stream_growth_evidence_quality
+        rec["liveness_confidence_level"] = liveness_confidence_level
+        rec["liveness_evidence_flags"] = evidence_flags
         rec["trainer_internal_liveness_status"] = status
 
         exec_rows = xrevrange_json("executed_signals", 400)
@@ -1049,6 +1234,18 @@ def main() -> int:
             "prediction_stream_growth_rate": rec["prediction_stream_growth_rate"],
             "proposal_stream_growth_rate": rec["proposal_stream_growth_rate"],
             "fatal_trainer_log_signature": rec["fatal_trainer_log_signature"],
+            "log_timestamp_assumption": rec["log_timestamp_assumption"],
+            "last_prediction_entry_age_ms": rec["last_prediction_entry_age_ms"],
+            "latest_stream_ids": rec["latest_stream_ids"],
+            "capped_stream_warning": rec["capped_stream_warning"],
+            "publish_surface_used": rec["publish_surface_used"],
+            "global_stream_idle_non_fatal": rec["global_stream_idle_non_fatal"],
+            "trainer_process_liveness": rec["trainer_process_liveness"],
+            "heartbeat_liveness": rec["heartbeat_liveness"],
+            "prediction_loop_liveness": rec["prediction_loop_liveness"],
+            "publish_surface_liveness": rec["publish_surface_liveness"],
+            "stream_growth_evidence_quality": rec["stream_growth_evidence_quality"],
+            "liveness_confidence_level": rec["liveness_confidence_level"],
             "trainer_internal_liveness_status": rec["trainer_internal_liveness_status"],
         }
         with trainer_metrics_path.open("a", encoding="utf-8") as tf:
@@ -1101,6 +1298,18 @@ def main() -> int:
                 "prediction_stream_growth_rate": rec["prediction_stream_growth_rate"],
                 "proposal_stream_growth_rate": rec["proposal_stream_growth_rate"],
                 "fatal_trainer_log_signature": rec["fatal_trainer_log_signature"],
+                "log_timestamp_assumption": rec["log_timestamp_assumption"],
+                "last_prediction_entry_age_ms": rec["last_prediction_entry_age_ms"],
+                "latest_stream_ids": rec["latest_stream_ids"],
+                "capped_stream_warning": rec["capped_stream_warning"],
+                "publish_surface_used": rec["publish_surface_used"],
+                "global_stream_idle_non_fatal": rec["global_stream_idle_non_fatal"],
+                "trainer_process_liveness": rec["trainer_process_liveness"],
+                "heartbeat_liveness": rec["heartbeat_liveness"],
+                "prediction_loop_liveness": rec["prediction_loop_liveness"],
+                "publish_surface_liveness": rec["publish_surface_liveness"],
+                "stream_growth_evidence_quality": rec["stream_growth_evidence_quality"],
+                "liveness_confidence_level": rec["liveness_confidence_level"],
                 "trainer_internal_liveness_status": rec["trainer_internal_liveness_status"],
             },
         }

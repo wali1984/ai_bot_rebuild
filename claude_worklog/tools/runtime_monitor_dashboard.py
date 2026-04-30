@@ -227,12 +227,23 @@ def packet_readiness(packet_root: Path) -> Dict[str, Any]:
         "trainer_heartbeat_fresh": "UNKNOWN",
         "prediction_worker_alive": "UNKNOWN",
         "last_prediction_entry_ts": "UNKNOWN",
+        "last_prediction_entry_age_ms": "UNKNOWN",
         "last_gpu_batch_ts": "UNKNOWN",
         "last_deconflict_ts": "UNKNOWN",
         "last_proposal_ts": "UNKNOWN",
         "prediction_stream_growth_rate": "UNKNOWN",
         "proposal_stream_growth_rate": "UNKNOWN",
         "fatal_trainer_log_signature": "UNKNOWN",
+        "log_timestamp_assumption": "UNKNOWN",
+        "latest_stream_ids": {},
+        "capped_stream_warning": [],
+        "publish_surface_used": [],
+        "trainer_process_liveness": "UNKNOWN",
+        "heartbeat_liveness": "UNKNOWN",
+        "prediction_loop_liveness": "UNKNOWN",
+        "publish_surface_liveness": "UNKNOWN",
+        "stream_growth_evidence_quality": "UNKNOWN",
+        "liveness_confidence_level": "UNKNOWN",
         "trainer_internal_liveness_status": "UNKNOWN",
     }
 
@@ -402,6 +413,16 @@ def fmt_dt(dt: Optional[datetime]) -> str:
     return dt.astimezone(timezone.utc).isoformat()
 
 
+def fmt_ms_age(value: Any) -> str:
+    try:
+        ms = int(value)
+        if ms < 0:
+            return "UNKNOWN"
+        return f"{ms} ms ({ms / 1000.0:.1f}s)"
+    except Exception:
+        return "UNKNOWN"
+
+
 def recommendation(natural_done: bool, elapsed_h: float, fresh: bool, crit: int, stale: bool, monitor_ok: bool,
                    redis_ratio: str, ram_avail_kib: int, parse_errors: int, target_hours: float) -> str:
     if natural_done:
@@ -494,6 +515,10 @@ def print_dashboard(root: Path, refresh_seconds: int, target_hours: float, min_h
             "last_prediction_entry_ts",
             packet.get("trainer_internal_liveness", {}).get("last_prediction_entry_ts", "UNKNOWN"),
         ),
+        "last_prediction_entry_age_ms": latest_snapshot.get(
+            "last_prediction_entry_age_ms",
+            packet.get("trainer_internal_liveness", {}).get("last_prediction_entry_age_ms", "UNKNOWN"),
+        ),
         "last_gpu_batch_ts": latest_snapshot.get(
             "last_gpu_batch_ts",
             packet.get("trainer_internal_liveness", {}).get("last_gpu_batch_ts", "UNKNOWN"),
@@ -517,6 +542,46 @@ def print_dashboard(root: Path, refresh_seconds: int, target_hours: float, min_h
         "fatal_trainer_log_signature": latest_snapshot.get(
             "fatal_trainer_log_signature",
             packet.get("trainer_internal_liveness", {}).get("fatal_trainer_log_signature", "UNKNOWN"),
+        ),
+        "log_timestamp_assumption": latest_snapshot.get(
+            "log_timestamp_assumption",
+            packet.get("trainer_internal_liveness", {}).get("log_timestamp_assumption", "UNKNOWN"),
+        ),
+        "latest_stream_ids": latest_snapshot.get(
+            "latest_stream_ids",
+            packet.get("trainer_internal_liveness", {}).get("latest_stream_ids", {}),
+        ),
+        "capped_stream_warning": latest_snapshot.get(
+            "capped_stream_warning",
+            packet.get("trainer_internal_liveness", {}).get("capped_stream_warning", []),
+        ),
+        "publish_surface_used": latest_snapshot.get(
+            "publish_surface_used",
+            packet.get("trainer_internal_liveness", {}).get("publish_surface_used", []),
+        ),
+        "trainer_process_liveness": latest_snapshot.get(
+            "trainer_process_liveness",
+            packet.get("trainer_internal_liveness", {}).get("trainer_process_liveness", "UNKNOWN"),
+        ),
+        "heartbeat_liveness": latest_snapshot.get(
+            "heartbeat_liveness",
+            packet.get("trainer_internal_liveness", {}).get("heartbeat_liveness", "UNKNOWN"),
+        ),
+        "prediction_loop_liveness": latest_snapshot.get(
+            "prediction_loop_liveness",
+            packet.get("trainer_internal_liveness", {}).get("prediction_loop_liveness", "UNKNOWN"),
+        ),
+        "publish_surface_liveness": latest_snapshot.get(
+            "publish_surface_liveness",
+            packet.get("trainer_internal_liveness", {}).get("publish_surface_liveness", "UNKNOWN"),
+        ),
+        "stream_growth_evidence_quality": latest_snapshot.get(
+            "stream_growth_evidence_quality",
+            packet.get("trainer_internal_liveness", {}).get("stream_growth_evidence_quality", "UNKNOWN"),
+        ),
+        "liveness_confidence_level": latest_snapshot.get(
+            "liveness_confidence_level",
+            packet.get("trainer_internal_liveness", {}).get("liveness_confidence_level", "UNKNOWN"),
         ),
         "trainer_internal_liveness_status": latest_snapshot.get(
             "trainer_internal_liveness_status",
@@ -626,12 +691,37 @@ def print_dashboard(root: Path, refresh_seconds: int, target_hours: float, min_h
     print(f"trainer heartbeat fresh: {liveness['trainer_heartbeat_fresh']}")
     print(f"prediction worker alive: {liveness['prediction_worker_alive']}")
     print(f"last prediction timestamp: {liveness['last_prediction_entry_ts']}")
+    print(f"last prediction timestamp age (corrected): {fmt_ms_age(liveness['last_prediction_entry_age_ms'])}")
     print(f"last GPU_BATCH timestamp: {liveness['last_gpu_batch_ts']}")
     print(f"last DECONFLICT timestamp: {liveness['last_deconflict_ts']}")
     print(f"last proposal timestamp: {liveness['last_proposal_ts']}")
     print(f"prediction stream growth rate: {liveness['prediction_stream_growth_rate']}")
     print(f"proposal stream growth rate: {liveness['proposal_stream_growth_rate']}")
     print(f"fatal trainer log signature: {liveness['fatal_trainer_log_signature']}")
+    print(f"log timestamp assumption: {liveness['log_timestamp_assumption']}")
+    print(f"publish surface used: {liveness['publish_surface_used']}")
+    print(f"capped stream warning: {liveness['capped_stream_warning']}")
+    print(
+        "process/heartbeat/prediction/publish liveness: "
+        f"{liveness['trainer_process_liveness']} / "
+        f"{liveness['heartbeat_liveness']} / "
+        f"{liveness['prediction_loop_liveness']} / "
+        f"{liveness['publish_surface_liveness']}"
+    )
+    print(f"stream growth evidence quality: {liveness['stream_growth_evidence_quality']}")
+    print(f"liveness confidence level: {liveness['liveness_confidence_level']}")
+    latest_stream_ids = liveness.get("latest_stream_ids") or {}
+    for stream_name in (
+        "wma:proposals",
+        "signals:trading:primary",
+        "signals:trading:asjad",
+        "signals:trading",
+        "wma:trainer:predictions",
+    ):
+        sm = latest_stream_ids.get(stream_name) or {}
+        print(
+            f"{stream_name} latest_id={sm.get('latest_stream_id', 'UNKNOWN')} age={fmt_ms_age(sm.get('latest_stream_id_age_ms'))}"
+        )
     print(f"trainer internal liveness status: {liveness['trainer_internal_liveness_status']}")
     print()
 
