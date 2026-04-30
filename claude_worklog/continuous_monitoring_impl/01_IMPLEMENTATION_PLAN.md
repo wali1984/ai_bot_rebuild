@@ -45,6 +45,27 @@ Reuse current `claude_worklog/tools/read_only_monitor.py` and `claude_worklog/to
 2. Compare results to post-monitor baseline.
 3. Publish GO/NO-GO evidence.
 
+### Phase G — Trainer internal liveness (mandatory)
+1. Add first-class failure class: `TRAINER_PREDICTION_WORKER_DEAD_PROCESS_ALIVE`.
+2. Add critical alert: `TRAINER_INTERNAL_LIVENESS_CRITICAL`.
+3. Add trainer-internal liveness probes and dashboard fields:
+   - trainer process alive
+   - trainer heartbeat fresh
+   - prediction worker alive
+   - last prediction timestamp
+   - last GPU_BATCH timestamp
+   - last DECONFLICT timestamp
+   - last proposal timestamp
+   - prediction stream growth rate
+   - proposal stream growth rate
+   - fatal trainer log signature
+4. Detect false-green condition: process/heartbeat alive while prediction worker and proposal flow are stalled.
+5. Treat this phase as a hard precondition for V2 build readiness.
+
+## Mandatory pre-V2 gate
+- V2 build is blocked until `TRAINER_INTERNAL_LIVENESS_CRITICAL` coverage is implemented and validated by read-only runtime evidence.
+- Any monitor run that cannot detect `TRAINER_PREDICTION_WORKER_DEAD_PROCESS_ALIVE` is `NO_GO` for V2 preparation.
+
 ## Safety constraints
 - Read-only only.
 - No Redis writes/deletes.
