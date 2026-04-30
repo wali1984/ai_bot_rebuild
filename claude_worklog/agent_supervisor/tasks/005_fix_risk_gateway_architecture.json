@@ -1,0 +1,16 @@
+{
+  "task_id": "005_fix_risk_gateway_architecture",
+  "agent": "claude",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/v2_architecture_remediation/"
+  ],
+  "required_output_files": [
+    "claude_worklog/v2_architecture_remediation/05_RISK_GATEWAY_REMEDIATION.md"
+  ],
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Produce architecture remediation for blocker: Risk Gateway policy schema, evaluation order, precedence, duplicate guard, and test vectors. Output exactly one BEGIN_FILE block for claude_worklog/v2_architecture_remediation/05_RISK_GATEWAY_REMEDIATION.md with enforceable policy contracts.",
+  "next_recommended_action": "Review risk gateway remediation and map to architecture file updates."
+}

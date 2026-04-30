@@ -1,0 +1,16 @@
+{
+  "task_id": "007_fix_ai_governance_architecture",
+  "agent": "claude",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/v2_architecture_remediation/"
+  ],
+  "required_output_files": [
+    "claude_worklog/v2_architecture_remediation/07_AI_GOVERNANCE_REMEDIATION.md"
+  ],
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Produce architecture remediation for blocker: L4 mandatory human approval and approval state transitions. Output exactly one BEGIN_FILE block for claude_worklog/v2_architecture_remediation/07_AI_GOVERNANCE_REMEDIATION.md with enforceable governance state machine.",
+  "next_recommended_action": "Review AI governance remediation and map to architecture file updates."
+}

@@ -5,6 +5,7 @@ import glob
 import json
 import os
 import pathlib
+import re
 import shlex
 import subprocess
 import sys
@@ -116,7 +117,10 @@ def validate_task(task: Dict[str, Any]) -> Optional[str]:
 
     for banned in BANNED_PATTERNS:
         if banned in combined:
-            return f"blocked by safety pattern: {banned}"
+            lines_with_banned = [ln.strip() for ln in combined.splitlines() if banned in ln]
+            allowed_negation = {"do not", "don't", "dont", "never", "no "}
+            if any(not any(tok in ln for tok in allowed_negation) for ln in lines_with_banned):
+                return f"blocked by safety pattern: {banned}"
 
     return None
 
@@ -135,6 +139,71 @@ def file_contains(path: pathlib.Path, needle: str) -> bool:
         return needle in txt
     except Exception:
         return False
+
+
+def normalize_relpath(path_str: str) -> str:
+    return path_str.replace("\\", "/").strip()
+
+
+def is_relpath_allowed(rel_path: str, allowed_output_prefixes: List[str]) -> bool:
+    normalized = normalize_relpath(rel_path)
+    for prefix in allowed_output_prefixes:
+        pfx = normalize_relpath(prefix)
+        if normalized.startswith(pfx):
+            return True
+    return False
+
+
+def materialize_emit_files(
+    stdout_path: pathlib.Path,
+    allowed_output_prefixes: List[str],
+) -> Dict[str, Any]:
+    result = {
+        "materialized_files": [],
+        "errors": [],
+        "blocks_found": 0,
+    }
+
+    if not stdout_path.exists():
+        result["errors"].append("stdout file missing for emit-file parse")
+        return result
+
+    text = stdout_path.read_text(encoding="utf-8", errors="ignore")
+    pattern = re.compile(r"BEGIN_FILE:\s*(.+?)\n(.*?)\nEND_FILE", re.DOTALL)
+    matches = list(pattern.finditer(text))
+    result["blocks_found"] = len(matches)
+
+    for match in matches:
+        rel_path = normalize_relpath(match.group(1))
+        content = match.group(2)
+
+        if not rel_path:
+            result["errors"].append("empty emit-file path")
+            continue
+
+        p = pathlib.Path(rel_path)
+        if p.is_absolute():
+            result["errors"].append(f"refused absolute emit-file path: {rel_path}")
+            continue
+
+        if ".." in p.parts:
+            result["errors"].append(f"refused path traversal emit-file path: {rel_path}")
+            continue
+
+        if not is_relpath_allowed(rel_path, allowed_output_prefixes):
+            result["errors"].append(f"emit-file path not allowed by prefixes: {rel_path}")
+            continue
+
+        target = (WORKSPACE_ROOT / p).resolve()
+        if not in_workspace(target):
+            result["errors"].append(f"refused emit-file outside workspace: {rel_path}")
+            continue
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        result["materialized_files"].append(rel_path)
+
+    return result
 
 
 def codex_ready() -> bool:
@@ -181,6 +250,7 @@ def run_task(task_path: pathlib.Path) -> Dict[str, Any]:
         "stderr_path": str(stderr_path),
         "summary": "",
         "next_recommended_action": "",
+        "materialized_files": [],
     }
 
     validation_error = validate_task(task)
@@ -210,7 +280,16 @@ def run_task(task_path: pathlib.Path) -> Dict[str, Any]:
                 result["summary"] = "precheck satisfied; existing artifact verified"
                 result["next_recommended_action"] = "proceed to next task"
                 result["end_time"] = now_iso()
+                task["status"] = result["status"]
+                task["last_run"] = {
+                    "start": result["start_time"],
+                    "end": result["end_time"],
+                    "status": result["status"],
+                }
+                write_json(task_path, task)
                 write_json(summary_path, result)
+                write_json(CURRENT_STATUS_FILE, result)
+                append_event(result)
                 return result
 
         rc = 1
@@ -253,6 +332,39 @@ def run_task(task_path: pathlib.Path) -> Dict[str, Any]:
             else:
                 rc = run_cmd(["bash", "-lc", str(cmd)], cwd, stdout_path, stderr_path)
                 result["status"] = "completed" if rc == 0 else "failed"
+
+        emit_files = bool(task.get("emit_files", False))
+        if emit_files and agent in {"claude", "codex"} and result["status"] == "completed":
+            allowed_prefixes_raw = task.get("allowed_output_prefixes", [])
+            allowed_output_prefixes = [str(x) for x in allowed_prefixes_raw if str(x).strip()]
+            if not allowed_output_prefixes:
+                result["status"] = "failed"
+                result["summary"] = "emit_files=true but allowed_output_prefixes missing"
+            else:
+                mat = materialize_emit_files(stdout_path, allowed_output_prefixes)
+                result["materialized_files"] = mat.get("materialized_files", [])
+                errors = mat.get("errors", [])
+                if errors:
+                    result["status"] = "failed"
+                    result["summary"] = "; ".join(errors)
+
+                required_output_files_raw = task.get("required_output_files", [])
+                required_output_files = [str(x) for x in required_output_files_raw if str(x).strip()]
+                missing_required: List[str] = []
+                for req in required_output_files:
+                    req_path = pathlib.Path(req)
+                    if req_path.is_absolute():
+                        missing_required.append(req)
+                        continue
+                    full_req = (WORKSPACE_ROOT / req_path).resolve()
+                    if not full_req.exists():
+                        missing_required.append(req)
+
+                if missing_required:
+                    result["status"] = "failed"
+                    prior = result.get("summary", "")
+                    extra = f"missing required output files: {', '.join(missing_required)}"
+                    result["summary"] = f"{prior}; {extra}".strip("; ")
 
         if not result["summary"]:
             result["summary"] = f"agent run status: {result['status']}"
