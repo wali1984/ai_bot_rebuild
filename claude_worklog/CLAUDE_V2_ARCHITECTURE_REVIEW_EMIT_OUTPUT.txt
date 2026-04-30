@@ -1,0 +1,562 @@
+I have enough context. Now emitting the review files in the requested envelope format.
+
+BEGIN_FILE: claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md
+# 01 Architecture Completeness Review
+
+## Scope
+Strict completeness review of `claude_worklog/v2_architecture/` files 00 through 18 against the V2 enterprise architecture mandate.
+
+## File presence and structural completeness
+
+| # | File | Present | Non-empty | Structural verdict |
+|---|---|---|---|---|
+| 00 | `00_REQUIREMENTS_INDEX_AND_NORMALIZATION.md` | yes | yes | Indexes all 21 requirements; normalization rule documented; gate marker `ENTERPRISE_AI_SUPERVISED_V2_REQUIREMENTS_READY_FOR_ARCHITECTURE` cited |
+| 01 | `01_ENTERPRISE_SYSTEM_ARCHITECTURE.md` | yes | yes | 15 core components defined; flow defined; safety posture explicit (live trading blocked) |
+| 02 | `02_DOMAIN_MODEL_AND_CORE_ENTITIES.md` | yes | yes | 24 core entities + relationships + mandatory lineage chain |
+| 03 | `03_DATABASE_SCHEMA.md` | yes | yes | 27 normalized tables; lineage chain enforced; governance/audit tables present |
+| 04 | `04_REDIS_NAMESPACE_AND_RETENTION_PLAN.md` | yes | yes | `v2:*` write-only; 85/90/95 thresholds; legacy read-only constraint |
+| 05 | `05_API_CONTRACTS.md` | yes | yes | 20 API groups; mutation safety/RBAC + audit envelope |
+| 06 | `06_ENTERPRISE_GUI_UX_ARCHITECTURE.md` | yes | yes | 28+ enterprise pages with purpose/data/controls/admin-only/safety/source |
+| 07 | `07_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION_ARCHITECTURE.md` | yes | yes | 4-layer universe model; explicit source list (Binance Futures, CoinAnk, CoinAPI, KuCoin, future futures, future ingestors) |
+| 08 | `08_HOT_RELOAD_PIPELINE_ARCHITECTURE.md` | yes | yes | 5-state machine; 8 propagation targets; rollback + ack contract |
+| 09 | `09_MULTI_EXCHANGE_CONNECTOR_ARCHITECTURE.md` | yes | yes | 11 mandatory methods; Binance-first + pluggable future |
+| 10 | `10_MULTI_TRADER_FLEET_ARCHITECTURE.md` | yes | yes | Trader entity schema; capacity/sharding; Risk Gateway authority preserved |
+| 11 | `11_FEATURE_ATTRIBUTION_AND_SIGNAL_EXPLAINABILITY_ARCHITECTURE.md` | yes | yes | 6 lineage IDs; full explainability payload mandated |
+| 12 | `12_RISK_GATEWAY_ARCHITECTURE.md` | yes | yes | Final authority; mandatory controls; non-bypass guarantee |
+| 13 | `13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md` | yes | yes | L0–L5 levels; 12-field AI change record; L5 never autonomous |
+| 14 | `14_CONTINUOUS_MONITORING_AND_EVIDENCE_PACKET_ARCHITECTURE.md` | yes | yes | Hourly/daily/alert/Claude/Codex/Ollama packet model; trainer liveness covered |
+| 15 | `15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md` | yes | yes | Auth/RBAC/2FA-ready/TLS/proxy/rate-limit/IP allowlist/audit/secrets |
+| 16 | `16_MOBILE_IPHONE_AND_PWA_READINESS.md` | yes | yes | Responsive + PWA + future iPhone API compatibility |
+| 17 | `17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md` | yes | yes | Sequence A→O; live mode last; gating evidence required |
+| 18 | `18_ARCHITECTURE_REVIEW_GO_NO_GO.md` | yes | yes | Single-line marker `V2_ARCHITECTURE_READY_FOR_CLAUDE_CODEX_REVIEW` |
+
+## Structural verdict
+- All 19 architecture files (00–18) are present.
+- All files have non-empty bodies.
+- Architecture marker is set to architecture-review-ready.
+
+## Cross-cutting completeness checks
+- Lineage chain `feature_snapshot_id → prediction_id → signal_id → decision_id → risk_decision_id → execution_intent_id` appears consistently in 02, 03, 11.
+- Universe layers `available/observed/training/trading` appear consistently in 02, 03, 07.
+- Hot-reload propagation targets list (8 targets) is identical between architecture file 08 and requirement 14.
+- `v2:*` Redis namespace policy and retention bands are consistent between architecture 04 and requirement 05.
+- Risk Gateway non-bypass guarantee appears in 02, 07, 09, 10, 12, 13, 14.
+- Live-trading-blocked-by-default appears in 01, 05, 09, 12, 17.
+
+## Gaps observed (not blockers)
+- File sizes for 12, 14, 15, 16 are concise checklists (≤30 lines); content is sufficient for adversarial review but will require deeper expansion at build phase (database tables for hosting/RBAC, packet schemas, mobile push schemas).
+- File 18 is a single-line marker only; this matches the GO/NO-GO contract.
+- Requirements file 11 is auto-merged with overlap from 14/19; ordering of bullets is slightly noisy but content is normalized in architecture 00 and 07.
+
+## Decision
+Architecture file inventory is complete and structurally consistent against the V2 enterprise mandate. Ready for adversarial review.
+END_FILE
+
+BEGIN_FILE: claude_worklog/v2_architecture_review/02_REQUIREMENTS_TRACEABILITY_REVIEW.md
+# 02 Requirements Traceability Review
+
+## Scope
+Verify every requirement 01–21 is represented in the architecture package.
+
+## Traceability matrix
+
+| Req | Title | Architecture file(s) | Notes |
+|---|---|---|---|
+| 01 | Observability and Attribution Spec | 02, 03, 11, 14 | Lineage IDs encoded in domain + DB + explainability |
+| 02 | Feature Snapshot Schema | 03 (`feature_snapshots`, `feature_values`), 11 | Required snapshot fields persisted |
+| 03 | Prediction Signal Decision ID Chain | 02, 03, 11 | Stage records + parent/child constraints |
+| 04 | Confidence Explainability Schema | 03 (`confidence_events`), 11 | Top +/- drivers + freshness/missing flags |
+| 05 | Redis Memory and Retention Policy | 04 | Bands and offload policy explicit |
+| 06 | Heartbeat Schema Policy | 03 (`heartbeat_events`), 14 | Type/payload contract; consumed by monitor |
+| 07 | Monitoring Revalidation Plan | 14 | Continuous monitoring evidence packets |
+| 08 | Pre-V2 Build Exit Criteria | 17 | Sequence forces explicit gates before live |
+| 09 | Trainer Internal Worker Supervision | 14 | Trainer liveness packet domain |
+| 10 | Enterprise Website Product Requirements | 01, 06, 17 | Single-control-plane site; operator/admin separation |
+| 11 | Dynamic Symbol Universe Requirements | 02, 03 (`universe_*`), 06 (Market Universe Manager), 07, 08 | Add/remove/update + state model + restart-free |
+| 12 | Multi-Exchange Connector Requirements | 02, 03 (`exchange_*`), 09 | Mandatory interface + safety gates |
+| 13 | Multi-Trader Fleet Requirements | 02, 03 (`trader_instances`, `trader_assignments`), 10 | Fleet entity + risk authority |
+| 14 | Hot-Reload Pipeline Requirements | 08 | All 8 propagation targets present |
+| 15 | Public Hosting and Security Requirements | 15 | Full security baseline |
+| 16 | Enterprise GUI Page Map | 06 | 28+ enterprise pages with bound APIs |
+| 17 | 100x–1000x Goal Alignment | 01, 12, 13, 17 | Aggressive growth + survival/risk gates |
+| 18 | Updated Pre-V2 Build Exit Criteria | 17, 18 | Architecture/build gating sequence |
+| 19 | Passive Market Discovery and Adaptive Selection | 02, 03, 06, 07 | All four universe layers + scoring |
+| 20 | AI Supervision and Autonomous Change Governance | 03 (`ai_action_changes`), 06 (AI Governance Console + Review Center), 13 | L0–L5 enforced |
+| 21 | Updated Enterprise Architecture Readiness | 00, 18 | Index normalization + GO marker |
+
+## Index normalization check
+File 00 explicitly lists requirements 01–21 in strict numeric order and resolves overlaps between 11/14/19 by cross-reference rather than duplication. This matches the normalization rule.
+
+## Gap analysis
+- Every numbered requirement (01–21) maps to at least one architecture artifact.
+- Several requirements (01, 03, 04, 11, 13, 14, 19, 20) map to multiple architecture artifacts, as expected for cross-cutting concerns.
+- No requirement is silently dropped.
+
+## Decision
+Requirements traceability is complete. No requirement is unrepresented in the V2 architecture package.
+END_FILE
+
+BEGIN_FILE: claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md
+# 03 Enterprise GUI Review
+
+## Scope
+Verify the V2 GUI is an enterprise-grade website, not a basic monitoring dashboard.
+
+## Inputs
+- `claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md`
+- `claude_worklog/v2_requirements/10_ENTERPRISE_WEBSITE_PRODUCT_REQUIREMENTS.md`
+- `claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md`
+
+## Page inventory cross-check
+
+Architecture file 06 defines the following pages:
+Mission Control, Market Universe Manager, Passive Market Discovery, Adaptive Selection Engine, Exchange Manager, Ingestor Manager, Feature Flow Map, Feature Freshness Monitor, Trainer Control Center, Prediction Monitor, Signal Explainability, Confidence Driver Breakdown, Orchestrator Control, Risk Gateway, Trader Fleet Manager, Execution Monitor, Positions/Portfolio, Redis/Storage Health, Continuous Monitor Dashboard, Audit Ledger, Config Admin, Replay/Paper Trading, Claude/Codex/Ollama Review Center, AI Governance Console, Live Readiness, Deployment/Hosting Admin, Mobile/iPhone Readiness.
+
+Requirement 16 mandates additionally:
+- Passive Market Discovery page
+- Adaptive Selection Engine page
+- AI Governance Console page
+- Claude/Codex/Ollama Review Center extension fields
+
+All four mandates are present in architecture file 06.
+
+## Required quality properties
+
+| Property | Architecture coverage | Verdict |
+|---|---|---|
+| Professional, animated, polished UI | UX principles list in 06 | covered |
+| No demo/sample/mock pages in production | 06 + 10 + 16 explicit prohibition | covered |
+| Every page bound to actual API/data | 06 lists `source` per page; 16 lists `Underlying API/data source` per page | covered |
+| Operator vs admin separation | Per-page `controls` vs `admin-only controls` columns | covered |
+| Safety gates per page | Per-page `safety gates` field | covered |
+| Audit linkage from UI events | Audit Ledger page + audit envelope rule in 05 + 13 | covered |
+| Responsive/PWA/mobile readiness | 06 (UX principles) + 16 (Mobile/iPhone Readiness page) + architecture 16 | covered |
+| Dark/light theme | UX principles in 06 | covered |
+| Public-safe surface separation | Operator/Admin/Public-safe surface principle in 06 | covered |
+
+## Risk-level GUI features
+- AI Governance Console binds L0–L5 governance directly to GUI approval workflow.
+- Risk Gateway page exposes block reasons and policy diagnostics with admin-only edits.
+- Live Readiness page provides explicit GO/NO-GO with mandatory gates.
+- Replay/Paper Trading page is the only path to candidate-live promotion.
+
+## Anti-pattern check
+- No "single dashboard" page is the platform's identity.
+- No page is described as a placeholder or sample.
+- Every page in 06 has at least one safety gate listed.
+- Every page in 16 has a non-empty `Underlying API/data source` column.
+
+## Verdict
+The V2 GUI is specified as an enterprise control center, not a basic dashboard. All mandatory enterprise GUI properties are covered.
+END_FILE
+
+BEGIN_FILE: claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md
+# 04 Dynamic Universe and Hot-Reload Review
+
+## Scope
+Verify dynamic symbol universe and hot-reload propagation cover all required behaviors.
+
+## Inputs
+- Architecture: 02, 03, 06, 07, 08
+- Requirements: 11, 14, 19
+
+## Universe layers
+Required four-layer model is present and consistent across artifacts:
+- `available_universe`
+- `observed_universe`
+- `training_universe`
+- `trading_universe`
+
+Mappings:
+- Architecture file 07 defines all four layers explicitly.
+- Domain model file 02 lists `available_universe_symbol`, `observed_universe_symbol`, `training_universe_symbol`, `trading_universe_symbol`.
+- Database schema file 03 encodes layers via `universe_members.layer ∈ {available|observed|training|trading}` with `universe_versions` versioning.
+
+## Add/remove/update without full restart
+Required by requirement 11 and 14:
+- GUI lifecycle CRUD documented in 06 Market Universe Manager page (add/remove/update + force apply/rollback admin path).
+- Universe versioning encoded as `universe_versions` table (state machine `proposed|validated|approved|applied|verified`).
+- Architecture file 08 defines hot-reload pipeline, explicitly: "No routine full restart allowed for universe updates."
+- Requirement 14 reaffirms: "No full restart fallback is allowed for routine universe updates."
+
+## Hot-reload propagation targets
+Required eight targets:
+1. ingestors
+2. feature pipeline
+3. trainer adapter
+4. orchestrator
+5. risk gateway
+6. trader fleet
+7. monitor
+8. GUI
+
+Architecture file 08 lists exactly these eight targets. Requirement 14 lists exactly these eight targets. The two lists match.
+
+## State machine and rollback
+- 5-state flow `proposed → validated → approved → applied → verified` is identical between architecture 08 and requirement 14.
+- Rollback to last verified version is explicit in both, with audit and re-verification.
+
+## Component acknowledgment
+- Architecture file 08 mandates ack envelope (`component_id`, `applied_version`, `ack_ts_ms`, `validation_status`, `rollback_ready`).
+- Requirement 14 mandates: missing ack triggers escalation; ack must include local apply ts, validation status, rollback readiness.
+- Architecture preserves all required ack fields.
+
+## Versioning, audit, evidence
+- `universe_version` is immutable per requirement 14, encoded as PK in `universe_versions` (file 03).
+- Pre-apply, post-apply, component health, diff/impact summaries listed in architecture 08.
+- Audit linkage to ledger is encoded via `audit_events` and `ai_action_changes` (file 03 + 13).
+
+## Selection-engine hot-reload integration
+- Requirement 14 explicitly requires hot-reload to ingest adaptive-selection updates derived from passive discovery (requirement 19).
+- Architecture file 07 defines the selection engine; architecture file 08 covers the propagation contract; database schema persists `symbol_scores` per `universe_version_id`.
+
+## Risks and notes
+- File 08 does not enumerate per-component validation policies (e.g., what counts as a successful trainer adapter ack). This is acceptable at architecture phase; build phase must define per-component success criteria.
+- Override governance (manual include/exclude, force states) lives in requirement 19 + architecture 07, encoded as `symbol_overrides` in 03. This is sufficient.
+
+## Verdict
+Dynamic universe CRUD and hot-reload propagation across all eight required targets are fully represented. Restart-free updates with versioning, ack, audit, and rollback are covered.
+END_FILE
+
+BEGIN_FILE: claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md
+# 05 Multi-Exchange and Multi-Trader Review
+
+## Scope
+Verify passive coverage of all required market sources, multi-exchange connector pluggability with Binance Futures first, and multi-trader fleet support.
+
+## Inputs
+- Architecture: 02, 03, 07, 09, 10
+- Requirements: 12, 13, 19
+
+## Passive observation coverage
+Architecture file 07 explicitly lists the following observation sources:
+- Binance Futures
+- CoinAnk
+- CoinAPI
+- KuCoin
+- future futures exchanges
+- future ingestors
+
+Requirement 19 lists exactly the same six sources. Lists match.
+
+## Connector interface
+Mandatory methods (per requirement 12 and architecture 09):
+- `list_symbols`
+- `get_symbol_metadata`
+- `get_ohlcv`
+- `get_orderbook`
+- `get_funding`
+- `get_open_interest`
+- `get_account_state`
+- `create_order`
+- `cancel_order`
+- `set_leverage`
+- `set_margin_mode`
+
+Both files list all 11 methods identically.
+
+## Pluggable rollout
+- Architecture 09: "Binance Futures is first connector. Additional futures exchanges are pluggable without rewriting core services."
+- Requirement 12: Initial rollout = Binance Futures reference; "Additional futures connectors integrated via same interface without core platform rewrite."
+- Database schema 03 encodes this via `exchanges`, `exchange_connectors`, `exchange_symbols` with capability metadata, allowing adding new exchanges by data not code-rewrite.
+
+## Mutation safety
+- Architecture 09 and requirement 12 keep `create_order/cancel_order/set_leverage/set_margin_mode` blocked until live readiness gates pass.
+- Architecture 05 confirms: "Live mutation routes return blocked status by default until readiness gates pass."
+
+## Connector standards
+- Capability declaration per connector — covered in 09 and 12.
+- Unified error model — covered in 09 and 12.
+- Health heartbeat per connector instance — covered in 09 and 12; persisted via `heartbeat_events` (03).
+- Audit envelope with redaction — covered in 09 and 12; persisted via `audit_events` (03).
+- Secrets server-side only — covered in 12 and 15.
+
+## Multi-trader fleet
+Architecture file 10 specifies fleet support with mandatory trader instance fields, matching requirement 13:
+- `trader_id`
+- `account_id`
+- `exchange_id`
+- `strategy_profile`
+- `symbol_scope`
+- `risk_profile`
+- `paper_live_mode`
+- `assigned_symbols`
+- `heartbeat`
+- `pnl`
+- `attribution_completeness`
+
+All fields are persisted in `trader_instances` and `trader_assignments` (03).
+
+## Fleet controls
+- Dynamic add/remove of trader instances — covered.
+- Capacity-aware assignment and sharding — covered.
+- Per-trader paper/live mode with safe defaults — covered.
+- Heartbeat SLA, stale detection, quarantine, recovery — covered (10 + 13).
+- Per-trader attribution completeness — covered (architecture 10 + database 03).
+
+## Risk Gateway authority over fleet
+- Architecture 10: "Risk Gateway remains final authority for allow/block of execution intents."
+- Requirement 13: "Trader cannot bypass Risk Gateway."
+- Architecture 12: "No trader/fleet/exchange path may bypass Risk Gateway."
+
+The non-bypass guarantee is consistent across all three artifacts.
+
+## Verdict
+- Passive coverage of all six required market sources is mandated.
+- Connector interface is pluggable; Binance-first explicit.
+- Multi-trader fleet schema, controls, and risk authority are complete.
+END_FILE
+
+BEGIN_FILE: claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md
+# 06 AI Governance and Autonomy Review
+
+## Scope
+Verify Claude/Codex/Ollama supervision and L0–L5 action governance are complete and binding.
+
+## Inputs
+- Architecture: 06, 13, 14
+- Requirements: 20
+
+## L0–L5 levels
+Architecture file 13 lists all six levels:
+- L0 observe
+- L1 docs/reports
+- L2 safe V2 non-live config
+- L3 operational non-trading
+- L4 trading-impacting changes
+- L5 dangerous live changes
+
+Requirement 20 defines each level with explicit examples and policy. The level set matches.
+
+## Mandatory AI change ledger fields
+Required:
+- `change_id`
+- `actor` (Claude/Codex/Ollama/human/system)
+- `reason`
+- `evidence_pointers`
+- `before_value`
+- `after_value`
+- `risk_level`
+- `validation_result`
+- `rollback_plan`
+- `gui_explanation`
+- `timestamp`
+- `approval_state`
+
+Architecture file 13 lists all 12 fields. Database schema 03 persists them via `ai_action_changes` (`change_id`, `actor`, `risk_level`, `reason`, `evidence_pointers_json`, `before_value_json`, `after_value_json`, `validation_result`, `rollback_plan`, `gui_explanation`, `approval_state`, `created_ts_ms`).
+
+## Non-autonomous L5 hard rule
+- Architecture 13: "Level 5 is never autonomous."
+- Requirement 20: "Level 5 actions are permanently non-autonomous by policy."
+- Architecture 06 binds this to GUI via AI Governance Console with mandatory human approval for dangerous levels.
+
+## Role-specific policies
+Requirement 20 specifies:
+- Ollama: local summarization only; cannot approve risk/live changes.
+- Claude: can propose fixes, generate code/specs, apply safe rebuild changes; cannot autonomously approve dangerous live actions.
+- Codex: adversarial reviewer; can block changes if evidence incomplete.
+
+These boundaries are reflected in architecture 13 and 14 (review packet types: Claude/Codex/Ollama).
+
+## GUI transparency
+Required GUI fields per requirement 20 ("what was wrong / why proposed / evidence used / what changed / expected effect / rollback / validation result"):
+- AI Governance Console page (file 06 + requirement 16) requires every AI recommendation/action with `change_id`, actor, reason, evidence pointers, before/after, risk level, validation result, rollback plan, timestamp, approval state.
+- Claude/Codex/Ollama Review Center extension (requirement 16) requires the explicit seven-bullet display.
+- Both pages bind to `ai_action_changes` and `evidence_packets` stores.
+
+## Safety constraints
+- Risk level must be computed and attached before any mutation attempt — covered by `ai_action_changes.risk_level` non-null requirement.
+- L4 and L5 require explicit human approval workflows — encoded via `approvals` table (03).
+- All actions auditable and rollback-capable — encoded via `audit_events` + `rollback_plan` field.
+
+## Verdict
+AI governance is complete: L0–L5 matrix is locked, ledger schema is persisted, GUI transparency is bound to real APIs, L5 is permanently non-autonomous.
+END_FILE
+
+BEGIN_FILE: claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md
+# 07 Security, Hosting, and RBAC Review
+
+## Scope
+Verify public hosting readiness, security baseline, and RBAC are represented.
+
+## Inputs
+- Architecture: 03, 05, 15
+- Requirements: 10, 15
+
+## Mandatory security controls
+
+| Control | Requirement 15 | Architecture 15 | Verdict |
+|---|---|---|---|
+| Authentication (no unauth access; session/token revocation) | yes | yes | covered |
+| RBAC (viewer/operator/admin/security-admin) | yes | yes (role separation principle in 06; `roles` table in 03) | covered |
+| HTTPS/TLS mandatory | yes | yes | covered |
+| Reverse proxy / WAF / rate limits | yes | yes (edge ingress layer 1) | covered |
+| Audit logs (immutable, action/config/auth) | yes | yes (`audit_events` 03; ledger 13) | covered |
+| IP allowlist for admin/trading-control | yes | yes | covered |
+| 2FA-ready architecture | yes | yes | covered |
+| Secrets server-side only; never in GUI payloads | yes | yes (file 15 secrets policy) | covered |
+| No unauthenticated trading-control endpoints | yes | yes (file 05 safety behavior) | covered |
+
+## Layered architecture
+File 15 defines five layers (edge ingress / auth+session / RBAC+approval middleware / API services / audit+telemetry). This is sufficient for public-hosting readiness.
+
+## Public hosting readiness
+- Deployment model supports internet-facing posture without redesign — covered (15 + 17).
+- Security posture dashboard in deployment admin area — covered (06 Deployment/Hosting Admin page).
+- Auth/RBAC/audit are first-class in core, not bolt-on — covered.
+
+## RBAC enforcement points
+- API contracts (05) require auth + RBAC + audit envelope on every mutation endpoint.
+- Risk-level tagged operations require approval workflow (05 + `approvals` table 03).
+- GUI page map (06 + requirement 16) separates `controls` from `admin-only controls` for every page.
+
+## Trading-control safety
+- Live mutations remain blocked until live readiness gates pass — covered (architecture 05, 09, 12, 17).
+- Dangerous actions require approval and audit — covered.
+
+## Risks and notes
+- File 15 is concise (25 lines). Build-phase artifacts must include concrete role definitions, permission JSON shape, secret-provider boundary spec, and 2FA mechanism (TOTP/WebAuthn).
+- IP allowlist policy is declared but not detailed; this is acceptable at architecture phase.
+- Database schema 03 includes `users`, `roles`, `approvals`. Sufficient for RBAC persistence.
+
+## Verdict
+Security, hosting, and RBAC baselines are present and adversarial-review-ready. No mandatory control is unrepresented.
+END_FILE
+
+BEGIN_FILE: claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md
+# 08 Risk Gateway and Live-Block Review
+
+## Scope
+Verify Risk Gateway is final authority and live trading is blocked by default.
+
+## Inputs
+- Architecture: 01, 05, 09, 10, 12, 17
+- Requirements: 13, 14, 15, 17, 19, 20
+
+## Final-authority guarantee
+- Architecture 12: "Risk Gateway is final authority for execution allow/block."
+- Architecture 12: "No trader/fleet/exchange path may bypass Risk Gateway."
+- Architecture 10: "Risk Gateway remains final authority for allow/block of execution intents."
+- Requirement 13: "Trader cannot bypass Risk Gateway."
+- Requirement 14: "Risk Gateway enforces final trade allow/block regardless of rollout status."
+- Requirement 17: "Risk Gateway remains final trade authority; bypass is non-compliant."
+- Requirement 19: "Risk Gateway remains the final authority even after selection/admission."
+
+The non-bypass guarantee is repeated in seven artifacts. Consistency is high.
+
+## Mandatory controls
+Architecture 12 enumerates the mandatory control set:
+- stale signal block
+- missing attribution block
+- duplicate execution block
+- leverage/margin block
+- stop policy block
+- daily/weekly loss gate
+- kill switch
+- position sizing
+- reduceOnly enforcement
+- live trading gate
+
+These cover the high-risk failure modes identified in legacy forensic findings.
+
+## Lineage prerequisite
+Risk Gateway evaluates a `decision_id` and emits a `risk_decision_id`. Database schema 03 enforces this as FK from `risk_decisions` → `orchestrator_decisions`. Missing lineage is a hard validation failure (requirement 01).
+
+## Live trading blocked-by-default
+- Architecture 01: "Live trading blocked by default."
+- Architecture 05: "Live mutation routes return blocked status by default until readiness gates pass."
+- Architecture 09: live mutation methods (`create_order/cancel_order/set_leverage/set_margin_mode`) blocked until gates pass.
+- Architecture 12: "live trading gate" is a mandatory control.
+- Architecture 17: live mode is the last sequence step (O), only after explicit readiness GO + human approvals.
+- Requirement 17: "Default state is live-disabled until explicit readiness GO + approvals."
+- Requirement 20: L5 (enable live trading) is permanently non-autonomous.
+
+The block is declared at API, connector, gateway, sequence, governance, and product-requirement layers. No autonomy override exists.
+
+## Approval and audit linkage
+- Live readiness page (06 + requirement 16) is the only path to live unlock; admin-only controls; all mandatory gates must pass.
+- `approvals` table (03) records every required approval.
+- `ai_action_changes.approval_state` blocks autonomous L5 actions.
+- `audit_events` records every gate override.
+
+## Risks and notes
+- Architecture 12 is concise (25 lines). Build-phase must specify policy bundle schema, evaluation order, deterministic timeouts, and circuit-breaker behavior.
+- Stale-signal definition (e.g., max age in ms) is not numerically fixed at architecture phase; this is acceptable but must be encoded as configurable risk policy with default = block.
+
+## Verdict
+Risk Gateway final authority and default-blocked live trading are firmly anchored across the architecture and requirement set. No bypass path exists in the documented design.
+END_FILE
+
+BEGIN_FILE: claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md
+# 09 Continuous Monitoring and Attribution Review
+
+## Scope
+Verify continuous monitoring, evidence packets, trainer liveness, and feature/signal attribution are represented and aligned with post-monitor and continuous_monitoring inputs.
+
+## Inputs
+- Architecture: 02, 03, 11, 14
+- Requirements: 01, 02, 03, 04, 06, 07, 09
+- Continuous monitoring: `claude_worklog/continuous_monitoring/01..11`
+- Continuous monitoring impl: `claude_worklog/continuous_monitoring_impl/01..07` plus trainer liveness reports
+- Post-monitor: `claude_worklog/post_monitor/01..11`
+
+## Packet model
+Architecture file 14 defines six packet types:
+- hourly
+- daily
+- alert
+- Claude review
+- Codex review
+- Ollama summarization
+
+These match `claude_worklog/continuous_monitoring/02_CLAUDE_EVIDENCE_PACKET_FORMAT.md`, `03_CODEX_REVIEW_PACKET_FORMAT.md`, and the Ollama summarization packet plan.
+
+## Monitoring domains
+Architecture 14 lists:
+- trainer liveness (corrected logic)
+- feature flow monitoring
+- signal attribution monitoring
+- Redis memory monitoring
+- readiness/dashboard monitoring
+
+Each domain maps to a continuous_monitoring document (01–08, 10, 11) and is tied to post-monitor findings (01–11).
+
+## Trainer liveness
+- Requirement 09 mandates detection of `TRAINER_PREDICTION_WORKER_DEAD_PROCESS_ALIVE` and emission of `TRAINER_INTERNAL_LIVENESS_CRITICAL`.
+- continuous_monitoring/11 codifies the trainer-internal liveness requirement.
+- continuous_monitoring_impl includes the post-fix 10-minute validation report and false-positive-fix reports, demonstrating the corrected logic referenced in architecture 14.
+- Architecture 14 explicitly notes "trainer liveness (corrected logic)", showing the fix is reflected in the architecture.
+
+## Feature attribution and signal explainability
+- Requirement 02: feature snapshot schema with full source freshness envelope.
+- Requirement 04: confidence explainability with top +/- contributors and freshness flags.
+- Architecture 11 mandates the explainability payload (source keys, values, freshness, stale/missing/unused flags, model version, checkpoint, confidence before/after, top +/- drivers, orchestrator reason, risk decision, execution/block reason).
+- Database schema 03 persists `feature_snapshots`, `feature_values` (with stale/missing/unused flags), `confidence_events` (with `top_positive_json`, `top_negative_json`).
+
+## Lineage chain alignment
+Required (requirement 01 + 03):
+`feature_snapshot_id → prediction_id → signal_id → decision_id → risk_decision_id → execution_intent_id`
+
+Architecture 02 lists the chain as the "Mandatory lineage chain". Architecture 03 enforces it via FK constraints across `feature_snapshots`, `prediction_events`, `confidence_events`, `signal_events`, `orchestrator_decisions`, `risk_decisions`, `execution_intents`. Architecture 11 mandates the IDs as the lineage payload.
+
+## Heartbeat schema and Redis safety
+- Requirement 06 (heartbeat schema) → `heartbeat_events` table (03).
+- Requirement 05 (Redis memory bands 85/90/95) → architecture 04 retention plan; aligns with continuous_monitoring/07 Redis memory plan.
+- Post-monitor finding 07 (Redis ~96.8%) → architecture 04 cites the same critical-band finding.
+
+## Evidence storage and dashboard
+- Architecture 14 defines packet metadata in `evidence_packets`, raw payload retention with lifecycle policy, cross-reference by `monitor_snapshot_id` and `change_id`.
+- Database schema 03 implements both tables.
+- Dashboard requirements (continuous_monitoring/08) align with architecture 14 dashboard readiness items (real-time ingestion, confidence/quality indicators, alert classification + ack workflows).
+
+## Risks and notes
+- Architecture 14 is concise (26 lines). Build-phase must lock packet JSON shapes by version, retention windows per packet type, and ack workflow semantics.
+- Continuous_monitoring/04 alert thresholds should be encoded as configurable policy rather than hard-coded values; architecture allows this via `config_versions`.
+
+## Verdict
+Continuous monitoring, evidence packets, trainer liveness, and feature/signal attribution are fully represented and traceable to corrected post-monitor findings.
+END_FILE
+
+BEGIN_FILE: claude_worklog/v2_architecture_review/10_ARCHITECTURE_REVIEW_GO_NO_GO.md
+V2_ARCHITECTURE_REVIEW_PASS
+END_FILE
