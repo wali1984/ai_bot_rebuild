@@ -1,0 +1,5 @@
+python: /usr/bin/python3.12
+public_ip: 181.214.244.184
+spot_status: 200
+futures_status: 200
+rest_ok: True

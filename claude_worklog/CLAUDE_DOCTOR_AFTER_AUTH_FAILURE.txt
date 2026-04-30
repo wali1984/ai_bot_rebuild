@@ -1,0 +1,55 @@
+[?2004h[?1004h[?2031h
+────────────────────────────────────────────────────────────────────────────────
+  Checking installation status…
+────────────────────────────────────────────────────────────────────────────────
+  Diagnostics
+  ├ Currently running: npm-global (2.1.119)
+  ├ Commit: 6f6855483975
+  ├ Platform: linux-x64
+  ├ Path: /home/wali/.local/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe
+  ├ Config install method: unknown
+  └ Search: OK (bundled)
+
+  ⚠ Multiple installations found
+  ├ npm-global at /usr/bin/claude
+  └ native at /home/wali/.local/bin/claude
+
+  ⚠ Insufficient permissions for auto-updates
+    └ Do one of: (1) Re-install node without sudo, or (2) Use `claude install` for native installation
+
+  Updates
+  ├ Auto-updates: enabled
+  ├ Update permissions: No (requires sudo)
+  ├ Auto-update channel: latest
+  └ Checking for updates…
+
+  Still having issues? Run /feedback to report details.
+
+  Press Enter to continue · f to fix with Claude
+────────────────────────────────────────────────────────────────────────────────
+  Diagnostics
+  ├ Currently running: npm-global (2.1.119)
+  ├ Commit: 6f6855483975
+  ├ Platform: linux-x64
+  ├ Path: /home/wali/.local/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe
+  ├ Config install method: unknown
+  └ Search: OK (bundled)
+
+  ⚠ Multiple installations found
+  ├ npm-global at /usr/bin/claude
+  └ native at /home/wali/.local/bin/claude
+
+  ⚠ Insufficient permissions for auto-updates
+    └ Do one of: (1) Re-install node without sudo, or (2) Use `claude install` for native installation
+
+  Updates
+  ├ Auto-updates: enabled
+  ├ Update permissions: No (requires sudo)
+  ├ Auto-update channel: latest
+  ├ Stable version: 2.1.116
+  └ Latest version: 2.1.123
+
+  Still having issues? Run /feedback to report details.
+
+  Press Enter to continue · f to fix with Claude
+[>4m[<u[?1004l[?2031l[?2004l

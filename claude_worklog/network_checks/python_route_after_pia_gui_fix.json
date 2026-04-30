@@ -1,0 +1,109 @@
+{
+  "dns": {
+    "api.binance.com": {
+      "host": "api.binance.com",
+      "ips": [
+        "3.168.103.185"
+      ],
+      "ok": true
+    },
+    "fapi.binance.com": {
+      "host": "fapi.binance.com",
+      "ips": [
+        "108.138.128.128",
+        "108.138.128.5",
+        "108.138.128.52",
+        "108.138.128.6"
+      ],
+      "ok": true
+    },
+    "fstream.binance.com": {
+      "host": "fstream.binance.com",
+      "ips": [
+        "18.179.166.68",
+        "18.180.197.77",
+        "18.182.159.35",
+        "52.195.128.90",
+        "54.150.126.130",
+        "54.250.70.203",
+        "54.92.10.80",
+        "54.95.241.32"
+      ],
+      "ok": true
+    },
+    "stream.binance.com": {
+      "host": "stream.binance.com",
+      "ips": [
+        "13.113.172.171",
+        "52.195.132.24",
+        "52.68.63.151",
+        "54.178.141.142",
+        "54.64.146.230",
+        "54.92.65.252"
+      ],
+      "ok": true
+    }
+  },
+  "public_ip": {
+    "body_prefix": "",
+    "elapsed_ms": 19.8,
+    "error": "URLError(ConnectionRefusedError(111, 'Connection refused'))",
+    "ok": false,
+    "status": null
+  },
+  "python": "/usr/bin/python3.12",
+  "rest": {
+    "futures_time": {
+      "body_prefix": "",
+      "elapsed_ms": 6.54,
+      "error": "URLError(ConnectionRefusedError(111, 'Connection refused'))",
+      "ok": false,
+      "status": null
+    },
+    "spot_time": {
+      "body_prefix": "",
+      "elapsed_ms": 8.33,
+      "error": "URLError(ConnectionRefusedError(111, 'Connection refused'))",
+      "ok": false,
+      "status": null
+    }
+  },
+  "summary": {
+    "futures_status": null,
+    "public_ip": "",
+    "rest_ok": false,
+    "spot_status": null
+  },
+  "timestamp": "2026-04-30T03:48:25.770009+00:00",
+  "tls": {
+    "api.binance.com": {
+      "elapsed_ms": 19.07,
+      "error": "ConnectionRefusedError(111, 'Connection refused')",
+      "host": "api.binance.com",
+      "ok": false,
+      "port": 443
+    },
+    "fapi.binance.com": {
+      "elapsed_ms": 17.91,
+      "error": "ConnectionRefusedError(111, 'Connection refused')",
+      "host": "fapi.binance.com",
+      "ok": false,
+      "port": 443
+    },
+    "fstream.binance.com_443": {
+      "elapsed_ms": 20.82,
+      "error": "ConnectionRefusedError(111, 'Connection refused')",
+      "host": "fstream.binance.com",
+      "ok": false,
+      "port": 443
+    },
+    "stream.binance.com_443": {
+      "elapsed_ms": 19.4,
+      "error": "ConnectionRefusedError(111, 'Connection refused')",
+      "host": "stream.binance.com",
+      "ok": false,
+      "port": 443
+    }
+  },
+  "version": "3.12.3 (main, Mar 23 2026, 19:04:32) [GCC 13.3.0]"
+}
