@@ -4,9 +4,22 @@ import argparse, re
 from pathlib import Path
 from common_audit import resolve_path, read_text_safely, write_json, evidence_record, redact_text
 
-TOKENS=["redis","xadd","xread","xrevrange","xlen","hset","hgetall","set(","get(","publish","subscribe","xdel","xtrim","delete","lpush","rpush","sadd","zadd","exists("]
-WRITE_TOKENS=["xadd","hset","set(","publish","xdel","xtrim","delete","lpush","rpush","sadd","zadd"]
-READ_TOKENS=["xread","xrevrange","xlen","hgetall","get(","subscribe","exists("]
+REDIS_METHODS=["xadd","xread","xrevrange","xlen","hset","hgetall","set","get","publish","subscribe","xdel","xtrim","delete","lpush","rpush","sadd","zadd","exists","expire","hincrby","setex","incr","decr","smembers"]
+WRITE_TOKENS=["xadd","hset","set","publish","xdel","xtrim","delete","lpush","rpush","sadd","zadd","expire","hincrby","setex","incr","decr"]
+READ_TOKENS=["xread","xrevrange","xlen","hgetall","get","subscribe","exists","smembers"]
+REDIS_METHOD_RE = re.compile(
+    r"\b(?:self\.)?[A-Za-z_][A-Za-z0-9_]*redis[A-Za-z0-9_]*\s*\.\s*(?:"
+    + "|".join(REDIS_METHODS)
+    + r")\s*\(",
+    re.IGNORECASE,
+)
+REDIS_SHORT_VAR_RE = re.compile(
+    r"\b(?:r|rc|pipe|pipeline)\s*\.\s*(?:"
+    + "|".join(REDIS_METHODS)
+    + r")\s*\(",
+    re.IGNORECASE,
+)
+REDIS_KEY_HINTS = ["signals:trading", "positions:", "portfolio:", "heartbeat:"]
 
 
 def classify_write(line_l: str) -> str:
@@ -23,20 +36,27 @@ def classify_write(line_l: str) -> str:
 
 def classify_line(line: str) -> str:
     ll = line.lower()
-    if any(t in ll for t in WRITE_TOKENS):
+    if any(f".{t}(" in ll for t in WRITE_TOKENS):
         return classify_write(ll)
-    if any(t in ll for t in READ_TOKENS):
+    if any(f".{t}(" in ll for t in READ_TOKENS):
         return "read_only"
     if "redis" in ll:
         return "read_only"
     return "read_only"
 
+
+def is_redis_line(line: str) -> bool:
+    if REDIS_METHOD_RE.search(line) or REDIS_SHORT_VAR_RE.search(line):
+        return True
+    ll = line.lower()
+    return any(k in ll for k in REDIS_KEY_HINTS)
+
 def main()->int:
     ap=argparse.ArgumentParser(); ap.add_argument("--trainer-file",required=True); ap.add_argument("--out-dir",default="./claude_worklog/trainer_atlas"); args=ap.parse_args()
     t=resolve_path(args.trainer_file,Path.cwd()); out=resolve_path(args.out_dir,Path.cwd()); txt=read_text_safely(t,max_bytes=200_000_000)
-    rx=re.compile("|".join(re.escape(x) for x in TOKENS),re.I); matches=[]; unknown_writes=0
+    matches=[]; unknown_writes=0
     for i,line in enumerate(txt.splitlines(),start=1):
-        if rx.search(line):
+        if is_redis_line(line):
             cls=classify_line(line)
             if cls=="unknown_write":
                 unknown_writes+=1

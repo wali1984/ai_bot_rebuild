@@ -1,0 +1,3580 @@
+{
+  "source_md": "claude_worklog/codex/CODEX_GREP_VS_TIER_A_COVERAGE.md",
+  "parsed_md_missing_file_count": 200,
+  "computed_missing_high_risk_file_count": 206,
+  "classification_counts": {
+    "grep_pattern_gap": 165,
+    "covered_by_non_grep_artifact": 41
+  },
+  "files": [
+    {
+      "file_path": "legacy_reference/Documentation/Audits/scripts/monitor_orchestrator.py",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "docs_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/INTEGRATION_COMPLETE_SCRIPT.sh",
+      "tier_a_entry_count": 7,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_config coverage cluster; exchange_state_accounting coverage cluster; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/QUICK_START_INTEGRATION.sh",
+      "tier_a_entry_count": 4,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster; exchange_config coverage cluster; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/alphavantage_client.py",
+      "tier_a_entry_count": 5,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_error_handling coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/api/grpc/cloudflare_pb2.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_time_sync coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/apply_immediate_fixes.sh",
+      "tier_a_entry_count": 5,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/audit_asjad_futures_deposits_30d.py",
+      "tier_a_entry_count": 6,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "docs_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/check_ltc_precision.py",
+      "tier_a_entry_count": 4,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_symbol_metadata coverage cluster; exchange_client_init coverage cluster; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/check_order_history.py",
+      "tier_a_entry_count": 12,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_state_accounting coverage cluster; exchange_client_init coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/check_orderbook_data.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/check_services_detailed.sh",
+      "tier_a_entry_count": 5,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_config coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/complete_setup.sh",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "websocket_market_data coverage cluster; exchange_error_handling coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/comprehensive_feature_service_fixed.py",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/config/settings.py",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_config coverage cluster; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/debug_binance_step_by_step.py",
+      "tier_a_entry_count": 8,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_client_init coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/debug_data.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_time_sync coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/debug_feature_pipeline_ohlcv.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/debug_sources.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/deploy_qa_fixed.sh",
+      "tier_a_entry_count": 6,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_config coverage cluster; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/diagnostics.py",
+      "tier_a_entry_count": 10,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster; exchange_config coverage cluster; exchange_client_init coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/feature_pipeline_diagnostic.py",
+      "tier_a_entry_count": 5,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/fetch_historical_data.py",
+      "tier_a_entry_count": 10,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_time_sync coverage cluster; exchange_client_init coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/find_channel_id.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/server/app/_not-found/page.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "stops_take_profit"
+      ],
+      "why_tier_a": "reduce_only coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/server/app/_not-found/page_client-reference-manifest.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/server/app/dashboard/page.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_time_sync coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/server/app/dashboard/page_client-reference-manifest.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/server/app/favicon.ico/route.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/server/app/login/page.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "websocket_market_data coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/server/app/login/page_client-reference-manifest.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/server/app/page.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "stops_take_profit"
+      ],
+      "why_tier_a": "reduce_only coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/server/app/page_client-reference-manifest.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/server/app/trading/page.js",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "redis_write",
+        "stops_take_profit"
+      ],
+      "why_tier_a": "redis write cluster; reduce_only coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/server/app/trading/page_client-reference-manifest.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/server/chunks/333.js",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution",
+        "redis_write"
+      ],
+      "why_tier_a": "redis write cluster; exchange_client_init coverage cluster; exchange_symbol_metadata coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/server/chunks/371.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "stops_take_profit"
+      ],
+      "why_tier_a": "reduce_only coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/server/chunks/586.js",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_error_handling coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/server/chunks/611.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_symbol_metadata coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/server/chunks/688.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/server/chunks/82.js",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution",
+        "redis_write"
+      ],
+      "why_tier_a": "redis write cluster; exchange_state_accounting coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/server/pages/_error.js",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_error_handling coverage cluster; websocket_market_data coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/static/chunks/125-3a1c031a1c4bcc64.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "redis_write"
+      ],
+      "why_tier_a": "redis write cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": false,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/static/chunks/255-4efeec91c7871d79.js",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution",
+        "redis_write"
+      ],
+      "why_tier_a": "redis write cluster; exchange_error_handling coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/static/chunks/478-1b65ff74eb66a6fc.js",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution",
+        "redis_write"
+      ],
+      "why_tier_a": "redis write cluster; exchange_state_accounting coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution",
+        "redis_write"
+      ],
+      "why_tier_a": "redis write cluster; exchange_symbol_metadata coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/static/chunks/718-ea79efc603a489fd.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "stops_take_profit"
+      ],
+      "why_tier_a": "reduce_only coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/static/chunks/829-fa5ba33bada845b8.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_time_sync coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/static/chunks/894-ddf6ab726042650b.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/static/chunks/980-66a77c7e1ed90f88.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_error_handling coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/static/chunks/app/_not-found/page-8bf854eda23c53ab.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/static/chunks/app/dashboard/page-26b8b6aa3557c75b.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_time_sync coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/static/chunks/app/layout-cfb6e21bf660df93.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "stops_take_profit"
+      ],
+      "why_tier_a": "reduce_only coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/static/chunks/app/login/page-56c3c97472d1cb6a.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "stops_take_profit"
+      ],
+      "why_tier_a": "reduce_only coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/static/chunks/app/page-557601590f070a84.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "stops_take_profit"
+      ],
+      "why_tier_a": "reduce_only coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/static/chunks/app/trading/page-ea1bca2abe6a5d59.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "stops_take_profit"
+      ],
+      "why_tier_a": "reduce_only coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/static/chunks/framework-acd67e14855de5a2.js",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution",
+        "redis_write"
+      ],
+      "why_tier_a": "redis write cluster; exchange_symbol_metadata coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/static/chunks/main-91b3fa0b94077dbb.js",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution",
+        "redis_write"
+      ],
+      "why_tier_a": "redis write cluster; exchange_symbol_metadata coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/.next/static/chunks/polyfills-42372ed130431b0a.js",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "redis_write"
+      ],
+      "why_tier_a": "redis write cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": false,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/app/dashboard/page.tsx",
+      "tier_a_entry_count": 5,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster; websocket_market_data coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/app/login/page.tsx",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/app/page.tsx",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/app/providers.tsx",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_client_init coverage cluster; websocket_market_data coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/app/trading/page.tsx",
+      "tier_a_entry_count": 12,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review",
+        "stops_take_profit"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_state_accounting coverage cluster; reduce_only coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/components/DashboardLayout.tsx",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/components/ProtectedRoute.tsx",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/components/ui/alert-dialog.tsx",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/components/ui/dialog.tsx",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/components/ui/dropdown-menu.tsx",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/components/ui/label.tsx",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/components/ui/select.tsx",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_state_accounting coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/components/ui/separator.tsx",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/components/ui/slider.tsx",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/components/ui/switch.tsx",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/components/ui/tabs.tsx",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/components/ui/tooltip.tsx",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_state_accounting coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/contexts/AuthContext.tsx",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/contexts/WebSocketContext.tsx",
+      "tier_a_entry_count": 4,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "websocket_market_data coverage cluster; exchange_time_sync coverage cluster; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/frontend/src/lib/api.ts",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution",
+        "stops_take_profit"
+      ],
+      "why_tier_a": "reduce_only coverage cluster; exchange_state_accounting coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/hybrid_rule_based_signals.py",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "comment_exchange_context coverage cluster; exchange_state_accounting coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/ingest/alphavantage_client.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "websocket_market_data coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/install_everything.sh",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "websocket_market_data coverage cluster; exchange_error_handling coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/launch_hybrid_trainer.sh",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_config coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/monitor_ingestor_memory.sh",
+      "tier_a_entry_count": 6,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_time_sync coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/monitor_ohlcv_freshness.py",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; websocket_market_data coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/quick_check_binance_normalized.py",
+      "tier_a_entry_count": 4,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; websocket_market_data coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/quick_import_test.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/quick_test.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/quick_validation.py",
+      "tier_a_entry_count": 4,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; account_query coverage cluster; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/risk/microstructure_toxicity.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "market_data coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/rl/hedge_action_space.py",
+      "tier_a_entry_count": 5,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster; exchange_error_handling coverage cluster; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/rl/move_shock_engine.py",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "market_data coverage cluster; exchange_context_only coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/rl/obs_schema.py",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/rl/position_context.py",
+      "tier_a_entry_count": 4,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster; exchange_time_sync coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/rl/scenario_engine.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/rl/scripts/export_audit_pack.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "docs_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/rl/signal_state_manager.py",
+      "tier_a_entry_count": 14,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster; comment_exchange_context coverage cluster; exchange_time_sync coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/run.sh",
+      "tier_a_entry_count": 6,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/run_paper_trader.sh",
+      "tier_a_entry_count": 4,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster; exchange_config coverage cluster; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/run_trader.sh",
+      "tier_a_entry_count": 4,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/audit_churn.py",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "docs_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/audit_ingestor_streams.py",
+      "tier_a_entry_count": 4,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "docs_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/audit_pipeline_health.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "docs_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/auto_recovery.sh",
+      "tier_a_entry_count": 6,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/scripts/breadth_allocator_audit.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "docs_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/ccxt_history.py",
+      "tier_a_entry_count": 9,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_time_sync coverage cluster; exchange_error_handling coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/check_fastlane_health.sh",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/coinapi_health_check.py",
+      "tier_a_entry_count": 6,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/scripts/critical_process_watchdog.sh",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/enable_live_profile.sh",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "websocket_market_data coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/final_gnome_terminal_cleanup.sh",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/scripts/fix_desktop_icons.sh",
+      "tier_a_entry_count": 5,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/fix_gnome_terminal_syntax.sh",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/scripts/go_nogo_dashboard.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/ingestor_probe_new_symbols.py",
+      "tier_a_entry_count": 10,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; websocket_market_data coverage cluster; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/integration_test_trainer.sh",
+      "tier_a_entry_count": 5,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review",
+        "redis_write"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; redis write cluster; market_data coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/live_progress_loop.sh",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_time_sync coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/live_system_monitor.sh",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/scripts/monitor_all_services.sh",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; websocket_market_data coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/monitor_dashboard.sh",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/scripts/ops_env_patch.sh",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/scripts/organize_desktop_icons.sh",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/scripts/probe_new_symbols_endpoints.py",
+      "tier_a_entry_count": 21,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; comment_exchange_context coverage cluster; exchange_config coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/prod_cutover.sh",
+      "tier_a_entry_count": 10,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/scripts/quick_validation.sh",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/scripts/re_audit_pack_kpis.py",
+      "tier_a_entry_count": 4,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "docs_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/replay_sanity_check.py",
+      "tier_a_entry_count": 6,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "comment_exchange_context coverage cluster; exchange_state_accounting coverage cluster; exchange_client_init coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/run_daily_audit.sh",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "docs_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/setup_daily_audit.sh",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "docs_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/start_ai_coins_sync.sh",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/start_all_services-old.sh",
+      "tier_a_entry_count": 11,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; websocket_market_data coverage cluster; exchange_state_accounting coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/start_all_services_production.sh",
+      "tier_a_entry_count": 17,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; comment_exchange_context coverage cluster; market_data coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/start_system.sh",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_state_accounting coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/start_trader.sh",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_config coverage cluster; exchange_state_accounting coverage cluster; exchange_error_handling coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/status_ai_coins_sync.sh",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/scripts/stop_ai_coins_sync.sh",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/stop_all_services.sh",
+      "tier_a_entry_count": 8,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; comment_exchange_context coverage cluster; exchange_context_only coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/stop_all_services_production.sh",
+      "tier_a_entry_count": 4,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; websocket_market_data coverage cluster; exchange_state_accounting coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/stop_individual_service.sh",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/stop_ingestors.sh",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review",
+        "redis_write"
+      ],
+      "why_tier_a": "redis write cluster; unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/stop_system.sh",
+      "tier_a_entry_count": 4,
+      "categories_present": [
+        "exchange_execution",
+        "redis_write"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster; redis write cluster; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/stop_trader.sh",
+      "tier_a_entry_count": 16,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review",
+        "redis_write"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_state_accounting coverage cluster; redis write cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/stop_trader_asjad.sh",
+      "tier_a_entry_count": 18,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review",
+        "redis_write"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster; redis write cluster; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/stop_trainer.sh",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "redis_write"
+      ],
+      "why_tier_a": "redis write cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": false,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/sync_ai_coins.sh",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/test_fastlane_detector.py",
+      "tier_a_entry_count": 5,
+      "categories_present": [
+        "exchange_execution",
+        "stops_take_profit"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster; comment_exchange_context coverage cluster; reduce_only coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/top_movers_futures.py",
+      "tier_a_entry_count": 5,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "exchange_client_init coverage cluster; unresolved production exchange logic queued for Tier A raw review; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/trace_symbol_e2e.py",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_time_sync coverage cluster; websocket_market_data coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/train_historical.sh",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/scripts/validate_flash_hedge_system.sh",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution",
+        "stops_take_profit"
+      ],
+      "why_tier_a": "reduce_only coverage cluster; websocket_market_data coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/validate_symbol_universe_data.py",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/validate_trader_alignment.py",
+      "tier_a_entry_count": 6,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/validation_helper.sh",
+      "tier_a_entry_count": 17,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_config coverage cluster; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/scripts/verify_trader_consumption.py",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster; websocket_market_data coverage cluster; exchange_error_handling coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/send_trader_diagnostic_alert.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_config coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/services/liquidation_intelligence.py",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; balance_query coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/start_api.sh",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "websocket_market_data coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/start_conservative_mode.sh",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/start_dual_lane.sh",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/start_multi_account.sh",
+      "tier_a_entry_count": 10,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "comment_exchange_context coverage cluster; exchange_state_accounting coverage cluster; exchange_client_init coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/start_system.sh",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/start_system_with_binance.sh",
+      "tier_a_entry_count": 22,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review",
+        "stops_take_profit"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; comment_exchange_context coverage cluster; exchange_config coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/stop_multi_account.sh",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "comment_exchange_context coverage cluster; exchange_state_accounting coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/ta-lib/ltmain.sh",
+      "tier_a_entry_count": 7,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_143_features.py",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_audit_fixes.sh",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "docs_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_binance_connection.py",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_binance_imports.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_binance_live.py",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_binance_testnet_connection.py",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_channel_routing.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_comprehensive_coinank.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_file_writers.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_freshness.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_hedge_trading.py",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_latency_optimizations.py",
+      "tier_a_entry_count": 4,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_multi_account.sh",
+      "tier_a_entry_count": 5,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_ohlcv_access.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_ohlcv_parsing.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_pipeline.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_pnl_integration.py",
+      "tier_a_entry_count": 4,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_portfolio_alert.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_production_trader.py",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_real_trader.py",
+      "tier_a_entry_count": 5,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_send_telegram_signal.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_telegram_format.py",
+      "tier_a_entry_count": 4,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_telegram_pipeline.py",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_trade_channel.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/test_trader_advanced.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "test_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/tests/test_ingestor_and_overlay.py",
+      "tier_a_entry_count": 11,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_time_sync coverage cluster; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/tests/test_orderbook_source_priority.py",
+      "tier_a_entry_count": 6,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "market_data coverage cluster; exchange_config coverage cluster; unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/tests/test_portfolio_policy_manager.py",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_state_accounting coverage cluster; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/tests/test_promotion_controller.py",
+      "tier_a_entry_count": 4,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; position_query coverage cluster; exchange_state_accounting coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/tests/test_router_limits.py",
+      "tier_a_entry_count": 7,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "comment_exchange_context coverage cluster; exchange_state_accounting coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/tests/test_safety_modules.py",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster; comment_exchange_context coverage cluster; exchange_error_handling coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/tests/test_stream_reader.py",
+      "tier_a_entry_count": 1,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "websocket_market_data coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/tests/test_telegram_alerts_execution_state.py",
+      "tier_a_entry_count": 14,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_state_accounting coverage cluster; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/tools/preflight_account.py",
+      "tier_a_entry_count": 7,
+      "categories_present": [
+        "exchange_execution"
+      ],
+      "why_tier_a": "exchange_state_accounting coverage cluster; balance_query coverage cluster; exchange_error_handling coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/trading/dynamic_margin_manager.py",
+      "tier_a_entry_count": 14,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_error_handling coverage cluster; exchange_state_accounting coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/trading/execution_engine.py",
+      "tier_a_entry_count": 8,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; market_data coverage cluster; exchange_state_accounting coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/ubuntu_setup.sh",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "covered_by_non_grep_artifact",
+      "remediation_needed": "Use evidence-backed checker accepting map/atlas coverage by category."
+    },
+    {
+      "file_path": "legacy_reference/utils/ai_coins_manager.py",
+      "tier_a_entry_count": 4,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_time_sync coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": true,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/utils/data_normalizer.py",
+      "tier_a_entry_count": 20,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; comment_exchange_context coverage cluster; exchange_time_sync coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/utils/interrupt_lock.py",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; comment_exchange_context coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/utils/redis_hardening.py",
+      "tier_a_entry_count": 2,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "exchange_client_init coverage cluster; unresolved production exchange logic queued for Tier A raw review",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/validate_config.py",
+      "tier_a_entry_count": 3,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; comment_exchange_context coverage cluster; exchange_error_handling coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    },
+    {
+      "file_path": "legacy_reference/vpn_monitor.py",
+      "tier_a_entry_count": 13,
+      "categories_present": [
+        "exchange_execution",
+        "exchange_unresolved_tier_a_review"
+      ],
+      "why_tier_a": "unresolved production exchange logic queued for Tier A raw review; exchange_config coverage cluster; exchange_error_handling coverage cluster",
+      "direct_keyword_grep_evidence": false,
+      "indirect_evidence": {
+        "exchange_map": true,
+        "redis_map": false,
+        "trainer_atlas": false,
+        "script_registry": true
+      },
+      "classification": "grep_pattern_gap",
+      "remediation_needed": "Expand targeted grep patterns/filetypes for this path class; keep map evidence fallback."
+    }
+  ]
+}

@@ -7,22 +7,43 @@ from pathlib import Path
 
 from common_audit import iter_files, read_text_safely, relative_to, resolve_path, write_json, write_markdown, evidence_record, redact_text
 
-TOKENS = [
-    "redis", "Redis", "xadd", "xread", "xrevrange", "xlen", "hgetall", "hset", "set(", "get(",
-    "publish", "subscribe", "signals:trading", "executed_signals", "positions:", "portfolio:",
-    "trainer", "heartbeat", "risk", "halt",
+REDIS_METHODS = [
+    "xadd", "xread", "xrevrange", "xlen", "hgetall", "hset", "set", "get",
+    "publish", "subscribe", "delete", "xdel", "xtrim", "lpush", "rpush", "sadd", "zadd",
+    "expire", "hincrby", "exists", "setex", "incr", "decr", "smembers",
 ]
-WRITE_HINTS = ["xadd", "hset", "set(", "publish", "delete", "xdel", "xtrim", "lpush", "rpush", "sadd", "zadd"]
-READ_HINTS = ["xread", "xrevrange", "xlen", "hgetall", "get(", "subscribe"]
+REDIS_KEY_HINTS = ["signals:trading", "executed_signals", "positions:", "portfolio:", "heartbeat:"]
+REDIS_VAR_METHOD_RE = re.compile(
+    r"\b(?:self\.)?[A-Za-z_][A-Za-z0-9_]*redis[A-Za-z0-9_]*\s*\.\s*(?:"
+    + "|".join(REDIS_METHODS)
+    + r")\s*\(",
+    re.IGNORECASE,
+)
+REDIS_SHORT_VAR_RE = re.compile(
+    r"\b(?:r|rc|pipe|pipeline)\s*\.\s*(?:"
+    + "|".join(REDIS_METHODS)
+    + r")\s*\(",
+    re.IGNORECASE,
+)
+
+WRITE_HINTS = ["xadd", "hset", "set", "publish", "delete", "xdel", "xtrim", "lpush", "rpush", "sadd", "zadd", "expire", "hincrby", "setex", "incr", "decr"]
+READ_HINTS = ["xread", "xrevrange", "xlen", "hgetall", "get", "subscribe", "exists", "smembers"]
 
 
 def classify(line: str) -> str:
     l = line.lower()
-    if any(t in l for t in WRITE_HINTS):
+    if any(f".{t}(" in l for t in WRITE_HINTS):
         return "redis_write"
-    if any(t in l for t in READ_HINTS):
+    if any(f".{t}(" in l for t in READ_HINTS):
         return "redis_read"
     return "redis_unknown"
+
+
+def is_redis_line(line: str) -> bool:
+    if REDIS_VAR_METHOD_RE.search(line) or REDIS_SHORT_VAR_RE.search(line):
+        return True
+    line_l = line.lower()
+    return any(k in line_l for k in REDIS_KEY_HINTS)
 
 
 def main() -> int:
@@ -34,7 +55,6 @@ def main() -> int:
     out = resolve_path(args.out_dir, Path.cwd())
     out.mkdir(parents=True, exist_ok=True)
 
-    token_rx = re.compile("|".join(re.escape(t) for t in TOKENS), re.IGNORECASE)
     matches = []
     per_file = {}
 
@@ -47,7 +67,7 @@ def main() -> int:
         except Exception:
             continue
         for i, line in enumerate(text.splitlines(), start=1):
-            if token_rx.search(line):
+            if is_redis_line(line):
                 c = classify(line)
                 item = {
                     "file": rel,
