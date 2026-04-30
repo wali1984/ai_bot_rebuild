@@ -1,0 +1,555 @@
+legacy_reference/Public Dashboard/api.py:376:                    if event_type in ['TRAILING_EXIT', 'STOP_LOSS_HIT', 'TAKE_PROFIT_HIT', 'EXIT', 'CLOSE']:
+legacy_reference/Public Dashboard/api.py:388:                            if 'profit' in reason.lower() or 'TAKE_PROFIT' in event_type:
+legacy_reference/Public Dashboard/api.py:1930:                if event_type in ['TRAILING_EXIT', 'STOP_LOSS_HIT', 'TAKE_PROFIT_HIT', 'MANUAL_CLOSE', 'EXIT', 'CLOSE']:
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:546:            elif action == 'TAKE_PROFIT_PARTIAL':
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:586:            if self.telegram and action in ['OPEN_LONG', 'OPEN_SHORT', 'CLOSE', 'CLOSE_LONG', 'CLOSE_SHORT', 'STOP_LOSS_LONG', 'STOP_LOSS_SHORT', 'TAKE_PROFIT_PARTIAL']:
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:640:                self.client.futures_change_leverage(symbol=symbol, leverage=leverage)
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:717:            order = self.client.futures_create_order(
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:796:            order = self.client.futures_create_order(
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:803:                reduceOnly=True
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:850:            order = self.client.futures_create_order(
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:857:                reduceOnly=True
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:884:            order = self.client.futures_create_order(
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:887:                type='STOP_MARKET',
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:889:                stopPrice=stop_price,
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:892:                reduceOnly=True
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:906:            order = self.client.futures_create_order(
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:909:                type='TAKE_PROFIT_MARKET',
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:911:                stopPrice=take_profit_price,
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:914:                reduceOnly=True
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:950:                'type': 'TRAILING_STOP_MARKET',
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:954:                'reduceOnly': True  # Only reduce position, don't open new
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:961:            order = self.client.futures_create_order(**params)
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:975:                    f"**Type**: TRAILING_STOP_MARKET\n"
+legacy_reference/backups/fix_signals_20251012_191330/paper_trader.py:991:            elif action == 'TAKE_PROFIT_PARTIAL':
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:3648:            if 'TAKE_PROFIT_PARTIAL' in str(type(self)) or hasattr(self, '_partial_profit_logic'):
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:5335:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:5368:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:5375:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:5382:                    result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:5388:                    result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:5406:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:5409:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:5428:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:5431:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:5450:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:5453:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:5472:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:5475:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:5497:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:5501:                        result['action'] = 'TAKE_PROFIT'
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:7837:        - TAKE_PROFIT_LONG: Take profit on winning long
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:7838:        - TAKE_PROFIT_SHORT: Take profit on winning short
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:7986:                        action_name = "TAKE_PROFIT_LONG"
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:8001:                        action_name = "TAKE_PROFIT_SHORT"
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:546:            elif action == 'TAKE_PROFIT_PARTIAL':
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:586:            if self.telegram and action in ['OPEN_LONG', 'OPEN_SHORT', 'CLOSE', 'CLOSE_LONG', 'CLOSE_SHORT', 'STOP_LOSS_LONG', 'STOP_LOSS_SHORT', 'TAKE_PROFIT_PARTIAL']:
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:640:                self.client.futures_change_leverage(symbol=symbol, leverage=leverage)
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:717:            order = self.client.futures_create_order(
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:796:            order = self.client.futures_create_order(
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:803:                reduceOnly=True
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:850:            order = self.client.futures_create_order(
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:857:                reduceOnly=True
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:884:            order = self.client.futures_create_order(
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:887:                type='STOP_MARKET',
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:889:                stopPrice=stop_price,
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:892:                reduceOnly=True
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:906:            order = self.client.futures_create_order(
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:909:                type='TAKE_PROFIT_MARKET',
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:911:                stopPrice=take_profit_price,
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:914:                reduceOnly=True
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:950:                'type': 'TRAILING_STOP_MARKET',
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:954:                'reduceOnly': True  # Only reduce position, don't open new
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:961:            order = self.client.futures_create_order(**params)
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:975:                    f"**Type**: TRAILING_STOP_MARKET\n"
+legacy_reference/backups/fix_signals_20251012_191010/paper_trader.py:991:            elif action == 'TAKE_PROFIT_PARTIAL':
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:3648:            if 'TAKE_PROFIT_PARTIAL' in str(type(self)) or hasattr(self, '_partial_profit_logic'):
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:5335:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:5368:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:5375:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:5382:                    result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:5388:                    result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:5406:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:5409:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:5428:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:5431:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:5450:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:5453:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:5472:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:5475:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:5497:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:5501:                        result['action'] = 'TAKE_PROFIT'
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:7837:        - TAKE_PROFIT_LONG: Take profit on winning long
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:7838:        - TAKE_PROFIT_SHORT: Take profit on winning short
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:7986:                        action_name = "TAKE_PROFIT_LONG"
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:8001:                        action_name = "TAKE_PROFIT_SHORT"
+legacy_reference/test_production_trading.py:132:                    close_order = self.client.futures_create_order(
+legacy_reference/test_production_trading.py:149:            self.client.futures_change_leverage(symbol='LTCUSDT', leverage=10)
+legacy_reference/test_production_trading.py:161:            long_order = self.client.futures_create_order(
+legacy_reference/test_production_trading.py:191:            close_order = self.client.futures_create_order(
+legacy_reference/test_production_trading.py:230:            short_order = self.client.futures_create_order(
+legacy_reference/test_production_trading.py:260:            close_order = self.client.futures_create_order(
+legacy_reference/test_binance_hedge_mode.py:77:            order = client.futures_create_order(
+legacy_reference/test_binance_hedge_mode.py:83:                reduceOnly=True
+legacy_reference/test_binance_hedge_mode.py:122:        client.futures_change_leverage(symbol=SYMBOL, leverage=TEST_LEVERAGE)
+legacy_reference/test_binance_hedge_mode.py:153:        order = client.futures_create_order(
+legacy_reference/test_binance_hedge_mode.py:188:        order = client.futures_create_order(
+legacy_reference/test_binance_hedge_mode.py:265:        order = client.futures_create_order(
+legacy_reference/test_binance_hedge_mode.py:271:            reduceOnly=True
+legacy_reference/test_binance_hedge_mode.py:307:        order = client.futures_create_order(
+legacy_reference/test_binance_hedge_mode.py:313:            reduceOnly=True
+legacy_reference/test_ltc_trading.py:219:                    close_order = self.trader.client.futures_create_order(**order_params)
+legacy_reference/trading/base_executor.py:93:    def futures_change_margin_type(self, **kwargs):
+legacy_reference/trading/base_executor.py:96:    def futures_change_leverage(self, **kwargs):
+legacy_reference/trading/base_executor.py:105:    def futures_create_order(self, **kwargs):
+legacy_reference/trading/base_executor.py:136:    order    : Raw order dict from futures_create_order
+legacy_reference/trading/base_executor.py:1495:                            ioc_params["reduceOnly"] = True
+legacy_reference/trading/base_executor.py:1498:                            ioc_order = self.client.futures_create_order(**ioc_params)
+legacy_reference/trading/base_executor.py:1500:                            # Some modes/endpoints reject reduceOnly with -1106 ("not required").
+legacy_reference/trading/base_executor.py:1503:                                ioc_params.pop("reduceOnly", None)
+legacy_reference/trading/base_executor.py:1504:                                ioc_order = self.client.futures_create_order(**ioc_params)
+legacy_reference/trading/base_executor.py:1544:                                    market_params["reduceOnly"] = True
+legacy_reference/trading/base_executor.py:1546:                                    market = self.client.futures_create_order(**market_params)
+legacy_reference/trading/base_executor.py:1550:                                        market_params.pop("reduceOnly", None)
+legacy_reference/trading/base_executor.py:1551:                                        market = self.client.futures_create_order(**market_params)
+legacy_reference/trading/base_executor.py:1604:                    market_params["reduceOnly"] = True
+legacy_reference/trading/base_executor.py:1606:                    order = self.client.futures_create_order(**market_params)
+legacy_reference/trading/base_executor.py:1608:                    # Some modes/endpoints reject reduceOnly with -1106 ("not required").
+legacy_reference/trading/base_executor.py:1609:                    # Retry without reduceOnly to avoid blocking protective exits.
+legacy_reference/trading/base_executor.py:1612:                        market_params.pop("reduceOnly", None)
+legacy_reference/trading/base_executor.py:1613:                        order = self.client.futures_create_order(**market_params)
+legacy_reference/trading/base_executor.py:1716:                limit_params["reduceOnly"] = True
+legacy_reference/trading/base_executor.py:1719:                created = self.client.futures_create_order(**limit_params)
+legacy_reference/trading/base_executor.py:1722:                # reduceOnly can be rejected in some modes; retry without
+legacy_reference/trading/base_executor.py:1725:                        limit_params.pop("reduceOnly", None)
+legacy_reference/trading/base_executor.py:1726:                        created = self.client.futures_create_order(**limit_params)
+legacy_reference/trading/base_executor.py:1790:                self.client.futures_cancel_order(symbol=symbol, orderId=order_id)
+legacy_reference/trading/base_executor.py:1817:                    market_params["reduceOnly"] = True
+legacy_reference/trading/base_executor.py:1819:                    market = self.client.futures_create_order(**market_params)
+legacy_reference/trading/base_executor.py:1821:                    # Some endpoints/modes reject reduceOnly with -1106 ("not required").
+legacy_reference/trading/base_executor.py:1822:                    # Retry without reduceOnly to avoid blocking protective exits.
+legacy_reference/trading/base_executor.py:1826:                            market_params.pop("reduceOnly", None)
+legacy_reference/trading/base_executor.py:1827:                            market = self.client.futures_create_order(**market_params)
+legacy_reference/trading/depth_execution_gate.py:170:        is_exit = action.upper() in ['CLOSE', 'REDUCE', 'TP', 'SL', 'TAKE_PROFIT', 'STOP_LOSS', 'CLOSE_LONG', 'CLOSE_SHORT']
+legacy_reference/trading/lifecycle_controller.py:12:EXIT_TOKENS = ("CLOSE", "PARTIAL_CLOSE", "REDUCE", "DECREASE", "STOP_LOSS", "TAKE_PROFIT", "EXIT")
+legacy_reference/trading/trader.py:870:                                self.client.futures_change_margin_type(symbol=symbol, marginType=target_margin_type)
+legacy_reference/trading/trader.py:2466:                existing_tp = next((s for s in existing_stops if s.side == side and s.stop_type == 'TAKE_PROFIT'), None)
+legacy_reference/trading/trader.py:2510:                        self.stealth_monitor.remove_stop(symbol, side, 'TAKE_PROFIT', self.account_id)
+legacy_reference/trading/trader.py:2512:                    existing_tp = next((s for s in self.stealth_monitor.pending_stops.get(symbol, []) if s.side == side and s.stop_type == 'TAKE_PROFIT'), None)
+legacy_reference/trading/trader.py:2578:                    tp_pct = getattr(self.config, 'TAKE_PROFIT_PERCENT', 8.0) / 100.0
+legacy_reference/trading/trader.py:2616:                    self.stealth_monitor.remove_stop(symbol, side, 'TAKE_PROFIT', self.account_id)
+legacy_reference/trading/trader.py:4095:                existing_tp = next((s for s in existing_stops if s.side == side and s.stop_type == 'TAKE_PROFIT'), None)
+legacy_reference/trading/trader.py:4144:                                action_name="SET_TAKE_PROFIT",
+legacy_reference/trading/trader.py:4188:                        self.stealth_monitor.remove_stop(symbol, side, 'TAKE_PROFIT', self.account_id)
+legacy_reference/trading/trader.py:5785:        partial_like = {"PARTIAL_CLOSE", "PARTIAL_CLOSE_AND_HEDGE", "TAKE_PROFIT_PARTIAL"}
+legacy_reference/trading/trader.py:5790:        manage_like = {"SET_TAKE_PROFIT", "SET_STOP_LOSS", "ARM_TP", "ARM_SL", "UPDATE_TP", "UPDATE_SL"}
+legacy_reference/trading/trader.py:6423:            if "STOP_LOSS" in a or "TAKE_PROFIT" in a:
+legacy_reference/trading/trader.py:6462:                        or "TAKE_PROFIT" in act_up
+legacy_reference/trading/trader.py:6463:                        or "TAKE_PROFIT" in reason_up
+legacy_reference/trading/trader.py:6546:            "TAKE_PROFIT",
+legacy_reference/trading/trader.py:6547:            "SET_TAKE_PROFIT",
+legacy_reference/trading/trader.py:6557:            or cat_up in {"STEALTH_TP", "TAKE_PROFIT"}
+legacy_reference/trading/trader.py:7812:                    or action_for_classify.startswith("TAKE_PROFIT")
+legacy_reference/trading/trader.py:9606:                is_protective_action = any(x in action_name_upper for x in ["CLOSE", "DECREASE", "PARTIAL", "REDUCE", "STOP_LOSS", "TAKE_PROFIT"])
+legacy_reference/trading/trader.py:10041:                # Does NOT apply to emergency exits (STOP_LOSS/TAKE_PROFIT).
+legacy_reference/trading/trader.py:10131:                        is_emergency_exit = action_name_upper.startswith("STOP_LOSS") or action_name_upper.startswith("TAKE_PROFIT")
+legacy_reference/trading/trader.py:10866:                        any(x in action_name for x in ["CLOSE", "DECREASE", "PARTIAL", "REDUCE", "TAKE_PROFIT", "STOP_LOSS"])
+legacy_reference/trading/trader.py:11474:                "CLOSE", "DECREASE", "PARTIAL", "REDUCE", "TAKE_PROFIT", "STOP_LOSS", "HEDGE"
+legacy_reference/trading/trader.py:11494:                        any(x in act_u for x in ["CLOSE", "DECREASE", "PARTIAL", "REDUCE", "TAKE_PROFIT", "STOP_LOSS"])
+legacy_reference/trading/trader.py:11554:                            any(x in act_u for x in ["CLOSE", "DECREASE", "PARTIAL", "REDUCE", "TAKE_PROFIT", "STOP_LOSS"])
+legacy_reference/trading/trader.py:11578:            # - EMERGENCY PROTECTIVE: Never blocked (STOP_LOSS, TAKE_PROFIT - safety exits)
+legacy_reference/trading/trader.py:11706:            is_emergency_action = action in ['STOP_LOSS', 'TAKE_PROFIT']  # Never blocked
+legacy_reference/trading/trader.py:13125:                    # - calls futures_change_leverage() before placing the order (if allowed)
+legacy_reference/trading/trader.py:13324:            elif action in ['SET_TAKE_PROFIT']:
+legacy_reference/trading/trader.py:13331:                    self._publish_skip(signal, action, "TP_PRICE_MISSING", "SET_TAKE_PROFIT missing take_profit price", signal.get("_stream_id"))
+legacy_reference/trading/trader.py:13342:                            self._publish_skip(signal, action, "TP_SIDE_UNKNOWN", "Both LONG/SHORT exist; side required for SET_TAKE_PROFIT", signal.get("_stream_id"))
+legacy_reference/trading/trader.py:13359:                            self._publish_skip(signal, action, "TP_SIDE_UNKNOWN", "Could not infer position side for SET_TAKE_PROFIT", signal.get("_stream_id"))
+legacy_reference/trading/trader.py:13442:            elif action == 'TAKE_PROFIT_PARTIAL':
+legacy_reference/trading/trader.py:14075:                    self.client.futures_change_leverage(symbol=symbol, leverage=new_leverage)
+legacy_reference/trading/trader.py:15245:                    self.client.futures_change_leverage(symbol=symbol, leverage=capped_lev)
+legacy_reference/trading/trader.py:16346:                # Default take profit from config (TAKE_PROFIT_PERCENT, default 4%)
+legacy_reference/trading/trader.py:16347:                default_tp_pct = getattr(self.config, 'TAKE_PROFIT_PERCENT', 4.0) / 100.0
+legacy_reference/trading/trader.py:16359:            # Place a WIDE STOP_MARKET order on Binance that survives system downtime.
+legacy_reference/trading/trader.py:16378:                    # Place STOP_MARKET on exchange (reduce-only, close-side)
+legacy_reference/trading/trader.py:16382:                        _exch_sl_order = self.client.futures_create_order(
+legacy_reference/trading/trader.py:16386:                            type='STOP_MARKET',
+legacy_reference/trading/trader.py:16387:                            stopPrice=str(_exch_sl_price),
+legacy_reference/trading/trader.py:16388:                            closePosition='true',  # Close entire position
+legacy_reference/trading/trader.py:16484:                Valid codes: MODEL_CLOSE, STOP_LOSS, TRAILING_STOP, TAKE_PROFIT,
+legacy_reference/trading/trader.py:16485:                TAKE_PROFIT_TIERED, LIQUIDATION_HEDGE, CIRCUIT_BREAKER, REBALANCING,
+legacy_reference/trading/trader.py:16486:                FLIP_CLOSE, MANUAL_CLOSE, STEALTH_STOP_LOSS, STEALTH_TAKE_PROFIT
+legacy_reference/trading/trader.py:17611:            if 'TAKE_PROFIT' in action:
+legacy_reference/trading/trader.py:17612:                return CloseReasonCode.TAKE_PROFIT
+legacy_reference/trading/trader.py:17624:            return CloseReasonCode.TAKE_PROFIT
+legacy_reference/trading/trader.py:17626:            return CloseReasonCode.TAKE_PROFIT_TIERED
+legacy_reference/trading/trader.py:17639:                return CloseReasonCode.STEALTH_TAKE_PROFIT
+legacy_reference/trading/trader.py:18418:                    or "TAKE_PROFIT" in act
+legacy_reference/trading/trader.py:18419:                    or "TAKE_PROFIT" in reason_up
+legacy_reference/trading/trader.py:18585:                    stop_type='TAKE_PROFIT',
+legacy_reference/trading/trader.py:18670:            quantity: Explicit quantity to close (required when reduceOnly=True)
+legacy_reference/trading/trader.py:18672:          Note: Binance futures trailing stops do not support closePosition=true,
+legacy_reference/trading/trader.py:18673:              and reduceOnly is rejected by the API; we quantize quantity and
+legacy_reference/trading/trader.py:18684:            # Require a quantity when using reduceOnly; pull from current position if not provided
+legacy_reference/trading/trader.py:18716:                'type': 'TRAILING_STOP_MARKET',
+legacy_reference/trading/trader.py:18741:                'type': 'TRAILING_STOP_MARKET',
+legacy_reference/trading/trader.py:18758:                'type': 'TRAILING_STOP_MARKET',
+legacy_reference/trading/trader.py:18788:                logger.error(f"[FAIL] Trailing stop rejected: {e} (remove closePosition + send reduceOnly/quantity)")
+legacy_reference/trading/trader.py:19431:                # Decrease position (reduceOnly)
+legacy_reference/trading/trader.py:19433:                # Clamp to available size to avoid reduceOnly rejections
+legacy_reference/trading/trader.py:19454:                logger.info(f"[ADJUST] Decreasing {side} by {delta_qty:.6f} {symbol} (reduceOnly)")
+legacy_reference/trading/trader.py:19498:            # Handle reduceOnly idempotency (already flat) gracefully
+legacy_reference/trading/trader.py:19501:                self._publish_execution_feedback(signal, True, err="reduceOnly_rejected_already_flat")
+legacy_reference/trading/trader.py:19531:                    self.client.futures_change_leverage(symbol=symbol, leverage=int(new_lev))
+legacy_reference/trading/fee_ratio_gate.py:203:    protective_patterns = ["CLOSE", "DECREASE", "STOP_LOSS", "TAKE_PROFIT", "PARTIAL", "EXIT", "REDUCE"]
+legacy_reference/trading/fee_ratio_gate.py:289:        if any(p in action_upper for p in ["CLOSE", "DECREASE", "STOP_LOSS", "TAKE_PROFIT", "PARTIAL"]):
+legacy_reference/trading/hedge_context.py:779:                            "HEARTBEAT", "CANARY", "SET_TAKE_PROFIT", "SET_STOP_LOSS"
+legacy_reference/trading/adaptive_hedge_builder.py:47:    action: str  # HOLD, BUILD_HEDGE, ADD_HEDGE, CLOSE_PRIMARY, FLIP, TAKE_PROFIT
+legacy_reference/trading/adaptive_hedge_builder.py:505:            decision.action = "TAKE_PROFIT"
+legacy_reference/trading/stealth_stops.py:4:Instead of placing visible STOP_MARKET orders on the exchange (which market makers can see),
+legacy_reference/trading/stealth_stops.py:47:    stop_type: str  # STOP_LOSS or TAKE_PROFIT
+legacy_reference/trading/stealth_stops.py:91:        elif self.stop_type == 'TAKE_PROFIT':
+legacy_reference/trading/stealth_stops.py:119:    This replaces visible exchange-side STOP_MARKET orders with
+legacy_reference/trading/stealth_stops.py:415:        """Place/update an exchange-side STOP_MARKET as crash protection for
+legacy_reference/trading/stealth_stops.py:486:                        self.binance.futures_cancel_order(symbol=symbol, orderId=_old_oid)
+legacy_reference/trading/stealth_stops.py:493:                bs_order = self.binance.futures_create_order(
+legacy_reference/trading/stealth_stops.py:497:                    type="STOP_MARKET",
+legacy_reference/trading/stealth_stops.py:498:                    stopPrice=str(backstop_price),
+legacy_reference/trading/stealth_stops.py:500:                    reduceOnly="true",
+legacy_reference/trading/stealth_stops.py:526:        Called every monitoring tick for TAKE_PROFIT stops.  Uses regime,
+legacy_reference/trading/stealth_stops.py:1448:                params["reduceOnly"] = True
+legacy_reference/trading/stealth_stops.py:1449:            order = self.binance.futures_create_order(**params)
+legacy_reference/trading/stealth_stops.py:1452:            if reduce_only and ('-1106' in str(e) or 'reduceOnly' in str(e).lower()):
+legacy_reference/trading/stealth_stops.py:1453:                # If the exchange rejects reduceOnly, only retry without it when we're sure
+legacy_reference/trading/stealth_stops.py:1467:                    return self.binance.futures_create_order(**params)
+legacy_reference/trading/stealth_stops.py:1473:        """Return True only when retrying without reduceOnly cannot increase exposure."""
+legacy_reference/trading/stealth_stops.py:1524:        """Guardrail for TAKE_PROFIT closes on SHORT hedge legs.
+legacy_reference/trading/stealth_stops.py:2087:        if str(getattr(stop, "stop_type", "") or "").upper() != "TAKE_PROFIT":
+legacy_reference/trading/stealth_stops.py:2309:                from config import STOP_LOSS_PERCENT, TAKE_PROFIT_PERCENT
+legacy_reference/trading/stealth_stops.py:2312:                tp_pct = TAKE_PROFIT_PERCENT
+legacy_reference/trading/stealth_stops.py:2608:                            _key = f"{s.symbol}:{s.side}:TAKE_PROFIT"
+legacy_reference/trading/stealth_stops.py:2677:        Only applies to TAKE_PROFIT stops.
+legacy_reference/trading/stealth_stops.py:2679:        if stop.stop_type != "TAKE_PROFIT":
+legacy_reference/trading/stealth_stops.py:2849:        return str(getattr(stop, "stop_type", "") or "").upper() == "TAKE_PROFIT"
+legacy_reference/trading/stealth_stops.py:2896:                    # For TAKE_PROFIT updates, block if new TP is closer to
+legacy_reference/trading/stealth_stops.py:2944:        """Add/update a TAKE_PROFIT stealth stop for a position."""
+legacy_reference/trading/stealth_stops.py:2948:            stop_type="TAKE_PROFIT",
+legacy_reference/trading/stealth_stops.py:2966:            #         emoji = "🛑" if stop.stop_type == "STOP_LOSS" else "🎯" if stop.stop_type == "TAKE_PROFIT" else "🕶️"
+legacy_reference/trading/stealth_stops.py:3010:                for stype in ("TAKE_PROFIT", "STOP_LOSS"):
+legacy_reference/trading/stealth_stops.py:3034:            for stype in ("TAKE_PROFIT", "STOP_LOSS"):
+legacy_reference/trading/stealth_stops.py:3481:                                    if _st == "TAKE_PROFIT":
+legacy_reference/trading/stealth_stops.py:3671:                                from config import STEALTH_STOP_LOSS_ENABLED, STEALTH_TAKE_PROFIT_ENABLED, STEALTH_TRAILING_ENABLED
+legacy_reference/trading/stealth_stops.py:3717:                                if self._is_tp_stop(stop) and not STEALTH_TAKE_PROFIT_ENABLED:
+legacy_reference/trading/stealth_stops.py:4009:                                                    if str(stop.stop_type or '').upper() == 'TAKE_PROFIT' and str(side_u) == 'SHORT':
+legacy_reference/trading/stealth_stops.py:4160:                                                    if str(stop.stop_type or '').upper() == 'TAKE_PROFIT' and str(side_u) == 'SHORT':
+legacy_reference/trading/stealth_stops.py:4240:                                                            "stop_type": str(stop.stop_type or "TAKE_PROFIT"),
+legacy_reference/trading/stealth_stops.py:4567:                                                    # TAKE_PROFIT stops are inherently profit-seeking:
+legacy_reference/trading/stealth_stops.py:4570:                                                    _is_tp_type = str(getattr(stop, 'stop_type', '') or '').upper() in ('TAKE_PROFIT', 'TP', 'TRAILING_TP')
+legacy_reference/trading/stealth_stops.py:4574:                                                            f"TAKE_PROFIT exit ALLOWED despite unresolved entry "
+legacy_reference/trading/stealth_stops.py:4688:                                    is_static_tp = stop.stop_type == 'TAKE_PROFIT' and 'TRAIL' not in stop.reason.upper()
+legacy_reference/trading/stealth_stops.py:4889:                            _is_tp = str(stop.stop_type or "").upper() == "TAKE_PROFIT"
+legacy_reference/trading/stealth_stops.py:4907:                                        self.remove_stop(stop.symbol, stop.side, "TAKE_PROFIT", stop.account_id)
+legacy_reference/trading/stealth_stops.py:5128:        - TAKE_PROFIT / TRAIL triggers propose profit exits (partial/close) which are no-loss compliant.
+legacy_reference/trading/stealth_stops.py:5201:            # TAKE_PROFIT or trailing: propose close/partial close
+legacy_reference/trading/stealth_stops.py:5583:            # -1106 or reduceOnly error - retry without reduceOnly
+legacy_reference/trading/stealth_stops.py:5584:            if '-1106' in err_str or 'reduceOnly' in err_str.lower():
+legacy_reference/trading/stealth_stops.py:5598:                    logger.info(f"📋 [HYBRID-LIMIT] {symbol}: Limit order placed without reduceOnly (ID: {order_id})")
+legacy_reference/trading/stealth_stops.py:5666:                self.binance.futures_cancel_order(symbol=symbol, orderId=order_id)
+legacy_reference/trading/stealth_stops.py:5708:        """Execute a market order with reduceOnly handling."""
+legacy_reference/trading/stealth_stops.py:5714:        # First attempt: with reduceOnly=True
+legacy_reference/trading/stealth_stops.py:5716:            order = self.binance.futures_create_order(
+legacy_reference/trading/stealth_stops.py:5722:                reduceOnly=True
+legacy_reference/trading/stealth_stops.py:5724:            logger.info(f"STEALTH_MARKET_OK | {symbol} {order_side} | reduceOnly=True | order_id={order.get('orderId')}")
+legacy_reference/trading/stealth_stops.py:5737:            # -1106: reduceOnly not required - retry without it using direction-check only
+legacy_reference/trading/stealth_stops.py:5738:            if '-1106' in err_str or 'reduceOnly' in err_str.lower():
+legacy_reference/trading/stealth_stops.py:5746:                        f"unsafe_direction | reduceOnly_rejected=1 | retry_without_reduceOnly=0 | qty={qty}"
+legacy_reference/trading/stealth_stops.py:5750:                    order = self.binance.futures_create_order(
+legacy_reference/trading/stealth_stops.py:5759:                        f"reduceOnly=False(-1106) | order_id={order.get('orderId')}"
+legacy_reference/trading/stealth_stops.py:5778:        Handles -1106 "reduceOnly not required" error by retrying without reduceOnly.
+legacy_reference/trading/stealth_stops.py:5885:                if str(stop.stop_type or '').upper() == 'TAKE_PROFIT' and str(stop.side or '').upper() == 'SHORT':
+legacy_reference/trading/stealth_stops.py:5918:            # STOP_LOSS always executes (safety). TAKE_PROFIT checks if trainer
+legacy_reference/trading/stealth_stops.py:6168:                        emoji = "🎯" if stop.stop_type == "TAKE_PROFIT" else "🛑" if stop.stop_type == "STOP_LOSS" else "🏁"
+legacy_reference/trading/stealth_stops.py:6278:            _stale_key = f"{symbol}:{position_side}:TAKE_PROFIT"
+legacy_reference/trading/stealth_stops.py:6301:            order = self.binance.futures_create_order(
+legacy_reference/trading/stealth_stops.py:6309:                reduceOnly=True
+legacy_reference/trading/stealth_stops.py:6317:            if '-1106' in err_str or 'reduceOnly' in err_str.lower():
+legacy_reference/trading/stealth_stops.py:6318:                # -1106: exchange says reduceOnly not required/supported for this order type.
+legacy_reference/trading/stealth_stops.py:6347:                                        _stale_key = f"{symbol}:{position_side}:TAKE_PROFIT"
+legacy_reference/trading/stealth_stops.py:6362:                                "EXEC_CLIENT | route=futures | symbol=%s | type=LIMIT/IOC | reduceOnly=False | retry_reason=-1106 | qty=%.6f",
+legacy_reference/trading/stealth_stops.py:6365:                            order = self.binance.futures_create_order(
+legacy_reference/trading/stealth_stops.py:6375:                                "TP_IOC_OK | %s %s | price=%.6f qty=%.6f | reduceOnly=False(-1106) | order_id=%s",
+legacy_reference/trading/stealth_stops.py:6397:                        "TP_IOC_BLOCK | %s %s | positionSide=%s | reduceOnly_rejected=1 | unsafe_direction",
+legacy_reference/trading/stealth_stops.py:6626:        """Publish TAKE_PROFIT exits so trainer can enter HEDGE_BUILD state (PROFIT_EXIT)."""
+legacy_reference/trading/stealth_stops.py:6628:            if stop.stop_type != 'TAKE_PROFIT':
+legacy_reference/trading/maker_execution.py:585:        params['reduceOnly'] = True
+legacy_reference/trading/stealth_dynamic_integration.py:149:                stop_type='TAKE_PROFIT',
+legacy_reference/trading/stealth_dynamic_integration.py:190:            self.stealth_monitor.remove_stop(symbol, side, 'TAKE_PROFIT')
+legacy_reference/system_telegram_monitor.py:302:                            if any(tok in action_u for tok in ("CLOSE", "DECREASE", "PARTIAL", "EXIT", "TAKE_PROFIT", "STOP_LOSS", "STEALTH_")):
+legacy_reference/test_binance_connections.py:137:        long_order = client.futures_create_order(
+legacy_reference/test_binance_connections.py:158:                    close_order = client.futures_create_order(
+legacy_reference/test_binance_connections.py:164:                        reduceOnly=True
+legacy_reference/monitor_portfolio_primary.py:289:        n_tp = sum(1 for ss in stealth.values() for s in ss if s.get('stop_type') == 'TAKE_PROFIT')
+legacy_reference/monitor_portfolio_primary.py:337:                     if s.get('stop_type') == 'TAKE_PROFIT']
+legacy_reference/monitor_portfolio_primary.py:439:                tp_stops = [s for s in stops if s.get('stop_type') == 'TAKE_PROFIT']
+legacy_reference/test_production_api.py:153:            result = self.client.futures_change_leverage(symbol='LTCUSDT', leverage=30)
+legacy_reference/test_production_api.py:200:            order = self.client.futures_create_order(
+legacy_reference/test_production_api.py:217:            cancel_result = self.client.futures_cancel_order(
+legacy_reference/test_production_api.py:241:                self.client.futures_change_margin_type(symbol='LTCUSDT', marginType='CROSSED')
+legacy_reference/test_binance_direct.py:110:                                    buy_order = client.futures_create_order(
+legacy_reference/test_binance_direct.py:121:                                    sell_order = client.futures_create_order(
+legacy_reference/risk/assertions.py:32:                       "TAKE_PROFIT", "STOP_LOSS", "TP_", "SL_", "SET_TAKE",
+legacy_reference/risk/trainer_alignment.py:111:        For SET_TAKE_PROFIT/SIDECAR: always allowed.
+legacy_reference/risk/trainer_alignment.py:116:                                 "STOP_LOSS", "TAKE_PROFIT")):
+legacy_reference/rl/promotion_controller.py:678:            'STOP_LOSS', 'TAKE_PROFIT',
+legacy_reference/rl/target_exposure_controller.py:295:                          'TAKE_PROFIT', 'STOP_LOSS', 'TP_', 'SL_', 'EXIT')
+legacy_reference/rl/tradeplan_orchestrator.py:295:    return any(tok in a for tok in ("CLOSE", "DECREASE", "PARTIAL_CLOSE", "TAKE_PROFIT", "STOP_LOSS"))
+legacy_reference/rl/tradeplan_orchestrator.py:690:            elif "TAKE_PROFIT" in action_u or "STOP_LOSS" in action_u:
+legacy_reference/rl/tradeplan_orchestrator.py:692:            elif action_u.startswith(("SET_TAKE_PROFIT", "SET_STOP", "SET_TRAILING")):
+legacy_reference/rl/microstructure_tf_modifier.py:134:            'CLOSE', 'DECREASE', 'REDUCE', 'PARTIAL', 'EXIT', 'STOP_LOSS', 'TAKE_PROFIT'
+legacy_reference/rl/orchestrator_worker.py:5054:                or "STEALTH_TRIGGER TAKE_PROFIT" in reason_text
+legacy_reference/rl/orchestrator_worker.py:6571:                for tok in ("PARTIAL_CLOSE", "DECREASE", "REDUCE", "CLOSE", "TAKE_PROFIT")
+legacy_reference/rl/orchestrator_worker.py:7381:                or "STEALTH_TRIGGER TAKE_PROFIT" in reason_text0
+legacy_reference/rl/orchestrator_worker.py:9748:                ("CLOSE" in action_u or "PARTIAL_CLOSE" in action_u or "TAKE_PROFIT" in action_u or "STOP_LOSS" in action_u)
+legacy_reference/rl/orchestrator_worker.py:10112:                    "CLOSE", "REDUCE", "PARTIAL_CLOSE", "SET_TAKE_PROFIT",
+legacy_reference/rl/position_monitor.py:487:                'reason': f'DYNAMIC_TAKE_PROFIT: {pnl_pct:.2f}% >= {take_profit_pct:.2f}%',
+legacy_reference/rl/trade_proposal.py:147:    elif "TAKE_PROFIT" in action_u or "STOP_LOSS" in action_u:
+legacy_reference/rl/trade_proposal.py:149:    elif action_u.startswith(("SET_TAKE_PROFIT", "SET_STOP", "SET_TRAILING")):
+legacy_reference/rl/CRITICAL_HEDGE_AND_PORTFOLIO_FIX.py:646:                    "reduce_only": bool(o.get("reduceOnly", False)),
+legacy_reference/rl/CRITICAL_HEDGE_AND_PORTFOLIO_FIX.py:647:                    "close_position": bool(o.get("closePosition", False)),
+legacy_reference/rl/dynamic_runner_hedge.py:69:    TAKE_PROFIT_DYNAMIC = "TAKE_PROFIT_DYNAMIC"
+legacy_reference/rl/action_ontology.py:107:    "STOP_LOSS", "TAKE_PROFIT",
+legacy_reference/rl/action_ontology.py:156:    "STOP_LOSS", "TAKE_PROFIT", "TAKE_PROFIT_PARTIAL",
+legacy_reference/rl/action_ontology.py:285:    if any(x in action_upper for x in ["CLOSE", "DECREASE", "STOP", "TAKE_PROFIT", "PARTIAL"]):
+legacy_reference/rl/anti_churn_manager.py:161:        is_reduce = any(x in action_name.upper() for x in ["DECREASE", "CLOSE_ALL", "STOP_LOSS", "TAKE_PROFIT"])
+legacy_reference/rl/hybrid_trainer.py:2053:        if any(tok in a for tok in ["CLOSE", "REDUCE", "EXIT", "TAKE_PROFIT", "STOP_LOSS"]):
+legacy_reference/rl/hybrid_trainer.py:2720:                elif decision.action == 'TAKE_PROFIT' and decision.primary_pct_to_close > 0:
+legacy_reference/rl/hybrid_trainer.py:3320:                    "TAKE_PROFIT",
+legacy_reference/rl/hybrid_trainer.py:5475:                        "TAKE_PROFIT",
+legacy_reference/rl/hybrid_trainer.py:18392:        if any(tok in a for tok in ["CLOSE", "REDUCE", "EXIT", "TAKE_PROFIT", "STOP_LOSS"]):
+legacy_reference/rl/hybrid_trainer.py:19502:                "CLOSE", "REDUCE", "DECREASE", "TAKE_PROFIT", "STOP_LOSS",
+legacy_reference/rl/hybrid_trainer.py:19593:            "TAKE_PROFIT",
+legacy_reference/rl/hybrid_trainer.py:19618:            "CLOSE", "REDUCE", "HEDGE", "HOLD", "SET_TAKE_PROFIT", "SET_STOP",
+legacy_reference/rl/hybrid_trainer.py:23995:                        "TAKE_PROFIT",
+legacy_reference/rl/hybrid_trainer.py:25711:            if 'TAKE_PROFIT_PARTIAL' in str(type(self)) or hasattr(self, '_partial_profit_logic'):
+legacy_reference/rl/hybrid_trainer.py:30399:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/rl/hybrid_trainer.py:30472:                                result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/rl/hybrid_trainer.py:30490:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/rl/hybrid_trainer.py:30497:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/rl/hybrid_trainer.py:30504:                    result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/rl/hybrid_trainer.py:30510:                    result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/rl/hybrid_trainer.py:30528:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/rl/hybrid_trainer.py:30531:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/rl/hybrid_trainer.py:30550:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/rl/hybrid_trainer.py:30553:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/rl/hybrid_trainer.py:30572:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/rl/hybrid_trainer.py:30575:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/rl/hybrid_trainer.py:30594:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/rl/hybrid_trainer.py:30597:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/rl/hybrid_trainer.py:30619:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/rl/hybrid_trainer.py:30623:                        result['action'] = 'TAKE_PROFIT'
+legacy_reference/rl/hybrid_trainer.py:30641:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/rl/hybrid_trainer.py:30645:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/rl/hybrid_trainer.py:36460:                        if proactive_alert.signal.value in ('TAKE_PROFIT_EARLY', 'SQUEEZE_PEAK', 'SPOOF_FADE_INCOMING'):
+legacy_reference/rl/hybrid_trainer.py:44647:                                "TAKE_PROFIT",
+legacy_reference/rl/hybrid_trainer.py:47579:        - TAKE_PROFIT_LONG: Take profit on winning long
+legacy_reference/rl/hybrid_trainer.py:47580:        - TAKE_PROFIT_SHORT: Take profit on winning short
+legacy_reference/rl/hybrid_trainer.py:47841:                        action_name = "TAKE_PROFIT_LONG"
+legacy_reference/rl/hybrid_trainer.py:47856:                        action_name = "TAKE_PROFIT_SHORT"
+legacy_reference/rl/hybrid_trainer.py:54838:                is_close_action = any(x in action_name for x in ['CLOSE', 'PARTIAL_CLOSE', 'PARTIAL', 'STOP_LOSS', 'TAKE_PROFIT', 'REDUCE', 'DECREASE'])
+legacy_reference/rl/hybrid_trainer.py:55875:            # PARTIAL_CLOSE and TAKE_PROFIT actions
+legacy_reference/rl/hybrid_trainer.py:55877:            elif final_action in ("PARTIAL_CLOSE", "TAKE_PROFIT", "TAKE_PROFIT_PARTIAL"):
+legacy_reference/rl/hybrid_trainer.py:55950:                "TAKE_PROFIT",
+legacy_reference/rl/hybrid_trainer.py:56036:                                            for x in ['CLOSE', 'PARTIAL', 'REDUCE', 'DECREASE', 'STOP_LOSS', 'TAKE_PROFIT'])
+legacy_reference/rl/hybrid_trainer.py:56474:                                "TAKE_PROFIT",
+legacy_reference/rl/profit_bank.py:48:    return any(tok in au for tok in ("CLOSE", "DECREASE", "PARTIAL_CLOSE", "TAKE_PROFIT"))
+legacy_reference/rl/microstructure_proactive.py:13:- TAKE_PROFIT_EARLY: Exit before manipulation completes
+legacy_reference/rl/microstructure_proactive.py:40:    TAKE_PROFIT_EARLY = "TAKE_PROFIT_EARLY"           # Exit before fade
+legacy_reference/rl/microstructure_proactive.py:594:        - TAKE_PROFIT_EARLY
+legacy_reference/rl/microstructure_proactive.py:683:        # === PROACTIVE: TAKE_PROFIT_EARLY ===
+legacy_reference/rl/microstructure_proactive.py:698:                    if self._should_emit_signal(scoped_sym, ProactiveSignal.TAKE_PROFIT_EARLY):
+legacy_reference/rl/microstructure_proactive.py:701:                            signal=ProactiveSignal.TAKE_PROFIT_EARLY,
+legacy_reference/rl/microstructure_proactive.py:798:        - TAKE_PROFIT_EARLY (with higher threshold)
+legacy_reference/rl/microstructure_proactive.py:825:        # === PROACTIVE: TAKE_PROFIT_EARLY (higher threshold for 15m) ===
+legacy_reference/rl/microstructure_proactive.py:838:                    if self._should_emit_signal(scoped_sym, ProactiveSignal.TAKE_PROFIT_EARLY):
+legacy_reference/rl/microstructure_proactive.py:841:                            signal=ProactiveSignal.TAKE_PROFIT_EARLY,
+legacy_reference/rl/hedge_manager_v3.py:935:                        "action": "SET_TAKE_PROFIT",
+legacy_reference/rl/hedge_manager_v3.py:936:                        "action_name": "SET_TAKE_PROFIT",
+legacy_reference/monitor_portfolio_asjad.py:288:        n_tp = sum(1 for ss in stealth.values() for s in ss if s.get('stop_type') == 'TAKE_PROFIT')
+legacy_reference/monitor_portfolio_asjad.py:335:                     if s.get('stop_type') == 'TAKE_PROFIT']
+legacy_reference/monitor_portfolio_asjad.py:436:                tp_stops = [s for s in stops if s.get('stop_type') == 'TAKE_PROFIT']
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:546:            elif action == 'TAKE_PROFIT_PARTIAL':
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:586:            if self.telegram and action in ['OPEN_LONG', 'OPEN_SHORT', 'CLOSE', 'CLOSE_LONG', 'CLOSE_SHORT', 'STOP_LOSS_LONG', 'STOP_LOSS_SHORT', 'TAKE_PROFIT_PARTIAL']:
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:640:                self.client.futures_change_leverage(symbol=symbol, leverage=leverage)
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:717:            order = self.client.futures_create_order(
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:796:            order = self.client.futures_create_order(
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:803:                reduceOnly=True
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:850:            order = self.client.futures_create_order(
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:857:                reduceOnly=True
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:884:            order = self.client.futures_create_order(
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:887:                type='STOP_MARKET',
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:889:                stopPrice=stop_price,
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:892:                reduceOnly=True
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:906:            order = self.client.futures_create_order(
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:909:                type='TAKE_PROFIT_MARKET',
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:911:                stopPrice=take_profit_price,
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:914:                reduceOnly=True
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:950:                'type': 'TRAILING_STOP_MARKET',
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:954:                'reduceOnly': True  # Only reduce position, don't open new
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:961:            order = self.client.futures_create_order(**params)
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:975:                    f"**Type**: TRAILING_STOP_MARKET\n"
+legacy_reference/.backups/fix_signals_20251012_191330/paper_trader.py:991:            elif action == 'TAKE_PROFIT_PARTIAL':
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:3648:            if 'TAKE_PROFIT_PARTIAL' in str(type(self)) or hasattr(self, '_partial_profit_logic'):
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:5335:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:5368:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:5375:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:5382:                    result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:5388:                    result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:5406:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:5409:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:5428:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:5431:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:5450:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:5453:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:5472:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:5475:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:5497:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:5501:                        result['action'] = 'TAKE_PROFIT'
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:7837:        - TAKE_PROFIT_LONG: Take profit on winning long
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:7838:        - TAKE_PROFIT_SHORT: Take profit on winning short
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:7986:                        action_name = "TAKE_PROFIT_LONG"
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:8001:                        action_name = "TAKE_PROFIT_SHORT"
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:546:            elif action == 'TAKE_PROFIT_PARTIAL':
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:586:            if self.telegram and action in ['OPEN_LONG', 'OPEN_SHORT', 'CLOSE', 'CLOSE_LONG', 'CLOSE_SHORT', 'STOP_LOSS_LONG', 'STOP_LOSS_SHORT', 'TAKE_PROFIT_PARTIAL']:
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:640:                self.client.futures_change_leverage(symbol=symbol, leverage=leverage)
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:717:            order = self.client.futures_create_order(
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:796:            order = self.client.futures_create_order(
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:803:                reduceOnly=True
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:850:            order = self.client.futures_create_order(
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:857:                reduceOnly=True
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:884:            order = self.client.futures_create_order(
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:887:                type='STOP_MARKET',
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:889:                stopPrice=stop_price,
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:892:                reduceOnly=True
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:906:            order = self.client.futures_create_order(
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:909:                type='TAKE_PROFIT_MARKET',
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:911:                stopPrice=take_profit_price,
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:914:                reduceOnly=True
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:950:                'type': 'TRAILING_STOP_MARKET',
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:954:                'reduceOnly': True  # Only reduce position, don't open new
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:961:            order = self.client.futures_create_order(**params)
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:975:                    f"**Type**: TRAILING_STOP_MARKET\n"
+legacy_reference/.backups/fix_signals_20251012_191010/paper_trader.py:991:            elif action == 'TAKE_PROFIT_PARTIAL':
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:3648:            if 'TAKE_PROFIT_PARTIAL' in str(type(self)) or hasattr(self, '_partial_profit_logic'):
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:5335:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:5368:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:5375:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:5382:                    result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:5388:                    result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:5406:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:5409:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:5428:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:5431:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:5450:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:5453:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:5472:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:5475:                        result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:5497:                            result['action'] = 'TAKE_PROFIT_PARTIAL'
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:5501:                        result['action'] = 'TAKE_PROFIT'
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:7837:        - TAKE_PROFIT_LONG: Take profit on winning long
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:7838:        - TAKE_PROFIT_SHORT: Take profit on winning short
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:7986:                        action_name = "TAKE_PROFIT_LONG"
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:8001:                        action_name = "TAKE_PROFIT_SHORT"
+legacy_reference/test_position_aware_comprehensive.py:166:        "action": "TAKE_PROFIT_PARTIAL",
+legacy_reference/test_position_aware_comprehensive.py:185:    print(f"   📤 Published TAKE_PROFIT_PARTIAL (50%) for {symbol_with_position}")
+legacy_reference/api/routes/config_routes.py:69:            'take_profit_percent': config.TAKE_PROFIT_PERCENT
+legacy_reference/api/routes/config_routes.py:182:            'TAKE_PROFIT_PERCENT': float,
+legacy_reference/api/routes/config_routes.py:347:            'TAKE_PROFIT_PERCENT': '4.0',
+legacy_reference/api/routes/trading_routes.py:261:        order = client.futures_create_order(
+legacy_reference/api/routes/trading_routes.py:330:        order = client.futures_create_order(
+legacy_reference/api/routes/trading_routes.py:336:            reduceOnly=True
+legacy_reference/api/routes/trading_routes.py:400:        order = client.futures_create_order(
+legacy_reference/api/routes/trading_routes.py:403:            type='STOP_MARKET',
+legacy_reference/api/routes/trading_routes.py:405:            stopPrice=stop_price,
+legacy_reference/api/routes/trading_routes.py:407:            reduceOnly=True,
+legacy_reference/api/routes/trading_routes.py:419:            'stop_price': float(order['stopPrice'])
+legacy_reference/api/routes/trading_routes.py:436:def cancel_order():
+legacy_reference/api/routes/trading_routes.py:454:        result = client.futures_cancel_order(symbol=symbol, orderId=order_id)
+legacy_reference/api/routes/trading_routes.py:475:def change_leverage():
+legacy_reference/api/routes/trading_routes.py:496:        result = client.futures_change_leverage(symbol=symbol, leverage=leverage)
+legacy_reference/api/routes/frontend_routes.py:287:                'TAKE_PROFIT_PERCENT': {
+legacy_reference/sim_past_hour.py:399:    CLOSE_LONG = {"CLOSE_LONG", "TAKE_PROFIT_LONG", "STOP_LOSS_LONG"}
+legacy_reference/sim_past_hour.py:400:    CLOSE_SHORT = {"CLOSE_SHORT", "TAKE_PROFIT_SHORT", "STOP_LOSS_SHORT"}
+legacy_reference/test_real_trading.py:65:                    close_order = self.trader.client.futures_create_order(
+legacy_reference/test_real_trading.py:189:            close_order = self.trader.client.futures_create_order(
+legacy_reference/scripts/close_all_positions.py:232:                order = self.client.futures_create_order(**order_params)
+legacy_reference/scripts/validate_signal_contract.py:74:    'TAKE_PROFIT', 'TAKE_PROFIT_PARTIAL',
+legacy_reference/scripts/audit_orchestrator_last30m.py:213:    if "SET_TAKE_PROFIT" not in sig_actions_primary and "SET_TAKE_PROFIT" not in sig_actions_asjad:
+legacy_reference/scripts/audit_orchestrator_last30m.py:214:        not_triggered.append("Sidecar TP signals not observed (SET_TAKE_PROFIT)")
+legacy_reference/scripts/regime_binary_identical_audit.py:224:        synthetics.append(_make(sym, "SET_TAKE_PROFIT", "trainer",
+legacy_reference/scripts/audit_binance_leverage_config.py:159:            client.futures_change_leverage(symbol=st.symbol, leverage=int(target))
+legacy_reference/scripts/visual_feature_report.py:215:            f"⚡ TAKE_PROFIT_EARLY signals if momentum fades",
+legacy_reference/scripts/episode_winrate_report.py:94:    toks = ("CLOSE", "DECREASE", "PARTIAL_CLOSE", "STOP_LOSS", "TAKE_PROFIT")
+legacy_reference/scripts/pre_scale_audit.py:90:    if any(tok in act for tok in ["CLOSE", "DECREASE", "PARTIAL", "STOP_LOSS", "TAKE_PROFIT"]):
+legacy_reference/scripts/acceptance_metrics_report.py:80:        if not any(t in act for t in ("CLOSE", "PARTIAL_CLOSE", "TAKE_PROFIT", "STOP_LOSS")):
+legacy_reference/scripts/test_hedge_build.py:106:        order = client.futures_create_order(
+legacy_reference/scripts/test_hedge_build.py:112:            reduceOnly=True
+legacy_reference/scripts/test_hedge_build.py:117:        # Try without reduceOnly if -1106 error
+legacy_reference/scripts/test_hedge_build.py:119:            logger.warning("Retrying without reduceOnly...")
+legacy_reference/scripts/test_hedge_build.py:120:            order = client.futures_create_order(
+legacy_reference/scripts/test_hedge_build.py:127:            logger.info(f"✅ Position closed (no reduceOnly): orderId={order['orderId']}")
+legacy_reference/scripts/manage_limit_orders.py:14:- CLOSE actions are reduceOnly=True
+legacy_reference/scripts/manage_limit_orders.py:157:        "reduceOnly": reduce_only,
+legacy_reference/scripts/manage_limit_orders.py:168:        order = client.futures_create_order(**params)
+legacy_reference/scripts/trace_trade_lifecycle.py:90:    "TAKE_PROFIT": "TP target hit",
+legacy_reference/scripts/trace_trade_lifecycle.py:91:    "TAKE_PROFIT_TIERED": "Tiered profit taking (confidence-based partial)",
+legacy_reference/scripts/trace_trade_lifecycle.py:98:    "STEALTH_TAKE_PROFIT": "Stealth TP triggered",
+legacy_reference/scripts/trace_trade_lifecycle.py:162:        self.is_close_action = any(x in action_upper for x in ['CLOSE', 'STOP_LOSS', 'TAKE_PROFIT', 'FLIP'])
+legacy_reference/scripts/audit_last_hours_pnl.py:330:    if any(x in a for x in ("PARTIAL_CLOSE", "CLOSE_", "STOP_LOSS", "TAKE_PROFIT", "REDUCE", "DECREASE")):
+legacy_reference/test_stop_loss_take_profit.py:4:Tests STOP_LOSS_LONG/SHORT and TAKE_PROFIT_PARTIAL signals with liquidation calculations
+legacy_reference/test_stop_loss_take_profit.py:153:    print(f"\n🟢 Step 3: Test TAKE_PROFIT_PARTIAL Signal")
+legacy_reference/test_stop_loss_take_profit.py:161:        "action": "TAKE_PROFIT_PARTIAL", 
+legacy_reference/test_stop_loss_take_profit.py:182:    print(f"📤 Published TAKE_PROFIT_PARTIAL signal")
+legacy_reference/apply_qa_fixes.py:111:        if action_name in ['CLOSE_LONG', 'CLOSE_SHORT', 'TAKE_PROFIT_LONG', 
+legacy_reference/apply_qa_fixes.py:112:                          'TAKE_PROFIT_SHORT', 'STOP_LOSS_LONG', 'STOP_LOSS_SHORT']:
+legacy_reference/apply_qa_fixes.py:216:                is_close_action = any(x in action_name for x in ['CLOSE', 'STOP_LOSS', 'TAKE_PROFIT'])
+legacy_reference/telegram_alerts.py:872:                    'CLOSE', 'STOP_LOSS', 'TAKE_PROFIT', 'PARTIAL_CLOSE', 'REDUCE', 'DECREASE'
+legacy_reference/telegram_alerts.py:896:                'TAKE_PROFIT_LONG': '📈💰',
+legacy_reference/telegram_alerts.py:897:                'TAKE_PROFIT_SHORT': '📉💰',
+legacy_reference/telegram_alerts.py:1081:                if action_cat == "PROFIT" or action_u.startswith("SET_") or action_u in {"SET_TAKE_PROFIT", "SET_STOP_LOSS", "UPDATE_TP", "UPDATE_SL"}:
+legacy_reference/telegram_alerts.py:1380:            is_exit = any(x in action for x in ['CLOSE', 'DECREASE', 'TAKE_PROFIT', 'STOP_LOSS', 'TRAIL', 'EXIT'])
+legacy_reference/telegram_alerts.py:1391:                'TAKE_PROFIT_LONG': '💰', 'TAKE_PROFIT_SHORT': '💰',
+legacy_reference/test_realtime_trainer_integration.py:196:                            position_aware_actions = ['CLOSE_LONG', 'CLOSE_SHORT', 'HOLD', 'ADJUST_LEVERAGE', 'TAKE_PROFIT']
+legacy_reference/test_binance_testnet_orders.py:180:            result = self.client.futures_change_leverage(
+legacy_reference/test_binance_testnet_orders.py:211:            order = self.client.futures_create_order(
+legacy_reference/test_binance_testnet_orders.py:281:            order = self.client.futures_create_order(
+legacy_reference/validate_production_ta_code.py:122:            # Check which version we kept (should have closePosition=True)
+legacy_reference/validate_production_ta_code.py:123:            if 'closePosition=True' in content and '_place_trailing_stop' in content:
+legacy_reference/validate_production_ta_code.py:126:                    "Only one implementation exists (with closePosition=True)"
+legacy_reference/validate_production_ta_code.py:131:                    "Only one implementation exists but may not have closePosition=True"
+legacy_reference/utils/signal_schema.py:28:    "SET_TAKE_PROFIT",
+legacy_reference/config.py:990:# Places a real STOP_MARKET order on Binance as catastrophic protection.
+legacy_reference/config.py:996:# For positions with leverage > threshold, place exchange-side STOP_MARKET as
+legacy_reference/config.py:1923:# IMPORTANT: CLOSE/DECREASE/STOP_LOSS/TAKE_PROFIT are NEVER blocked by margin caps
+legacy_reference/config.py:1975:        'STOP_LOSS', 'TAKE_PROFIT', 'TAKE_PROFIT_PARTIAL',
+legacy_reference/config.py:2060:            "TAKE PROFIT": "TAKE_PROFIT",
+legacy_reference/config.py:2061:            "TAKE PROFIT PARTIAL": "TAKE_PROFIT_PARTIAL",
+legacy_reference/config.py:2146:    if any(x in action_upper for x in ["CLOSE", "DECREASE", "STOP", "TAKE_PROFIT", "PARTIAL"]):
+legacy_reference/config.py:2663:STEALTH_TAKE_PROFIT_ENABLED = os.getenv("STEALTH_TAKE_PROFIT_ENABLED", "true").lower() in ("true", "1", "yes")  # Enabled by default
+legacy_reference/config.py:2902:# TRADER SERVER-SIDE TRAILING STOPS (Binance TRAILING_STOP_MARKET)
+legacy_reference/config.py:4246:    TAKE_PROFIT_PERCENT: float
+legacy_reference/config.py:4462:        TAKE_PROFIT_PERCENT=float(os.getenv('TAKE_PROFIT_PERCENT', '8.0')),  # 8% price = 80% ROE profit - 1.33:1 R:R ratio
+legacy_reference/config.py:4683:    TAKE_PROFIT = "TAKE_PROFIT"           # TP target hit
+legacy_reference/config.py:4684:    TAKE_PROFIT_TIERED = "TAKE_PROFIT_TIERED"  # Tiered profit taking
+legacy_reference/config.py:4685:    TAKE_PROFIT_DYNAMIC = "TAKE_PROFIT_DYNAMIC"  # Dynamic overlay profit taking
+legacy_reference/config.py:4696:    STEALTH_TAKE_PROFIT = "STEALTH_TAKE_PROFIT"  # Stealth TP triggered
+legacy_reference/config.py:5443:    required_protective = ['CLOSE_LONG', 'CLOSE_SHORT', 'STOP_LOSS', 'TAKE_PROFIT']
+legacy_reference/config.py:5655:# Blocks the SET_TAKE_PROFIT flood (31% of signals) from pulling TP closer.
+legacy_reference/config.py:5738:    "SET_TAKE_PROFIT": 60, "HOLD": 60, "PROTECTIVE": 5, "UNKNOWN": 10,
+legacy_reference/monitoring/deep_troubleshooter.py:1138:            analysis['stealth_stops']['take_profit_enabled'] = os.getenv('STEALTH_TAKE_PROFIT_ENABLED', 'true').lower() in ('true', '1', 'yes')
+legacy_reference/tests/test_patch_tasks.py:696:            'PARTIAL_CLOSE', 'STOP_LOSS', 'TAKE_PROFIT',
+legacy_reference/tests/test_microstructure_proactive.py:30:        assert ProactiveSignal.TAKE_PROFIT_EARLY
+legacy_reference/tests/test_microstructure_proactive.py:52:            signal=ProactiveSignal.TAKE_PROFIT_EARLY,
+legacy_reference/tests/test_microstructure_proactive.py:63:        assert alert.signal == ProactiveSignal.TAKE_PROFIT_EARLY
+legacy_reference/tests/test_microstructure_proactive.py:70:        assert d['signal'] == "TAKE_PROFIT_EARLY"
+legacy_reference/tests/test_microstructure_proactive.py:289:        assert analyzer._should_emit_signal("BTCUSDT", ProactiveSignal.TAKE_PROFIT_EARLY)
+legacy_reference/tests/test_microstructure_proactive.py:292:        assert not analyzer._should_emit_signal("BTCUSDT", ProactiveSignal.TAKE_PROFIT_EARLY)
+legacy_reference/tests/test_microstructure_proactive.py:298:        assert analyzer._should_emit_signal("BTCUSDT", ProactiveSignal.TAKE_PROFIT_EARLY)

@@ -1,0 +1,267 @@
+# Codex grep vs Tier A coverage cross-check
+
+- Tier A total entries: **11700**
+- Tier A unique files: **655**
+- Grep unique files (exchange+redis+trainer): **550**
+- Intersection files: **437**
+- Tier A files missing in grep set: **218**
+- Grep files not in Tier A: **113**
+
+## High-risk file check
+- High-risk candidate files from Tier A: **654**
+- High-risk files missing from grep evidence: **217**
+- Missing high-risk files (first 50):
+  - legacy_reference/Documentation/Audits/scripts/monitor_orchestrator.py
+  - legacy_reference/INTEGRATION_COMPLETE_SCRIPT.sh
+  - legacy_reference/QUICK_START_INTEGRATION.sh
+  - legacy_reference/alphavantage_client.py
+  - legacy_reference/api/grpc/cloudflare_pb2.py
+  - legacy_reference/apply_immediate_fixes.sh
+  - legacy_reference/audit_asjad_futures_deposits_30d.py
+  - legacy_reference/check_ltc_precision.py
+  - legacy_reference/check_order_history.py
+  - legacy_reference/check_orderbook_data.py
+  - legacy_reference/check_services_detailed.sh
+  - legacy_reference/check_status.sh
+  - legacy_reference/complete_setup.sh
+  - legacy_reference/comprehensive_feature_service_fixed.py
+  - legacy_reference/config/settings.py
+  - legacy_reference/debug_binance_step_by_step.py
+  - legacy_reference/debug_data.py
+  - legacy_reference/debug_feature_pipeline_ohlcv.py
+  - legacy_reference/debug_sources.py
+  - legacy_reference/deploy_qa_fixed.sh
+  - legacy_reference/diagnostics.py
+  - legacy_reference/feature_pipeline_diagnostic.py
+  - legacy_reference/fetch_historical_data.py
+  - legacy_reference/find_channel_id.py
+  - legacy_reference/frontend/.next/server/app/_not-found/page.js
+  - legacy_reference/frontend/.next/server/app/_not-found/page_client-reference-manifest.js
+  - legacy_reference/frontend/.next/server/app/dashboard/page.js
+  - legacy_reference/frontend/.next/server/app/dashboard/page_client-reference-manifest.js
+  - legacy_reference/frontend/.next/server/app/favicon.ico/route.js
+  - legacy_reference/frontend/.next/server/app/login/page.js
+  - legacy_reference/frontend/.next/server/app/login/page_client-reference-manifest.js
+  - legacy_reference/frontend/.next/server/app/page.js
+  - legacy_reference/frontend/.next/server/app/page_client-reference-manifest.js
+  - legacy_reference/frontend/.next/server/app/trading/page.js
+  - legacy_reference/frontend/.next/server/app/trading/page_client-reference-manifest.js
+  - legacy_reference/frontend/.next/server/chunks/333.js
+  - legacy_reference/frontend/.next/server/chunks/371.js
+  - legacy_reference/frontend/.next/server/chunks/586.js
+  - legacy_reference/frontend/.next/server/chunks/611.js
+  - legacy_reference/frontend/.next/server/chunks/688.js
+  - legacy_reference/frontend/.next/server/chunks/82.js
+  - legacy_reference/frontend/.next/server/pages/_error.js
+  - legacy_reference/frontend/.next/static/AHYH8dJELnxeWGOnyjkj1/_ssgManifest.js
+  - legacy_reference/frontend/.next/static/chunks/125-3a1c031a1c4bcc64.js
+  - legacy_reference/frontend/.next/static/chunks/255-4efeec91c7871d79.js
+  - legacy_reference/frontend/.next/static/chunks/478-1b65ff74eb66a6fc.js
+  - legacy_reference/frontend/.next/static/chunks/4bd1b696-c023c6e3521b1417.js
+  - legacy_reference/frontend/.next/static/chunks/52-eea22f2e323de1a4.js
+  - legacy_reference/frontend/.next/static/chunks/718-ea79efc603a489fd.js
+  - legacy_reference/frontend/.next/static/chunks/829-fa5ba33bada845b8.js
+
+## Tier A files missing in grep evidence (sample 100)
+- legacy_reference/Documentation/Audits/scripts/monitor_orchestrator.py
+- legacy_reference/INTEGRATION_COMPLETE_SCRIPT.sh
+- legacy_reference/QUICK_START_INTEGRATION.sh
+- legacy_reference/alphavantage_client.py
+- legacy_reference/api/grpc/cloudflare_pb2.py
+- legacy_reference/apply_immediate_fixes.sh
+- legacy_reference/audit_asjad_futures_deposits_30d.py
+- legacy_reference/check_ltc_precision.py
+- legacy_reference/check_order_history.py
+- legacy_reference/check_orderbook_data.py
+- legacy_reference/check_services_detailed.sh
+- legacy_reference/check_status.sh
+- legacy_reference/complete_setup.sh
+- legacy_reference/comprehensive_feature_service_fixed.py
+- legacy_reference/config/settings.py
+- legacy_reference/debug_binance_step_by_step.py
+- legacy_reference/debug_data.py
+- legacy_reference/debug_feature_pipeline_ohlcv.py
+- legacy_reference/debug_sources.py
+- legacy_reference/deploy_qa_fixed.sh
+- legacy_reference/diagnostics.py
+- legacy_reference/feature_pipeline_diagnostic.py
+- legacy_reference/fetch_historical_data.py
+- legacy_reference/find_channel_id.py
+- legacy_reference/frontend/.next/server/app/_not-found/page.js
+- legacy_reference/frontend/.next/server/app/_not-found/page_client-reference-manifest.js
+- legacy_reference/frontend/.next/server/app/dashboard/page.js
+- legacy_reference/frontend/.next/server/app/dashboard/page_client-reference-manifest.js
+- legacy_reference/frontend/.next/server/app/favicon.ico/route.js
+- legacy_reference/frontend/.next/server/app/login/page.js
+- legacy_reference/frontend/.next/server/app/login/page_client-reference-manifest.js
+- legacy_reference/frontend/.next/server/app/page.js
+- legacy_reference/frontend/.next/server/app/page_client-reference-manifest.js
+- legacy_reference/frontend/.next/server/app/trading/page.js
+- legacy_reference/frontend/.next/server/app/trading/page_client-reference-manifest.js
+- legacy_reference/frontend/.next/server/chunks/333.js
+- legacy_reference/frontend/.next/server/chunks/371.js
+- legacy_reference/frontend/.next/server/chunks/586.js
+- legacy_reference/frontend/.next/server/chunks/611.js
+- legacy_reference/frontend/.next/server/chunks/688.js
+- legacy_reference/frontend/.next/server/chunks/82.js
+- legacy_reference/frontend/.next/server/pages/_error.js
+- legacy_reference/frontend/.next/static/AHYH8dJELnxeWGOnyjkj1/_ssgManifest.js
+- legacy_reference/frontend/.next/static/chunks/125-3a1c031a1c4bcc64.js
+- legacy_reference/frontend/.next/static/chunks/255-4efeec91c7871d79.js
+- legacy_reference/frontend/.next/static/chunks/478-1b65ff74eb66a6fc.js
+- legacy_reference/frontend/.next/static/chunks/4bd1b696-c023c6e3521b1417.js
+- legacy_reference/frontend/.next/static/chunks/52-eea22f2e323de1a4.js
+- legacy_reference/frontend/.next/static/chunks/718-ea79efc603a489fd.js
+- legacy_reference/frontend/.next/static/chunks/829-fa5ba33bada845b8.js
+- legacy_reference/frontend/.next/static/chunks/894-ddf6ab726042650b.js
+- legacy_reference/frontend/.next/static/chunks/980-66a77c7e1ed90f88.js
+- legacy_reference/frontend/.next/static/chunks/app/_not-found/page-8bf854eda23c53ab.js
+- legacy_reference/frontend/.next/static/chunks/app/dashboard/page-26b8b6aa3557c75b.js
+- legacy_reference/frontend/.next/static/chunks/app/layout-cfb6e21bf660df93.js
+- legacy_reference/frontend/.next/static/chunks/app/login/page-56c3c97472d1cb6a.js
+- legacy_reference/frontend/.next/static/chunks/app/page-557601590f070a84.js
+- legacy_reference/frontend/.next/static/chunks/app/trading/page-ea1bca2abe6a5d59.js
+- legacy_reference/frontend/.next/static/chunks/framework-acd67e14855de5a2.js
+- legacy_reference/frontend/.next/static/chunks/main-91b3fa0b94077dbb.js
+- legacy_reference/frontend/.next/static/chunks/polyfills-42372ed130431b0a.js
+- legacy_reference/frontend/src/app/dashboard/page.tsx
+- legacy_reference/frontend/src/app/login/page.tsx
+- legacy_reference/frontend/src/app/page.tsx
+- legacy_reference/frontend/src/app/providers.tsx
+- legacy_reference/frontend/src/app/trading/page.tsx
+- legacy_reference/frontend/src/components/DashboardLayout.tsx
+- legacy_reference/frontend/src/components/ProtectedRoute.tsx
+- legacy_reference/frontend/src/components/ui/alert-dialog.tsx
+- legacy_reference/frontend/src/components/ui/dialog.tsx
+- legacy_reference/frontend/src/components/ui/dropdown-menu.tsx
+- legacy_reference/frontend/src/components/ui/label.tsx
+- legacy_reference/frontend/src/components/ui/select.tsx
+- legacy_reference/frontend/src/components/ui/separator.tsx
+- legacy_reference/frontend/src/components/ui/slider.tsx
+- legacy_reference/frontend/src/components/ui/switch.tsx
+- legacy_reference/frontend/src/components/ui/tabs.tsx
+- legacy_reference/frontend/src/components/ui/tooltip.tsx
+- legacy_reference/frontend/src/contexts/AuthContext.tsx
+- legacy_reference/frontend/src/contexts/WebSocketContext.tsx
+- legacy_reference/frontend/src/lib/api.ts
+- legacy_reference/hybrid_rule_based_signals.py
+- legacy_reference/ingest/alphavantage_client.py
+- legacy_reference/install_everything.sh
+- legacy_reference/launch_hybrid_trainer.sh
+- legacy_reference/monitor_ingestor_memory.sh
+- legacy_reference/monitor_ohlcv_freshness.py
+- legacy_reference/optimization_quickstart.sh
+- legacy_reference/quick_check_binance_normalized.py
+- legacy_reference/quick_import_test.py
+- legacy_reference/quick_test.py
+- legacy_reference/quick_validation.py
+- legacy_reference/risk/microstructure_toxicity.py
+- legacy_reference/rl/hedge_action_space.py
+- legacy_reference/rl/move_shock_engine.py
+- legacy_reference/rl/obs_schema.py
+- legacy_reference/rl/position_context.py
+- legacy_reference/rl/scenario_engine.py
+- legacy_reference/rl/scripts/export_audit_pack.py
+- legacy_reference/rl/signal_state_manager.py
+
+## Grep files not present in Tier A (sample 100)
+- legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py
+- legacy_reference/.backups/fix_signals_20251012_191010/paper_trader.py
+- legacy_reference/.backups/fix_signals_20251012_191010/trader.py
+- legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py
+- legacy_reference/.backups/fix_signals_20251012_191330/paper_trader.py
+- legacy_reference/.backups/fix_signals_20251012_191330/trader.py
+- legacy_reference/Documentation/Audits/scripts/run_full_e2e_validation.py
+- legacy_reference/api/routes/monitoring_routes.py
+- legacy_reference/catch_fake_alerts.py
+- legacy_reference/check_trainer_status.py
+- legacy_reference/clean_start_training.py
+- legacy_reference/comprehensive_signal_monitor.py
+- legacy_reference/convert_ps1_to_wsl.py
+- legacy_reference/debug_prediction_loop.py
+- legacy_reference/debug_tensor_creation.py
+- legacy_reference/diagnose_features.py
+- legacy_reference/diagnose_trader_signals.py
+- legacy_reference/final_deployment_validation.py
+- legacy_reference/final_import_status.py
+- legacy_reference/fix_gpu_batch_indent.py
+- legacy_reference/fix_trainer_dimensions.py
+- legacy_reference/gpu_optimizer.py
+- legacy_reference/ingest/live_technical_analysis.py
+- legacy_reference/ingest/live_tokenmetrics.py
+- legacy_reference/ingest/tm_ids.py
+- legacy_reference/merge_checkpoints.py
+- legacy_reference/monitor_gpu.py
+- legacy_reference/monitor_sol_5m_features.py
+- legacy_reference/monitor_system_health.py
+- legacy_reference/monitor_trainer_features.py
+- legacy_reference/monitoring/enhanced_audit_api.py
+- legacy_reference/monitoring/oom_monitor.py
+- legacy_reference/monitoring/regression_alarms.py
+- legacy_reference/periodic_status_monitor.py
+- legacy_reference/quick_timing_test.py
+- legacy_reference/quick_trainer_test.py
+- legacy_reference/restart_hybrid_trainer_checkpoints.py
+- legacy_reference/restart_trainer.py
+- legacy_reference/restart_trainer_fixed.py
+- legacy_reference/risk/market_state_contract.py
+- legacy_reference/rl/agents/__init__.py
+- legacy_reference/rl/agents/masa_agent.py
+- legacy_reference/rl/anti_churn_manager.py
+- legacy_reference/rl/checkpoint_manager.py
+- legacy_reference/rl/churn_veto.py
+- legacy_reference/rl/continuous_learner.py
+- legacy_reference/rl/fee_ratio_reward_shaping.py
+- legacy_reference/rl/gpu_forced_ppo.py
+- legacy_reference/rl/gpu_optimizer.py
+- legacy_reference/rl/gpu_saturation.py
+- legacy_reference/rl/intent_engine.py
+- legacy_reference/rl/replay_store.py
+- legacy_reference/rl/scripts/healthcheck_trainer_runtime.py
+- legacy_reference/rl/supervised_pretrainer.py
+- legacy_reference/rl/tf_aggregator.py
+- legacy_reference/rl/toxicity_shield.py
+- legacy_reference/rtx5080_diagnostic.py
+- legacy_reference/run_hybrid_trainer_wsl.py
+- legacy_reference/run_supervised_pretrain.py
+- legacy_reference/scripts/audit_trade_attribution.py
+- legacy_reference/scripts/check_coinapi_microstructure_contract.py
+- legacy_reference/scripts/inspect_liq_keys.py
+- legacy_reference/scripts/mtf_blocker_validation_report.py
+- legacy_reference/scripts/perf_smoke.py
+- legacy_reference/send_status_alert.py
+- legacy_reference/show_actual_eth_training_data.py
+- legacy_reference/show_ltc_trainer_data.py
+- legacy_reference/simple_test.py
+- legacy_reference/simple_validation.py
+- legacy_reference/system_status.py
+- legacy_reference/test_ai_signals.py
+- legacy_reference/test_confidence_monitor.py
+- legacy_reference/test_config.py
+- legacy_reference/test_enhanced_reasoning.py
+- legacy_reference/test_fresh_masa.py
+- legacy_reference/test_hybrid_prediction.py
+- legacy_reference/test_hybrid_trainer.py
+- legacy_reference/test_hybrid_trainer_gpu.py
+- legacy_reference/test_lstm_training_mode.py
+- legacy_reference/test_masa_gpu.py
+- legacy_reference/test_masa_loading.py
+- legacy_reference/test_masa_real_features.py
+- legacy_reference/test_old_trainer_implementation.py
+- legacy_reference/test_phase3_onchain.py
+- legacy_reference/test_phase3_trainer.py
+- legacy_reference/test_ppo_prediction.py
+- legacy_reference/test_rtx5080.py
+- legacy_reference/test_rtx5080_blackwell.py
+- legacy_reference/test_stop_loss_signals.py
+- legacy_reference/test_trainer_enhancements.py
+- legacy_reference/test_wsl_gpu_optimization.py
+- legacy_reference/tests/test_confidence_calibration.py
+- legacy_reference/tests/test_folks_reversal_replay.py
+- legacy_reference/tests/test_retrain_and_hedge.py
+- legacy_reference/timing_test.py
+- legacy_reference/tokenmetrics_client.py
+- legacy_reference/tokenmetrics_normalizer.py
+- legacy_reference/tools/check_tf_stack_redis.py
+- legacy_reference/tools/gen_runbook.py
+- legacy_reference/trainer_dimension_patch.py

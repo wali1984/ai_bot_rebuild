@@ -1,0 +1,1445 @@
+legacy_reference/Public Dashboard/api.py:3531:        account_symbols = set()
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:346:                self.redis.delete(position_key)
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:420:            pipeline.hset(position_key, 'has_long', 'True' if side == 'LONG' else 'False')
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:421:            pipeline.hset(position_key, 'has_short', 'True' if side == 'SHORT' else 'False')
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:425:                pipeline.hset(position_key, 'long', json.dumps(position_data))
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:428:                pipeline.hset(position_key, 'short', json.dumps(position_data))
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:432:            pipeline.hset(position_key, 'symbol', symbol)
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:433:            pipeline.hset(position_key, 'account_id', self.account_id)
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:434:            pipeline.hset(position_key, 'last_update', timestamp)
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:435:            pipeline.hset(position_key, 'mode', mode)
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:436:            pipeline.hset(position_key, 'trader_type', 'real')
+legacy_reference/backups/fix_signals_20251012_191330/trader.py:439:            pipeline.expire(position_key, 300)
+legacy_reference/backups/fix_signals_20251012_191330/paper_trader.py:242:                self.redis.delete(position_key)
+legacy_reference/backups/fix_signals_20251012_191330/paper_trader.py:316:            pipeline.hset(position_key, 'has_long', 'True' if side == 'LONG' else 'False')
+legacy_reference/backups/fix_signals_20251012_191330/paper_trader.py:317:            pipeline.hset(position_key, 'has_short', 'True' if side == 'SHORT' else 'False')
+legacy_reference/backups/fix_signals_20251012_191330/paper_trader.py:321:                pipeline.hset(position_key, 'long', json.dumps(position_data))
+legacy_reference/backups/fix_signals_20251012_191330/paper_trader.py:324:                pipeline.hset(position_key, 'short', json.dumps(position_data))
+legacy_reference/backups/fix_signals_20251012_191330/paper_trader.py:328:            pipeline.hset(position_key, 'symbol', symbol)
+legacy_reference/backups/fix_signals_20251012_191330/paper_trader.py:329:            pipeline.hset(position_key, 'account_id', self.account_id)
+legacy_reference/backups/fix_signals_20251012_191330/paper_trader.py:330:            pipeline.hset(position_key, 'last_update', timestamp)
+legacy_reference/backups/fix_signals_20251012_191330/paper_trader.py:331:            pipeline.hset(position_key, 'mode', 'paper')
+legacy_reference/backups/fix_signals_20251012_191330/paper_trader.py:332:            pipeline.hset(position_key, 'trader_type', 'paper')
+legacy_reference/backups/fix_signals_20251012_191330/paper_trader.py:335:            pipeline.expire(position_key, 300)
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:776:        self.reset()
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:900:                    obs, _ = env.reset()
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:940:    def reset(self):
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:957:            obs, _ = env.reset()
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:1876:                self._invalid_price_logged = set()
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:7389:            self._signal_redis.xadd(
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:7472:            pipe.xadd(
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:8175:                self._signal_redis.xadd(
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:9794:            self._signal_redis.xadd(
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:9802:            self._signal_redis.hset(
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:9872:            self._signal_redis.xadd(
+legacy_reference/backups/fix_signals_20251012_191330/hybrid_trainer.py:9880:            self._signal_redis.hset(
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:346:                self.redis.delete(position_key)
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:420:            pipeline.hset(position_key, 'has_long', 'True' if side == 'LONG' else 'False')
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:421:            pipeline.hset(position_key, 'has_short', 'True' if side == 'SHORT' else 'False')
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:425:                pipeline.hset(position_key, 'long', json.dumps(position_data))
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:428:                pipeline.hset(position_key, 'short', json.dumps(position_data))
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:432:            pipeline.hset(position_key, 'symbol', symbol)
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:433:            pipeline.hset(position_key, 'account_id', self.account_id)
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:434:            pipeline.hset(position_key, 'last_update', timestamp)
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:435:            pipeline.hset(position_key, 'mode', mode)
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:436:            pipeline.hset(position_key, 'trader_type', 'real')
+legacy_reference/backups/fix_signals_20251012_191010/trader.py:439:            pipeline.expire(position_key, 300)
+legacy_reference/backups/fix_signals_20251012_191010/paper_trader.py:242:                self.redis.delete(position_key)
+legacy_reference/backups/fix_signals_20251012_191010/paper_trader.py:316:            pipeline.hset(position_key, 'has_long', 'True' if side == 'LONG' else 'False')
+legacy_reference/backups/fix_signals_20251012_191010/paper_trader.py:317:            pipeline.hset(position_key, 'has_short', 'True' if side == 'SHORT' else 'False')
+legacy_reference/backups/fix_signals_20251012_191010/paper_trader.py:321:                pipeline.hset(position_key, 'long', json.dumps(position_data))
+legacy_reference/backups/fix_signals_20251012_191010/paper_trader.py:324:                pipeline.hset(position_key, 'short', json.dumps(position_data))
+legacy_reference/backups/fix_signals_20251012_191010/paper_trader.py:328:            pipeline.hset(position_key, 'symbol', symbol)
+legacy_reference/backups/fix_signals_20251012_191010/paper_trader.py:329:            pipeline.hset(position_key, 'account_id', self.account_id)
+legacy_reference/backups/fix_signals_20251012_191010/paper_trader.py:330:            pipeline.hset(position_key, 'last_update', timestamp)
+legacy_reference/backups/fix_signals_20251012_191010/paper_trader.py:331:            pipeline.hset(position_key, 'mode', 'paper')
+legacy_reference/backups/fix_signals_20251012_191010/paper_trader.py:332:            pipeline.hset(position_key, 'trader_type', 'paper')
+legacy_reference/backups/fix_signals_20251012_191010/paper_trader.py:335:            pipeline.expire(position_key, 300)
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:776:        self.reset()
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:900:                    obs, _ = env.reset()
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:940:    def reset(self):
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:957:            obs, _ = env.reset()
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:1876:                self._invalid_price_logged = set()
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:7389:            self._signal_redis.xadd(
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:7472:            pipe.xadd(
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:8175:                self._signal_redis.xadd(
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:9794:            self._signal_redis.xadd(
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:9802:            self._signal_redis.hset(
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:9872:            self._signal_redis.xadd(
+legacy_reference/backups/fix_signals_20251012_191010/hybrid_trainer.py:9880:            self._signal_redis.hset(
+legacy_reference/test_production_ta_section7.py:374:        self.redis_client.hset(position_key, mapping=position_data)
+legacy_reference/test_production_ta_section7.py:380:        self.redis_client.delete(position_key)
+legacy_reference/test_production_ta_section7.py:410:            self.redis_client.xadd(
+legacy_reference/test_unified_trainer.py:43:                families = set()
+legacy_reference/open_test_position.py:42:    redis_client.xadd(
+legacy_reference/validate_all_implementations.py:87:    should_pub, reason = manager.should_publish(0.85, '5m', 'OPEN_LONG', 'normal')
+legacy_reference/test_position_closing.py:180:        close_symbols = set(sig['symbol'] for sig in close_signals)
+legacy_reference/test_position_closing.py:181:        position_symbols = set(pos['symbol'] for pos in positions)
+legacy_reference/tokenmetrics_client.py:86:            pipe.incr(f"tm:rate:minute:{int(time.time()//60)}", calls).expire(f"tm:rate:minute:{int(time.time()//60)}", 180)
+legacy_reference/tokenmetrics_client.py:87:            pipe.incr(f"tm:rate:day:{datetime.utcnow():%Y-%m-%d}", calls).expire(f"tm:rate:day:{datetime.utcnow():%Y-%m-%d}", 3*86400)
+legacy_reference/tokenmetrics_client.py:88:            pipe.incr(f"tm:rate:month:{datetime.utcnow():%Y-%m}", calls).expire(f"tm:rate:month:{datetime.utcnow():%Y-%m}", 40*86400)
+legacy_reference/tokenmetrics_client.py:89:            pipe.hincrby("tm:health:last_cost_snapshot", cat, calls)
+legacy_reference/tokenmetrics_client.py:125:                        self.r.set("tm:health:last_ok_ts", int(time.time()*1000))
+legacy_reference/tokenmetrics_client.py:127:                        self.r.hset("tm:health:last_err", mapping={
+legacy_reference/tokenmetrics_client.py:133:                            self.r.set("tm:health:last_429_ts", int(time.time()*1000))
+legacy_reference/tokenmetrics_client.py:138:            self.r.hset("tm:health:last_err", mapping={"code": "timeout", "msg": err_msg[:160], "ts": str(int(time.time()*1000))})
+legacy_reference/tokenmetrics_client.py:143:            self.r.hset("tm:health:last_err", mapping={"code": "net", "msg": err_msg[:160], "ts": str(int(time.time()*1000))})
+legacy_reference/tokenmetrics_client.py:148:            self.r.hset("tm:health:last_err", mapping={"code": "unknown", "msg": err_msg[:160], "ts": str(int(time.time()*1000))})
+legacy_reference/test_ltc_trading.py:115:            stream_id = self.redis_client.xadd("trading_signals", redis_signal)
+legacy_reference/trading/trader_websocket_helper.py:231:        self._stop_event.set()
+legacy_reference/trading/trader_websocket_helper.py:499:                            self._redis.hset(balance_key, mapping={
+legacy_reference/trading/trader_websocket_helper.py:505:                            self._redis.expire(balance_key, 300)  # 5 min TTL
+legacy_reference/trading/trader_websocket_helper.py:688:                    self._redis.hset(balance_key, mapping=balance)
+legacy_reference/trading/trader_websocket_helper.py:689:                    self._redis.expire(balance_key, 300)  # 5 min TTL
+legacy_reference/trading/trader_websocket_helper.py:721:        while not self._stop_event.is_set():
+legacy_reference/trading/trader_websocket_helper.py:746:        while not self._stop_event.is_set():
+legacy_reference/trading/trader_websocket_helper.py:796:        while not self._stop_event.is_set():
+legacy_reference/trading/base_executor.py:551:                self.reset()
+legacy_reference/trading/base_executor.py:557:                self.reset()
+legacy_reference/trading/base_executor.py:628:    def reset(self):
+legacy_reference/trading/base_executor.py:635:            self.redis.delete(self._get_redis_key("status"))
+legacy_reference/trading/base_executor.py:1972:            self.redis.xadd(
+legacy_reference/trading/base_executor.py:1998:            self.redis.xadd(stream, {"data": data}, maxlen=5000, approximate=True)
+legacy_reference/trading/base_executor.py:2039:            pipe.sadd(index_key, symbol)
+legacy_reference/trading/base_executor.py:2040:            pipe.expire(index_key, 86400 * 30)
+legacy_reference/trading/base_executor.py:2041:            pipe.hset(key, "symbol", symbol)
+legacy_reference/trading/base_executor.py:2042:            pipe.hset(key, "account_id", account_id)
+legacy_reference/trading/base_executor.py:2043:            pipe.hset(key, "last_ts_ms", str(ts_ms))
+legacy_reference/trading/base_executor.py:2044:            pipe.hset(key, "last_action", action)
+legacy_reference/trading/base_executor.py:2045:            pipe.hset(key, "last_source", source)
+legacy_reference/trading/base_executor.py:2046:            pipe.hset(key, "last_result", result)
+legacy_reference/trading/base_executor.py:2047:            pipe.hincrby(key, "event_count", 1)
+legacy_reference/trading/base_executor.py:2050:                pipe.hincrby(key, "close_events", 1)
+legacy_reference/trading/base_executor.py:2052:                pipe.hincrby(key, "open_events", 1)
+legacy_reference/trading/base_executor.py:2057:                    pipe.hincrby(key, "realized_event_count", 1)
+legacy_reference/trading/base_executor.py:2059:                    pipe.hincrby(key, "win_events", 1)
+legacy_reference/trading/base_executor.py:2062:                    pipe.hincrby(key, "loss_events", 1)
+legacy_reference/trading/base_executor.py:2065:                pipe.hset(key, "last_realized_pnl_pct", f"{pnl_pct_f:.8f}")
+legacy_reference/trading/base_executor.py:2067:            pipe.expire(key, 86400 * 30)
+legacy_reference/trading/action_constants.py:184:    if len(extended_values) != len(set(extended_values)):
+legacy_reference/trading/signal_router.py:206:                    self.redis.xadd(
+legacy_reference/trading/leg_manager.py:224:            self.redis.delete(*redis_keys)
+legacy_reference/trading/leg_manager.py:429:            self.redis.delete(redis_key)
+legacy_reference/trading/hedge_pair_coordinator.py:95:        seen = set()
+legacy_reference/trading/hedge_pair_coordinator.py:333:            self.redis.xadd(stream, {"data": json.dumps(proposal, separators=(",", ":"), default=str)})
+legacy_reference/trading/trader.py:539:            seen = set()
+legacy_reference/trading/trader.py:607:                symbols = list(set(i['symbol'] for i in items))
+legacy_reference/trading/trader.py:952:                                self.redis.xadd("signals:execution:skips", skip_event, maxlen=10000)
+legacy_reference/trading/trader.py:1152:            self.redis.xadd(
+legacy_reference/trading/trader.py:1216:                self.redis.xadd(
+legacy_reference/trading/trader.py:1714:                pipe.zadd(series_key, {member: now_ms})
+legacy_reference/trading/trader.py:1733:                self.redis.hset(
+legacy_reference/trading/trader.py:1742:                self.redis.expire(series_key, 172800)
+legacy_reference/trading/trader.py:1743:                self.redis.expire(dd_key, 172800)
+legacy_reference/trading/trader.py:1776:                            self.redis.xadd(
+legacy_reference/trading/trader.py:1837:            stored_symbols = self.redis.smembers(sym_set_key) if self.redis else set()
+legacy_reference/trading/trader.py:1838:            for raw_sym in (stored_symbols or set()):
+legacy_reference/trading/trader.py:1843:                    self.redis.delete(pos_hash_key)
+legacy_reference/trading/trader.py:1844:                    self.redis.delete(f"positions:live:{sym}")
+legacy_reference/trading/trader.py:1852:                        self.redis.expire(pos_hash_key, 600)
+legacy_reference/trading/trader.py:2026:                            if sym_u in set(TIER3_SYMBOLS or []):
+legacy_reference/trading/trader.py:2078:                all_symbols = set(prev_positions_by_side.keys()) | set(self.positions_by_side.keys())
+legacy_reference/trading/trader.py:2091:                closed_symbols = set(prev_positions_by_side.keys()) - set(self.positions_by_side.keys())
+legacy_reference/trading/trader.py:2441:                self._hydrated_static_stops = set()
+legacy_reference/trading/trader.py:2503:                                self.redis.delete(self._tp_persist_key(symbol, side))
+legacy_reference/trading/trader.py:3622:            self.redis.rpush(f"hedge_intents:{self.account_id}", json.dumps(intent))
+legacy_reference/trading/trader.py:3623:            self.redis.expire(f"hedge_intents:{self.account_id}", 300)  # 5 min TTL
+legacy_reference/trading/trader.py:3666:                self.redis.hset(f"breakeven_stops:{self.account_id}", symbol, json.dumps(breakeven_data))
+legacy_reference/trading/trader.py:3667:                self.redis.expire(f"breakeven_stops:{self.account_id}", 86400)  # 24h TTL
+legacy_reference/trading/trader.py:4007:            current_position_keys = set(f"{s}_{self.positions[s].get('side', '').upper()}" 
+legacy_reference/trading/trader.py:4430:                pipeline.delete(position_key)
+legacy_reference/trading/trader.py:4431:                pipeline.delete(legacy_position_key)
+legacy_reference/trading/trader.py:4433:                    pipeline.delete(live_position_key)
+legacy_reference/trading/trader.py:4435:                    pipeline.expire(live_symbols_key, 1800)
+legacy_reference/trading/trader.py:4441:                    pipeline.expire(canonical_hash_key, 300)
+legacy_reference/trading/trader.py:4491:                        self.redis.delete(key)
+legacy_reference/trading/trader.py:4495:                pipeline.hset(key, "has_long", "True" if has_long else "False")
+legacy_reference/trading/trader.py:4496:                pipeline.hset(key, "has_short", "True" if has_short else "False")
+legacy_reference/trading/trader.py:4499:                    pipeline.hset(key, "long", json.dumps(long_data, separators=(",", ":")))
+legacy_reference/trading/trader.py:4504:                    pipeline.hset(key, "short", json.dumps(short_data, separators=(",", ":")))
+legacy_reference/trading/trader.py:4508:                pipeline.hset(key, "symbol", symbol)
+legacy_reference/trading/trader.py:4509:                pipeline.hset(key, "account_id", self.account_id)
+legacy_reference/trading/trader.py:4510:                pipeline.hset(key, "last_update", now_ts)
+legacy_reference/trading/trader.py:4511:                pipeline.hset(key, "mode", mode)
+legacy_reference/trading/trader.py:4512:                pipeline.hset(key, "trader_type", "real")
+legacy_reference/trading/trader.py:4513:                pipeline.expire(key, 300)
+legacy_reference/trading/trader.py:4517:                pipeline.hset(live_position_key, "account_id", str(self.account_id))
+legacy_reference/trading/trader.py:4518:                pipeline.hset(live_position_key, "symbol", str(symbol))
+legacy_reference/trading/trader.py:4519:                pipeline.hset(live_position_key, "updated_ts_ms", str(int(time.time() * 1000)))
+legacy_reference/trading/trader.py:4520:                pipeline.hset(live_position_key, "source", "binance_futures")
+legacy_reference/trading/trader.py:4521:                pipeline.hset(live_position_key, "position_amt", f"{net_amt:.12f}")
+legacy_reference/trading/trader.py:4522:                pipeline.hset(live_position_key, "side", side_net)
+legacy_reference/trading/trader.py:4523:                pipeline.hset(live_position_key, "entry_price", f"{entry_price_net:.8f}")
+legacy_reference/trading/trader.py:4524:                pipeline.hset(live_position_key, "mark_price", f"{mark_price_net:.8f}")
+legacy_reference/trading/trader.py:4525:                pipeline.hset(live_position_key, "liq_price", f"{liq_price_net:.8f}")
+legacy_reference/trading/trader.py:4526:                pipeline.hset(live_position_key, "leverage", f"{leverage_net:.6f}")
+legacy_reference/trading/trader.py:4527:                pipeline.hset(live_position_key, "margin_type", margin_type_net or "")
+legacy_reference/trading/trader.py:4528:                pipeline.hset(live_position_key, "initial_margin_usd", f"{initial_margin_net:.8f}")
+legacy_reference/trading/trader.py:4529:                pipeline.hset(live_position_key, "maint_margin_usd", f"{maint_margin_net:.8f}")
+legacy_reference/trading/trader.py:4530:                pipeline.hset(live_position_key, "unrealized_pnl_usd", f"{unrealized_pnl_net:.8f}")
+legacy_reference/trading/trader.py:4531:                pipeline.hset(live_position_key, "notional_usd", f"{notional_usd:.8f}")
+legacy_reference/trading/trader.py:4532:                pipeline.hset(live_position_key, "roe_pct", f"{roe_pct:.6f}")
+legacy_reference/trading/trader.py:4533:                pipeline.expire(live_position_key, 1800)
+legacy_reference/trading/trader.py:4539:                pipeline.sadd(live_accounts_key, str(self.account_id))
+legacy_reference/trading/trader.py:4541:                    pipeline.sadd(live_symbols_key, str(symbol))
+legacy_reference/trading/trader.py:4544:                pipeline.expire(live_symbols_key, 1800)
+legacy_reference/trading/trader.py:4551:                    pipeline.hset(canonical_hash_key, f"{symbol}:LONG", json.dumps(long_data, separators=(",", ":")))
+legacy_reference/trading/trader.py:4556:                    pipeline.hset(canonical_hash_key, f"{symbol}:SHORT", json.dumps(short_data, separators=(",", ":")))
+legacy_reference/trading/trader.py:4559:                pipeline.expire(canonical_hash_key, 300)
+legacy_reference/trading/trader.py:4774:                self.redis.set(key, str(latest_ts))
+legacy_reference/trading/trader.py:4775:                self.redis.set(cache_key, str(now_ts_ms), ex=120)
+legacy_reference/trading/trader.py:4809:                    pipe.delete(bucket_key)
+legacy_reference/trading/trader.py:4810:                    pipe.delete(symbol_key)
+legacy_reference/trading/trader.py:4811:                    pipe.set(bucket_start_key, str(now_ms), ex=ttl_sec)
+legacy_reference/trading/trader.py:4830:            pipe.hset(bucket_key, "last_ts_ms", str(now_ms))
+legacy_reference/trading/trader.py:4831:            pipe.expire(bucket_key, ttl_sec)
+legacy_reference/trading/trader.py:4832:            pipe.expire(symbol_key, ttl_sec)
+legacy_reference/trading/trader.py:4858:        pipe.hset(daily_key, "last_ts_ms", str(now_ms))
+legacy_reference/trading/trader.py:4859:        pipe.expire(daily_key, 8 * 86400)
+legacy_reference/trading/trader.py:4860:        pipe.expire(daily_symbol_key, 8 * 86400)
+legacy_reference/trading/trader.py:4905:            self.redis.set(self._position_origin_key(symbol, side), json.dumps(payload, separators=(",", ":")))
+legacy_reference/trading/trader.py:5220:                            redis_client.hset(
+legacy_reference/trading/trader.py:5728:            pipe.set(f"trader:{self.account_id}:last_consumed_ts_ms", ts_ms)
+legacy_reference/trading/trader.py:5729:            pipe.set(f"trader:{self.account_id}:last_consumed_id", last_id)
+legacy_reference/trading/trader.py:6250:            self.redis.xadd(
+legacy_reference/trading/trader.py:6277:            self.redis.xadd(
+legacy_reference/trading/trader.py:6330:                self.redis.xadd(
+legacy_reference/trading/trader.py:6720:            self.redis.xadd(
+legacy_reference/trading/trader.py:6752:        allowed = getattr(self, "universe_allowed_symbols", set()) or set()
+legacy_reference/trading/trader.py:6901:                    self.redis.delete(hedge_key)
+legacy_reference/trading/trader.py:6905:                    self.redis.delete(f"hedge:lock:{symbol}:{self.account_id}")
+legacy_reference/trading/trader.py:7084:                                self.redis.delete(hedge_active_key)
+legacy_reference/trading/trader.py:7118:                                    self.redis.delete(hedge_active_key)
+legacy_reference/trading/trader.py:7165:                    self.redis.delete(lock_key)
+legacy_reference/trading/trader.py:7308:                    self.redis.delete(lock_key)
+legacy_reference/trading/trader.py:7314:                        self.redis.set(_cd_key, "1", ex=300)  # 5-minute cooldown
+legacy_reference/trading/trader.py:7328:                    self.redis.delete(lock_key)
+legacy_reference/trading/trader.py:7689:                        "allow_count": int(len(self.universe_allowed_symbols or set())),
+legacy_reference/trading/trader.py:9127:                        pipe.incr(_hedge_throttle_key)
+legacy_reference/trading/trader.py:9128:                        pipe.expire(_hedge_throttle_key, 60)
+legacy_reference/trading/trader.py:10327:                                                    count = int(self.redis.incr(count_key))
+legacy_reference/trading/trader.py:10328:                                                    self.redis.expire(count_key, 3700)
+legacy_reference/trading/trader.py:10713:                        if sym_u in set(TIER3_SYMBOLS or []):
+legacy_reference/trading/trader.py:10760:                        if bool(MANUAL_HEDGE_PAIR_CAP_OVERRIDE_ENABLED) and sym_u not in set(MANUAL_HEDGE_PAIR_CAP_EXCLUDE_SYMBOLS or []):
+legacy_reference/trading/trader.py:11834:                    _is_new = self.redis.set(
+legacy_reference/trading/trader.py:14200:                        self.redis.set(_dedup_key_exec, _order_proof_id, nx=True, ex=_EXECUTED_TTL)
+legacy_reference/trading/trader.py:16081:                    self.redis.hset(metadata_key, mapping={
+legacy_reference/trading/trader.py:16090:                    self.redis.expire(metadata_key, 86400 * 7)  # 7 days expiry
+legacy_reference/trading/trader.py:17198:                        self.redis.delete(hedge_key)
+legacy_reference/trading/trader.py:17202:                            self.redis.set(_evt_key, json.dumps({
+legacy_reference/trading/trader.py:17402:                self.redis.expire(fee_key, 90000)  # 25 hours
+legacy_reference/trading/trader.py:17492:            self.redis.incr(total_key)
+legacy_reference/trading/trader.py:17495:                self.redis.expire(total_key, 90000)
+legacy_reference/trading/trader.py:17500:                new_total = self.redis.incr(trade_key)
+legacy_reference/trading/trader.py:17503:                    self.redis.expire(trade_key, 90000)
+legacy_reference/trading/trader.py:17516:            self.redis.set(pos_key, _now, ex=86400)
+legacy_reference/trading/trader.py:17517:            self.redis.set(f"position_meta:{symbol}:open_ts", _now, ex=86400)
+legacy_reference/trading/trader.py:17519:                self.redis.set(f"position_meta:{symbol}:source_tf", source_tf, ex=86400)
+legacy_reference/trading/trader.py:17528:            self.redis.delete(pos_key)
+legacy_reference/trading/trader.py:17529:            self.redis.delete(f"position_meta:{symbol}:open_ts")
+legacy_reference/trading/trader.py:17530:            self.redis.delete(f"position_meta:{symbol}:source_tf")
+legacy_reference/trading/trader.py:17577:                self.redis.incr(cap_key)
+legacy_reference/trading/trader.py:17752:                self._flip_at_target_done = set()
+legacy_reference/trading/trader.py:17759:                self._flip_at_target_done = set(list(self._flip_at_target_done)[-50:])
+legacy_reference/trading/trader.py:18913:            hedged_symbols = set()
+legacy_reference/trading/trader.py:18926:                    symbols_seen.setdefault(sym, set()).add(side)
+legacy_reference/trading/trader.py:19592:            if isinstance(cached, dict) and {'LONG', 'SHORT'} <= set(cached.keys()):
+legacy_reference/trading/trader.py:20052:                pipe.xadd(
+legacy_reference/trading/trader.py:20059:                    pipe.xadd(
+legacy_reference/trading/trader.py:20065:                    pipe.xadd(
+legacy_reference/trading/trader.py:20075:                self.redis.xadd(
+legacy_reference/trading/trader.py:20083:                        self.redis.xadd(
+legacy_reference/trading/trader.py:20089:                        self.redis.xadd(
+legacy_reference/trading/trader.py:20229:            self.redis.xadd(
+legacy_reference/trading/trader.py:20299:            self.redis.xadd(
+legacy_reference/trading/trader.py:20315:            self.redis.xadd(
+legacy_reference/trading/trader.py:20686:                                self.redis.set(_dlv_flag_key, "1", ex=30)  # 30s dedup window
+legacy_reference/trading/trader.py:20956:                                    _sym_set = self.redis.smembers(f"positions:live:symbols:{self.account_id}") or set()
+legacy_reference/trading/trader.py:22524:                                                            _wh_seen_syms = set()
+legacy_reference/trading/trader.py:22536:                                                                for _pk_sym_s in set(s for s, _ in _wh_seen_syms):
+legacy_reference/trading/trader.py:22863:                                    _mom_symbols_checked = set()
+legacy_reference/trading/trader.py:23095:                                    _seen_syms = set()
+legacy_reference/trading/trader.py:23421:                                    _bu_seen = set()
+legacy_reference/trading/adaptive_threshold_engine.py:607:                streak = int(self.redis.incr(streak_key))
+legacy_reference/trading/adaptive_threshold_engine.py:608:                self.redis.expire(streak_key, streak_ttl)
+legacy_reference/trading/adaptive_threshold_engine.py:610:                self.redis.delete(streak_key)
+legacy_reference/trading/hedge_context.py:454:            self.redis.xadd(
+legacy_reference/trading/redis_stream_reader.py:308:            self.redis.set(self.last_id_key, msg_id)
+legacy_reference/trading/market_intelligence.py:1733:        redis_client.hset(key, mapping=payload)
+legacy_reference/trading/market_intelligence.py:1734:        redis_client.expire(key, ttl_sec)
+legacy_reference/trading/market_intelligence.py:1794:        _my_conflicts = _opposing.get(my_decision.upper(), set())
+legacy_reference/trading/position_reporter.py:169:            symbols = set()
+legacy_reference/trading/stealth_stops.py:506:                    self.redis.set(_bs_key, _bsj2.dumps({
+legacy_reference/trading/stealth_stops.py:2646:                    self.redis.delete(pos_key)
+legacy_reference/trading/stealth_stops.py:2648:                    self.redis.delete(f"positions:live:{sym}")
+legacy_reference/trading/stealth_stops.py:2657:                        self.redis.expire(pos_key, 600)  # 10-min TTL
+legacy_reference/trading/stealth_stops.py:4250:                                                            _redis_prop.xadd(
+legacy_reference/trading/stealth_stops.py:6215:                        self.redis.hincrby(_sk_key, "count", 1)
+legacy_reference/trading/stealth_stops.py:6216:                        self.redis.expire(_sk_key, 3600)  # 1hr TTL matches kill budget window
+legacy_reference/trading/stealth_stops.py:6611:            self.redis.xadd(
+legacy_reference/trading/stealth_stops.py:6696:            self.redis.xadd(
+legacy_reference/trading/stealth_stops.py:6768:            self.redis.xadd(
+legacy_reference/trading/stealth_stops.py:6847:            self.redis.xadd(
+legacy_reference/trading/stealth_stops.py:6869:                self.redis.set(redis_key, json.dumps(all_stops), ex=86400)  # 24h expiry
+legacy_reference/trading/stealth_stops.py:6871:                self.redis.delete(redis_key)
+legacy_reference/trading/smart_entry_gate.py:824:            self.redis.delete(f"smart_entry:hunting_zone:{symbol}")
+legacy_reference/trading/redesign_v2_helpers.py:283:        was_new = redis_client.set(key, account_id, nx=True, ex=DEDUP_GUARD_TTL_SECONDS)
+legacy_reference/trading/redesign_v2_helpers.py:626:                    redis_client.delete(lock_key)
+legacy_reference/trading/redesign_v2_helpers.py:636:        redis_client.set(lock_key, new_dir_u, ex=int(cooldown_s))
+legacy_reference/trading/redesign_v2_helpers.py:782:        was_new = redis_client.set(key, "1", nx=True, ex=cadence_s)
+legacy_reference/validate_and_backfill_data.py:79:            missing = set(SYMBOLS) - {k.split(':')[-1] for k in keys}
+legacy_reference/validate_and_backfill_data.py:122:                    pipeline.hset(target_key, field, value)
+legacy_reference/validate_and_backfill_data.py:125:                pipeline.hset(target_key, '_backfilled_from', source_tf)
+legacy_reference/validate_and_backfill_data.py:126:                pipeline.hset(target_key, '_backfilled_at', datetime.now().isoformat())
+legacy_reference/validate_and_backfill_data.py:127:                pipeline.hset(target_key, '_target_timeframe', target_tf)
+legacy_reference/validate_and_backfill_data.py:130:                pipeline.expire(target_key, 3600)
+legacy_reference/investigate_telegram_alerts.py:150:    redis_client.xadd(
+legacy_reference/test_ppo_gpu.py:54:        obs = env.reset()
+legacy_reference/fix_trainer_comprehensive.py:73:            self.redis.delete(*model_keys)
+legacy_reference/fix_trainer_comprehensive.py:192:    def prepare_historical_dataset(self):
+legacy_reference/fix_trainer_comprehensive.py:356:        historical_data = self.prepare_historical_dataset()
+legacy_reference/monitor_portfolio_primary.py:386:        seen = set()
+legacy_reference/comprehensive_system_validation.py:74:    coinank_endpoints = set()
+legacy_reference/comprehensive_system_validation.py:150:    symbols_with_features = set()
+legacy_reference/comprehensive_system_validation.py:151:    timeframes_with_features = set()
+legacy_reference/tools/audit_since_boot.py:41:    files = sorted(set(files))
+legacy_reference/tools/audit_48h.py:111:    seen = set()
+legacy_reference/tools/gen_module_runbooks.py:65:    for svc in sorted(set(list(svc_key_ops.keys()) + list(svc_entries.keys()))):
+legacy_reference/tools/smoke_decision_id.py:23:    r.delete(stream)
+legacy_reference/tools/repo_blueprint.py:8:IGNORE = set()
+legacy_reference/tools/repo_blueprint.py:10:    IGNORE = set(p.strip() for p in Path(".aibot_ignore").read_text().splitlines() if p.strip())
+legacy_reference/tools/repo_blueprint.py:98:        "entrypoint_candidates": sorted(set(entry_hits)),
+legacy_reference/tools/repo_blueprint.py:99:        "start_scripts": sorted(set(start_scripts)),
+legacy_reference/tools/liquidation_levels_from_stream.py:141:    sym_set = set(symbols)
+legacy_reference/tools/trace_calls.py:5:edges = set()
+legacy_reference/tools/smoke_test_pipeline.py:43:    x_id = r.xadd(PROPOSALS_STREAM, {"json": json.dumps(payload)})
+legacy_reference/tools/fetch_crypto_icons.py:87:    seen = set()
+legacy_reference/tools/proof_report.py:53:    out: set[str] = set()
+legacy_reference/tools/proof_report.py:96:    decision_symbol_tf = set()
+legacy_reference/tools/proof_report.py:100:    diag_by_decision = set()
+legacy_reference/tools/proof_report.py:135:    trade_by_decision = set(primary_ids) | set(asjad_ids)
+legacy_reference/tools/audit_trainer_predictions.py:305:        unique_norms = len(set(round(n, 3) for n in norms))
+legacy_reference/tools/redis_contract_scan.py:7:IGNORE = set()
+legacy_reference/tools/redis_contract_scan.py:9:    IGNORE = set(p.strip() for p in Path('.aibot_ignore').read_text().splitlines() if p.strip())
+legacy_reference/tools/py_index.py:8:IGNORE = set()
+legacy_reference/tools/py_index.py:10:    IGNORE = set(p.strip() for p in Path(".aibot_ignore").read_text().splitlines() if p.strip())
+legacy_reference/risk/assertions.py:210:        "open_symbols": set(),
+legacy_reference/risk/assertions.py:386:    open_symbols = portfolio.get("open_symbols") or set()
+legacy_reference/risk/phase_controller.py:326:    open_symbols = portfolio.get("open_symbols") or set()
+legacy_reference/risk/auto_deleverager.py:219:            self.redis.set(key, str(expiry_ms), ex=latch_sec + 10)  # +10s buffer on TTL
+legacy_reference/risk/auto_deleverager.py:248:            redis_client.delete(key)
+legacy_reference/risk/trainer_intent.py:165:        redis_client.hset(key, mapping=mapping)
+legacy_reference/risk/trainer_intent.py:166:        redis_client.expire(key, ttl)
+legacy_reference/risk/reduce_only_latch.py:64:        redis_client.set(key, value, ex=seconds + 10)  # +10s TTL buffer
+legacy_reference/risk/reduce_only_latch.py:115:            redis_client.delete(key)
+legacy_reference/risk/reduce_only_latch.py:128:        deleted = redis_client.delete(key)
+legacy_reference/risk/reduce_only_latch.py:149:        redis_client.set(key, value, ex=seconds + 10)
+legacy_reference/risk/reduce_only_latch.py:183:            redis_client.delete(key)
+legacy_reference/risk/halt_manager.py:42:                self.redis.expire(dedupe_key, int(ttl_sec))
+legacy_reference/risk/halt_manager.py:55:            self.redis.zadd(key, {str(now_ms): now_ms})
+legacy_reference/risk/halt_manager.py:58:            self.redis.expire(key, window_sec * 2)
+legacy_reference/risk/halt_manager.py:70:                self.redis.delete(f"wma:mu_breach_start:{self.account_id}")
+legacy_reference/risk/halt_manager.py:79:                self.redis.set(key, str(now_ms))
+legacy_reference/risk/halt_manager.py:155:            "symbols": set(),
+legacy_reference/risk/halt_manager.py:229:                self.redis.set(key, json.dumps(payload, separators=(",", ":")))
+legacy_reference/risk/halt_manager.py:264:            self.redis.set(key, json.dumps({"equity": float(peak), "ts_ms": int(peak_ts)}, separators=(",", ":")))
+legacy_reference/risk/halt_manager.py:329:            "open_symbols": positions.get("symbols", set()),
+legacy_reference/risk/halt_manager.py:423:        is_new_symbol = symbol not in pos.get("symbols", set())
+legacy_reference/risk/halt_manager.py:505:                self.redis.incr(key)
+legacy_reference/risk/halt_manager.py:506:                self.redis.expire(key, 3600)
+legacy_reference/risk/risk_state_machine.py:172:    def reset(self, account_id: str, reason: str = "") -> None:
+legacy_reference/risk/risk_state_machine.py:398:            self._breach_tracker.reset(account_id, reason="below_emergency_low")
+legacy_reference/risk/margin_governor.py:105:_RISK_ADD_TOKENS = frozenset({
+legacy_reference/risk/margin_governor.py:111:_RISK_REDUCE_TOKENS = frozenset({
+legacy_reference/risk/shared_risk_gate.py:242:                        open_symbols = set()
+legacy_reference/risk/kill_switch.py:19:    out = set()
+legacy_reference/risk/kill_switch.py:128:            redis_client.delete(key)
+legacy_reference/risk/hedge_cage_manager.py:173:            self.redis.delete(key)
+legacy_reference/risk/hedge_cage_manager.py:353:            self.redis.delete(f"{self.CAGE_TS_PREFIX}:{account_id}:{symbol}")
+legacy_reference/risk/global_breadth.py:86:    target_syms = set(s.upper() for s in symbols) if symbols else set(regimes_by_symbol.keys())
+legacy_reference/test_signal_pipeline.py:70:    r.delete("wma:trainer:predictions")
+legacy_reference/final_test_signal.py:21:stream_id = redis_client.xadd('wma:trainer:predictions', {'data': json.dumps(close_signal)})
+legacy_reference/rl/promotion_controller.py:111:        self._canary_symbols: Set[str] = set()
+legacy_reference/rl/promotion_controller.py:158:            self._snapshot_thread_stop.set()
+legacy_reference/rl/promotion_controller.py:195:            return set()
+legacy_reference/rl/promotion_controller.py:201:            return set()
+legacy_reference/rl/promotion_controller.py:203:            return set()
+legacy_reference/rl/promotion_controller.py:370:        new_canary: Set[str] = set()
+legacy_reference/rl/promotion_controller.py:518:            self.redis.hset('promotion:status', mapping=snapshot)
+legacy_reference/rl/walk_forward_validation.py:104:        self.redis.hset(
+legacy_reference/rl/walk_forward_validation.py:172:        self.redis.hset("rl:metrics:backtest:aggregate", mapping={
+legacy_reference/rl/target_exposure_controller.py:162:    LEARNING_TIMEFRAMES = frozenset(['1m'])
+legacy_reference/rl/target_exposure_controller.py:675:            _flat_tfs = set()
+legacy_reference/rl/target_exposure_controller.py:1044:            self.redis.xadd(
+legacy_reference/rl/tradeplan_orchestrator.py:217:            tier3 = set(getattr(cfg, "TIER3_SYMBOLS", []) or [])
+legacy_reference/rl/tradeplan_orchestrator.py:226:                exclude = set(getattr(cfg, "MANUAL_HEDGE_PAIR_CAP_EXCLUDE_SYMBOLS", []) or [])
+legacy_reference/rl/tradeplan_orchestrator.py:1365:        canary_accounts_set = set([str(a).strip() for a in (canary_accounts or []) if str(a).strip()])
+legacy_reference/rl/tradeplan_orchestrator.py:1366:        canary_symbols_set = set([str(s).upper().strip() for s in (canary_symbols or []) if str(s).strip()])
+legacy_reference/rl/execution_overlay.py:41:        reasons = set((reason_codes or []))
+legacy_reference/rl/microstructure_overlay.py:234:    PROTECTIVE_KEYWORDS = frozenset(['CLOSE', 'DECREASE', 'REDUCE', 'PARTIAL'])
+legacy_reference/rl/microstructure_overlay.py:235:    ENTRY_KEYWORDS = frozenset(['OPEN', 'INCREASE', 'FLIP', 'AND_OPEN'])
+legacy_reference/rl/microstructure_overlay.py:1056:            self.redis.xadd(
+legacy_reference/rl/trade_feedback.py:706:        result = self.redis.set(dedupe_key, '1', nx=True, ex=self.dedupe_ttl_sec)
+legacy_reference/rl/trade_feedback.py:810:                                    self.redis.set(self._last_id_key, message_id, ex=3600)
+legacy_reference/rl/gymnasium_wrapper.py:180:    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
+legacy_reference/rl/gymnasium_wrapper.py:188:        super().reset(seed=seed)
+legacy_reference/rl/gymnasium_wrapper.py:203:            _ = self.env.reset()
+legacy_reference/rl/gymnasium_wrapper.py:341:        env.reset(seed=rank)
+legacy_reference/rl/portfolio_recovery_allocator.py:344:                    self.redis.xadd(stream, {"data": json.dumps(payload, separators=(",", ":"))}, maxlen=2000, approximate=True)
+legacy_reference/rl/portfolio_policy_manager.py:353:                        symbols_with_position = set()
+legacy_reference/rl/portfolio_policy_manager.py:355:                        symbols_for_slot_count = set()
+legacy_reference/rl/portfolio_policy_manager.py:372:                                        symbol_sides.setdefault(symbol, set()).add(str(side).upper())
+legacy_reference/rl/portfolio_policy_manager.py:499:                        symbols_with_position = set()
+legacy_reference/rl/portfolio_policy_manager.py:500:                        symbols_for_slot_count = set()
+legacy_reference/rl/portfolio_policy_manager.py:542:                                        symbol_sides.setdefault(symbol, set()).add(str(side).upper())
+legacy_reference/rl/portfolio_policy_manager.py:829:                sides = ss.get(symbol) or set()
+legacy_reference/rl/portfolio_policy_manager.py:835:                    sides = {str(sides).upper()} if sides else set()
+legacy_reference/rl/warm_start.py:251:                self.redis.lpush(redis_key, obs_json)
+legacy_reference/rl/warm_start.py:258:                pipe.delete(redis_key)
+legacy_reference/rl/warm_start.py:261:                    pipe.rpush(redis_key, obs_json)
+legacy_reference/rl/warm_start.py:262:                pipe.expire(redis_key, 3600 * 24)  # 24h TTL
+legacy_reference/rl/threshold_ramper.py:155:        self.redis.hset("rl:config:threshold", mapping={
+legacy_reference/rl/threshold_ramper.py:169:        self.redis.rpush("rl:config:threshold:history", json.dumps(log_entry))
+legacy_reference/rl/decision_trace.py:42:            redis_client.xadd(str(stream), {"data": data}, maxlen=int(maxlen), approximate=True)
+legacy_reference/rl/decision_trace.py:45:            redis_client.xadd(str(stream), {"data": data})
+legacy_reference/rl/liquidation_prevention.py:121:    def publish(self, event: ExecutionEvent) -> Optional[str]:
+legacy_reference/rl/liquidation_prevention.py:132:            msg_id = self.redis.xadd(self.stream_name, payload, maxlen=10000)
+legacy_reference/rl/liquidation_prevention.py:155:        return self.publish(event)
+legacy_reference/rl/liquidation_prevention.py:353:                            self.redis.delete(key)
+legacy_reference/rl/light_worker.py:86:                    obs, _reset_info = env.reset()
+legacy_reference/rl/light_worker.py:94:                obs, info = env.reset()
+legacy_reference/rl/light_worker.py:120:                env.reset(seed=data)
+legacy_reference/rl/orchestrator_worker.py:193:        self.seen_dedupe_keys: Set[str] = set()
+legacy_reference/rl/orchestrator_worker.py:703:            self.redis.hset(key, mapping=payload)
+legacy_reference/rl/orchestrator_worker.py:1606:                self.redis.set("orch:rotation:last_ts", str(now_ms))
+legacy_reference/rl/orchestrator_worker.py:1607:                self.redis.set(f"orch:rotation:last_ts:{account_id}:{candidate.get('symbol')}", str(now_ms))
+legacy_reference/rl/orchestrator_worker.py:1636:                    self.redis.delete(key)
+legacy_reference/rl/orchestrator_worker.py:1642:                    self.redis.delete(key)
+legacy_reference/rl/orchestrator_worker.py:1675:                    self.redis.delete(key)
+legacy_reference/rl/orchestrator_worker.py:1690:                    self.redis.delete(key)
+legacy_reference/rl/orchestrator_worker.py:1699:                    self.redis.delete(key)
+legacy_reference/rl/orchestrator_worker.py:1790:            self.redis.set("orchestrator:heartbeat_ms", str(now_ms), ex=120)
+legacy_reference/rl/orchestrator_worker.py:2172:        allowed = getattr(self, "universe_allowed_symbols", set()) or set()
+legacy_reference/rl/orchestrator_worker.py:3063:                            _open_syms = set()
+legacy_reference/rl/orchestrator_worker.py:6178:                pipe.lpush(list_key, str(v))
+legacy_reference/rl/orchestrator_worker.py:6276:            pipe.hset(key, "last_ts_ms", str(int(time.time() * 1000)))
+legacy_reference/rl/orchestrator_worker.py:6277:            pipe.expire(key, 7200)
+legacy_reference/rl/orchestrator_worker.py:6535:            self.redis.xadd(
+legacy_reference/rl/orchestrator_worker.py:6771:                proof["sources"] = list(set(
+legacy_reference/rl/orchestrator_worker.py:7458:                    _live_syms = set()
+legacy_reference/rl/orchestrator_worker.py:8521:                                self.redis.delete(f"hedge:anti_chase:count:{account_id}:{symbol}:{side}")
+legacy_reference/rl/orchestrator_worker.py:9402:                "allow_count": int(len(self.universe_allowed_symbols or set())),
+legacy_reference/rl/orchestrator_worker.py:10280:            self.redis.xadd(PROOF_STREAM, {"data": json_data})
+legacy_reference/rl/orchestrator_worker.py:10293:            self.redis.xadd(TRACE_STREAM, {"data": json_data})
+legacy_reference/rl/orchestrator_worker.py:10388:    acquired = r.set(ORCH_LOCK_KEY, _orch_lock_id, nx=True, ex=ORCH_LOCK_TTL)
+legacy_reference/rl/orchestrator_worker.py:10401:    _orch_lock_running.set()
+legacy_reference/rl/orchestrator_worker.py:10425:        while _orch_lock_running.is_set():
+legacy_reference/rl/coinapi_symbol_map.py:140:                self.redis.hset(key, mapping={
+legacy_reference/rl/coinapi_symbol_map.py:149:                self.redis.expire(key, self.cache_ttl_sec)
+legacy_reference/rl/coinapi_symbol_map.py:361:                self.redis.delete(self._get_cache_key(internal_symbol.upper()))
+legacy_reference/rl/proposal_hedge_preflight.py:71:        redis_client.xadd(stream, {"data": json.dumps(proposal, separators=(",", ":"), default=str)})
+legacy_reference/rl/scripts/backfill_predictions_stub.py:46:                rc.hset(key, mapping=payload)
+legacy_reference/rl/scripts/backfill_predictions_stub.py:47:                rc.expire(key, 300)  # 5 minutes
+legacy_reference/rl/position_monitor.py:632:        self.redis.hset(signal_key, mapping={
+legacy_reference/rl/position_monitor.py:638:        self.redis.expire(signal_key, 86400 * 7)  # Expire after 7 days
+legacy_reference/rl/trainer_enhancements.py:90:            redis.set(test_key, "test", ex=10)
+legacy_reference/rl/trainer_enhancements.py:92:            redis.delete(test_key)
+legacy_reference/rl/trainer_enhancements.py:449:    def should_publish(self, confidence: float, timeframe: str, action: str, regime: str = 'normal') -> Tuple[bool, str]:
+legacy_reference/rl/ingestor_quality_router.py:447:                        self.redis.hset(cache_key, symbol, json.dumps(quality.sources.get(quality.best_source, {}).to_dict() if quality.best_source and quality.best_source in quality.sources else {}))
+legacy_reference/rl/ingestor_quality_router.py:448:                        self.redis.expire(cache_key, 60)
+legacy_reference/rl/ingestor_quality_router.py:463:            self.redis.hset(key, mapping={
+legacy_reference/rl/ingestor_quality_router.py:473:            self.redis.expire(key, 120)
+legacy_reference/rl/gpu_environment.py:466:                    keys_set = set()
+legacy_reference/rl/trainer_realtime_mixin.py:309:            self.redis.xadd(
+legacy_reference/rl/fastlane_detector.py:403:            redis_client.incr(rate_limit_key)
+legacy_reference/rl/fastlane_detector.py:404:            redis_client.expire(rate_limit_key, 3600)  # 1 hour TTL
+legacy_reference/rl/microstructure_features.py:215:        self._stop_event.set()
+legacy_reference/rl/microstructure_features.py:222:        while not self._stop_event.is_set():
+legacy_reference/rl/confidence_logger.py:67:        self.redis.hset(
+legacy_reference/rl/confidence_logger.py:104:        self.redis.rpush(
+legacy_reference/rl/confidence_logger.py:183:            self.redis.hset("rl:metrics:calibration", mapping={
+legacy_reference/rl/historical_csv_loader.py:24:class HistoricalCSVDataset(Dataset):
+legacy_reference/rl/historical_csv_loader.py:299:    dataset = HistoricalCSVDataset(
+legacy_reference/rl/historical_csv_loader.py:324:    dataset = HistoricalCSVDataset(
+legacy_reference/rl/calibrated_confidence.py:164:            self.redis.xadd(
+legacy_reference/rl/calibrated_confidence.py:226:    r.hset("rl:config:features", "calibrated_confidence", "true")
+legacy_reference/rl/calibrated_confidence.py:229:    r.hset("rl:calibration:temperature", "temperature", "0.8")
+legacy_reference/rl/environment.py:282:    def set(self, key: str, value: Any):
+legacy_reference/rl/environment.py:1377:    def reset(self, real_portfolio_data: Dict = None) -> np.ndarray:
+legacy_reference/rl/historical_data_loader.py:29:class HistoricalDataset(Dataset):
+legacy_reference/rl/historical_data_loader.py:268:    dataset = HistoricalDataset(
+legacy_reference/rl/light_vec_env.py:161:    def reset(self) -> VecEnvObs:
+legacy_reference/rl/microstructure_aggregator.py:352:                    self.redis.hset(key, mapping={
+legacy_reference/rl/microstructure_aggregator.py:356:                    self.redis.expire(key, self.TF_WINDOWS_SEC[tf] * 2)
+legacy_reference/rl/historical_data_manager.py:588:        self._scheduler_stop.set()
+legacy_reference/rl/historical_data_manager.py:595:        while not self._scheduler_stop.is_set():
+legacy_reference/rl/historical_data_manager.py:599:            if self._scheduler_stop.is_set():
+legacy_reference/rl/dynamic_runner_hedge.py:669:        seen_actions: Set[str] = set()
+legacy_reference/rl/masa_supervised_pretrainer.py:43:class _LastStepDataset(torch.utils.data.Dataset):
+legacy_reference/rl/masa_supervised_pretrainer.py:110:    def _prepare_dataset(
+legacy_reference/rl/masa_supervised_pretrainer.py:149:            symbols = sorted(set(symbols))
+legacy_reference/rl/masa_supervised_pretrainer.py:160:                X, y_a, y_v = self._prepare_dataset(seq, a_t, v_t)
+legacy_reference/rl/masa_supervised_pretrainer.py:187:        train_ds = _LastStepDataset(X_norm[train_idx], y_action_all[train_idx], y_value_all[train_idx])
+legacy_reference/rl/masa_supervised_pretrainer.py:188:        val_ds = _LastStepDataset(X_norm[val_idx], y_action_all[val_idx], y_value_all[val_idx])
+legacy_reference/rl/temperature_calibration.py:94:        self.redis.hset(
+legacy_reference/rl/gpu_batch_env.py:90:            obs, _ = env.reset()
+legacy_reference/rl/gpu_batch_env.py:141:                    obs, _ = env.reset()
+legacy_reference/rl/gpu_batch_env.py:167:    def reset(self) -> np.ndarray:
+legacy_reference/rl/gpu_batch_env.py:173:            obs, _ = env.reset()
+legacy_reference/rl/batch_utils.py:165:            unique_symbols = list(set(s for s, _ in symbol_tf_pairs))
+legacy_reference/rl/batch_utils.py:361:        self._stop_event.set()
+legacy_reference/rl/batch_utils.py:379:        while not self._stop_event.is_set():
+legacy_reference/rl/market_context.py:250:        seen = set()
+legacy_reference/rl/drift_monitor.py:448:                self.redis.xadd("wma:drift_alerts", payload, maxlen=500)
+legacy_reference/rl/supervised_trainer.py:463:    def reset(self, seed=None, options=None) -> Tuple[np.ndarray, Dict]:
+legacy_reference/rl/supervised_trainer.py:465:        super().reset(seed=seed)
+legacy_reference/rl/supervised_trainer.py:856:        skip_keys = set()
+legacy_reference/rl/hedge_rule_engine.py:335:        all_risk_factors = set(both_sides["long"].risk_factors + both_sides["short"].risk_factors)
+legacy_reference/rl/hedge_rule_engine.py:415:        covered_timeframes = set(signal.timeframe for signal in signals)
+legacy_reference/rl/cpu_env.py:386:                    keys_set = set()
+legacy_reference/rl/cpu_env.py:556:    def reset(self, seed=None, options=None):
+legacy_reference/rl/cpu_env.py:557:        super().reset(seed=seed)
+legacy_reference/rl/proposal_schema.py:484:        msg_id = redis_client.xadd(
+legacy_reference/rl/hybrid_trainer.py:1791:            self._signal_redis.xadd(
+legacy_reference/rl/hybrid_trainer.py:2164:            redis.delete(key)
+legacy_reference/rl/hybrid_trainer.py:2607:                            redis.delete(ride_key)
+legacy_reference/rl/hybrid_trainer.py:2913:        pref_set = set(s.upper() for s in (preferred_symbols or []) if isinstance(s, str))
+legacy_reference/rl/hybrid_trainer.py:4081:                    if action_category and action_category in set(block_categories):
+legacy_reference/rl/hybrid_trainer.py:4910:                            redis_client.xadd(
+legacy_reference/rl/hybrid_trainer.py:5886:                            eligible_ids = sorted(set(eligible_ids))
+legacy_reference/rl/hybrid_trainer.py:5896:                                        redis_client.set(rr_key, str((rr + 1) % 1000000))
+legacy_reference/rl/hybrid_trainer.py:6513:                        get_redis_client().hincrby('trainer:critical_fixes:stats', 'signals_blocked', 1)
+legacy_reference/rl/hybrid_trainer.py:6522:                        get_redis_client().hincrby('trainer:critical_fixes:stats', 'signals_processed', 1)
+legacy_reference/rl/hybrid_trainer.py:9119:                        sym_is_tier3 = bool(sym_u and sym_u in set(TIER3_SYMBOLS or []))
+legacy_reference/rl/hybrid_trainer.py:9175:                        if is_hedge and bool(MANUAL_HEDGE_PAIR_CAP_OVERRIDE_ENABLED) and sym_u not in set(MANUAL_HEDGE_PAIR_CAP_EXCLUDE_SYMBOLS or []):
+legacy_reference/rl/hybrid_trainer.py:9335:                    self._signal_redis.xadd(
+legacy_reference/rl/hybrid_trainer.py:9347:                    self._signal_redis.delete(pending_validation_key_to_clear)
+legacy_reference/rl/hybrid_trainer.py:9664:            self._signal_redis.xadd(
+legacy_reference/rl/hybrid_trainer.py:10168:        self.reset()
+legacy_reference/rl/hybrid_trainer.py:10308:                    obs, _ = env.reset()
+legacy_reference/rl/hybrid_trainer.py:10368:                            self._signal_redis.xadd(
+legacy_reference/rl/hybrid_trainer.py:10418:    def reset(self):
+legacy_reference/rl/hybrid_trainer.py:10425:            obs, _ = env.reset()
+legacy_reference/rl/hybrid_trainer.py:10882:            self.redis.hset(norm_key, mapping=norm_stats)
+legacy_reference/rl/hybrid_trainer.py:10883:            self.redis.expire(norm_key, 3600)
+legacy_reference/rl/hybrid_trainer.py:10951:                keys_set = set()
+legacy_reference/rl/hybrid_trainer.py:12033:                self._invalid_price_logged = set()
+legacy_reference/rl/hybrid_trainer.py:13210:                    rc.set('trainer:critical_fixes:initialized', 'true')
+legacy_reference/rl/hybrid_trainer.py:13211:                    rc.hset('trainer:critical_fixes:stats', mapping={
+legacy_reference/rl/hybrid_trainer.py:13268:                    rc.hset('trainer:liq_prevention:status', mapping={
+legacy_reference/rl/hybrid_trainer.py:16906:                                                    sides_by_symbol.setdefault(s, set()).add(sd)
+legacy_reference/rl/hybrid_trainer.py:16951:                                            if (not bool(PROFIT_TRIM_ALLOW_TRIM_HEDGED_PAIRS)) and len(sides_by_symbol.get(s, set())) >= 2:
+legacy_reference/rl/hybrid_trainer.py:16972:                                                if (not bool(PROFIT_TRIM_ALLOW_TRIM_HEDGED_PAIRS)) and len(sides_by_symbol.get(s, set())) >= 2:
+legacy_reference/rl/hybrid_trainer.py:17335:                        sym_is_tier3 = bool(sym and sym in set(TIER3_SYMBOLS or []))
+legacy_reference/rl/hybrid_trainer.py:17360:                        if bool(MANUAL_HEDGE_PAIR_CAP_OVERRIDE_ENABLED) and sym not in set(MANUAL_HEDGE_PAIR_CAP_EXCLUDE_SYMBOLS or []):
+legacy_reference/rl/hybrid_trainer.py:18313:            rc.xadd(
+legacy_reference/rl/hybrid_trainer.py:18991:                pipe.incr(per_symbol_key)
+legacy_reference/rl/hybrid_trainer.py:18992:                pipe.expire(per_symbol_key, 3600)
+legacy_reference/rl/hybrid_trainer.py:18993:                pipe.incr(global_key)
+legacy_reference/rl/hybrid_trainer.py:18994:                pipe.expire(global_key, 3600)
+legacy_reference/rl/hybrid_trainer.py:22215:        flats = set()
+legacy_reference/rl/hybrid_trainer.py:22218:            has_pos = set()
+legacy_reference/rl/hybrid_trainer.py:22232:            return set()
+legacy_reference/rl/hybrid_trainer.py:22243:            published = getattr(self, "_why_no_open_risk_cycle_published_open_risk", None) or set()
+legacy_reference/rl/hybrid_trainer.py:22251:            for sym in sorted(set(blocks.keys()) & set(flat)):
+legacy_reference/rl/hybrid_trainer.py:22376:                seen_positions = set()
+legacy_reference/rl/hybrid_trainer.py:24061:                    out = sorted(set(out), key=lambda x: order.get(x, 999))
+legacy_reference/rl/hybrid_trainer.py:24668:                    self._missing_unified_warned = set()
+legacy_reference/rl/hybrid_trainer.py:24829:            pipe.set(last_ts_key, str(ts_ms), ex=86400 * 7)
+legacy_reference/rl/hybrid_trainer.py:24830:            pipe.lpush(f"regime:structural:{symbol}:{timeframe}:closes", float(close))
+legacy_reference/rl/hybrid_trainer.py:24832:            pipe.lpush(f"regime:structural:{symbol}:{timeframe}:ts", int(ts_ms))
+legacy_reference/rl/hybrid_trainer.py:25024:            rc.zadd(fail_zset, {str(now_ms): now_ms})
+legacy_reference/rl/hybrid_trainer.py:25041:            rc.hset(
+legacy_reference/rl/hybrid_trainer.py:25051:            rc.expire(state_key, 86400 * 7)
+legacy_reference/rl/hybrid_trainer.py:25178:                rc.hset(
+legacy_reference/rl/hybrid_trainer.py:25187:                rc.expire(state_key, 86400 * 14)
+legacy_reference/rl/hybrid_trainer.py:27542:                or str(action_name or '').upper() in set(hedge_actions)
+legacy_reference/rl/hybrid_trainer.py:27714:                    rc.xadd("health:events", {"data": json.dumps(evt)}, maxlen=2000, approximate=True)
+legacy_reference/rl/hybrid_trainer.py:29716:                                            self._signal_redis.xadd(
+legacy_reference/rl/hybrid_trainer.py:29859:                            get_redis_client().hincrby('trainer:critical_fixes:stats', 'liq_blocked', 1)
+legacy_reference/rl/hybrid_trainer.py:32446:                    if stop_event.is_set():
+legacy_reference/rl/hybrid_trainer.py:32542:                        self.training_active.set()
+legacy_reference/rl/hybrid_trainer.py:32546:                                self.training_step_in_progress.set()
+legacy_reference/rl/hybrid_trainer.py:32708:                    loop_stop_event.set()
+legacy_reference/rl/hybrid_trainer.py:32730:                        loop_stop_event.set()
+legacy_reference/rl/hybrid_trainer.py:32775:                    loop_stop_event.set()
+legacy_reference/rl/hybrid_trainer.py:32779:                    if hasattr(self, 'training_step_in_progress') and self.training_step_in_progress.is_set():
+legacy_reference/rl/hybrid_trainer.py:32781:                    if hasattr(self, 'training_active') and self.training_active.is_set():
+legacy_reference/rl/hybrid_trainer.py:32790:                loop_stop_event.set()
+legacy_reference/rl/hybrid_trainer.py:32824:                    redis_client.set('heartbeat:Trainer', str(current_time_ms))
+legacy_reference/rl/hybrid_trainer.py:32931:                            redis_client.hset('rl:metrics:loop_summary', mapping={
+legacy_reference/rl/hybrid_trainer.py:32946:                            redis_client.expire('rl:metrics:loop_summary', 3600)
+legacy_reference/rl/hybrid_trainer.py:33290:            redis_client.hset('rl:metrics:continuous', mapping={
+legacy_reference/rl/hybrid_trainer.py:33295:            redis_client.expire('rl:metrics:continuous', 3600)
+legacy_reference/rl/hybrid_trainer.py:33298:            redis_client.set('rl:episodes:total', str(total_episodes))
+legacy_reference/rl/hybrid_trainer.py:33301:            redis_client.set('heartbeat:Trainer', str(current_time_ms))
+legacy_reference/rl/hybrid_trainer.py:33305:            redis_client.set('rl:obs_length', str(obs_length))
+legacy_reference/rl/hybrid_trainer.py:33315:                redis_client.hset(f'rl:metrics:{tf}', mapping={
+legacy_reference/rl/hybrid_trainer.py:33318:                redis_client.expire(f'rl:metrics:{tf}', 3600)
+legacy_reference/rl/hybrid_trainer.py:35259:                        _r.hset(_active_hedges_key, _stf, _hdir)
+legacy_reference/rl/hybrid_trainer.py:35260:                        _r.expire(_active_hedges_key, 7200)
+legacy_reference/rl/hybrid_trainer.py:35439:                _close_tfs = set()
+legacy_reference/rl/hybrid_trainer.py:35440:                _close_tfs_non_1m = set()
+legacy_reference/rl/hybrid_trainer.py:35668:                    timing_candidates = [p for p in entry_like if str(p.get("timeframe") or p.get("tf") or "").strip() in set(timing_tfs)]
+legacy_reference/rl/hybrid_trainer.py:37816:            redis_client.lpush('prediction:accuracy:pending', record)
+legacy_reference/rl/hybrid_trainer.py:37893:                pipe.delete('prediction:accuracy:pending')
+legacy_reference/rl/hybrid_trainer.py:37895:                    pipe.lpush('prediction:accuracy:pending', item)
+legacy_reference/rl/hybrid_trainer.py:37899:                redis_client.lpush('prediction:accuracy:results', json.dumps({
+legacy_reference/rl/hybrid_trainer.py:38327:                        r.xadd(ORCHESTRATOR_PROOF_STREAM, {"data": json_lib.dumps(pr2, separators=(",", ":"))})
+legacy_reference/rl/hybrid_trainer.py:38488:                        existing_syms = set(positions_dict.keys())
+legacy_reference/rl/hybrid_trainer.py:38517:                        existing_groups = set()
+legacy_reference/rl/hybrid_trainer.py:38524:                            existing_groups = set()
+legacy_reference/rl/hybrid_trainer.py:38542:                            "planned_symbols": set(),  # new symbols reserved in this publish cycle
+legacy_reference/rl/hybrid_trainer.py:38544:                            "planned_groups": set(),
+legacy_reference/rl/hybrid_trainer.py:38760:                                            symbol in (st0.get("existing_symbols") or set())
+legacy_reference/rl/hybrid_trainer.py:38958:                                    existing_syms0 = set((st0 or {}).get("existing_symbols") or set())
+legacy_reference/rl/hybrid_trainer.py:38959:                                    planned_syms0 = set((st0 or {}).get("planned_symbols") or set())
+legacy_reference/rl/hybrid_trainer.py:38970:                        enabled_accounts = set((ACTIVE_TRADING_ACCOUNTS or TRADING_ACCOUNTS or []))
+legacy_reference/rl/hybrid_trainer.py:38972:                        enabled_accounts = set(TRADING_ACCOUNTS or [])
+legacy_reference/rl/hybrid_trainer.py:38980:                                logged = getattr(self, "_logged_account_disabled", set())
+legacy_reference/rl/hybrid_trainer.py:39272:                        existing_syms = set(st.get("existing_symbols") or set())
+legacy_reference/rl/hybrid_trainer.py:39273:                        planned_syms = set(st.get("planned_symbols") or set())
+legacy_reference/rl/hybrid_trainer.py:39446:                                    self._signal_redis.hset(
+legacy_reference/rl/hybrid_trainer.py:39479:                                    existing_groups = set(st.get("existing_groups") or set())
+legacy_reference/rl/hybrid_trainer.py:39480:                                    planned_groups = set(st.get("planned_groups") or set())
+legacy_reference/rl/hybrid_trainer.py:39589:                                existing_syms = set(st.get("existing_symbols") or set())
+legacy_reference/rl/hybrid_trainer.py:39590:                                planned_syms = set(st.get("planned_symbols") or set())
+legacy_reference/rl/hybrid_trainer.py:39628:                                existing_syms = set(st.get("existing_symbols") or set())
+legacy_reference/rl/hybrid_trainer.py:39629:                                planned_syms = set(st.get("planned_symbols") or set())
+legacy_reference/rl/hybrid_trainer.py:39877:                                self._signal_redis.hset(
+legacy_reference/rl/hybrid_trainer.py:40100:                    self._signal_redis.hset(
+legacy_reference/rl/hybrid_trainer.py:40262:        keys_set = set()
+legacy_reference/rl/hybrid_trainer.py:40403:                    keys_set = set()
+legacy_reference/rl/hybrid_trainer.py:40585:            return bool(evt is not None and evt.is_set())
+legacy_reference/rl/hybrid_trainer.py:40916:                    _n_unique = len(set(_row_hashes))
+legacy_reference/rl/hybrid_trainer.py:40933:                    _n_uniq_post = len(set(_hashes_post))
+legacy_reference/rl/hybrid_trainer.py:42387:                    self._signal_redis.hset(_uc_key, mapping=_uc_map)
+legacy_reference/rl/hybrid_trainer.py:42388:                    self._signal_redis.expire(_uc_key, 1800)
+legacy_reference/rl/hybrid_trainer.py:42497:                        self._signal_redis.xadd('signals:debug', debug_payload, maxlen=5000)
+legacy_reference/rl/hybrid_trainer.py:42595:                            self._signal_redis.xadd('signals:debug', debug_payload, maxlen=5000)
+legacy_reference/rl/hybrid_trainer.py:43076:                                self._signal_redis.xadd('signals:debug', debug_payload, maxlen=5000)
+legacy_reference/rl/hybrid_trainer.py:43729:                    self._signal_redis.xadd(_pqc_stream_name, _pqc_payload, maxlen=_pqc_stream_maxlen)
+legacy_reference/rl/hybrid_trainer.py:43774:                            self._signal_redis.set(_pqc_latch_key, str(_pqc_until_ms), ex=_pqc_cooldown)
+legacy_reference/rl/hybrid_trainer.py:44707:                    self._signal_redis.hset(pred_key, mapping=pred_map)
+legacy_reference/rl/hybrid_trainer.py:44708:                    self._signal_redis.expire(pred_key, 1800)  # 30 min TTL (was 120s - caused deadlock)
+legacy_reference/rl/hybrid_trainer.py:44793:                    self._signal_redis.hset(pred_key, mapping=pred_map)
+legacy_reference/rl/hybrid_trainer.py:44794:                    self._signal_redis.expire(pred_key, 1800)  # 30 min TTL (was 120s - caused deadlock)
+legacy_reference/rl/hybrid_trainer.py:45247:            skipped_wrongtype = set()
+legacy_reference/rl/hybrid_trainer.py:45705:        hedge_build_symbols = set()  # Track symbols in HEDGE_BUILD state
+legacy_reference/rl/hybrid_trainer.py:46346:                    eq_accounts: set[str] = set()
+legacy_reference/rl/hybrid_trainer.py:46356:                        allowed_accounts = set(a.strip().lower() for a in (ACTIVE_TRADING_ACCOUNTS or []) if a)
+legacy_reference/rl/hybrid_trainer.py:46358:                        allowed_accounts = set()
+legacy_reference/rl/hybrid_trainer.py:46442:                        allowed_accounts = set(a.strip().lower() for a in (ACTIVE_TRADING_ACCOUNTS or []) if a)
+legacy_reference/rl/hybrid_trainer.py:46444:                        allowed_accounts = set()
+legacy_reference/rl/hybrid_trainer.py:46543:                            rc.hset(
+legacy_reference/rl/hybrid_trainer.py:46555:                            rc.expire("portfolio:combined:state", int(os.getenv("PORTFOLIO_STATE_MAX_AGE_SECONDS", "25")))
+legacy_reference/rl/hybrid_trainer.py:46622:                    eq_accounts = set(accounts)
+legacy_reference/rl/hybrid_trainer.py:46625:                        allowed_accounts = set(a.strip().lower() for a in (ACTIVE_TRADING_ACCOUNTS or []) if a)
+legacy_reference/rl/hybrid_trainer.py:46627:                        allowed_accounts = set()
+legacy_reference/rl/hybrid_trainer.py:46683:                            rc.hset(
+legacy_reference/rl/hybrid_trainer.py:46694:                            rc.expire(f"portfolio:state:{aid}", int(max_age_s))
+legacy_reference/rl/hybrid_trainer.py:46767:            seen = set()
+legacy_reference/rl/hybrid_trainer.py:46771:                    allowed_accounts = set(a.strip().lower() for a in (ACTIVE_TRADING_ACCOUNTS or []) if a)
+legacy_reference/rl/hybrid_trainer.py:46773:                    allowed_accounts = set()
+legacy_reference/rl/hybrid_trainer.py:46804:                            rc.delete(key)
+legacy_reference/rl/hybrid_trainer.py:46948:                    rc.hset(key, mapping={
+legacy_reference/rl/hybrid_trainer.py:46957:                    rc.expire(key, 120)
+legacy_reference/rl/hybrid_trainer.py:46958:                rc.set("portfolio:state:active_account", "primary", ex=120)
+legacy_reference/rl/hybrid_trainer.py:48482:                self._feat_ts_seen = set()
+legacy_reference/rl/hybrid_trainer.py:48507:                self._feat_ts_seen = set()
+legacy_reference/rl/hybrid_trainer.py:50014:                seen = set()
+legacy_reference/rl/hybrid_trainer.py:50181:                    self.redis.hset(
+legacy_reference/rl/hybrid_trainer.py:50197:                    self.redis.expire("trainer:brain:status", 600)
+legacy_reference/rl/hybrid_trainer.py:50404:                        self._signal_redis.xadd(
+legacy_reference/rl/hybrid_trainer.py:50445:                                "training_active": bool(self.training_active.is_set()) if hasattr(self, "training_active") else False,
+legacy_reference/rl/hybrid_trainer.py:51104:                                                                redis_client.delete(pend_key)
+legacy_reference/rl/hybrid_trainer.py:51134:                                                                redis_client.delete(pend_key)
+legacy_reference/rl/hybrid_trainer.py:51426:                                                                                redis_client.rpush(qk, pend_key)
+legacy_reference/rl/hybrid_trainer.py:51427:                                                                                redis_client.expire(qk, int(max(120, float(HEDGE_READD_PENDING_TTL_SECONDS or 600) + 60)))
+legacy_reference/rl/hybrid_trainer.py:52095:            self._why_no_open_risk_cycle_published_open_risk = set()
+legacy_reference/rl/hybrid_trainer.py:52186:            if refreshed_symbols and set(refreshed_symbols) != set(SYMBOLS):
+legacy_reference/rl/hybrid_trainer.py:52896:                        self._signal_redis.hset(_dc_pred_key, mapping=_dc_pred_map)
+legacy_reference/rl/hybrid_trainer.py:52897:                        self._signal_redis.expire(_dc_pred_key, 1800)
+legacy_reference/rl/hybrid_trainer.py:52929:                    active_symbols = list(set(sig.get('symbol') for sig in final if sig.get('symbol')))
+legacy_reference/rl/hybrid_trainer.py:53339:                    self._signal_redis.xadd(
+legacy_reference/rl/hybrid_trainer.py:53717:                                            self._signal_redis.zadd(
+legacy_reference/rl/hybrid_trainer.py:53765:                        self._signal_redis.expire(zset_key, 900)
+legacy_reference/rl/hybrid_trainer.py:54154:                    keys_set = set()
+legacy_reference/rl/hybrid_trainer.py:54821:                    self._signal_redis.xadd("signals:debug", {"data": json.dumps(nan_debug)}, maxlen=1000, approximate=True)
+legacy_reference/rl/hybrid_trainer.py:54848:                        self._signal_redis.hset(f"prediction:{symbol}:{timeframe}", mapping={
+legacy_reference/rl/hybrid_trainer.py:54852:                        self._signal_redis.expire(f"prediction:{symbol}:{timeframe}", 1800)
+legacy_reference/rl/hybrid_trainer.py:54867:                        self._signal_redis.xadd("signals:debug", {"data": json.dumps(conf_debug)}, maxlen=1000, approximate=True)
+legacy_reference/rl/hybrid_trainer.py:54873:                        self._signal_redis.hset(f"prediction:{symbol}:{timeframe}", mapping={
+legacy_reference/rl/hybrid_trainer.py:54877:                        self._signal_redis.expire(f"prediction:{symbol}:{timeframe}", 1800)
+legacy_reference/rl/hybrid_trainer.py:55242:                            self._signal_redis.xadd("signals:fastlane:debug", debug_record, maxlen=1000)
+legacy_reference/rl/hybrid_trainer.py:55715:                    self._signal_redis.xadd("signals:debug", {"data": json.dumps(hold_debug)}, maxlen=1000, approximate=True)
+legacy_reference/rl/hybrid_trainer.py:56538:                self._signal_redis.hset(pred_key, mapping=pred_map)
+legacy_reference/rl/hybrid_trainer.py:56539:                self._signal_redis.expire(pred_key, 1800)  # 30 min TTL (was 120s - caused deadlock)
+legacy_reference/rl/hybrid_trainer.py:56766:                    self._signal_redis.hset(pred_key, mapping={"published": 1, "timestamp": str(time.time())})
+legacy_reference/rl/hybrid_trainer.py:56767:                    self._signal_redis.expire(pred_key, 1800)  # 30 min TTL (was 120s)
+legacy_reference/rl/hybrid_trainer.py:56776:                    self._signal_redis.xadd(
+legacy_reference/rl/hybrid_trainer.py:56797:                        self._signal_redis.hset(
+legacy_reference/rl/hybrid_trainer.py:56882:                    self._signal_redis.hset(
+legacy_reference/rl/profit_bank.py:89:            self.redis.set(self._state_key, json.dumps(payload, separators=(",", ":")))
+legacy_reference/rl/profit_bank.py:174:                self.redis.set(self._last_id_key, str(newest_id))
+legacy_reference/rl/profit_bank.py:229:                self.redis.set(last_id_key, str(newest_id))
+legacy_reference/rl/proposal_bus.py:25:        redis_client.xadd(str(stream), {"data": data})
+legacy_reference/rl/proposal_bus.py:67:        redis_client.set(str(last_id_key), str(newest_id))
+legacy_reference/rl/microstructure_proactive.py:1404:            self.redis.xadd(
+legacy_reference/rl/hedge_manager_v3.py:906:                                    self.redis.delete(f"repair:batch:{batch_id}:winner_filled")
+legacy_reference/rl/hedge_manager_v3.py:1169:                            if str(symbol).upper() in set(getattr(_cfg, "TIER3_SYMBOLS", []) or []):
+legacy_reference/rl/hedge_manager_v3.py:1177:                                exclude = set(getattr(_cfg, "MANUAL_HEDGE_PAIR_CAP_EXCLUDE_SYMBOLS", []) or [])
+legacy_reference/rl/hedge_manager_v3.py:1567:                            self.redis.delete(_cd_key)
+legacy_reference/rl/hedge_manager_v3.py:2204:                            self.redis.delete(_evt_key)
+legacy_reference/rl/hedge_manager_v3.py:2208:                            self.redis.delete(_evt_key)
+legacy_reference/rl/hedge_position_manager.py:110:        return set(self.hedge_positions.keys())
+legacy_reference/rl/gpu_env_wrapper.py:22:    def reset(self, **kwargs) -> Tuple[np.ndarray, Dict[str, Any]]:
+legacy_reference/rl/gpu_env_wrapper.py:24:        obs, info = self.env.reset(**kwargs)
+legacy_reference/rl/metrics_tracker.py:76:        self.redis.rpush("rl:metrics:equity_curve", new_equity)
+legacy_reference/rl/metrics_tracker.py:77:        self.redis.rpush("rl:metrics:trade_history", json.dumps(asdict(trade)))
+legacy_reference/rl/metrics_tracker.py:103:        self.redis.hset("rl:metrics:continuous", mapping={
+legacy_reference/rl/metrics_tracker.py:120:                self.redis.hset(f"rl:metrics:{tf}", mapping={
+legacy_reference/rl/enhanced_architectures.py:560:    def reset(self):
+legacy_reference/rl/tests/test_signal_pipeline.py:14:    def hset(self, key, mapping):
+legacy_reference/rl/tests/test_signal_pipeline.py:20:    def expire(self, key, ttl):
+legacy_reference/rl/tests/test_signal_pipeline.py:24:    def xadd(self, stream, data, maxlen=None, approximate=True):
+legacy_reference/rl/tests/test_signal_pipeline.py:43:                rc.hset(key, mapping=payload)
+legacy_reference/rl/tests/test_signal_pipeline.py:70:        rc.xadd("signals:trading", {"data": json.dumps(payload)})
+legacy_reference/test_systematic_fixes.py:81:    print(f"Found {len(set_matches)} set() calls and {len(clear_matches)} clear() calls")
+legacy_reference/reset_circuit_breaker.py:39:            r.delete(status_key)
+legacy_reference/system_architecture_validation.py:201:            self.redis_client.set(test_key, "test_value")
+legacy_reference/system_architecture_validation.py:203:            self.redis_client.delete(test_key)
+legacy_reference/monitor_portfolio_asjad.py:384:        seen = set()
+legacy_reference/test_crash_escalation_direct.py:416:    orch.redis.hset("portfolio:state:primary", mapping={
+legacy_reference/test_crash_escalation_direct.py:423:    orch.redis.hset("portfolio:positions:primary", mapping={
+legacy_reference/test_crash_escalation_direct.py:449:    orch.redis.hset(f"orch:shock_state:{shock_key}", mapping={
+legacy_reference/analyze_comprehensive_features.py:80:            coinank_categories = set()
+legacy_reference/analyze_comprehensive_features.py:90:            missing_categories = set(expected_coinank_categories) - coinank_categories
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:346:                self.redis.delete(position_key)
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:420:            pipeline.hset(position_key, 'has_long', 'True' if side == 'LONG' else 'False')
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:421:            pipeline.hset(position_key, 'has_short', 'True' if side == 'SHORT' else 'False')
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:425:                pipeline.hset(position_key, 'long', json.dumps(position_data))
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:428:                pipeline.hset(position_key, 'short', json.dumps(position_data))
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:432:            pipeline.hset(position_key, 'symbol', symbol)
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:433:            pipeline.hset(position_key, 'account_id', self.account_id)
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:434:            pipeline.hset(position_key, 'last_update', timestamp)
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:435:            pipeline.hset(position_key, 'mode', mode)
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:436:            pipeline.hset(position_key, 'trader_type', 'real')
+legacy_reference/.backups/fix_signals_20251012_191330/trader.py:439:            pipeline.expire(position_key, 300)
+legacy_reference/.backups/fix_signals_20251012_191330/paper_trader.py:242:                self.redis.delete(position_key)
+legacy_reference/.backups/fix_signals_20251012_191330/paper_trader.py:316:            pipeline.hset(position_key, 'has_long', 'True' if side == 'LONG' else 'False')
+legacy_reference/.backups/fix_signals_20251012_191330/paper_trader.py:317:            pipeline.hset(position_key, 'has_short', 'True' if side == 'SHORT' else 'False')
+legacy_reference/.backups/fix_signals_20251012_191330/paper_trader.py:321:                pipeline.hset(position_key, 'long', json.dumps(position_data))
+legacy_reference/.backups/fix_signals_20251012_191330/paper_trader.py:324:                pipeline.hset(position_key, 'short', json.dumps(position_data))
+legacy_reference/.backups/fix_signals_20251012_191330/paper_trader.py:328:            pipeline.hset(position_key, 'symbol', symbol)
+legacy_reference/.backups/fix_signals_20251012_191330/paper_trader.py:329:            pipeline.hset(position_key, 'account_id', self.account_id)
+legacy_reference/.backups/fix_signals_20251012_191330/paper_trader.py:330:            pipeline.hset(position_key, 'last_update', timestamp)
+legacy_reference/.backups/fix_signals_20251012_191330/paper_trader.py:331:            pipeline.hset(position_key, 'mode', 'paper')
+legacy_reference/.backups/fix_signals_20251012_191330/paper_trader.py:332:            pipeline.hset(position_key, 'trader_type', 'paper')
+legacy_reference/.backups/fix_signals_20251012_191330/paper_trader.py:335:            pipeline.expire(position_key, 300)
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:776:        self.reset()
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:900:                    obs, _ = env.reset()
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:940:    def reset(self):
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:957:            obs, _ = env.reset()
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:1876:                self._invalid_price_logged = set()
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:7389:            self._signal_redis.xadd(
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:7472:            pipe.xadd(
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:8175:                self._signal_redis.xadd(
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:9794:            self._signal_redis.xadd(
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:9802:            self._signal_redis.hset(
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:9872:            self._signal_redis.xadd(
+legacy_reference/.backups/fix_signals_20251012_191330/hybrid_trainer.py:9880:            self._signal_redis.hset(
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:346:                self.redis.delete(position_key)
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:420:            pipeline.hset(position_key, 'has_long', 'True' if side == 'LONG' else 'False')
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:421:            pipeline.hset(position_key, 'has_short', 'True' if side == 'SHORT' else 'False')
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:425:                pipeline.hset(position_key, 'long', json.dumps(position_data))
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:428:                pipeline.hset(position_key, 'short', json.dumps(position_data))
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:432:            pipeline.hset(position_key, 'symbol', symbol)
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:433:            pipeline.hset(position_key, 'account_id', self.account_id)
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:434:            pipeline.hset(position_key, 'last_update', timestamp)
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:435:            pipeline.hset(position_key, 'mode', mode)
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:436:            pipeline.hset(position_key, 'trader_type', 'real')
+legacy_reference/.backups/fix_signals_20251012_191010/trader.py:439:            pipeline.expire(position_key, 300)
+legacy_reference/.backups/fix_signals_20251012_191010/paper_trader.py:242:                self.redis.delete(position_key)
+legacy_reference/.backups/fix_signals_20251012_191010/paper_trader.py:316:            pipeline.hset(position_key, 'has_long', 'True' if side == 'LONG' else 'False')
+legacy_reference/.backups/fix_signals_20251012_191010/paper_trader.py:317:            pipeline.hset(position_key, 'has_short', 'True' if side == 'SHORT' else 'False')
+legacy_reference/.backups/fix_signals_20251012_191010/paper_trader.py:321:                pipeline.hset(position_key, 'long', json.dumps(position_data))
+legacy_reference/.backups/fix_signals_20251012_191010/paper_trader.py:324:                pipeline.hset(position_key, 'short', json.dumps(position_data))
+legacy_reference/.backups/fix_signals_20251012_191010/paper_trader.py:328:            pipeline.hset(position_key, 'symbol', symbol)
+legacy_reference/.backups/fix_signals_20251012_191010/paper_trader.py:329:            pipeline.hset(position_key, 'account_id', self.account_id)
+legacy_reference/.backups/fix_signals_20251012_191010/paper_trader.py:330:            pipeline.hset(position_key, 'last_update', timestamp)
+legacy_reference/.backups/fix_signals_20251012_191010/paper_trader.py:331:            pipeline.hset(position_key, 'mode', 'paper')
+legacy_reference/.backups/fix_signals_20251012_191010/paper_trader.py:332:            pipeline.hset(position_key, 'trader_type', 'paper')
+legacy_reference/.backups/fix_signals_20251012_191010/paper_trader.py:335:            pipeline.expire(position_key, 300)
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:776:        self.reset()
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:900:                    obs, _ = env.reset()
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:940:    def reset(self):
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:957:            obs, _ = env.reset()
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:1876:                self._invalid_price_logged = set()
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:7389:            self._signal_redis.xadd(
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:7472:            pipe.xadd(
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:8175:                self._signal_redis.xadd(
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:9794:            self._signal_redis.xadd(
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:9802:            self._signal_redis.hset(
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:9872:            self._signal_redis.xadd(
+legacy_reference/.backups/fix_signals_20251012_191010/hybrid_trainer.py:9880:            self._signal_redis.hset(
+legacy_reference/all_data_extractor.py:38:        all_coinank_keys = list(set(all_coinank_keys))
+legacy_reference/all_data_extractor.py:86:        all_tm_keys = list(set(all_tm_keys))
+legacy_reference/all_data_extractor.py:135:        all_price_keys = list(set(all_price_keys))
+legacy_reference/all_data_extractor.py:182:        all_ob_keys = list(set(all_ob_keys))
+legacy_reference/all_data_extractor.py:229:        all_liq_keys = list(set(all_liq_keys))
+legacy_reference/all_data_extractor.py:278:        all_global_keys = list(set(all_global_keys))
+legacy_reference/debug_current_positions.py:33:    unique_symbols = list(set(symbols_with_positions))
+legacy_reference/test_position_aware_comprehensive.py:82:            redis_client.xadd(
+legacy_reference/test_position_aware_comprehensive.py:116:            redis_client.xadd(
+legacy_reference/test_position_aware_comprehensive.py:146:    redis_client.xadd(
+legacy_reference/test_position_aware_comprehensive.py:178:    redis_client.xadd(
+legacy_reference/test_signal_deconfliction.py:44:            self.redis_client.delete('wma:trainer:predictions')
+legacy_reference/test_signal_deconfliction.py:53:                    self.redis_client.delete(f'positions:{mode}:{symbol}')
+legacy_reference/test_signal_deconfliction.py:96:        self.redis_client.hset(position_key, mapping=position_data)
+legacy_reference/test_signal_deconfliction.py:97:        self.redis_client.expire(position_key, 300)
+legacy_reference/api/routes/config_routes.py:209:            updated_keys = set()
+legacy_reference/api/routes/config_routes.py:296:            updated_keys = set()
+legacy_reference/api/routes/redis_routes.py:147:        result = redis_client.delete(key)
+legacy_reference/api/routes/redis_routes.py:278:        message_id = redis_client.xadd(stream_name, data)
+legacy_reference/api/routes/redis_routes.py:320:        message_id = redis_client.xadd(stream_name, {'data': json.dumps(signal)})
+legacy_reference/api/auth.py:20:ACTIVE_TOKENS = set()
+legacy_reference/validate_tokenmetrics.py:99:    extra_endpoints = set(endpoint_data.keys()) - set(expected_tm_endpoints)
+legacy_reference/test_real_trading.py:131:            stream_id = self.redis_client.xadd("trading_signals", signal)
+legacy_reference/technical_analysis.py:493:            pipe.hset(key, mapping=indicators)
+legacy_reference/technical_analysis.py:494:            pipe.expire(key, 86400)  # Expire in 24 hours
+legacy_reference/final_system_validation.py:122:            redis_client.xadd(test_stream, {'test': 'validation'})
+legacy_reference/final_system_validation.py:123:            redis_client.delete(test_stream)
+legacy_reference/final_system_validation.py:334:            stream_id = redis_client.xadd('wma:validation:integration', test_signal)
+legacy_reference/final_system_validation.py:343:            redis_client.delete('wma:validation:integration')
+legacy_reference/diagnose_redis.py:63:                        redis.delete(key)
+legacy_reference/test_leverage_adjustment.py:51:        redis_client.lpush(signal_key, json.dumps(signal_data))
+legacy_reference/test_leverage_adjustment.py:52:        redis_client.expire(signal_key, 300)  # 5 minute expiry
+legacy_reference/scripts/audit_48h_live.py:159:    traded_symbols = set()
+legacy_reference/scripts/audit_48h_live.py:259:all_syms = sorted(set(list(symbol_pnl.keys()) + list(symbol_commission.keys())))
+legacy_reference/scripts/health_probe.py:314:            seen = set()
+legacy_reference/scripts/validate_proposal_accuracy.py:317:    print(f"stream={args.stream} raw={len(raw)} parsed={len(parsed)} symbols={len(set(x['symbol'] for x in parsed))}")
+legacy_reference/scripts/export_proof_pack_today.py:107:        lines.append(f"- Unique symbols: **{len(set((s.get('symbol') or '').upper() for s in sig if s.get('symbol')))}**\n")
+legacy_reference/scripts/trace_one_candidate.py:694:        redis_client.xadd("signals:debug", {"data": json.dumps(debug_payload)}, maxlen=1000)
+legacy_reference/scripts/why_hedged_timeline.py:343:    seen = set()
+legacy_reference/scripts/forensics_12h_correlation.py:262:    symbols: set = set()
+legacy_reference/scripts/verify_regime_pipeline.py:39:move_keys_seen = set()
+legacy_reference/scripts/regime_binary_identical_audit.py:46:ALLOWED_METADATA_KEYS = frozenset({
+legacy_reference/scripts/regime_binary_identical_audit.py:439:            for key in sorted(set(list(fp_a.keys()) + list(fp_b.keys()))):
+legacy_reference/scripts/regime_binary_identical_audit.py:485:    def xadd(self, *a, **kw): return b"0-0"
+legacy_reference/scripts/regime_binary_identical_audit.py:488:    def set(self, *a, **kw): return True
+legacy_reference/scripts/regime_binary_identical_audit.py:489:    def delete(self, *a, **kw): return 0
+legacy_reference/scripts/regime_binary_identical_audit.py:490:    def expire(self, *a, **kw): return True
+legacy_reference/scripts/verify_gpu_optimizations.py:268:            while not stop_monitoring.is_set():
+legacy_reference/scripts/verify_gpu_optimizations.py:310:        stop_monitoring.set()
+legacy_reference/scripts/comprehensive_system_audit.py:1518:            unique_sizes = len(set(round(s, 2) for s in sizes))
+legacy_reference/scripts/episode_winrate_report.py:269:    sym_filter = set([s.strip().upper() for s in str(args.symbols or "").split(",") if s.strip()])
+legacy_reference/scripts/paralysis_detectors.py:115:    all_buckets = set()
+legacy_reference/scripts/paralysis_detectors.py:128:    buckets = set()
+legacy_reference/scripts/paralysis_detectors.py:159:    margin_err_buckets = set()
+legacy_reference/scripts/validate_live_safety.py:189:        'symbols_executed': set(),
+legacy_reference/scripts/test_liq_pipeline.py:49:    fresh_symbols = set()
+legacy_reference/scripts/test_liq_pipeline.py:128:    rc |= check_levels(args.freshness, args.min_fresh_percent, set(critical_symbols), args.last_event_freshness)
+legacy_reference/scripts/symbol_carry_dashboard.py:42:    accounts = set()
+legacy_reference/scripts/portfolio_analysis.py:108:            'unique_symbols': set(),
+legacy_reference/scripts/monitor_trainer_predictions.py:220:        all_syms = set(list(props.keys()) + list(targets.keys()) + list(self._target_cache.keys()))
+legacy_reference/scripts/test_hedge_build.py:148:    msg_id = redis_client.xadd(stream_key, {'data': json.dumps(event)})
+legacy_reference/scripts/verify_system.py:229:            families = set()
+legacy_reference/scripts/ramp_step.py:47:    redis_client.set("wma:ramp_phase", phase)
+legacy_reference/scripts/ramp_step.py:52:        redis_client.xadd("wma:exec_events", {"data": json.dumps(payload, separators=(",", ":"))})
+legacy_reference/scripts/ramp_step.py:124:        redis_client.rpush(GO_NOGO_KEY, str(now_ms))
+legacy_reference/scripts/ramp_step.py:132:        redis_client.delete(GO_NOGO_KEY)
+legacy_reference/scripts/shadow_feedback_daemon.py:177:                self.redis.xadd('shadow:feedback', {'data': json.dumps(feedback)}, maxlen=50000)
+legacy_reference/ltc_trading_test.py:100:            self.redis_client.xadd(
+legacy_reference/validate_trainer.py:84:    config_set = set(config.SYMBOLS)
+legacy_reference/validate_trainer.py:86:    if expected_symbols.issubset(config_set):
+legacy_reference/enhanced_startup.py:27:        redis_client.set('emergency:cancel_orders', '1', ex=60)
+legacy_reference/enhanced_startup.py:28:        redis_client.publish('alerts:emergency', 'cancel_all_orders')
+legacy_reference/enhanced_startup.py:42:        redis_client.set('emergency:pause_trading', '1', ex=300)  # 5 minutes
+legacy_reference/enhanced_startup.py:43:        redis_client.publish('alerts:emergency', 'pause_trading')
+legacy_reference/monitor_trainer_signals.py:212:            for account_id in sorted(set(self.streams.values())):
+legacy_reference/monitor_trainer_signals.py:781:        accounts = [a for a in sorted(set(self.streams.values())) if a and a != "global"]
+legacy_reference/ingest/live_coinapi_rest.py:145:                self.redis.set(key, str(self._daily_count))
+legacy_reference/ingest/live_coinapi_rest.py:146:                self.redis.expire(key, 172800)  # 48h TTL
+legacy_reference/ingest/live_coinapi_rest.py:149:                self.redis.set("metrics:coinapi:rest:daily_used", str(self._daily_count))
+legacy_reference/ingest/live_coinapi_rest.py:153:    def _check_daily_reset(self):
+legacy_reference/ingest/live_coinapi_rest.py:163:        self._check_daily_reset()
+legacy_reference/ingest/live_coinapi_rest.py:339:                self.redis.hset(key, mapping=snapshot)
+legacy_reference/ingest/live_coinapi_rest.py:340:                self.redis.expire(key, 60)  # 1 minute TTL
+legacy_reference/ingest/live_coinapi_rest.py:389:        self._check_daily_reset()
+legacy_reference/ingest/live_coinapi_rest.py:438:            return set()  # No positions available, return empty
+legacy_reference/ingest/load_historical.py:128:            self.redis.hset(meta_key, mapping=metadata)
+legacy_reference/ingest/load_historical.py:129:            self.redis.expire(meta_key, 86400 * 7)
+legacy_reference/ingest/load_historical.py:222:        self.redis.hset(status_key, mapping=status)
+legacy_reference/ingest/load_historical.py:223:        self.redis.expire(status_key, 86400 * 7)
+legacy_reference/ingest/live_kucoin.py:114:                redis_client.incr(key)
+legacy_reference/ingest/live_kucoin.py:384:            R.set(key, json.dumps(val, separators=(",",":")))
+legacy_reference/ingest/live_kucoin.py:386:            R.set(key, str(val))
+legacy_reference/ingest/live_kucoin.py:388:            R.set(key, json.dumps(val))
+legacy_reference/ingest/live_kucoin.py:476:            redis_client.set(f"kc:ws:ticker:{symbol}", json.dumps(ticker_obj), ex=60)
+legacy_reference/ingest/live_kucoin.py:487:            redis_client.set(f"backup_feed:{symbol}", json.dumps(backup_data), ex=30)
+legacy_reference/ingest/live_kucoin.py:783:                R.set(f"orderbook:top:{s}", json.dumps(summary))
+legacy_reference/ingest/live_kucoin.py:784:                R.set(f"orderbook:bids:{s}", json.dumps(bids[:50]))  # Top 50 levels
+legacy_reference/ingest/live_kucoin.py:785:                R.set(f"orderbook:asks:{s}", json.dumps(asks[:50]))
+legacy_reference/ingest/live_kucoin.py:786:                R.set(f"heartbeat:OrderBook:{s}", ts)
+legacy_reference/ingest/live_coinapi_v1.py:254:            pipe.incr(SHARED_RATE_KEY)
+legacy_reference/ingest/live_coinapi_v1.py:255:            pipe.incr(HEALTH_KEY_V1_OHLCV_COUNT)
+legacy_reference/ingest/live_coinapi_v1.py:260:            pipe.expire(SHARED_RATE_KEY, ttl)
+legacy_reference/ingest/live_coinapi_v1.py:261:            pipe.expire(HEALTH_KEY_V1_OHLCV_COUNT, ttl)
+legacy_reference/ingest/live_coinapi_v1.py:274:            pipe.set(HEALTH_KEY_V1_CONNECTED, "1" if connected else "0")
+legacy_reference/ingest/live_coinapi_v1.py:275:            pipe.set(HEALTH_KEY_V1_LAST_OHLCV_TS, str(now_ts))
+legacy_reference/ingest/live_coinapi_v1.py:276:            pipe.set(HEALTH_KEY_V1_SYMBOLS_ACTIVE, str(len(self.symbols)))
+legacy_reference/ingest/live_coinapi_v1.py:277:            pipe.set(HEALTH_KEY_V1_ERROR_COUNT, str(self._errors_today))
+legacy_reference/ingest/live_coinapi_v1.py:348:                self.redis.hset(ohlcv_key, mapping=candle.to_redis_hash())
+legacy_reference/ingest/live_coinapi_v1.py:349:                self.redis.expire(ohlcv_key, 3600)  # 1 hour TTL
+legacy_reference/ingest/live_coinapi_v1.py:353:                self.redis.hset(normalized_key, mapping=candle.to_redis_hash())
+legacy_reference/ingest/live_coinapi_v1.py:354:                self.redis.expire(normalized_key, 3600)
+legacy_reference/ingest/live_coinapi_v1.py:368:                self.redis.set(market_key, json.dumps(market_data))
+legacy_reference/ingest/live_coinapi_v1.py:383:                self.redis.set(latest_ohlcv_key, json.dumps(latest_ohlcv_data))
+legacy_reference/ingest/live_coinapi_v1.py:404:                    self.redis.rpush(ohlcv_list_key, json.dumps(ohlcv_list_item))
+legacy_reference/ingest/live_coinapi_v1.py:406:                    self.redis.expire(ohlcv_list_key, 86400 * 30)
+legacy_reference/ingest/live_coinapi_v1.py:442:                self.redis.hset(key, mapping={
+legacy_reference/ingest/live_coinapi_v1.py:450:                self.redis.expire(key, 3600)
+legacy_reference/ingest/live_coinapi_v1.py:468:                self.redis.hset(key, mapping={
+legacy_reference/ingest/live_coinapi_v1.py:477:                self.redis.expire(key, 3600)
+legacy_reference/ingest/liquidation_bridge.py:42:SYMBOLS = set(config.SYMBOLS)
+legacy_reference/ingest/liquidation_bridge.py:53:    return r.set(key, 1, ex=DEDUP_TTL, nx=True) is True
+legacy_reference/ingest/liquidation_bridge.py:56:def publish(event: Dict[str, Any]) -> None:
+legacy_reference/ingest/liquidation_bridge.py:58:        r.xadd(STREAM, event)
+legacy_reference/ingest/liquidation_bridge.py:77:        r.set(cursor_key, start)
+legacy_reference/ingest/liquidation_bridge.py:122:        publish(event)
+legacy_reference/ingest/liquidation_bridge.py:125:    r.set(cursor_key, end + 1)
+legacy_reference/ingest/liquidation_bridge.py:189:        publish(event)
+legacy_reference/ingest/liquidation_bridge.py:195:        r.set(last_ts_key, new_max_ts)
+legacy_reference/ingest/liquidation_levels_engine.py:238:                self._heartbeat_publish()
+legacy_reference/ingest/liquidation_levels_engine.py:263:                self._heartbeat_publish()
+legacy_reference/ingest/liquidation_levels_engine.py:299:        seen = set()
+legacy_reference/ingest/liquidation_levels_engine.py:313:            pipe.hset(unified_key, mapping=mapping)
+legacy_reference/ingest/liquidation_levels_engine.py:314:            pipe.hset(latest_key, mapping=mapping)
+legacy_reference/ingest/liquidation_levels_engine.py:315:            pipe.expire(unified_key, 900)
+legacy_reference/ingest/liquidation_levels_engine.py:316:            pipe.expire(latest_key, 900)
+legacy_reference/ingest/liquidation_levels_engine.py:320:    def _heartbeat_publish(self) -> None:
+legacy_reference/ingest/liquidation_levels_engine.py:334:                pipe.hset(unified_key, mapping=mapping)
+legacy_reference/ingest/liquidation_levels_engine.py:335:                pipe.hset(latest_key, mapping=mapping)
+legacy_reference/ingest/liquidation_levels_engine.py:336:                pipe.expire(unified_key, 900)
+legacy_reference/ingest/liquidation_levels_engine.py:337:                pipe.expire(latest_key, 900)
+legacy_reference/ingest/technical_analysis.py:73:        self._backfill_attempted: set[tuple[str, str]] = set()
+legacy_reference/ingest/technical_analysis.py:399:                pipe.rpush(key, json.dumps(c))
+legacy_reference/ingest/technical_analysis.py:401:            pipe.expire(key, self.ohlcv_list_ttl_sec)
+legacy_reference/ingest/technical_analysis.py:671:            pipe.hset(key, mapping=indicators)
+legacy_reference/ingest/technical_analysis.py:672:            pipe.expire(key, 86400)  # Expire in 24 hours
+legacy_reference/ingest/live_ccxt.py:142:            self.redis.hset(key, mapping=data)
+legacy_reference/ingest/live_ccxt.py:143:            self.redis.expire(key, 60)
+legacy_reference/ingest/live_ccxt.py:193:            self.redis.hset(latest_key, mapping={k: str(v) for k, v in latest.items()})
+legacy_reference/ingest/live_ccxt.py:194:            self.redis.expire(latest_key, 300)
+legacy_reference/ingest/live_ccxt.py:210:                    self.redis.set(f"price:{symbol}", json.dumps({
+legacy_reference/ingest/live_ccxt.py:214:                    self.redis.set(f"price:last:{symbol}", str(close_price))
+legacy_reference/ingest/live_ccxt.py:218:                        self.redis.set(f"volatility:{symbol}", json.dumps({
+legacy_reference/ingest/live_ccxt.py:392:                self.redis.delete("service:status:ccxt_ingestor")
+legacy_reference/ingest/live_coinapi_wsds.py:337:        seen = set()
+legacy_reference/ingest/live_coinapi_wsds.py:361:        self.subscribed_symbols: Set[str] = set()
+legacy_reference/ingest/live_coinapi_wsds.py:442:            pipe.set("metrics:coinapi:ws:last_msg_ts", str(now))
+legacy_reference/ingest/live_coinapi_wsds.py:449:            pipe.set("metrics:coinapi:ws:bytes_today", str(self._bytes_received_today))
+legacy_reference/ingest/live_coinapi_wsds.py:450:            pipe.set("metrics:coinapi:ws:msgs_today", str(self._msgs_received_today))
+legacy_reference/ingest/live_coinapi_wsds.py:455:            pipe.expire(f"metrics:coinapi:ws:bytes:{today}", 172800)
+legacy_reference/ingest/live_coinapi_wsds.py:456:            pipe.expire(f"metrics:coinapi:ws:msgs:{today}", 172800)
+legacy_reference/ingest/live_coinapi_wsds.py:494:                pipe.set("metrics:coinapi:ws:staleness_p50_ms", str(staleness_p50))
+legacy_reference/ingest/live_coinapi_wsds.py:495:                pipe.set("metrics:coinapi:ws:staleness_p95_ms", str(staleness_p95))
+legacy_reference/ingest/live_coinapi_wsds.py:532:                self.redis.hset(self._get_symbolmap_key(internal_symbol), mapping=mapping_data)
+legacy_reference/ingest/live_coinapi_wsds.py:533:                self.redis.expire(self._get_symbolmap_key(internal_symbol), 86400)
+legacy_reference/ingest/live_coinapi_wsds.py:1348:                self.redis.hset(key, mapping=data)
+legacy_reference/ingest/live_coinapi_wsds.py:1349:                self.redis.expire(key, 120)  # 2 minute TTL
+legacy_reference/ingest/live_coinapi_wsds.py:1361:            self.redis.hset(key, mapping=snapshot.to_redis_hash())
+legacy_reference/ingest/live_coinapi_wsds.py:1362:            self.redis.expire(key, 300)  # 5 minute TTL - survives reconnection attempts
+legacy_reference/ingest/live_coinapi_wsds.py:1564:                self.subscribed_symbols = set(coinapi_symbols)
+legacy_reference/ingest/live_coinapi_wsds.py:1581:                        self.redis.set("metrics:coinapi:ws:connected", "1")
+legacy_reference/ingest/live_coinapi_wsds.py:1582:                        self.redis.set("metrics:coinapi:ws:connected_ts", str(self._connected_since_ts))
+legacy_reference/ingest/live_coinapi_wsds.py:1584:                        self.redis.set("metrics:coinapi:ws:last_connected_ts", str(self._connected_since_ts))
+legacy_reference/ingest/live_coinapi_wsds.py:1585:                        self.redis.set("metrics:coinapi:ws:subscribed_count", str(len(coinapi_symbols)))
+legacy_reference/ingest/live_coinapi_wsds.py:1614:                    self.redis.set("metrics:coinapi:ws:connected", "0")
+legacy_reference/ingest/live_coinank.py:166:                r.set("heartbeat:IngestCoinAnk", payload, ex=300)
+legacy_reference/ingest/live_coinank.py:167:                r.set("heartbeat:CoinAnkIngest", payload, ex=300)
+legacy_reference/ingest/live_coinank.py:168:                r.set("heartbeat:writer:coinank", payload, ex=300)  # Required by live5.md
+legacy_reference/ingest/live_coinank.py:194:            r.set("heartbeat:CoinAnkIngest", payload, ex=300)
+legacy_reference/ingest/live_coinank.py:195:            r.set("heartbeat:IngestCoinAnk", payload, ex=300)
+legacy_reference/ingest/live_coinank.py:196:            r.set("heartbeat:writer:coinank", payload, ex=300)  # Required by live5.md
+legacy_reference/ingest/live_coinank.py:205:                r.set("debug:coinank_ingest:status", json.dumps(debug_status), ex=3600)
+legacy_reference/ingest/live_coinank.py:328:                r.xadd(VAL_STREAM_KEY, payload, maxlen=5000)
+legacy_reference/ingest/live_coinank.py:329:                r.hset(VAL_LATEST_HASH, mapping=payload)
+legacy_reference/ingest/live_coinank.py:905:        if not r.set(seen_key, 1, nx=True, ex=86400):
+legacy_reference/ingest/live_coinank.py:909:        r.lpush(qkey, json.dumps(task))
+legacy_reference/ingest/live_coinank.py:1294:            r.set(f"coinank:{safe_key}:last", json.dumps(rec))
+legacy_reference/ingest/live_coinank.py:1297:                r.expire(f"coinank:{safe_key}:last", min_ttl)
+legacy_reference/ingest/live_coinank.py:1305:                r.set(f"coinank:{key}:last", json.dumps(rec))
+legacy_reference/ingest/live_coinank.py:1307:                    r.expire(f"coinank:{key}:last", max(300, _tf_seconds(interval) * 2))
+legacy_reference/ingest/live_coinank.py:1365:                    r.set(global_raw_key, json.dumps({"ts": ts, "endpoint": key, "data": data}))
+legacy_reference/ingest/live_coinank.py:1368:                    r.set(global_features_key, json.dumps(flattened_features))
+legacy_reference/ingest/live_coinank.py:1369:                    r.set(f"meta:coinank:last_update", ts)
+legacy_reference/ingest/live_coinank.py:1464:                        r.set(latest_key, json.dumps(feature_record))
+legacy_reference/ingest/live_coinank.py:1466:                            r.expire(latest_key, max(300, _tf_seconds(interval_param) * 2))
+legacy_reference/ingest/live_coinank.py:1483:                            r.set(ep_latest_key, json.dumps(feature_record))
+legacy_reference/ingest/live_coinank.py:1485:                                r.expire(ep_latest_key, max(300, _tf_seconds(interval_param) * 2))
+legacy_reference/ingest/live_coinank.py:1496:                                    r.set(ep_normalized_key, json.dumps(ep_normalized_features))
+legacy_reference/ingest/live_coinank.py:1498:                                        r.expire(ep_normalized_key, max(300, _tf_seconds(interval_param) * 2))
+legacy_reference/ingest/live_coinank.py:1513:                                r.set(normalized_key, json.dumps(normalized_features))
+legacy_reference/ingest/live_coinank.py:1515:                                    r.expire(normalized_key, max(300, _tf_seconds(interval_param) * 2))
+legacy_reference/ingest/live_coinank.py:1527:                        r.set(flat_key, json.dumps({
+legacy_reference/ingest/live_coinank.py:1537:                            r.expire(flat_key, max(300, _tf_seconds(interval_param) * 2))
+legacy_reference/ingest/live_coinank.py:1546:                            r.set(ep_flat_key, json.dumps({
+legacy_reference/ingest/live_coinank.py:1557:                                r.expire(ep_flat_key, max(300, _tf_seconds(interval_param) * 2))
+legacy_reference/ingest/live_coinank.py:1575:                        r.set(series_key, json.dumps(series_arr))
+legacy_reference/ingest/live_coinank.py:1603:                        r.set(flat_key, json.dumps(flat_payload))
+legacy_reference/ingest/live_coinank.py:1686:                                        r.set(series_key_base, json.dumps(arr))
+legacy_reference/ingest/live_coinank.py:1696:                                        r.set(series_key_base, json.dumps(arr))
+legacy_reference/ingest/live_coinank.py:1706:                                        r.set(combo_key, json.dumps(arr))
+legacy_reference/ingest/live_coinank.py:1730:                                        r.set(series_key_base, json.dumps(arr))
+legacy_reference/ingest/live_coinank.py:1758:                                    r.set(series_key_base, json.dumps(arr))
+legacy_reference/ingest/live_coinank.py:1808:                                    r.set(liq_breakdown_key, json.dumps(breakdown_arr))
+legacy_reference/ingest/live_coinank.py:1819:                            r.set(series_key_base, json.dumps(arr))
+legacy_reference/ingest/live_coinank.py:1937:            got = r.set(lock_key, str(_now_ms()), nx=True, ex=120)
+legacy_reference/ingest/live_coinank.py:1979:                    r.set(_series_cursor_key(ep, p), end_ms)
+legacy_reference/ingest/live_coinank.py:1995:                r.set('coinank:endpoints', json.dumps(list(WORKING_COINANK_ENDPOINTS.keys())))
+legacy_reference/ingest/live_coinank.py:1999:                r.set('coinank:metrics', json.dumps({k:{**v, 'min_iv': _endpoint_min_interval.get(k, _BASE_MIN_INTERVAL)} for k,v in _metrics.items()}))
+legacy_reference/ingest/live_coinank.py:2118:                        r.lpush('coinank:call_log', json.dumps({'ts': _now_ms(), 'endpoint': key, 'status': 'error', 'params': {k:p[k] for k in list(p)[:4]}, 'code': 'non_200'}))
+legacy_reference/ingest/live_coinank.py:2134:                                r.set(sid, int(p['endTime']))
+legacy_reference/ingest/live_coinank.py:2141:                            r.lpush('coinank:call_log', json.dumps({'ts': _now_ms(), 'endpoint': key, 'status': 'empty', 'params': {k:p[k] for k in list(p)[:4]}}))
+legacy_reference/ingest/live_coinank.py:2156:                            r.set(_series_cursor_key(key, p), end_ms)
+legacy_reference/ingest/live_coinank.py:2165:                            r.lpush('coinank:call_log', json.dumps({'ts': _now_ms(), 'endpoint': key, 'status': 'success', 'params': {k:p[k] for k in list(p)[:4]}}))
+legacy_reference/ingest/live_coinank.py:2173:                        r.set(f"coinank:basic:{key}", json.dumps({"fetched_at": _now_ms(), "data": data}))
+legacy_reference/ingest/live_coinank.py:2196:                r.set('ingest:coinank:last_ts', now)
+legacy_reference/ingest/live_coinank.py:2197:                r.set(f'coinank:last_endpoint', key)
+legacy_reference/ingest/live_coinank.py:2198:                r.set('heartbeat:IngestCoinAnk', json.dumps({"ts_ms": now, "service": "coinank_ingestor"}, separators=(",", ":")), ex=300)
+legacy_reference/ingest/live_coinank.py:2201:                        r.expire('lock:live_coinank', 120)
+legacy_reference/ingest/live_coinank.py:2213:                r.set('coinank:metrics', json.dumps(export))
+legacy_reference/ingest/live_coinank.py:2220:                r.hset('stats:coinank:writer', mapping=stats)
+legacy_reference/ingest/live_coinank.py:2249:                    r.set('proc:last_error:IngestCoinAnk', traceback.format_exc())
+legacy_reference/ingest/live_coinank.py:2261:                    r.delete('lock:live_coinank')
+legacy_reference/ingest/live_coinank.py:2287:            r.set("heartbeat:IngestCoinAnk", _seed, ex=300)
+legacy_reference/ingest/live_coinank.py:2288:            r.set("heartbeat:CoinAnkIngest", _seed, ex=300)
+legacy_reference/ingest/live_coinank_global_aggregator.py:90:        return bool(r.set(lock_key, str(time.time()), nx=True, ex=max(5, int(ttl_sec))))
+legacy_reference/ingest/live_coinank_global_aggregator.py:97:        r.expire(lock_key, max(5, int(ttl_sec)))
+legacy_reference/ingest/live_coinank_global_aggregator.py:111:    r.set(key, json.dumps(payload))
+legacy_reference/ingest/live_coinank_global_aggregator.py:113:        r.expire(key, int(ttl_sec))
+legacy_reference/ingest/live_coinank_global_aggregator.py:280:        r.set("meta:coinank_global:last_update", str(now_ms))
+legacy_reference/ingest/live_coinank_global_aggregator.py:282:            r.expire("meta:coinank_global:last_update", int(ttl_sec))
+legacy_reference/ingest/ccxt_backfill.py:123:        existing_timestamps = set()
+legacy_reference/ingest/base_ingestor.py:50:                self.redis_client.set(
+legacy_reference/ingest/cdd_historical.py:565:    base_intervals_needed = set()
+legacy_reference/ingest/cdd_historical.py:856:        r.set(key, json.dumps(records))
+legacy_reference/ingest/cdd_historical.py:857:        r.expire(key, 86400 * 7)  # 7 day TTL
+legacy_reference/ingest/live_binance_liquidations.py:12:                                r.set(redis_key, json.dumps(agg))
+legacy_reference/ingest/live_binance_liquidations.py:185:                r.hincrby("debug:binance_liquidations:counters", key, increment)
+legacy_reference/ingest/live_binance_liquidations.py:198:            r.set('heartbeat:IngestLiquidations', json.dumps(heartbeat_data))
+legacy_reference/ingest/live_binance_liquidations.py:201:                r.set("debug:binance_liquidations:status", json.dumps({
+legacy_reference/ingest/live_binance_liquidations.py:348:        r.set(test_key, "startup_test", ex=10)
+legacy_reference/ingest/live_binance_liquidations.py:368:            got = r.set(_lock_key, str(_now_ms()), nx=True, ex=180)
+legacy_reference/ingest/live_binance_liquidations.py:439:                                r.set(ERROR_KEY, f"recv_error: {e}")
+legacy_reference/ingest/live_binance_liquidations.py:543:                            r.lpush(RAW_KEY, json.dumps(last_evt))
+legacy_reference/ingest/live_binance_liquidations.py:553:                                r.lpush(pk, json.dumps(last_evt))
+legacy_reference/ingest/live_binance_liquidations.py:596:                                r.set(redis_key, json.dumps(agg))
+legacy_reference/ingest/live_binance_liquidations.py:619:                                            r.set(f"{REDIS_PREFIX_V2}liq:agg:{w}s", json.dumps(v2_payload))
+legacy_reference/ingest/live_binance_liquidations.py:628:                                        r.set(f"{redis_key}:{sym_s}", json.dumps(sdata))
+legacy_reference/ingest/live_binance_liquidations.py:661:                                                r.set(rec_key, json.dumps(feat_payload))
+legacy_reference/ingest/live_binance_liquidations.py:667:                                                r.set(
+legacy_reference/ingest/live_binance_liquidations.py:718:                                    r.set(f"{REDIS_PREFIX_V2}spoof:score", json.dumps(payload))
+legacy_reference/ingest/live_binance_liquidations.py:727:                            r.expire('lock:live_binance_liq', 180)
+legacy_reference/ingest/live_binance_liquidations.py:739:                    r.set(ERROR_KEY, traceback.format_exc())
+legacy_reference/ingest/live_binance_liquidations.py:756:            r.set("debug:binance_liquidations:last_session", json.dumps({
+legacy_reference/ingest/live_binance_liquidations.py:774:                    r.delete('lock:live_binance_liq')
+legacy_reference/ingest/live_tokenmetrics.py:165:            r.delete(key)
+legacy_reference/ingest/live_tokenmetrics.py:193:            r.delete(key)
+legacy_reference/ingest/live_tokenmetrics.py:296:            deleted = redis_client.delete(*keys)
+legacy_reference/ingest/live_tokenmetrics.py:306:            deleted_runs = redis_client.delete(*last_run_keys)
+legacy_reference/ingest/live_tokenmetrics.py:423:        self.r.set(f"tm:last_run:{key}", time.time())
+legacy_reference/ingest/live_tokenmetrics.py:428:            self.r.delete("tm:universe")
+legacy_reference/ingest/live_tokenmetrics.py:430:                self.r.sadd("tm:universe", *UNIVERSE)
+legacy_reference/ingest/live_tokenmetrics.py:431:            self.r.set("tokenmetrics:universe", json.dumps(UNIVERSE))
+legacy_reference/ingest/live_tokenmetrics.py:433:            self.r.set("tm:tooltips", json.dumps(TOOLTIPS))
+legacy_reference/ingest/live_tokenmetrics.py:455:        pipe.lpush(list_key, json.dumps(sanitized_item))
+legacy_reference/ingest/live_tokenmetrics.py:460:        pipe.set("heartbeat:writer:tokenmetrics", ts)
+legacy_reference/ingest/live_tokenmetrics.py:484:                            self.r.set(normalized_key, json.dumps(normalized))
+legacy_reference/ingest/live_tokenmetrics.py:493:                            self.r.set(normalized_key, json.dumps(normalized))
+legacy_reference/ingest/live_tokenmetrics.py:555:            self.r.set(unified_key, json.dumps(sanitized_unified))
+legacy_reference/ingest/live_tokenmetrics.py:556:            self.r.set(f"meta:tokenmetrics:last_update", ts)
+legacy_reference/ingest/live_tokenmetrics.py:598:            self.r.set(global_key, json.dumps(sanitized_global))
+legacy_reference/ingest/live_tokenmetrics.py:599:            self.r.set(global_raw_key, json.dumps(sanitized_raw_data))
+legacy_reference/ingest/live_tokenmetrics.py:773:                self.r.hset("tm:token_map", base_sym.upper(), int(tid))
+legacy_reference/ingest/live_tokenmetrics.py:845:    r.set("heartbeat:writer:tokenmetrics", now_ms())
+legacy_reference/ingest/live_tokenmetrics.py:847:    r.set("tm:tooltips", json.dumps(TOOLTIPS))
+legacy_reference/ingest/live_tokenmetrics.py:878:            r.hset("tm:health:stats", mapping=health_mapping)
+legacy_reference/ingest/live_tokenmetrics.py:880:            r.set("heartbeat:writer:tokenmetrics", now_ms())
+legacy_reference/ingest/live_tokenmetrics.py:896:                r.set("heartbeat:writer:tokenmetrics", now_ms())
+legacy_reference/ingest/live_binance.py:589:                                        r.hset(
+legacy_reference/ingest/live_binance.py:607:                                        r.expire(f"ob:binance:depth:{cfg}", 60)
+legacy_reference/ingest/live_binance.py:610:                                    r.set(
+legacy_reference/ingest/live_binance.py:629:                                    r.set(f"orderbook:bids:{cfg}", json.dumps(top_bids0))
+legacy_reference/ingest/live_binance.py:630:                                    r.set(f"orderbook:asks:{cfg}", json.dumps(top_asks0))
+legacy_reference/ingest/live_binance.py:631:                                    r.set(f"heartbeat:OrderBook:{cfg}", ts0)
+legacy_reference/ingest/live_binance.py:745:                                r.hset(
+legacy_reference/ingest/live_binance.py:763:                                r.expire(f"ob:binance:depth:{cfg}", 60)
+legacy_reference/ingest/live_binance.py:766:                            r.set(
+legacy_reference/ingest/live_binance.py:785:                            r.set(f"orderbook:bids:{cfg}", json.dumps(top_bids))
+legacy_reference/ingest/live_binance.py:786:                            r.set(f"orderbook:asks:{cfg}", json.dumps(top_asks))
+legacy_reference/ingest/live_binance.py:787:                            r.set(f"heartbeat:OrderBook:{cfg}", ts)
+legacy_reference/ingest/live_binance.py:895:                            redis_client.set(f"latest:binance:mark_price:{sym}", json.dumps(pi_payload))
+legacy_reference/ingest/live_binance.py:896:                            redis_client.set(f"latest:binance:index_price:{sym}", json.dumps(pi_payload))
+legacy_reference/ingest/live_binance.py:897:                            redis_client.set(f"latest:binance:premium_index:{sym}", json.dumps(pi_payload))
+legacy_reference/ingest/live_binance.py:936:                            redis_client.set(f"orderbook:top:{sym}", json.dumps(summary))
+legacy_reference/ingest/live_binance.py:937:                            redis_client.set(f"heartbeat:OrderBook:{sym}", ts_ms)
+legacy_reference/ingest/live_binance.py:1029:        redis_client.hset(f"msnap:binance_tape:{symbol}", mapping=payload)
+legacy_reference/ingest/live_binance.py:1030:        redis_client.expire(f"msnap:binance_tape:{symbol}", 120)
+legacy_reference/ingest/live_binance.py:1293:            redis_client.set(f"market:{symbol}:{timeframe}", json.dumps(bar))
+legacy_reference/ingest/live_binance.py:1294:            redis_client.set(
+legacy_reference/ingest/live_binance.py:1316:                redis_client.rpush(ohlcv_list_key, json.dumps(ohlcv_list_item))
+legacy_reference/ingest/live_binance.py:1318:                redis_client.expire(ohlcv_list_key, 86400 * 30)
+legacy_reference/ingest/live_binance.py:1331:                redis_client.set(f"price:{symbol}", json.dumps({
+legacy_reference/ingest/live_binance.py:1335:                redis_client.set(f"price:last:{symbol}", str(close_price))
+legacy_reference/ingest/live_binance.py:1339:                    redis_client.set(f"volatility:{symbol}", json.dumps({
+legacy_reference/ingest/live_binance.py:1358:                redis_client.hset(f"ccxt:ticker:{symbol}", mapping=ticker_data)
+legacy_reference/ingest/live_binance.py:1359:                redis_client.expire(f"ccxt:ticker:{symbol}", 60)
+legacy_reference/ingest/live_binance.py:1372:                redis_client.hset(f"ccxt:latest:{symbol}:{timeframe}", mapping=latest_data)
+legacy_reference/ingest/live_binance.py:1373:                redis_client.expire(f"ccxt:latest:{symbol}:{timeframe}", 300)
+legacy_reference/ingest/live_binance.py:1485:            redis_client.set('safe_mode:binance', json.dumps(safe_mode_data), ex=300)  # 5 min expiry
+legacy_reference/ingest/live_binance.py:1488:            redis_client.publish('alerts:safe_mode', json.dumps({
+legacy_reference/ingest/live_binance.py:1508:            redis_client.lpush('log:safe_mode_events', json.dumps(safe_mode_log))
+legacy_reference/ingest/live_binance.py:1521:            redis_client.delete('safe_mode:binance')
+legacy_reference/ingest/live_binance.py:1524:            redis_client.publish('alerts:safe_mode', json.dumps({
+legacy_reference/ingest/live_binance.py:1540:            redis_client.lpush('log:safe_mode_events', json.dumps(safe_mode_log))
+legacy_reference/ingest/live_binance.py:1602:                        redis_client.lpush('alerts:price_divergence', json.dumps(divergence_alert))
+legacy_reference/ingest/live_binance.py:1713:                redis_client.set(f"instant:{symbol}:spread", json.dumps(instant_data))
+legacy_reference/ingest/live_binance.py:1714:                redis_client.set(f"latest:binance:depth:{symbol}:20", json.dumps({
+legacy_reference/ingest/live_binance.py:1962:            got = r.set(_lock_key, str(int(time.time()*1000)), nx=True, ex=120)
+legacy_reference/ingest/live_binance.py:2183:                                    r.set(f"market:{sym}:oi", json.dumps(oi))
+legacy_reference/ingest/live_binance.py:2207:                                        r.set(f"latest:binance:oi:{sym}:spot", json.dumps({
+legacy_reference/ingest/live_binance.py:2214:                                        r.set(f"latest:binance:oi:{sym}", json.dumps({
+legacy_reference/ingest/live_binance.py:2233:                                    r.set(f"market:{sym}:premium_index", json.dumps(pi))
+legacy_reference/ingest/live_binance.py:2273:                                        r.set(f"latest:binance:mark_price:{sym}", json.dumps(payload_pi))
+legacy_reference/ingest/live_binance.py:2274:                                        r.set(f"latest:binance:index_price:{sym}", json.dumps(payload_pi))
+legacy_reference/ingest/live_binance.py:2275:                                        r.set(f"latest:binance:premium_index:{sym}", json.dumps(payload_pi))
+legacy_reference/ingest/live_binance.py:2287:                                    r.set(f"market:{sym}:funding", json.dumps(fr[-1]))
+legacy_reference/ingest/live_binance.py:2305:                                        r.set(f"latest:binance:funding:{sym}:8h", json.dumps(payload_funding))
+legacy_reference/ingest/live_binance.py:2307:                                        r.set(f"latest:binance:funding:{sym}", json.dumps(payload_funding))
+legacy_reference/ingest/live_binance.py:2335:                                r.set(f"market:{sym}:{tf}", json.dumps(bar))
+legacy_reference/ingest/live_binance.py:2338:                                    r.set(
+legacy_reference/ingest/live_binance.py:2378:                                        r.set(f"price:{sym}", json.dumps({
+legacy_reference/ingest/live_binance.py:2383:                                        r.set(f"price:last:{sym}", str(c))
+legacy_reference/ingest/live_binance.py:2384:                                        r.set(f"volatility:{sym}", json.dumps({
+legacy_reference/ingest/live_binance.py:2387:                                        r.set(f"spark:{sym}", json.dumps(buf))
+legacy_reference/ingest/live_binance.py:2455:                r.set('ingest:binance:last_ts', now_ms)
+legacy_reference/ingest/live_binance.py:2458:                r.set('heartbeat:IngestBinance', now_ms)
+legacy_reference/ingest/live_binance.py:2462:                        r.expire('lock:live_binance', 120)
+legacy_reference/ingest/live_binance.py:2507:                    r.set('proc:last_error:IngestBinance', err)
+legacy_reference/ingest/live_alphavantage_news.py:83:    R.expire("av:rate:minute", 60)
+legacy_reference/ingest/live_alphavantage_news.py:86:    R.expire("av:rate:hour", 3600)
+legacy_reference/ingest/live_alphavantage_news.py:89:    R.expire("av:rate:day", 86400)
+legacy_reference/ingest/live_alphavantage_news.py:149:        R.hset("av:health:last_err", {
+legacy_reference/ingest/live_alphavantage_news.py:159:        R.hset("av:health:last_err", {
+legacy_reference/ingest/live_alphavantage_news.py:167:    R.set("av:health:last_ok_ts", int(time.time() * 1000))
+legacy_reference/ingest/live_alphavantage_news.py:168:    R.set("heartbeat:AlphaVantage", int(time.time() * 1000))
+legacy_reference/ingest/live_alphavantage_news.py:180:        R.set("av:status", json.dumps({
+legacy_reference/ingest/live_alphavantage_news.py:201:            R.set("heartbeat:AlphaVantage", int(time.time() * 1000))
+legacy_reference/ingest/live_alphavantage_news.py:202:            R.set("av:status", json.dumps({
+legacy_reference/ingest/live_alphavantage_news.py:222:            R.set("heartbeat:AlphaVantage", int(time.time() * 1000))
+legacy_reference/ingest/live_alphavantage_news.py:226:            R.hset("av:health:last_err", {
+legacy_reference/ingest/live_alphavantage_news.py:244:        R.set("av:status", json.dumps({
+legacy_reference/ingest/live_alphavantage_news.py:251:        R.set("av:status", json.dumps({
+legacy_reference/ingest/ccxt_historical.py:362:                r.hincrby("debug:ccxt_realtime:counters", key, increment)
+legacy_reference/ingest/ccxt_historical.py:454:            r.set('heartbeat:ccxt_realtime', heartbeat_ts)
+legacy_reference/ingest/ccxt_historical.py:458:                r.set("debug:ccxt_realtime:status", json.dumps({
+legacy_reference/ingest/ccxt_historical.py:516:        r.set(test_key, "startup_test", ex=10)
+legacy_reference/ingest/ccxt_historical.py:739:        redis_client.set(individual_key, json.dumps(feat_obj), ex=3600)
+legacy_reference/ingest/ccxt_historical.py:751:        redis_client.set(correlator_key, json.dumps(correlator_data), ex=3600)
+legacy_reference/ingest/ccxt_historical.py:761:        redis_client.lpush(list_key, json.dumps(list_entry))
+legacy_reference/ingest/ccxt_historical.py:763:        redis_client.expire(list_key, 3600)
+legacy_reference/ingest/ccxt_historical.py:775:        redis_client.set(chart_key, json.dumps(chart_data), ex=3600)
+legacy_reference/ingest/ccxt_historical.py:1045:            redis_client.set('ccxt:realtime:stats', json.dumps(stats), ex=3600)
+legacy_reference/ingest/ccxt_historical.py:1056:            redis_client.set("debug:ccxt_realtime:last_session", json.dumps({
+legacy_reference/ingest/ccxt_historical.py:1202:                    r.set("debug:ccxt_realtime:final_shutdown", json.dumps({
+legacy_reference/ingest/realtime_price_provider.py:783:            pipe.set(f"price:realtime:{symbol}", price_data.to_json())
+legacy_reference/ingest/realtime_price_provider.py:784:            pipe.expire(f"price:realtime:{symbol}", 60)  # 60s TTL
+legacy_reference/ingest/realtime_price_provider.py:791:            pipe.set(f"price:{symbol}", json.dumps(legacy))
+legacy_reference/ingest/realtime_price_provider.py:794:            pipe.hset(f"metrics:price_provider:{symbol}", mapping={
+legacy_reference/ingest/realtime_price_provider.py:801:            pipe.expire(f"metrics:price_provider:{symbol}", 300)
+legacy_reference/quick_validate.py:67:        r.xadd(
+legacy_reference/test_leverage_proper.py:54:            redis_client.xadd(
+legacy_reference/test_leverage_proper.py:124:    redis_client.xadd(
+legacy_reference/debug_ppo_pipeline.py:75:        unique_types = set()
+legacy_reference/test_monitors.py:75:            stream_id = self.redis_client.xadd('wma:trainer:predictions', signal)
+legacy_reference/test_monitors.py:111:            self.redis_client.xadd('wma:trader:signals_received', log_data)
+legacy_reference/validate_coinank.py:98:    extra_endpoints = set(endpoint_data.keys()) - set(expected_coinank_endpoints)
+legacy_reference/audit_binance_last_48h.py:253:	sym_filter = set(symbols or [])
+legacy_reference/audit_binance_last_48h.py:400:			symbols = set()
+legacy_reference/audit_binance_last_48h.py:401:			other_types = set()
+legacy_reference/audit_binance_last_48h.py:486:			seen_force = set()
+legacy_reference/audit_binance_last_48h.py:534:				seen = set()
+legacy_reference/test_leverage_usage.py:46:    redis_client.xadd(
+legacy_reference/test_leverage_usage.py:86:    redis_client.xadd(
+legacy_reference/test_stop_loss_take_profit.py:72:        redis_client.xadd(
+legacy_reference/test_stop_loss_take_profit.py:104:    redis_client.xadd(
+legacy_reference/test_stop_loss_take_profit.py:144:        redis_client.xadd(
+legacy_reference/test_stop_loss_take_profit.py:175:    redis_client.xadd(
+legacy_reference/test_stop_loss_take_profit.py:223:    redis_client.xadd(
+legacy_reference/IMPLEMENT_ALL_FEATURES.py:97:            redis_client.set('heartbeat:Trainer', str(current_time_ms))
+legacy_reference/telegram_alerts.py:438:            self.redis.xadd(
+legacy_reference/telegram_alerts.py:747:                            self.redis.xadd(
+legacy_reference/telegram_alerts.py:1968:                    symbols_shown = set()
+legacy_reference/telegram_alerts.py:2089:                        dedupe_reserved = bool(self.redis.set(dedupe_key, "1", ex=dedupe_ttl_sec, nx=True))
+legacy_reference/telegram_alerts.py:2131:                    self.redis.delete(dedupe_key)
+legacy_reference/Documentation/Audits/scripts/audit_012426_session_changes.py:419:            accounts = set(str(p.get("account_id", "")).lower() for p in proofs)
+legacy_reference/Documentation/Audits/scripts/critical_health_monitor.py:284:            symbols_with_positions = set()
+legacy_reference/Documentation/Audits/scripts/critical_health_monitor.py:535:            sources = set()
+legacy_reference/test_real_integration.py:101:            while not self.stop_event.is_set():
+legacy_reference/test_real_integration.py:123:                    if not self.stop_event.is_set():
+legacy_reference/test_real_integration.py:169:                stream_id = self.redis_client.xadd("trading_signals", test_signal)
+legacy_reference/test_real_integration.py:262:        self.stop_event.set()
+legacy_reference/test_real_integration.py:285:        self.stop_event.set()
+legacy_reference/test_realtime_trainer_integration.py:83:        initial_signal_keys = set(self.redis_client.keys("signal:*:*"))
+legacy_reference/test_realtime_trainer_integration.py:90:            current_signal_keys = set(self.redis_client.keys("signal:*:*"))
+legacy_reference/test_comprehensive_talib.py:44:redis_client.hset(key, mapping=features)
+legacy_reference/test_comprehensive_talib.py:45:redis_client.expire(key, 3600)
+legacy_reference/test_trading_signals.py:75:        signal_id = redis_client.xadd(stream_name, {"data": json.dumps(signal)})
+legacy_reference/fix_feature_pipeline_performance.py:115:                r.hset(unified_key, mapping=data)
+legacy_reference/test_trainer_realtime_validation.py:35:    symbols_processed = set()
+legacy_reference/test_trainer_realtime_validation.py:36:    timeframes_processed = set()
+legacy_reference/validate_implementation.py:122:        result = env.reset()
+legacy_reference/validate_production_system.py:197:                pipe.set(key, f"test_value_{i}")
+legacy_reference/validate_production_system.py:209:                pipe.delete(key)
+legacy_reference/validate_production_ta_code.py:210:                missing = set(expected_flags) - set(found_flags)
+legacy_reference/ohlcv_resampler_hotfix.py:60:        TIMEFRAMES = [tf for tf in cfg_tfs if tf in set(DEFAULT_TIMEFRAMES)]
+legacy_reference/ohlcv_resampler_hotfix.py:148:            self.redis.hset(unified_key, mapping=ohlcv)
+legacy_reference/ohlcv_resampler_hotfix.py:153:            self.redis.expire(unified_key, expiry)
+legacy_reference/ohlcv_resampler_hotfix.py:190:            self.redis.set('features:resampler:last_run_ms', now_ms)
+legacy_reference/ohlcv_resampler_hotfix.py:192:                self.redis.set('features:resampler:last_success_ms', now_ms)
+legacy_reference/validate_ubuntu_setup.py:161:        r.set('test_key', 'test_value')
+legacy_reference/validate_ubuntu_setup.py:163:        r.delete('test_key')
+legacy_reference/monitor_system_memory.py:376:        _oom_score_set_for: set = set()
+legacy_reference/utils/binance_rate_limiter.py:239:        pipe.hset(BAN_KEY, mapping=mapping)
+legacy_reference/utils/binance_rate_limiter.py:240:        pipe.expire(BAN_KEY, ttl_seconds)
+legacy_reference/utils/binance_rate_limiter.py:242:        pipe.lpush(f"{BAN_KEY}:events", str(event))
+legacy_reference/utils/binance_rate_limiter.py:244:        pipe.expire(f"{BAN_KEY}:events", ttl_seconds)
+legacy_reference/utils/binance_rate_limiter.py:269:        redis_client.delete(BAN_KEY)
+legacy_reference/utils/healthbeat.py:29:                redis_client.set(key, str(current_time))
+legacy_reference/utils/healthbeat.py:32:                redis_client.expire(key, expire_time)
+legacy_reference/utils/healthbeat.py:54:        redis_client.hset(key, mapping=data)
+legacy_reference/utils/healthbeat.py:55:        redis_client.expire(key, 3600)  # Keep for 1 hour
+legacy_reference/utils/symbol_manager.py:131:        lock_acquired = redis_client.set(SYMBOLS_LOCK_KEY, "1", nx=True, ex=30)
+legacy_reference/utils/symbol_manager.py:141:            redis_client.set(SYMBOLS_KEY, json.dumps(symbols))
+legacy_reference/utils/symbol_manager.py:142:            redis_client.set(SYMBOLS_LAST_UPDATE_KEY, json.dumps({
+legacy_reference/utils/symbol_manager.py:146:                "added": list(set(symbols) - set(prev_symbols)),
+legacy_reference/utils/symbol_manager.py:147:                "removed": list(set(prev_symbols) - set(symbols)),
+legacy_reference/utils/symbol_manager.py:158:            redis_client.lpush(SYMBOLS_HISTORY_KEY, json.dumps(history_entry))
+legacy_reference/utils/symbol_manager.py:162:            redis_client.publish("config:symbols:updated", json.dumps({
+legacy_reference/utils/symbol_manager.py:172:            redis_client.delete(SYMBOLS_LOCK_KEY)
+legacy_reference/utils/symbol_manager.py:183:    current = set(get_active_symbols(redis_client))
+legacy_reference/utils/symbol_manager.py:184:    to_add = set(s.upper().strip() for s in symbols_to_add if s)
+legacy_reference/utils/symbol_manager.py:215:    current = set(get_active_symbols(redis_client))
+legacy_reference/utils/symbol_manager.py:216:    to_remove = set(s.upper().strip() for s in symbols_to_remove if s)
+legacy_reference/utils/symbol_manager.py:494:    seen = set()
+legacy_reference/utils/decision_bus.py:64:        return redis_client.xadd(
+legacy_reference/utils/signal_publish.py:45:    msg_id = redis_client.xadd(stream, msg, maxlen=maxlen, approximate=approximate)
+legacy_reference/utils/signal_publish.py:111:    msg_id = redis_client.xadd(stream, out, maxlen=maxlen, approximate=approximate)
+legacy_reference/utils/unified_position_loader.py:194:            sym_set = redis_client.smembers(f"positions:live:symbols:{account_id}") or set()
+legacy_reference/utils/metrics.py:8:def incr(r, key: str, n: int = 1) -> None:
+legacy_reference/utils/metrics.py:10:        r.hincrby(METRICS_KEY, key, int(n))
+legacy_reference/utils/metrics.py:11:        r.hset(METRICS_KEY, "last_update_ms", int(time.time() * 1000))
+legacy_reference/utils/metrics.py:18:        r.hset(METRICS_KEY, key, str(value))
+legacy_reference/utils/metrics.py:19:        r.hset(METRICS_KEY, "last_update_ms", int(time.time() * 1000))
+legacy_reference/utils/ensemble_diagnostics.py:48:        r.xadd(DIAG_STREAM, payload, maxlen=10000, approximate=True)
+legacy_reference/utils/data_manager.py:30:        self.redis.hset(key, mapping=data)
+legacy_reference/utils/data_manager.py:31:        self.redis.expire(key, 86400)  # 24 hours
+legacy_reference/utils/data_manager.py:36:        self.redis.hset(key, mapping=data)
+legacy_reference/utils/data_manager.py:37:        self.redis.expire(key, 300)  # 5 minutes
+legacy_reference/utils/data_manager.py:42:        self.redis.lpush(key, json.dumps(data))
+legacy_reference/utils/data_manager.py:44:        self.redis.expire(key, 3600)  # 1 hour
+legacy_reference/utils/data_manager.py:49:        self.redis.lpush(key, json.dumps(data))
+legacy_reference/utils/data_manager.py:51:        self.redis.expire(key, 86400)  # 24 hours
+legacy_reference/utils/data_manager.py:66:            self.redis.hset(key, mapping=data)
+legacy_reference/utils/data_manager.py:68:            self.redis.set(key, json.dumps(data))
+legacy_reference/utils/data_manager.py:69:        self.redis.expire(key, expire_seconds)
+legacy_reference/utils/data_manager.py:74:        self.redis.set(key, str(int(time.time())))
+legacy_reference/utils/data_manager.py:75:        self.redis.expire(key, 120)  # 2 minutes
+legacy_reference/utils/redis_client.py:104:    def set(self, key: str, value: Any, ex: Optional[int] = None, nx: bool = False) -> bool:
+legacy_reference/utils/redis_client.py:116:            return self.redis_client.set(key, value, ex=ex, nx=nx)
+legacy_reference/utils/redis_client.py:137:    def hset(self, name: str, mapping: Dict[str, Any]) -> int:
+legacy_reference/utils/redis_client.py:147:            return self.redis_client.hset(name, mapping=string_mapping)
+legacy_reference/utils/redis_client.py:199:    def lpush(self, name: str, *values) -> int:
+legacy_reference/utils/redis_client.py:209:            return self.redis_client.lpush(name, *json_values)
+legacy_reference/utils/redis_client.py:229:    def expire(self, name: str, time: int) -> bool:
+legacy_reference/utils/redis_client.py:232:            return self.redis_client.expire(name, time)
+legacy_reference/utils/redis_client.py:237:    def delete(self, *names) -> int:
+legacy_reference/utils/redis_client.py:240:            return self.redis_client.delete(*names)
+legacy_reference/utils/redis_client.py:245:    def publish(self, channel: str, message: Any) -> int:
+legacy_reference/utils/redis_client.py:258:            return self.redis_client.publish(channel, message)
+legacy_reference/test_position_aware_signals.py:45:    redis_client.xadd(
+legacy_reference/test_position_aware_signals.py:132:    redis_client.xadd(
+legacy_reference/system_recovery.py:105:                    self.redis_client.delete(*keys)
+legacy_reference/verify_wsl_gpu_training.py:62:        obs, info = test_env.reset()
+legacy_reference/analyze_current_signals.py:105:        unique_symbols = set()
+legacy_reference/analyze_current_signals.py:123:        unique_symbols = set()
+legacy_reference/analyze_current_signals.py:141:        unique_symbols = set()
+legacy_reference/analyze_current_signals.py:161:        unique_symbols = set()
+legacy_reference/analyze_current_signals.py:205:    print(f"  🟢 Open Long Signals: {len(set(s['symbol'] + s['timeframe'] for s in open_long_signals))}")
+legacy_reference/analyze_current_signals.py:206:    print(f"  🔴 Open Short Signals: {len(set(s['symbol'] + s['timeframe'] for s in open_short_signals))}")
+legacy_reference/analyze_current_signals.py:207:    print(f"  ❌ Close Long Signals: {len(set(s['symbol'] + s['timeframe'] for s in close_long_signals))}")  
+legacy_reference/analyze_current_signals.py:208:    print(f"  ❌ Close Short Signals: {len(set(s['symbol'] + s['timeframe'] for s in close_short_signals))}")
+legacy_reference/test_training_pipeline.py:149:        pipeline.hset(position_key, 'has_long', 'True')
+legacy_reference/test_training_pipeline.py:150:        pipeline.hset(position_key, 'has_short', 'False')
+legacy_reference/test_training_pipeline.py:151:        pipeline.hset(position_key, 'long', json.dumps(test_position))
+legacy_reference/test_training_pipeline.py:152:        pipeline.hset(position_key, 'symbol', test_symbol)
+legacy_reference/test_training_pipeline.py:153:        pipeline.hset(position_key, 'last_update', time.time())
+legacy_reference/test_training_pipeline.py:154:        pipeline.expire(position_key, 60)  # 1 minute TTL for test
+legacy_reference/test_training_pipeline.py:176:        pipeline.hset(paper_key, 'has_long', 'False')
+legacy_reference/test_training_pipeline.py:177:        pipeline.hset(paper_key, 'has_short', 'True')
+legacy_reference/test_training_pipeline.py:178:        pipeline.hset(paper_key, 'short', json.dumps(test_position))
+legacy_reference/test_training_pipeline.py:179:        pipeline.hset(paper_key, 'symbol', test_symbol)
+legacy_reference/test_training_pipeline.py:180:        pipeline.hset(paper_key, 'mode', 'paper')
+legacy_reference/test_training_pipeline.py:181:        pipeline.hset(paper_key, 'last_update', time.time())
+legacy_reference/test_training_pipeline.py:182:        pipeline.expire(paper_key, 60)
+legacy_reference/test_training_pipeline.py:199:        self.redis.delete(position_key)
+legacy_reference/test_training_pipeline.py:200:        self.redis.delete(paper_key)
+legacy_reference/test_training_pipeline.py:228:            message_id = self.redis.xadd(
+legacy_reference/test_enhanced_trade_alerts.py:40:    redis_client.hset("rl:metrics:continuous", mapping={
+legacy_reference/test_enhanced_trade_alerts.py:316:    redis_client.delete("rl:metrics:continuous")
+legacy_reference/test_fresh_unified.py:24:            r.delete(*unified_keys)
+legacy_reference/config.py:4047:ORCH_FASTLANE_CATEGORIES = set(os.getenv(
+legacy_reference/config.py:5407:    valid_action_codes = set(range(7))  # 0, 1, 2, 3, 4, 5, 6
+legacy_reference/simple_feature_pipeline.py:157:            self.redis_client.hset(key, mapping=redis_data)
+legacy_reference/simple_feature_pipeline.py:187:            self.redis_client.set("heartbeat:simple_feature_pipeline", int(time.time() * 1000))
+legacy_reference/monitoring/deep_troubleshooter.py:2759:                unique_sizes = set(round(s, 2) for s in sizes)
+legacy_reference/monitoring/deep_troubleshooter.py:2852:                            sides = set(p['side'] for p in pos_list)
+legacy_reference/monitoring/live_system_auditor.py:1009:                unique_sizes = set(round(s, 2) for s in sizes)
+legacy_reference/monitoring/live_system_auditor.py:1080:                            sides = set(p['side'] for p in pos_list)
+legacy_reference/validate_trainer_data.py:150:    symbols_with_features = set()
+legacy_reference/final_validation.py:62:    active_endpoints = set()
+legacy_reference/final_validation.py:82:    tm_endpoints = set()
+legacy_reference/cleanup_coinank_keys.py:78:    to_delete = list(set(to_delete))
+legacy_reference/cleanup_coinank_keys.py:111:            r.delete(*batch)
+legacy_reference/comprehensive_feature_extractor.py:322:            self.redis.hset(feature_key, mapping=features)
+legacy_reference/comprehensive_feature_extractor.py:323:            self.redis.expire(feature_key, 300)  # 5 minute expiry
+legacy_reference/comprehensive_feature_extractor.py:327:            self.redis.hset(ts_key, mapping=features)
+legacy_reference/comprehensive_feature_extractor.py:328:            self.redis.expire(ts_key, 3600)  # 1 hour expiry
+legacy_reference/circuit_breaker.py:216:                self.redis.set('safe_mode:global', json.dumps(safe_mode_data), ex=300)
+legacy_reference/circuit_breaker.py:225:                self.redis.publish('alerts:circuit_breaker', json.dumps(alert_data))
+legacy_reference/circuit_breaker.py:253:            self.redis.delete('safe_mode:global')
+legacy_reference/circuit_breaker.py:260:            self.redis.publish('alerts:circuit_breaker', json.dumps(alert_data))
+legacy_reference/diagnose_high_confidence_no_trades.py:56:    all_symbols = set()
+legacy_reference/services/portfolio_state.py:375:            accounts=list(set(pos.account_type for pos in positions)),
+legacy_reference/services/data_archiver.py:177:            all_keys = set()
+legacy_reference/services/live_decision_evaluator.py:123:            self.redis.set(self.last_id_key, str(sid))
+legacy_reference/services/live_decision_evaluator.py:280:                self.redis.zadd(self.pending_zset, {json.dumps(_safe_json(payload), separators=(",", ":")): float(payload["due_ts_ms"])})
+legacy_reference/services/live_decision_evaluator.py:299:        self.redis.xadd(
+legacy_reference/services/live_decision_evaluator.py:325:            self.redis.hincrby(key, "total", 1)
+legacy_reference/services/live_decision_evaluator.py:329:                self.redis.hincrby(key, "directional_total", 1)
+legacy_reference/services/live_decision_evaluator.py:331:                    self.redis.hincrby(key, "correct", 1)
+legacy_reference/services/live_decision_evaluator.py:334:        self.redis.hincrby(ckey, f"{bucket}:total", 1)
+legacy_reference/services/live_decision_evaluator.py:336:            self.redis.hincrby(ckey, f"{bucket}:directional_total", 1)
+legacy_reference/services/live_decision_evaluator.py:338:                self.redis.hincrby(ckey, f"{bucket}:correct", 1)
+legacy_reference/services/portfolio_publisher.py:77:        rc.hset(key, mapping=payload)
+legacy_reference/services/portfolio_publisher.py:78:        rc.expire(key, ttl_seconds)
+legacy_reference/services/portfolio_publisher.py:80:        rc.set("portfolio:state:active_account", account_id, ex=ttl_seconds)
+legacy_reference/services/portfolio_publisher.py:82:            rc.xadd(
+legacy_reference/trainer_fixes.py:110:                self._signal_redis.xadd(
+legacy_reference/tokenmetrics_normalizer.py:114:            redis_client.hset(features_key, mapping=features)
+legacy_reference/tokenmetrics_normalizer.py:115:            redis_client.expire(features_key, 3600)  # 1 hour TTL
+legacy_reference/tokenmetrics_normalizer.py:124:        redis_client.hset(metadata_key, mapping=metadata)
+legacy_reference/tokenmetrics_normalizer.py:125:        redis_client.expire(metadata_key, 3600)
+legacy_reference/test_gpu_environment.py:37:        obs, info = wrapped_env.reset()
+legacy_reference/wsl_system_validation.py:155:            redis_client.xadd(test_stream, {'test': 'wsl_validation'})
+legacy_reference/wsl_system_validation.py:156:            redis_client.delete(test_stream)
+legacy_reference/test_subproc_fix.py:43:        obs = vec_env.reset()
+legacy_reference/extract_all_feature_keys.py:21:    all_keys = set()
+legacy_reference/feature_pipeline.py:748:            old_set = set(getattr(self, "symbols", []) or [])
+legacy_reference/feature_pipeline.py:749:            new_set = set(new_syms or [])
+legacy_reference/feature_pipeline.py:764:                self.redis.set(
+legacy_reference/feature_pipeline.py:1026:                    pipe.hset(unified_key, mapping=unified_features)
+legacy_reference/feature_pipeline.py:1027:                    pipe.expire(unified_key, 60)  # 1 minute expiry - keep data fresh
+legacy_reference/feature_pipeline.py:1028:                    pipe.hset(latest_key, mapping=unified_features)
+legacy_reference/feature_pipeline.py:1029:                    pipe.expire(latest_key, 60)
+legacy_reference/feature_pipeline.py:1049:                        pipe.set(f"orderbook:depth:{symbol}", json.dumps(depth_payload))
+legacy_reference/feature_pipeline.py:1050:                        pipe.expire(f"orderbook:depth:{symbol}", 60)
+legacy_reference/feature_pipeline.py:1052:                    pipe.publish('features:updated', f'{symbol}:{tf}')
+legacy_reference/feature_pipeline.py:1087:                    pipe.hset(unified_key, mapping=unified_features)
+legacy_reference/feature_pipeline.py:1091:                    pipe.expire(unified_key, slow_ttl)
+legacy_reference/feature_pipeline.py:1092:                    pipe.hset(latest_key, mapping=unified_features)
+legacy_reference/feature_pipeline.py:1093:                    pipe.expire(latest_key, slow_ttl)
+legacy_reference/feature_pipeline.py:1113:                        pipe.set(f"orderbook:depth:{symbol}", json.dumps(depth_payload))
+legacy_reference/feature_pipeline.py:1114:                        pipe.expire(f"orderbook:depth:{symbol}", slow_ttl)
+legacy_reference/feature_pipeline.py:1116:                    pipe.publish('features:updated', f'{symbol}:{tf}')
+legacy_reference/feature_pipeline.py:1159:                        self.redis.set('features:fast_lane:last_run_ms', int(time.time() * 1000))
+legacy_reference/feature_pipeline.py:1185:                                self.redis.set('features:fast_lane:last_success_ms', int(time.time() * 1000))
+legacy_reference/feature_pipeline.py:1243:                        self.redis.set('features:slow_lane:last_run_ms', int(time.time() * 1000))
+legacy_reference/feature_pipeline.py:1280:                            self.redis.set('features:slow_lane:last_success_ms', int(time.time() * 1000))
+legacy_reference/feature_pipeline.py:1324:        self.redis.set("heartbeat:FeaturePipeline", heartbeat_data)
+legacy_reference/feature_pipeline.py:1349:                    self.redis.set("heartbeat:FeaturePipeline", heartbeat_data)
+legacy_reference/test_complete_system.py:99:        stream_id = redis_client.xadd("trading_signals", test_signal)
+legacy_reference/tests/test_patch_tasks.py:377:    def test_1m_open_blocked_at_publish(self):
+legacy_reference/tests/test_patch_tasks.py:744:    def test_overlay_protective_flag_set(self):
+legacy_reference/tests/coinak_test_symbols.py:159:                r.set("heartbeat:IngestCoinAnk", payload, ex=300)
+legacy_reference/tests/coinak_test_symbols.py:160:                r.set("heartbeat:CoinAnkIngest", payload, ex=300)
+legacy_reference/tests/coinak_test_symbols.py:161:                r.set("heartbeat:writer:coinank", payload, ex=300)  # Required by live5.md
+legacy_reference/tests/coinak_test_symbols.py:187:            r.set("heartbeat:CoinAnkIngest", payload, ex=300)
+legacy_reference/tests/coinak_test_symbols.py:188:            r.set("heartbeat:IngestCoinAnk", payload, ex=300)
+legacy_reference/tests/coinak_test_symbols.py:189:            r.set("heartbeat:writer:coinank", payload, ex=300)  # Required by live5.md
+legacy_reference/tests/coinak_test_symbols.py:198:                r.set("debug:coinank_ingest:status", json.dumps(debug_status), ex=3600)
+legacy_reference/tests/coinak_test_symbols.py:299:                r.xadd(VAL_STREAM_KEY, payload, maxlen=5000)
+legacy_reference/tests/coinak_test_symbols.py:300:                r.hset(VAL_LATEST_HASH, mapping=payload)
+legacy_reference/tests/coinak_test_symbols.py:845:        if not r.set(seen_key, 1, nx=True, ex=86400):
+legacy_reference/tests/coinak_test_symbols.py:849:        r.lpush(qkey, json.dumps(task))
+legacy_reference/tests/coinak_test_symbols.py:1231:            r.set(f"coinank:{safe_key}:last", json.dumps(rec))
+legacy_reference/tests/coinak_test_symbols.py:1234:                r.expire(f"coinank:{safe_key}:last", min_ttl)
+legacy_reference/tests/coinak_test_symbols.py:1242:                r.set(f"coinank:{key}:last", json.dumps(rec))
+legacy_reference/tests/coinak_test_symbols.py:1244:                    r.expire(f"coinank:{key}:last", max(300, _tf_seconds(interval) * 2))
+legacy_reference/tests/coinak_test_symbols.py:1302:                    r.set(global_raw_key, json.dumps({"ts": ts, "endpoint": key, "data": data}))
+legacy_reference/tests/coinak_test_symbols.py:1305:                    r.set(global_features_key, json.dumps(flattened_features))
+legacy_reference/tests/coinak_test_symbols.py:1306:                    r.set(f"meta:coinank:last_update", ts)
+legacy_reference/tests/coinak_test_symbols.py:1401:                        r.set(latest_key, json.dumps(feature_record))
+legacy_reference/tests/coinak_test_symbols.py:1403:                            r.expire(latest_key, max(300, _tf_seconds(interval_param) * 2))
+legacy_reference/tests/coinak_test_symbols.py:1414:                                r.set(normalized_key, json.dumps(normalized_features))
+legacy_reference/tests/coinak_test_symbols.py:1416:                                    r.expire(normalized_key, max(300, _tf_seconds(interval_param) * 2))
+legacy_reference/tests/coinak_test_symbols.py:1428:                        r.set(flat_key, json.dumps({
+legacy_reference/tests/coinak_test_symbols.py:1438:                            r.expire(flat_key, max(300, _tf_seconds(interval_param) * 2))
+legacy_reference/tests/coinak_test_symbols.py:1454:                        r.set(series_key, json.dumps(series_arr))
+legacy_reference/tests/coinak_test_symbols.py:1482:                        r.set(flat_key, json.dumps(flat_payload))
+legacy_reference/tests/coinak_test_symbols.py:1565:                                        r.set(series_key_base, json.dumps(arr))
+legacy_reference/tests/coinak_test_symbols.py:1575:                                        r.set(series_key_base, json.dumps(arr))
+legacy_reference/tests/coinak_test_symbols.py:1585:                                        r.set(combo_key, json.dumps(arr))
+legacy_reference/tests/coinak_test_symbols.py:1609:                                        r.set(series_key_base, json.dumps(arr))
+legacy_reference/tests/coinak_test_symbols.py:1637:                                    r.set(series_key_base, json.dumps(arr))
+legacy_reference/tests/coinak_test_symbols.py:1687:                                    r.set(liq_breakdown_key, json.dumps(breakdown_arr))
+legacy_reference/tests/coinak_test_symbols.py:1698:                            r.set(series_key_base, json.dumps(arr))
+legacy_reference/tests/coinak_test_symbols.py:1809:            got = r.set(lock_key, str(_now_ms()), nx=True, ex=120)
+legacy_reference/tests/coinak_test_symbols.py:1851:                    r.set(_series_cursor_key(ep, p), end_ms)
+legacy_reference/tests/coinak_test_symbols.py:1867:                r.set('coinank:endpoints', json.dumps(list(WORKING_COINANK_ENDPOINTS.keys())))
+legacy_reference/tests/coinak_test_symbols.py:1871:                r.set('coinank:metrics', json.dumps({k:{**v, 'min_iv': _endpoint_min_interval.get(k, _BASE_MIN_INTERVAL)} for k,v in _metrics.items()}))
+legacy_reference/tests/coinak_test_symbols.py:1918:                        r.lpush('coinank:call_log', json.dumps({'ts': _now_ms(), 'endpoint': key, 'status': 'error', 'params': {k:p[k] for k in list(p)[:4]}, 'code': 'non_200'}))
+legacy_reference/tests/coinak_test_symbols.py:1933:                                r.set(sid, int(p['endTime']))
+legacy_reference/tests/coinak_test_symbols.py:1940:                            r.lpush('coinank:call_log', json.dumps({'ts': _now_ms(), 'endpoint': key, 'status': 'empty', 'params': {k:p[k] for k in list(p)[:4]}}))
+legacy_reference/tests/coinak_test_symbols.py:1954:                            r.set(_series_cursor_key(key, p), end_ms)
+legacy_reference/tests/coinak_test_symbols.py:1963:                            r.lpush('coinank:call_log', json.dumps({'ts': _now_ms(), 'endpoint': key, 'status': 'success', 'params': {k:p[k] for k in list(p)[:4]}}))
+legacy_reference/tests/coinak_test_symbols.py:1971:                        r.set(f"coinank:basic:{key}", json.dumps({"fetched_at": _now_ms(), "data": data}))
+legacy_reference/tests/coinak_test_symbols.py:1986:                r.set('ingest:coinank:last_ts', now)
+legacy_reference/tests/coinak_test_symbols.py:1987:                r.set(f'coinank:last_endpoint', key)
+legacy_reference/tests/coinak_test_symbols.py:1988:                r.set('heartbeat:IngestCoinAnk', json.dumps({"ts_ms": now, "service": "coinank_ingestor"}, separators=(",", ":")), ex=300)
+legacy_reference/tests/coinak_test_symbols.py:1991:                        r.expire('lock:live_coinank', 120)
+legacy_reference/tests/coinak_test_symbols.py:2003:                r.set('coinank:metrics', json.dumps(export))
+legacy_reference/tests/coinak_test_symbols.py:2010:                r.hset('stats:coinank:writer', mapping=stats)
+legacy_reference/tests/coinak_test_symbols.py:2038:                    r.set('proc:last_error:IngestCoinAnk', traceback.format_exc())
+legacy_reference/tests/coinak_test_symbols.py:2050:                    r.delete('lock:live_coinank')
+legacy_reference/tests/coinak_test_symbols.py:2076:            r.set("heartbeat:IngestCoinAnk", _seed, ex=300)
+legacy_reference/tests/coinak_test_symbols.py:2077:            r.set("heartbeat:CoinAnkIngest", _seed, ex=300)
+legacy_reference/tests/test_action_head.py:31:    actions_seen = set()
+legacy_reference/tests/test_action_head.py:76:    missing_actions = set(range(7)) - actions_seen
+legacy_reference/tests/test_regime_binary_identical.py:52:    def hset(self, *a, **kw): return 0
+legacy_reference/tests/test_regime_binary_identical.py:53:    def xadd(self, *a, **kw): return b"0-0"
+legacy_reference/tests/test_regime_binary_identical.py:57:    def set(self, *a, **kw): return True
+legacy_reference/tests/test_regime_binary_identical.py:59:    def delete(self, *a, **kw): return 0
+legacy_reference/tests/test_regime_binary_identical.py:60:    def expire(self, *a, **kw): return True
+legacy_reference/tests/test_regime_binary_identical.py:61:    def smembers(self, *a, **kw): return set()
+legacy_reference/tests/test_regime_binary_identical.py:171:                        for k in set(list(fp_a) + list(fp_b)) if fp_a.get(k) != fp_b.get(k)}
+legacy_reference/tests/test_regime_binary_identical.py:267:                        for k in set(list(fp_a) + list(fp_b)) if fp_a.get(k) != fp_b.get(k)}
+legacy_reference/tests/test_coinapi_integration.py:192:    def test_backoff_reset(self):
+legacy_reference/binance_websocket.py:325:		self._stop_event.set()
+legacy_reference/binance_websocket.py:380:		while not self._stop_event.is_set() and self._listen_key:
+legacy_reference/binance_websocket.py:390:			while not self._stop_event.is_set():
+legacy_reference/binance_websocket.py:443:			if self._stop_event.is_set():
+legacy_reference/check_unified_features.py:9:families = set()
