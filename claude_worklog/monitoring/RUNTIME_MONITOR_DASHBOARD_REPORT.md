@@ -1,6 +1,6 @@
 # Runtime Monitor Dashboard Report
 
-- Timestamp (UTC): 2026-04-30T18:58:00+00:00
+- Timestamp (UTC): 2026-04-30T19:10:40+00:00
 - Script path: claude_worklog/tools/runtime_monitor_dashboard.py
 - Launcher path: claude_worklog/tools/launch_runtime_monitor_dashboard.sh
 
@@ -9,6 +9,23 @@
 - Syntax check: `python3 -m py_compile claude_worklog/tools/runtime_monitor_dashboard.py` ✅
 - Smoke test: `python3 claude_worklog/tools/runtime_monitor_dashboard.py --target-hours 16 --min-hours 12 --refresh-seconds 5 --once` ✅
 - Dashboard launch: `./claude_worklog/tools/launch_runtime_monitor_dashboard.sh` ✅
+
+## Timestamp Parsing Fix Validation
+
+- Fix scope: timestamp parsing only in dashboard script.
+- Added explicit support in parser key scan for `event_ts_ms` and ensured priority coverage for:
+  - `ts_utc`, `timestamp`, `time`, `ts`, `created_at`, `event_ts_ms`
+  - numeric epoch seconds and milliseconds
+- One-shot validation command:
+  - `python3 claude_worklog/tools/runtime_monitor_dashboard.py --target-hours 16 --min-hours 12 --refresh-seconds 5 --once`
+- Observed corrected runtime fields:
+  - first snapshot timestamp: `2026-04-30T06:28:53.804589+00:00`
+  - last snapshot timestamp: `2026-04-30T18:28:21.062751+00:00`
+  - elapsed hours: `11.99`
+  - snapshots count: `720`
+  - trainer metrics count: `720`
+  - recommendation: `NATURALLY_COMPLETED`
+  - Redis memory ratio: `96.79%` (warning remains active)
 
 ## Launch Mode
 

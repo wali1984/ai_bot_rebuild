@@ -78,17 +78,18 @@ def parse_epochish(value) -> Optional[datetime]:
 
 def extract_ts_from_json_obj(obj: Dict) -> Optional[datetime]:
     keys = [
-        "ts",
         "ts_utc",
         "timestamp",
+        "time",
+        "ts",
         "timestamp_utc",
         "timestamp_iso",
+        "event_ts_ms",
         "timestamp_ms",
         "created_at",
         "created_ts",
         "created_ts_ms",
         "ts_ms",
-        "time",
     ]
     for k in keys:
         if k not in obj:
