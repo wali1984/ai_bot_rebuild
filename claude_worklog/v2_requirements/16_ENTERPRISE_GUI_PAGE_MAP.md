@@ -33,6 +33,43 @@ No demo/sample pages. Every page must bind to actual system data and/or actual c
 | Deployment/Hosting Admin | Deployment and hosting management | environment status, release versions, security posture | stage deploy requests | production deploy/rollback, ingress policy | auth/RBAC/2FA/IP allowlist | deploy controller APIs, infra telemetry |
 | Mobile/iPhone Readiness | Mobile operational usability | responsive score, mobile telemetry, key action compatibility | mobile view checks | mobile policy toggles | critical action confirmation UX | frontend telemetry, UX test APIs |
 
+## Mandatory extensions for requirements 19 and 20
+
+1. Passive Market Discovery page (required)
+- purpose: full all-market passive discovery and adaptive universe scoring oversight
+- visible data: available/observed/training/trading universe layers, symbol factor scores, data completeness, freshness, source ingestors, capacity/ranking outputs
+- controls: safe filters and drill-downs, manual include/exclude proposals
+- admin-only controls: force train-only, force paper-only, force disabled, override confirmations
+- safety gates: dangerous override confirmation + audit + rollback value required
+- underlying API/data source: discovery service, scoring engine, universe registry, audit ledger
+
+2. Adaptive Selection Engine page (required)
+- purpose: explain symbol ranking and selection decisions for training/trading universes
+- visible data: ranking inputs/weights, selected/rejected candidates, capacity constraints, confidence/performance trends
+- controls: what-if simulation (read-only), candidate review queue
+- admin-only controls: policy weight updates, approval of high-impact selection policies
+- safety gates: staged validation + approval + rollback plan
+- underlying API/data source: selection engine API, performance telemetry, policy config store
+
+3. AI Governance Console page (required)
+- purpose: supervise Claude/Codex/Ollama actions and recommendations under risk-level governance
+- visible data: every AI recommendation/action with `change_id`, actor, reason, evidence pointers, before/after values, risk level, validation result, rollback plan, timestamp, approval state
+- controls: approve/reject queued AI actions by policy scope
+- admin-only controls: risk-level policy thresholds, preapproval profiles, emergency deny-all for autonomous actions
+- safety gates: risk-level authorization matrix (L0-L5), mandatory human approval for dangerous levels
+- underlying API/data source: AI governance ledger, review packet store, approval workflow API
+
+4. Claude/Codex/Ollama Review Center extension (required)
+- must explicitly show:
+	- what was wrong
+	- why AI proposed action
+	- what evidence was used
+	- what was changed
+	- expected effect
+	- rollback option
+	- validation result
+- no hidden AI action path is allowed outside audit/governance surfaces
+
 ## Operator vs admin policy
 - Operator controls focus on supervision, diagnostics, and safe bounded actions.
 - Admin-only controls include dangerous changes, live unlocks, security policy changes, and production deployment controls.
@@ -41,3 +78,4 @@ No demo/sample pages. Every page must bind to actual system data and/or actual c
 - All listed pages retained in V2 scope.
 - Each page has concrete data source and safety gates.
 - No placeholder-only page remains in release plan.
+- Passive discovery, adaptive selection, and AI governance page requirements are included and bound to actual data/control APIs.

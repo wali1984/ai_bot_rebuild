@@ -20,43 +20,38 @@ Symbol universe must be managed from GUI without full-system restart, beginning 
 - `live_disabled`
 
 3. No full restart requirement
+## Scope extension (required)
+- Dynamic symbol universe must integrate with passive all-market discovery and adaptive selection requirements (see requirement 19).
 - Universe changes must apply through hot-reload propagation path (see requirement 14).
 - Full platform restart is non-compliant for routine symbol updates.
-
-4. Exchange metadata baseline
-- Initial source: Binance Futures contract metadata.
-- Design must support additional futures exchanges through connector abstraction.
-
-5. Eligibility and scoring factors (minimum)
-- Liquidity
+- Order book depth
+- Liquidation activity
 - Volume
+6. Universe layers compatibility (required)
+- `available_universe` (passive known instruments)
+- `observed_universe` (read-only monitored instruments)
+- `training_universe` (capacity-scored train set)
+- `trading_universe` (stricter risk-gated trade candidates)
 - Spread
 - Volatility
-- Funding
-- Open interest
-- Trend/regime factors
+- Manual include/exclude and force-state controls (`force_train_only`, `force_paper_only`, `force_disabled`).
 
-6. Universe policy controls
-- Per-symbol and per-exchange allow/deny policies.
-- Freeze/unfreeze symbol capability.
-- Soft-disable and hard-disable modes.
-
-## Data model minimum fields
-- `symbol_id`
-- `exchange_id`
-- `contract_type`
-- `quote_asset`
-- `status` (active/disabled/frozen)
-- `train_enabled`
+- `live_allowed`
+- `manual_override_state`
+- `override_reason`
+- `orderbook_depth_score`
+- `liquidation_activity_score`
+- `data_completeness_score`
+- `feature_freshness_score`
+- `model_confidence_history`
+- `paper_performance`
 - `trade_enabled`
 - `paper_only`
-- `live_disabled`
-- `liquidity_score`
+- Manual overrides must capture: who, when, why, risk level, rollback value.
+- Dangerous overrides require explicit confirmation and approval policy.
 - `volume_score`
 - `spread_score`
-- `volatility_score`
-- `funding_score`
-- `open_interest_score`
+- Four-layer universe compatibility and adaptive selection integration defined.
 - `trend_regime_score`
 - `universe_version`
 - `updated_by`

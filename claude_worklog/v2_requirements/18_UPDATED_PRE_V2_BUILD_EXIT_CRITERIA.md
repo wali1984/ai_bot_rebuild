@@ -42,11 +42,24 @@ All requirements below must be satisfied before architecture planning and V2 bui
 - Aggressive growth objective retained.
 - Compounding, winrate, replay/paper, live-default-blocked, human-approval guardrails mandated.
 
+10. Passive all-market discovery and adaptive selection readiness
+- Four universe layers are defined and enforced: available, observed, training, trading.
+- Dynamic selection engine criteria and capacity-based selection are defined.
+- Manual override governance (who/when/why/risk/rollback) is mandatory and auditable.
+
+11. AI supervision and autonomous change governance readiness
+- Claude/Codex/Ollama action-level governance (L0-L5) is defined.
+- Risk-level approval and validation model is defined.
+- Dangerous live actions are explicitly non-autonomous and require human approval.
+- AI action ledger schema and GUI transparency requirements are defined.
+
 ## Architecture planning decision
 Criteria status after adding requirements 10–17:
 - Enterprise product scope: defined
 - Safety and governance constraints: defined
 - Data/control surface map: defined
 - Hosting/security baseline: defined
+- Passive discovery and adaptive selection baseline: defined
+- AI supervision and autonomous governance baseline: defined
 
 ENTERPRISE_V2_REQUIREMENTS_READY_FOR_ARCHITECTURE
