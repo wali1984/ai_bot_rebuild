@@ -1,1 +1,44 @@
-Not logged in · Please run /login
+The harness denied write permission for `claude_worklog/` in this headless session. I cannot create the four required Phase 1 output files. I will not retry the same write tool call. Below is the full content I had prepared for each file, plus a clear summary of the verification result, so you (or the harness operator) can either grant write permission and I can retry, or save these manually.
+
+## Phase 1 Verification Result (Summary)
+
+**Decision: COVERAGE_VERIFICATION_NO_GO** — three reporting/plan-level defects must be fixed before deeper legacy audit can rely on the headline GO. The underlying data is sound; the headline metrics are not.
+
+### What I verified (raw)
+- **Read-only enforcement**: `legacy_reference/` mode `555` (verified via `stat`). Files are `r--r--r--` / `r-xr-xr-x`.
+- **Secret exclusion**: `tools/common_audit.py:14-22` defines `_SECRET_NAME_PATTERNS` covering `^\.env(\..*)?$`, `secret`, `token`, `apikey`, `api[_-]?key`, `private[_-]?key`, `credentials`. `iter_files()` skips them. `FILE_MANIFEST.md` and `SCRIPT_REGISTRY.md` show 0 rows beginning `.env`.
+- **Trainer atlas full coverage**: `legacy_reference/rl/hybrid_trainer.py` is 57,250 lines (verified via `wc -l`); 58 chunks at 1000-line stride span 1-57250 (`HYBRID_TRAINER_CHUNK_CLASSIFICATION.md`). Direct Read of head lines 1-30 (CUDA setup) and tail 57240-57250 (`__main__` exit handler) bound the chunked range cleanly.
+- **Trainer extractor outputs present**: reward (2.8 MB), confidence (1.7 MB), feature (1.8 MB), signal (5.9 MB), checkpoint (1.6 MB), redis usage (3.5 MB), function index (157 KB), runtime entrypoints (246 KB) — all populated and decision GO with `unknown_*: 0`.
+- **Coverage metrics**: 25,963 files, 806 code, 957 scripts; 27,005 exchange-action matches in 578 files; 169,771 redis matches in 873 writer files; 176 runtime processes mapped, `unmapped_bot_looking_runtime_processes: 0`.
+- **Tooling integrity**: `show_file_range.py` and `show_trainer_section.py` enforce `ensure_allowed_file` against `legacy_reference/` and emit `range_sha256`; redaction is applied to all printed lines.
+
+### Blockers (must fix before deeper audit)
+
+**B-1 — `unsafe_unknown` headline is vacuous.**
+`tools/detect_coverage_gaps.py:43,72` checks `classification_candidate == "unsafe_unknown"`, but `tools/collect_script_registry.py:107-144` never emits that label (it emits `quarantine_unknown` for unknowns). `SCRIPT_REGISTRY.md` contains 151 `quarantine_unknown` rows, several of which are Tier A critical with exchange-action evidence (e.g. `apply_churn_prevention.py`, `check_ltc_precision.py`). The headline `unsafe_unknown_count: 0` therefore proves nothing.
+**Fix**: rename `quarantine_unknown` → `unsafe_unknown` in `collect_script_registry.py`, OR change the gap detector to count `quarantine_unknown` and emit Tier A `quarantine_unknown` rows in `UNKNOWN_GAPS.md`.
+
+**B-2 — `unknown_exchange_use` matches are flagged but not raw-reviewed.**
+`EXCHANGE_ACTION_MAP.md` shows ≥78 `unknown_exchange_use` rows in just the first ~200 lines (full count likely much higher; 27,005 total exchange-action matches across 578 files). These are exchange-looking patterns that the classifier could not categorize as `order_create` / `leverage_change` / `margin_change` / `position_query` / `stop_loss` / `take_profit` / `reduce_only`. The summary's `exchange_script_files_unclassified: 0` only confirms each file has *some* row in the registry — it does not say the actions are understood.
+**Fix**: refine `tools/collect_exchange_actions.py` to either resolve `unknown_exchange_use` to a concrete class or split it into a per-file gap report so Tier A raw review can target it.
+
+**B-3 — `HYBRID_TRAINER_TIER_A_REVIEW_PLAN.md` is hardcoded boilerplate.**
+`tools/build_hybrid_trainer_atlas.py:143-165` writes the same 14-line static text every run — no chunk-by-chunk targets, no line ranges, no per-category prioritization. The data is available in `HYBRID_TRAINER_CHUNK_CLASSIFICATION.md` (58 Tier A chunks at 1000-line stride) but is not assembled into a plan.
+Sub-item: there is no separate MASS / state-space extractor; MASS coverage is implicit inside the feature-paths extractor. Phase 2 should confirm by direct grep on the trainer file.
+**Fix**: regenerate the plan from `HYBRID_TRAINER_CHUNKS.json` + the per-category JSONs (reward, confidence, signal, redis, checkpoint), grouping chunks by dominant category and listing the line ranges with a verification command per chunk.
+
+**B-4 — Trainer line-count documentation discrepancy.**
+`CLAUDE.md` ("250k-Line Trainer Rule") says "The legacy trainer is over 250k lines." The actual primary `rl/hybrid_trainer.py` is 57,250 lines and `TRAINER_CANDIDATES.md` lists no other trainer file > 1,083 lines. The atlas DOES cover the actual file fully — this is a documentation reconciliation item, not a coverage gap.
+**Fix**: either update `CLAUDE.md` to the actual size (~57k) or document which other files (env, agents, etc.) push the trainer subsystem total to ~250k and confirm those are atlas'd separately.
+
+### Files I would have written
+
+If write access is granted I will retry these four files:
+
+1. `claude_worklog/CLAUDE_PHASE1_COVERAGE_VERIFICATION.md` — full verification narrative answering all 18 required questions, with raw evidence pointers and tool-source line references (drafted in this session, ~9 KB).
+2. `claude_worklog/CLAUDE_PHASE1_BLOCKERS.md` — B-1 through B-4 above with exact file:line fix targets.
+3. `claude_worklog/CLAUDE_PHASE1_TIER_A_RAW_REVIEW_PLAN.md` — the 58 trainer chunks grouped into a phased raw-review schedule (boundary chunks, reward-shaping chunks 0001-0038, confidence chunks 0039-0041, signal-publishing chunks, plus the Tier A `quarantine_unknown` exchange-action scripts list), each with a concrete `tools/show_trainer_section.py --start X --end Y` or `tools/show_file_range.py` command.
+4. `claude_worklog/CLAUDE_PHASE1_GO_NO_GO.md` — body: `COVERAGE_VERIFICATION_NO_GO`.
+
+### Next safe step
+Grant write permission to `claude_worklog/` (or run me with broader auto-approve for that directory) and I will write the four files unmodified. V2 build remains BLOCKED regardless — Phase 1 itself does not authorize V2.
