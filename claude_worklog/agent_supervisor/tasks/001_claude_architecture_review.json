@@ -1,0 +1,11 @@
+{
+  "task_id": "001_claude_architecture_review",
+  "agent": "claude",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "precheck_file": "claude_worklog/v2_architecture_review/10_ARCHITECTURE_REVIEW_GO_NO_GO.md",
+  "precheck_contains": "V2_ARCHITECTURE_REVIEW_PASS",
+  "prompt": "You are reviewing V2 architecture in AI BOT REBUILD. Do not modify files. Confirm whether claude_worklog/v2_architecture_review/10_ARCHITECTURE_REVIEW_GO_NO_GO.md contains V2_ARCHITECTURE_REVIEW_PASS. Print only: CLAUDE_ARCH_REVIEW_CONFIRMED or CLAUDE_ARCH_REVIEW_NOT_CONFIRMED.",
+  "next_recommended_action": "Run task 002_codex_adversarial_architecture_review"
+}

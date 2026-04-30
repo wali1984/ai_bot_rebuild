@@ -1,0 +1,2574 @@
+OpenAI Codex v0.128.0 (research preview)
+--------
+workdir: /home/wali/Desktop/AI BOT REBUILD
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: none
+reasoning summaries: none
+session id: 019de0ae-7502-7e31-9837-3254e4ad7783
+--------
+user
+Run an adversarial architecture review for AI BOT REBUILD using inputs under claude_worklog/v2_architecture, claude_worklog/v2_requirements, and claude_worklog/v2_architecture_review. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not alter service state. Produce a concise verdict and blocker list in plain text suitable for replacing provisional Copilot-generated Codex review.
+codex
+I’ll review only the requested worklog inputs and keep this read-only: no service commands, no Redis writes, and no access to `/home/wali/Desktop/AI BOT` beyond avoiding it. I’m going to inventory the relevant files first, then read the architecture and requirements material for an adversarial verdict.
+exec
+/bin/bash -lc "find claude_worklog/v2_architecture claude_worklog/v2_requirements claude_worklog/v2_architecture_review -maxdepth 2 -type f -printf '%p\\n' | sort" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+claude_worklog/v2_architecture/00_REQUIREMENTS_INDEX_AND_NORMALIZATION.md
+claude_worklog/v2_architecture/01_ENTERPRISE_SYSTEM_ARCHITECTURE.md
+claude_worklog/v2_architecture/02_DOMAIN_MODEL_AND_CORE_ENTITIES.md
+claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md
+claude_worklog/v2_architecture/04_REDIS_NAMESPACE_AND_RETENTION_PLAN.md
+claude_worklog/v2_architecture/05_API_CONTRACTS.md
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md
+claude_worklog/v2_architecture/07_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION_ARCHITECTURE.md
+claude_worklog/v2_architecture/08_HOT_RELOAD_PIPELINE_ARCHITECTURE.md
+claude_worklog/v2_architecture/09_MULTI_EXCHANGE_CONNECTOR_ARCHITECTURE.md
+claude_worklog/v2_architecture/10_MULTI_TRADER_FLEET_ARCHITECTURE.md
+claude_worklog/v2_architecture/11_FEATURE_ATTRIBUTION_AND_SIGNAL_EXPLAINABILITY_ARCHITECTURE.md
+claude_worklog/v2_architecture/12_RISK_GATEWAY_ARCHITECTURE.md
+claude_worklog/v2_architecture/13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md
+claude_worklog/v2_architecture/14_CONTINUOUS_MONITORING_AND_EVIDENCE_PACKET_ARCHITECTURE.md
+claude_worklog/v2_architecture/15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md
+claude_worklog/v2_architecture/16_MOBILE_IPHONE_AND_PWA_READINESS.md
+claude_worklog/v2_architecture/17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md
+claude_worklog/v2_architecture/18_ARCHITECTURE_REVIEW_GO_NO_GO.md
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md
+claude_worklog/v2_architecture_review/02_REQUIREMENTS_TRACEABILITY_REVIEW.md
+claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md
+claude_worklog/v2_architecture_review/10_ARCHITECTURE_REVIEW_GO_NO_GO.md
+claude_worklog/v2_requirements/01_OBSERVABILITY_AND_ATTRIBUTION_SPEC.md
+claude_worklog/v2_requirements/02_FEATURE_SNAPSHOT_SCHEMA.md
+claude_worklog/v2_requirements/03_PREDICTION_SIGNAL_DECISION_ID_CHAIN.md
+claude_worklog/v2_requirements/04_CONFIDENCE_EXPLAINABILITY_SCHEMA.md
+claude_worklog/v2_requirements/05_REDIS_MEMORY_AND_RETENTION_POLICY.md
+claude_worklog/v2_requirements/06_HEARTBEAT_SCHEMA_POLICY.md
+claude_worklog/v2_requirements/07_MONITORING_REVALIDATION_PLAN.md
+claude_worklog/v2_requirements/08_PRE_V2_BUILD_EXIT_CRITERIA.md
+claude_worklog/v2_requirements/09_TRAINER_INTERNAL_WORKER_SUPERVISION_REQUIREMENT.md
+claude_worklog/v2_requirements/10_ENTERPRISE_WEBSITE_PRODUCT_REQUIREMENTS.md
+claude_worklog/v2_requirements/11_DYNAMIC_SYMBOL_UNIVERSE_REQUIREMENTS.md
+claude_worklog/v2_requirements/12_MULTI_EXCHANGE_CONNECTOR_REQUIREMENTS.md
+claude_worklog/v2_requirements/13_MULTI_TRADER_FLEET_REQUIREMENTS.md
+claude_worklog/v2_requirements/14_HOT_RELOAD_PIPELINE_REQUIREMENTS.md
+claude_worklog/v2_requirements/15_PUBLIC_HOSTING_AND_SECURITY_REQUIREMENTS.md
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md
+claude_worklog/v2_requirements/17_100X_1000X_GOAL_ALIGNMENT.md
+claude_worklog/v2_requirements/18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA.md
+claude_worklog/v2_requirements/19_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION.md
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md
+claude_worklog/v2_requirements/21_UPDATED_ENTERPRISE_ARCHITECTURE_READINESS.md
+
+exec
+/bin/bash -lc 'pwd && rg --files claude_worklog/v2_architecture claude_worklog/v2_requirements claude_worklog/v2_architecture_review' in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+/home/wali/Desktop/AI BOT REBUILD
+claude_worklog/v2_requirements/17_100X_1000X_GOAL_ALIGNMENT.md
+claude_worklog/v2_requirements/21_UPDATED_ENTERPRISE_ARCHITECTURE_READINESS.md
+claude_worklog/v2_requirements/07_MONITORING_REVALIDATION_PLAN.md
+claude_worklog/v2_requirements/06_HEARTBEAT_SCHEMA_POLICY.md
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md
+claude_worklog/v2_requirements/01_OBSERVABILITY_AND_ATTRIBUTION_SPEC.md
+claude_worklog/v2_requirements/13_MULTI_TRADER_FLEET_REQUIREMENTS.md
+claude_worklog/v2_requirements/10_ENTERPRISE_WEBSITE_PRODUCT_REQUIREMENTS.md
+claude_worklog/v2_requirements/18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA.md
+claude_worklog/v2_requirements/15_PUBLIC_HOSTING_AND_SECURITY_REQUIREMENTS.md
+claude_worklog/v2_requirements/08_PRE_V2_BUILD_EXIT_CRITERIA.md
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md
+claude_worklog/v2_requirements/12_MULTI_EXCHANGE_CONNECTOR_REQUIREMENTS.md
+claude_worklog/v2_requirements/11_DYNAMIC_SYMBOL_UNIVERSE_REQUIREMENTS.md
+claude_worklog/v2_requirements/14_HOT_RELOAD_PIPELINE_REQUIREMENTS.md
+claude_worklog/v2_requirements/04_CONFIDENCE_EXPLAINABILITY_SCHEMA.md
+claude_worklog/v2_requirements/09_TRAINER_INTERNAL_WORKER_SUPERVISION_REQUIREMENT.md
+claude_worklog/v2_requirements/02_FEATURE_SNAPSHOT_SCHEMA.md
+claude_worklog/v2_requirements/19_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION.md
+claude_worklog/v2_requirements/05_REDIS_MEMORY_AND_RETENTION_POLICY.md
+claude_worklog/v2_requirements/03_PREDICTION_SIGNAL_DECISION_ID_CHAIN.md
+claude_worklog/v2_architecture/09_MULTI_EXCHANGE_CONNECTOR_ARCHITECTURE.md
+claude_worklog/v2_architecture/08_HOT_RELOAD_PIPELINE_ARCHITECTURE.md
+claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md
+claude_worklog/v2_architecture/05_API_CONTRACTS.md
+claude_worklog/v2_architecture/04_REDIS_NAMESPACE_AND_RETENTION_PLAN.md
+claude_worklog/v2_architecture/02_DOMAIN_MODEL_AND_CORE_ENTITIES.md
+claude_worklog/v2_architecture/16_MOBILE_IPHONE_AND_PWA_READINESS.md
+claude_worklog/v2_architecture/12_RISK_GATEWAY_ARCHITECTURE.md
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md
+claude_worklog/v2_architecture/18_ARCHITECTURE_REVIEW_GO_NO_GO.md
+claude_worklog/v2_architecture/01_ENTERPRISE_SYSTEM_ARCHITECTURE.md
+claude_worklog/v2_architecture/11_FEATURE_ATTRIBUTION_AND_SIGNAL_EXPLAINABILITY_ARCHITECTURE.md
+claude_worklog/v2_architecture/15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md
+claude_worklog/v2_architecture/00_REQUIREMENTS_INDEX_AND_NORMALIZATION.md
+claude_worklog/v2_architecture/17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md
+claude_worklog/v2_architecture/10_MULTI_TRADER_FLEET_ARCHITECTURE.md
+claude_worklog/v2_architecture/13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md
+claude_worklog/v2_architecture/07_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION_ARCHITECTURE.md
+claude_worklog/v2_architecture/14_CONTINUOUS_MONITORING_AND_EVIDENCE_PACKET_ARCHITECTURE.md
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md
+claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md
+claude_worklog/v2_architecture_review/02_REQUIREMENTS_TRACEABILITY_REVIEW.md
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md
+claude_worklog/v2_architecture_review/10_ARCHITECTURE_REVIEW_GO_NO_GO.md
+
+codex
+The requested corpus is self-contained in three worklog folders: 21 requirements docs, 19 architecture docs, and 10 prior review docs. I’m going to pull headings and explicit go/no-go or blocker language first, then sample the core contracts where architecture claims need validation.
+exec
+/bin/bash -lc 'rg -n "''^(#|##|###)|GO|NO-GO|No-Go|BLOCK|Blocker|MUST|SHALL|Required|Gap|Risk|Fail|FAIL|Provisional|Verdict|Recommendation" claude_worklog/v2_architecture_review claude_worklog/v2_architecture/18_ARCHITECTURE_REVIEW_GO_NO_GO.md claude_worklog/v2_requirements/18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA.md claude_worklog/v2_requirements/21_UPDATED_ENTERPRISE_ARCHITECTURE_READINESS.md' in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+claude_worklog/v2_requirements/21_UPDATED_ENTERPRISE_ARCHITECTURE_READINESS.md:1:# 21 Updated Enterprise Architecture Readiness
+claude_worklog/v2_requirements/21_UPDATED_ENTERPRISE_ARCHITECTURE_READINESS.md:3:## Scope
+claude_worklog/v2_requirements/21_UPDATED_ENTERPRISE_ARCHITECTURE_READINESS.md:15:## Readiness checklist summary
+claude_worklog/v2_requirements/21_UPDATED_ENTERPRISE_ARCHITECTURE_READINESS.md:31:- Risk Gateway final authority preserved.
+claude_worklog/v2_requirements/21_UPDATED_ENTERPRISE_ARCHITECTURE_READINESS.md:37:## Decision
+claude_worklog/v2_requirements/18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA.md:1:# 18 Updated Pre-V2 Build Exit Criteria
+claude_worklog/v2_requirements/18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA.md:3:## Consolidated enterprise exit criteria
+claude_worklog/v2_requirements/18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA.md:31:- Risk Gateway final authority preserved.
+claude_worklog/v2_requirements/18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA.md:34:- Required page inventory present with purpose/data/controls/admin-only/safety/data-source mapping.
+claude_worklog/v2_requirements/18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA.md:52:- Risk-level approval and validation model is defined.
+claude_worklog/v2_requirements/18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA.md:56:## Architecture planning decision
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:1:# 04 Dynamic Universe and Hot-Reload Review
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:3:## Scope
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:6:## Inputs
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:10:## Universe layers
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:11:Required four-layer model is present and consistent across artifacts:
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:22:## Add/remove/update without full restart
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:23:Required by requirement 11 and 14:
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:29:## Hot-reload propagation targets
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:30:Required eight targets:
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:42:## State machine and rollback
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:46:## Component acknowledgment
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:51:## Versioning, audit, evidence
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:56:## Selection-engine hot-reload integration
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:60:## Risks and notes
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:64:## Verdict
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:1:# 08 Risk Gateway and Live-Block Review
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:3:## Scope
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:4:Verify Risk Gateway is final authority and live trading is blocked by default.
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:6:## Inputs
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:10:## Final-authority guarantee
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:11:- Architecture 12: "Risk Gateway is final authority for execution allow/block."
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:12:- Architecture 12: "No trader/fleet/exchange path may bypass Risk Gateway."
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:13:- Architecture 10: "Risk Gateway remains final authority for allow/block of execution intents."
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:14:- Requirement 13: "Trader cannot bypass Risk Gateway."
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:15:- Requirement 14: "Risk Gateway enforces final trade allow/block regardless of rollout status."
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:16:- Requirement 17: "Risk Gateway remains final trade authority; bypass is non-compliant."
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:17:- Requirement 19: "Risk Gateway remains the final authority even after selection/admission."
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:21:## Mandatory controls
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:36:## Lineage prerequisite
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:37:Risk Gateway evaluates a `decision_id` and emits a `risk_decision_id`. Database schema 03 enforces this as FK from `risk_decisions` → `orchestrator_decisions`. Missing lineage is a hard validation failure (requirement 01).
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:39:## Live trading blocked-by-default
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:44:- Architecture 17: live mode is the last sequence step (O), only after explicit readiness GO + human approvals.
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:45:- Requirement 17: "Default state is live-disabled until explicit readiness GO + approvals."
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:50:## Approval and audit linkage
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:56:## Risks and notes
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:60:## Verdict
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:61:Risk Gateway final authority and default-blocked live trading are firmly anchored across the architecture and requirement set. No bypass path exists in the documented design.
+claude_worklog/v2_architecture_review/02_REQUIREMENTS_TRACEABILITY_REVIEW.md:1:# 02 Requirements Traceability Review
+claude_worklog/v2_architecture_review/02_REQUIREMENTS_TRACEABILITY_REVIEW.md:3:## Scope
+claude_worklog/v2_architecture_review/02_REQUIREMENTS_TRACEABILITY_REVIEW.md:6:## Traceability matrix
+claude_worklog/v2_architecture_review/02_REQUIREMENTS_TRACEABILITY_REVIEW.md:11:| 02 | Feature Snapshot Schema | 03 (`feature_snapshots`, `feature_values`), 11 | Required snapshot fields persisted |
+claude_worklog/v2_architecture_review/02_REQUIREMENTS_TRACEABILITY_REVIEW.md:30:| 21 | Updated Enterprise Architecture Readiness | 00, 18 | Index normalization + GO marker |
+claude_worklog/v2_architecture_review/02_REQUIREMENTS_TRACEABILITY_REVIEW.md:32:## Index normalization check
+claude_worklog/v2_architecture_review/02_REQUIREMENTS_TRACEABILITY_REVIEW.md:35:## Gap analysis
+claude_worklog/v2_architecture_review/02_REQUIREMENTS_TRACEABILITY_REVIEW.md:40:## Decision
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:1:# 09 Continuous Monitoring and Attribution Review
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:3:## Scope
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:6:## Inputs
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:13:## Packet model
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:24:## Monitoring domains
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:34:## Trainer liveness
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:40:## Feature attribution and signal explainability
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:46:## Lineage chain alignment
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:47:Required (requirement 01 + 03):
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:52:## Heartbeat schema and Redis safety
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:57:## Evidence storage and dashboard
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:62:## Risks and notes
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:66:## Verdict
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:1:# 05 Multi-Exchange and Multi-Trader Review
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:3:## Scope
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:6:## Inputs
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:10:## Passive observation coverage
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:21:## Connector interface
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:37:## Pluggable rollout
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:42:## Mutation safety
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:46:## Connector standards
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:53:## Multi-trader fleet
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:69:## Fleet controls
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:76:## Risk Gateway authority over fleet
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:77:- Architecture 10: "Risk Gateway remains final authority for allow/block of execution intents."
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:78:- Requirement 13: "Trader cannot bypass Risk Gateway."
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:79:- Architecture 12: "No trader/fleet/exchange path may bypass Risk Gateway."
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:83:## Verdict
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:1:# 07 Security, Hosting, and RBAC Review
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:3:## Scope
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:6:## Inputs
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:10:## Mandatory security controls
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:12:| Control | Requirement 15 | Architecture 15 | Verdict |
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:24:## Layered architecture
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:27:## Public hosting readiness
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:32:## RBAC enforcement points
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:34:- Risk-level tagged operations require approval workflow (05 + `approvals` table 03).
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:37:## Trading-control safety
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:41:## Risks and notes
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:46:## Verdict
+claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md:1:# 03 Enterprise GUI Review
+claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md:3:## Scope
+claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md:6:## Inputs
+claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md:11:## Page inventory cross-check
+claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md:14:Mission Control, Market Universe Manager, Passive Market Discovery, Adaptive Selection Engine, Exchange Manager, Ingestor Manager, Feature Flow Map, Feature Freshness Monitor, Trainer Control Center, Prediction Monitor, Signal Explainability, Confidence Driver Breakdown, Orchestrator Control, Risk Gateway, Trader Fleet Manager, Execution Monitor, Positions/Portfolio, Redis/Storage Health, Continuous Monitor Dashboard, Audit Ledger, Config Admin, Replay/Paper Trading, Claude/Codex/Ollama Review Center, AI Governance Console, Live Readiness, Deployment/Hosting Admin, Mobile/iPhone Readiness.
+claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md:24:## Required quality properties
+claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md:26:| Property | Architecture coverage | Verdict |
+claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md:38:## Risk-level GUI features
+claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md:40:- Risk Gateway page exposes block reasons and policy diagnostics with admin-only edits.
+claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md:41:- Live Readiness page provides explicit GO/NO-GO with mandatory gates.
+claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md:44:## Anti-pattern check
+claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md:50:## Verdict
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:1:# 01 Architecture Completeness Review
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:3:## Scope
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:6:## File presence and structural completeness
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:20:| 10 | `10_MULTI_TRADER_FLEET_ARCHITECTURE.md` | yes | yes | Trader entity schema; capacity/sharding; Risk Gateway authority preserved |
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:23:| 13 | `13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md` | yes | yes | L0–L5 levels; 12-field AI change record; L5 never autonomous |
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:28:| 18 | `18_ARCHITECTURE_REVIEW_GO_NO_GO.md` | yes | yes | Single-line marker `V2_ARCHITECTURE_READY_FOR_CLAUDE_CODEX_REVIEW` |
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:30:## Structural verdict
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:35:## Cross-cutting completeness checks
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:40:- Risk Gateway non-bypass guarantee appears in 02, 07, 09, 10, 12, 13, 14.
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:43:## Gaps observed (not blockers)
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:45:- File 18 is a single-line marker only; this matches the GO/NO-GO contract.
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:48:## Decision
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:1:# 06 AI Governance and Autonomy Review
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:3:## Scope
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:6:## Inputs
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:10:## L0–L5 levels
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:21:## Mandatory AI change ledger fields
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:22:Required:
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:38:## Non-autonomous L5 hard rule
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:43:## Role-specific policies
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:51:## GUI transparency
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:52:Required GUI fields per requirement 20 ("what was wrong / why proposed / evidence used / what changed / expected effect / rollback / validation result"):
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:57:## Safety constraints
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:58:- Risk level must be computed and attached before any mutation attempt — covered by `ai_action_changes.risk_level` non-null requirement.
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:62:## Verdict
+
+exec
+/bin/bash -lc 'wc -l claude_worklog/v2_architecture/*.md claude_worklog/v2_requirements/*.md claude_worklog/v2_architecture_review/*.md' in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+    44 claude_worklog/v2_architecture/00_REQUIREMENTS_INDEX_AND_NORMALIZATION.md
+    40 claude_worklog/v2_architecture/01_ENTERPRISE_SYSTEM_ARCHITECTURE.md
+    47 claude_worklog/v2_architecture/02_DOMAIN_MODEL_AND_CORE_ENTITIES.md
+    97 claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md
+    33 claude_worklog/v2_architecture/04_REDIS_NAMESPACE_AND_RETENTION_PLAN.md
+    38 claude_worklog/v2_architecture/05_API_CONTRACTS.md
+   229 claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md
+    48 claude_worklog/v2_architecture/07_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION_ARCHITECTURE.md
+    44 claude_worklog/v2_architecture/08_HOT_RELOAD_PIPELINE_ARCHITECTURE.md
+    28 claude_worklog/v2_architecture/09_MULTI_EXCHANGE_CONNECTOR_ARCHITECTURE.md
+    26 claude_worklog/v2_architecture/10_MULTI_TRADER_FLEET_ARCHITECTURE.md
+    30 claude_worklog/v2_architecture/11_FEATURE_ATTRIBUTION_AND_SIGNAL_EXPLAINABILITY_ARCHITECTURE.md
+    25 claude_worklog/v2_architecture/12_RISK_GATEWAY_ARCHITECTURE.md
+    31 claude_worklog/v2_architecture/13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md
+    26 claude_worklog/v2_architecture/14_CONTINUOUS_MONITORING_AND_EVIDENCE_PACKET_ARCHITECTURE.md
+    25 claude_worklog/v2_architecture/15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md
+    14 claude_worklog/v2_architecture/16_MOBILE_IPHONE_AND_PWA_READINESS.md
+    25 claude_worklog/v2_architecture/17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md
+     1 claude_worklog/v2_architecture/18_ARCHITECTURE_REVIEW_GO_NO_GO.md
+    52 claude_worklog/v2_requirements/01_OBSERVABILITY_AND_ATTRIBUTION_SPEC.md
+    40 claude_worklog/v2_requirements/02_FEATURE_SNAPSHOT_SCHEMA.md
+    70 claude_worklog/v2_requirements/03_PREDICTION_SIGNAL_DECISION_ID_CHAIN.md
+    38 claude_worklog/v2_requirements/04_CONFIDENCE_EXPLAINABILITY_SCHEMA.md
+    29 claude_worklog/v2_requirements/05_REDIS_MEMORY_AND_RETENTION_POLICY.md
+    30 claude_worklog/v2_requirements/06_HEARTBEAT_SCHEMA_POLICY.md
+    33 claude_worklog/v2_requirements/07_MONITORING_REVALIDATION_PLAN.md
+    27 claude_worklog/v2_requirements/08_PRE_V2_BUILD_EXIT_CRITERIA.md
+    28 claude_worklog/v2_requirements/09_TRAINER_INTERNAL_WORKER_SUPERVISION_REQUIREMENT.md
+    50 claude_worklog/v2_requirements/10_ENTERPRISE_WEBSITE_PRODUCT_REQUIREMENTS.md
+    67 claude_worklog/v2_requirements/11_DYNAMIC_SYMBOL_UNIVERSE_REQUIREMENTS.md
+    52 claude_worklog/v2_requirements/12_MULTI_EXCHANGE_CONNECTOR_REQUIREMENTS.md
+    52 claude_worklog/v2_requirements/13_MULTI_TRADER_FLEET_REQUIREMENTS.md
+    64 claude_worklog/v2_requirements/14_HOT_RELOAD_PIPELINE_REQUIREMENTS.md
+    47 claude_worklog/v2_requirements/15_PUBLIC_HOSTING_AND_SECURITY_REQUIREMENTS.md
+    81 claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md
+    42 claude_worklog/v2_requirements/17_100X_1000X_GOAL_ALIGNMENT.md
+    65 claude_worklog/v2_requirements/18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA.md
+    87 claude_worklog/v2_requirements/19_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION.md
+   116 claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md
+    38 claude_worklog/v2_requirements/21_UPDATED_ENTERPRISE_ARCHITECTURE_READINESS.md
+    49 claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md
+    41 claude_worklog/v2_architecture_review/02_REQUIREMENTS_TRACEABILITY_REVIEW.md
+    51 claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md
+    65 claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md
+    86 claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md
+    63 claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md
+    47 claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md
+    61 claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md
+    67 claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md
+     1 claude_worklog/v2_architecture_review/10_ARCHITECTURE_REVIEW_GO_NO_GO.md
+  2490 total
+
+exec
+/bin/bash -lc 'rg -n "TODO|TBD|placeholder|assumption|future|defer|out of scope|not defined|not specified|manual|human|kill|emergency|rollback|approval|audit|immut|idempot|migration|secret|key|token|RBAC|tenant|live" claude_worklog/v2_architecture claude_worklog/v2_requirements claude_worklog/v2_architecture_review' in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+claude_worklog/v2_requirements/21_UPDATED_ENTERPRISE_ARCHITECTURE_READINESS.md:28:- Dangerous live actions explicitly non-autonomous.
+claude_worklog/v2_requirements/21_UPDATED_ENTERPRISE_ARCHITECTURE_READINESS.md:32:- Human approval requirements defined for high-risk actions.
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:24:- GUI lifecycle CRUD documented in 06 Market Universe Manager page (add/remove/update + force apply/rollback admin path).
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:42:## State machine and rollback
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:44:- Rollback to last verified version is explicit in both, with audit and re-verification.
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:47:- Architecture file 08 mandates ack envelope (`component_id`, `applied_version`, `ack_ts_ms`, `validation_status`, `rollback_ready`).
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:48:- Requirement 14 mandates: missing ack triggers escalation; ack must include local apply ts, validation status, rollback readiness.
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:51:## Versioning, audit, evidence
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:52:- `universe_version` is immutable per requirement 14, encoded as PK in `universe_versions` (file 03).
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:54:- Audit linkage to ledger is encoded via `audit_events` and `ai_action_changes` (file 03 + 13).
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:62:- Override governance (manual include/exclude, force states) lives in requirement 19 + architecture 07, encoded as `symbol_overrides` in 03. This is sufficient.
+claude_worklog/v2_architecture_review/04_DYNAMIC_UNIVERSE_AND_HOT_RELOAD_REVIEW.md:65:Dynamic universe CRUD and hot-reload propagation across all eight required targets are fully represented. Restart-free updates with versioning, ack, audit, and rollback are covered.
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:16:- future futures exchanges
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:17:- future ingestors
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:38:- Architecture 09: "Binance Futures is first connector. Additional futures exchanges are pluggable without rewriting core services."
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:39:- Requirement 12: Initial rollout = Binance Futures reference; "Additional futures connectors integrated via same interface without core platform rewrite."
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:43:- Architecture 09 and requirement 12 keep `create_order/cancel_order/set_leverage/set_margin_mode` blocked until live readiness gates pass.
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:50:- Audit envelope with redaction — covered in 09 and 12; persisted via `audit_events` (03).
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:61:- `paper_live_mode`
+claude_worklog/v2_architecture_review/05_MULTI_EXCHANGE_AND_MULTI_TRADER_REVIEW.md:72:- Per-trader paper/live mode with safe defaults — covered.
+claude_worklog/v2_requirements/06_HEARTBEAT_SCHEMA_POLICY.md:4:Eliminate heartbeat `WRONGTYPE` ambiguity by enforcing a single key-type and payload policy.
+claude_worklog/v2_requirements/06_HEARTBEAT_SCHEMA_POLICY.md:7:For each component heartbeat key:
+claude_worklog/v2_requirements/06_HEARTBEAT_SCHEMA_POLICY.md:8:- fixed Redis data type (one type only per key)
+claude_worklog/v2_requirements/06_HEARTBEAT_SCHEMA_POLICY.md:17:- Each logical heartbeat channel has one canonical key pattern.
+claude_worklog/v2_requirements/06_HEARTBEAT_SCHEMA_POLICY.md:18:- No component may write a different Redis type to an existing heartbeat key.
+claude_worklog/v2_requirements/06_HEARTBEAT_SCHEMA_POLICY.md:27:- key exists,
+claude_worklog/v2_requirements/06_HEARTBEAT_SCHEMA_POLICY.md:28:- key type matches contract,
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:4:Verify Risk Gateway is final authority and live trading is blocked by default.
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:29:- kill switch
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:32:- live trading gate
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:42:- Architecture 09: live mutation methods (`create_order/cancel_order/set_leverage/set_margin_mode`) blocked until gates pass.
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:43:- Architecture 12: "live trading gate" is a mandatory control.
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:44:- Architecture 17: live mode is the last sequence step (O), only after explicit readiness GO + human approvals.
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:45:- Requirement 17: "Default state is live-disabled until explicit readiness GO + approvals."
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:46:- Requirement 20: L5 (enable live trading) is permanently non-autonomous.
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:50:## Approval and audit linkage
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:51:- Live readiness page (06 + requirement 16) is the only path to live unlock; admin-only controls; all mandatory gates must pass.
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:52:- `approvals` table (03) records every required approval.
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:53:- `ai_action_changes.approval_state` blocks autonomous L5 actions.
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:54:- `audit_events` records every gate override.
+claude_worklog/v2_architecture_review/08_RISK_GATEWAY_AND_LIVE_BLOCK_REVIEW.md:61:Risk Gateway final authority and default-blocked live trading are firmly anchored across the architecture and requirement set. No bypass path exists in the documented design.
+claude_worklog/v2_requirements/15_PUBLIC_HOSTING_AND_SECURITY_REQUIREMENTS.md:12:- Session and token lifecycle controls with revocation.
+claude_worklog/v2_requirements/15_PUBLIC_HOSTING_AND_SECURITY_REQUIREMENTS.md:14:2. RBAC
+claude_worklog/v2_requirements/15_PUBLIC_HOSTING_AND_SECURITY_REQUIREMENTS.md:24:- Immutable audit logs for auth, control actions, config changes, and gate overrides.
+claude_worklog/v2_requirements/15_PUBLIC_HOSTING_AND_SECURITY_REQUIREMENTS.md:28:- Zero-trust-friendly policy model for future remote/public hosting.
+claude_worklog/v2_requirements/15_PUBLIC_HOSTING_AND_SECURITY_REQUIREMENTS.md:35:- Secret access only server-side through approved secret provider boundary.
+claude_worklog/v2_requirements/15_PUBLIC_HOSTING_AND_SECURITY_REQUIREMENTS.md:43:- Trading mutation controls remain blocked unless live readiness gates pass.
+claude_worklog/v2_requirements/15_PUBLIC_HOSTING_AND_SECURITY_REQUIREMENTS.md:44:- Dangerous actions require explicit approval and audit record.
+claude_worklog/v2_requirements/15_PUBLIC_HOSTING_AND_SECURITY_REQUIREMENTS.md:47:- Auth/RBAC/TLS/reverse-proxy/rate-limit/audit/IP-allowlist/2FA-ready controls are all in requirement baseline.
+claude_worklog/v2_architecture_review/02_REQUIREMENTS_TRACEABILITY_REVIEW.md:17:| 08 | Pre-V2 Build Exit Criteria | 17 | Sequence forces explicit gates before live |
+claude_worklog/v2_architecture_review/02_REQUIREMENTS_TRACEABILITY_REVIEW.md:18:| 09 | Trainer Internal Worker Supervision | 14 | Trainer liveness packet domain |
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:1:# 07 Security, Hosting, and RBAC Review
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:4:Verify public hosting readiness, security baseline, and RBAC are represented.
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:14:| Authentication (no unauth access; session/token revocation) | yes | yes | covered |
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:15:| RBAC (viewer/operator/admin/security-admin) | yes | yes (role separation principle in 06; `roles` table in 03) | covered |
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:18:| Audit logs (immutable, action/config/auth) | yes | yes (`audit_events` 03; ledger 13) | covered |
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:21:| Secrets server-side only; never in GUI payloads | yes | yes (file 15 secrets policy) | covered |
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:25:File 15 defines five layers (edge ingress / auth+session / RBAC+approval middleware / API services / audit+telemetry). This is sufficient for public-hosting readiness.
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:30:- Auth/RBAC/audit are first-class in core, not bolt-on — covered.
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:32:## RBAC enforcement points
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:33:- API contracts (05) require auth + RBAC + audit envelope on every mutation endpoint.
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:34:- Risk-level tagged operations require approval workflow (05 + `approvals` table 03).
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:38:- Live mutations remain blocked until live readiness gates pass — covered (architecture 05, 09, 12, 17).
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:39:- Dangerous actions require approval and audit — covered.
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:42:- File 15 is concise (25 lines). Build-phase artifacts must include concrete role definitions, permission JSON shape, secret-provider boundary spec, and 2FA mechanism (TOTP/WebAuthn).
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:44:- Database schema 03 includes `users`, `roles`, `approvals`. Sufficient for RBAC persistence.
+claude_worklog/v2_architecture_review/07_SECURITY_HOSTING_RBAC_REVIEW.md:47:Security, hosting, and RBAC baselines are present and adversarial-review-ready. No mandatory control is unrepresented.
+claude_worklog/v2_requirements/12_MULTI_EXCHANGE_CONNECTOR_REQUIREMENTS.md:7:Provide a pluggable futures-exchange connector interface with Binance Futures as first implementation.
+claude_worklog/v2_requirements/12_MULTI_EXCHANGE_CONNECTOR_REQUIREMENTS.md:24:- Connector registry supports multiple futures exchanges without rewiring platform core.
+claude_worklog/v2_requirements/12_MULTI_EXCHANGE_CONNECTOR_REQUIREMENTS.md:27:- `create_order`, `cancel_order`, `set_leverage`, `set_margin_mode` remain blocked until live gates pass.
+claude_worklog/v2_requirements/12_MULTI_EXCHANGE_CONNECTOR_REQUIREMENTS.md:28:- Default mode for all connectors is non-live/blocked for mutations.
+claude_worklog/v2_requirements/12_MULTI_EXCHANGE_CONNECTOR_REQUIREMENTS.md:39:- Every connector call emits structured audit envelope with request/response metadata (redacted secrets).
+claude_worklog/v2_requirements/12_MULTI_EXCHANGE_CONNECTOR_REQUIREMENTS.md:43:2. Additional futures connectors integrated via same interface without core platform rewrite
+claude_worklog/v2_requirements/12_MULTI_EXCHANGE_CONNECTOR_REQUIREMENTS.md:46:- Exchange secrets stored server-side only; never exposed to GUI payloads.
+claude_worklog/v2_requirements/17_100X_1000X_GOAL_ALIGNMENT.md:20:- Strategy/profile changes must pass replay/paper criteria before live candidate status.
+claude_worklog/v2_requirements/17_100X_1000X_GOAL_ALIGNMENT.md:23:- Default state is live-disabled until explicit readiness GO + approvals.
+claude_worklog/v2_requirements/17_100X_1000X_GOAL_ALIGNMENT.md:25:6. Human approval for dangerous changes
+claude_worklog/v2_requirements/17_100X_1000X_GOAL_ALIGNMENT.md:26:- High-impact changes require human sign-off and immutable audit record.
+claude_worklog/v2_requirements/17_100X_1000X_GOAL_ALIGNMENT.md:32:  - controlled policy rollout with rollback capability
+claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md:33:| Audit linkage from UI events | Audit Ledger page + audit envelope rule in 05 + 13 | covered |
+claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md:39:- AI Governance Console binds L0–L5 governance directly to GUI approval workflow.
+claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md:42:- Replay/Paper Trading page is the only path to candidate-live promotion.
+claude_worklog/v2_architecture_review/03_ENTERPRISE_GUI_REVIEW.md:46:- No page is described as a placeholder or sample.
+claude_worklog/v2_requirements/02_FEATURE_SNAPSHOT_SCHEMA.md:4:Standardize trainer input feature snapshots to make predictions auditable and reproducible.
+claude_worklog/v2_requirements/02_FEATURE_SNAPSHOT_SCHEMA.md:7:`feature_snapshot_id` is a deterministic, immutable identifier for one assembled feature snapshot.
+claude_worklog/v2_requirements/02_FEATURE_SNAPSHOT_SCHEMA.md:14:- hash of normalized key/value payload
+claude_worklog/v2_requirements/02_FEATURE_SNAPSHOT_SCHEMA.md:23:  - `source_key`
+claude_worklog/v2_requirements/02_FEATURE_SNAPSHOT_SCHEMA.md:34:Per source key, include:
+claude_worklog/v2_requirements/07_MONITORING_REVALIDATION_PLAN.md:32:- updated feature visibility audit,
+claude_worklog/v2_requirements/03_PREDICTION_SIGNAL_DECISION_ID_CHAIN.md:35:- `decision_result` (allow/block/defer)
+claude_worklog/v2_requirements/03_PREDICTION_SIGNAL_DECISION_ID_CHAIN.md:68:- Parent IDs are immutable.
+claude_worklog/v2_architecture/15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md:1:# 15 Public Hosting, Security, and RBAC Architecture
+claude_worklog/v2_architecture/15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md:5:- RBAC
+claude_worklog/v2_architecture/15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md:11:- audit logs
+claude_worklog/v2_architecture/15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md:12:- secrets isolation
+claude_worklog/v2_architecture/15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md:19:3. RBAC + approval middleware
+claude_worklog/v2_architecture/15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md:24:- Server-side secret handling only.
+claude_worklog/v2_requirements/05_REDIS_MEMORY_AND_RETENTION_POLICY.md:4:Define memory safety, retention, and audit offload requirements without deleting legacy namespaces.
+claude_worklog/v2_requirements/05_REDIS_MEMORY_AND_RETENTION_POLICY.md:19:- Offload full-fidelity attribution and decision logs to durable audit storage on short intervals.
+claude_worklog/v2_requirements/05_REDIS_MEMORY_AND_RETENTION_POLICY.md:28:- No deletion or mutation of legacy V1 key contracts as part of V2 rollout.
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md:28:- write audit reports
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md:32:### Level 2 — safe V2 non-live config changes
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md:36:- requires audit log
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md:50:- requires staged change + validation + human approval
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md:52:### Level 5 — dangerous live changes
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md:53:- enable live trading
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md:59:- disable kill switch
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md:60:- place/cancel live orders
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md:62:- human approval required
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md:67:- actor: Claude/Codex/Ollama/human/system
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md:74:- rollback plan
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md:77:- approval state
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md:87:- rollback option
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md:94:- cannot approve risk/live changes
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md:100:- cannot autonomously approve dangerous live actions
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md:109:- Level 4 and 5 changes require explicit human approval workflows.
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md:111:- All actions must be auditable and rollback-capable.
+claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md:116:- GUI transparency and approval workflow requirements are complete.
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:11:| 01 | `01_ENTERPRISE_SYSTEM_ARCHITECTURE.md` | yes | yes | 15 core components defined; flow defined; safety posture explicit (live trading blocked) |
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:13:| 03 | `03_DATABASE_SCHEMA.md` | yes | yes | 27 normalized tables; lineage chain enforced; governance/audit tables present |
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:15:| 05 | `05_API_CONTRACTS.md` | yes | yes | 20 API groups; mutation safety/RBAC + audit envelope |
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:17:| 07 | `07_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION_ARCHITECTURE.md` | yes | yes | 4-layer universe model; explicit source list (Binance Futures, CoinAnk, CoinAPI, KuCoin, future futures, future ingestors) |
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:18:| 08 | `08_HOT_RELOAD_PIPELINE_ARCHITECTURE.md` | yes | yes | 5-state machine; 8 propagation targets; rollback + ack contract |
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:19:| 09 | `09_MULTI_EXCHANGE_CONNECTOR_ARCHITECTURE.md` | yes | yes | 11 mandatory methods; Binance-first + pluggable future |
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:24:| 14 | `14_CONTINUOUS_MONITORING_AND_EVIDENCE_PACKET_ARCHITECTURE.md` | yes | yes | Hourly/daily/alert/Claude/Codex/Ollama packet model; trainer liveness covered |
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:25:| 15 | `15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md` | yes | yes | Auth/RBAC/2FA-ready/TLS/proxy/rate-limit/IP allowlist/audit/secrets |
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:26:| 16 | `16_MOBILE_IPHONE_AND_PWA_READINESS.md` | yes | yes | Responsive + PWA + future iPhone API compatibility |
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:27:| 17 | `17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md` | yes | yes | Sequence A→O; live mode last; gating evidence required |
+claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md:44:- File sizes for 12, 14, 15, 16 are concise checklists (≤30 lines); content is sufficient for adversarial review but will require deeper expansion at build phase (database tables for hosting/RBAC, packet schemas, mobile push schemas).
+claude_worklog/v2_requirements/01_OBSERVABILITY_AND_ATTRIBUTION_SPEC.md:10:- Heartbeat key-type ambiguity (`WRONGTYPE`) exists and must be removed.
+claude_worklog/v2_requirements/01_OBSERVABILITY_AND_ATTRIBUTION_SPEC.md:50:- Existing legacy keys/streams remain readable.
+claude_worklog/v2_requirements/11_DYNAMIC_SYMBOL_UNIVERSE_REQUIREMENTS.md:7:Symbol universe must be managed from GUI without full-system restart, beginning with Binance Futures metadata and expandable to other futures exchanges.
+claude_worklog/v2_requirements/11_DYNAMIC_SYMBOL_UNIVERSE_REQUIREMENTS.md:20:- `live_disabled`
+claude_worklog/v2_requirements/11_DYNAMIC_SYMBOL_UNIVERSE_REQUIREMENTS.md:39:- `live_allowed`
+claude_worklog/v2_requirements/11_DYNAMIC_SYMBOL_UNIVERSE_REQUIREMENTS.md:40:- `manual_override_state`
+claude_worklog/v2_requirements/11_DYNAMIC_SYMBOL_UNIVERSE_REQUIREMENTS.md:50:- Manual overrides must capture: who, when, why, risk level, rollback value.
+claude_worklog/v2_requirements/11_DYNAMIC_SYMBOL_UNIVERSE_REQUIREMENTS.md:51:- Dangerous overrides require explicit confirmation and approval policy.
+claude_worklog/v2_requirements/11_DYNAMIC_SYMBOL_UNIVERSE_REQUIREMENTS.md:61:- Any transition enabling live trade path requires readiness gates + admin approval.
+claude_worklog/v2_requirements/11_DYNAMIC_SYMBOL_UNIVERSE_REQUIREMENTS.md:62:- Universe updates must produce audit events with before/after diff and request context.
+claude_worklog/v2_requirements/11_DYNAMIC_SYMBOL_UNIVERSE_REQUIREMENTS.md:67:- Restart-free update path specified and auditable.
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:14:- L2 safe V2 non-live config
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:17:- L5 dangerous live changes
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:24:- `actor` (Claude/Codex/Ollama/human/system)
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:31:- `rollback_plan`
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:34:- `approval_state`
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:36:Architecture file 13 lists all 12 fields. Database schema 03 persists them via `ai_action_changes` (`change_id`, `actor`, `risk_level`, `reason`, `evidence_pointers_json`, `before_value_json`, `after_value_json`, `validation_result`, `rollback_plan`, `gui_explanation`, `approval_state`, `created_ts_ms`).
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:41:- Architecture 06 binds this to GUI via AI Governance Console with mandatory human approval for dangerous levels.
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:45:- Ollama: local summarization only; cannot approve risk/live changes.
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:46:- Claude: can propose fixes, generate code/specs, apply safe rebuild changes; cannot autonomously approve dangerous live actions.
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:52:Required GUI fields per requirement 20 ("what was wrong / why proposed / evidence used / what changed / expected effect / rollback / validation result"):
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:53:- AI Governance Console page (file 06 + requirement 16) requires every AI recommendation/action with `change_id`, actor, reason, evidence pointers, before/after, risk level, validation result, rollback plan, timestamp, approval state.
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:59:- L4 and L5 require explicit human approval workflows — encoded via `approvals` table (03).
+claude_worklog/v2_architecture_review/06_AI_GOVERNANCE_AND_AUTONOMY_REVIEW.md:60:- All actions auditable and rollback-capable — encoded via `audit_events` + `rollback_plan` field.
+claude_worklog/v2_architecture/00_REQUIREMENTS_INDEX_AND_NORMALIZATION.md:35:  - Risk and approval governance: requirements 18 and 20
+claude_worklog/v2_architecture/00_REQUIREMENTS_INDEX_AND_NORMALIZATION.md:44:This architecture package is **not** a build/live approval artifact.
+claude_worklog/v2_requirements/14_HOT_RELOAD_PIPELINE_REQUIREMENTS.md:28:- Each update has immutable `universe_version` and change-set metadata.
+claude_worklog/v2_requirements/14_HOT_RELOAD_PIPELINE_REQUIREMENTS.md:29:- Version includes author, timestamp, reason, approval chain, and diff.
+claude_worklog/v2_requirements/14_HOT_RELOAD_PIPELINE_REQUIREMENTS.md:39:- Ack payload must include component-local apply timestamp, validation status, and rollback readiness.
+claude_worklog/v2_requirements/14_HOT_RELOAD_PIPELINE_REQUIREMENTS.md:42:- Fast rollback to last known-good universe version.
+claude_worklog/v2_requirements/14_HOT_RELOAD_PIPELINE_REQUIREMENTS.md:43:- Rollback event also audited.
+claude_worklog/v2_requirements/14_HOT_RELOAD_PIPELINE_REQUIREMENTS.md:45:## Validation and audit requirements
+claude_worklog/v2_requirements/14_HOT_RELOAD_PIPELINE_REQUIREMENTS.md:49:  - approval evidence
+claude_worklog/v2_requirements/14_HOT_RELOAD_PIPELINE_REQUIREMENTS.md:63:- Rollback and audit coverage defined.
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:4:Verify continuous monitoring, evidence packets, trainer liveness, and feature/signal attribution are represented and aligned with post-monitor and continuous_monitoring inputs.
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:10:- Continuous monitoring impl: `claude_worklog/continuous_monitoring_impl/01..07` plus trainer liveness reports
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:26:- trainer liveness (corrected logic)
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:34:## Trainer liveness
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:36:- continuous_monitoring/11 codifies the trainer-internal liveness requirement.
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:38:- Architecture 14 explicitly notes "trainer liveness (corrected logic)", showing the fix is reflected in the architecture.
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:43:- Architecture 11 mandates the explainability payload (source keys, values, freshness, stale/missing/unused flags, model version, checkpoint, confidence before/after, top +/- drivers, orchestrator reason, risk decision, execution/block reason).
+claude_worklog/v2_architecture_review/09_CONTINUOUS_MONITORING_AND_ATTRIBUTION_REVIEW.md:67:Continuous monitoring, evidence packets, trainer liveness, and feature/signal attribution are fully represented and traceable to corrected post-monitor findings.
+claude_worklog/v2_architecture/17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md:4:Do not start with live execution.
+claude_worklog/v2_architecture/17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md:20:N. live readiness gate
+claude_worklog/v2_architecture/17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md:21:O. live mode only after approval
+claude_worklog/v2_architecture/17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md:24:- Each milestone requires validation artifacts and audit evidence.
+claude_worklog/v2_architecture/17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md:25:- No transition to live mode without explicit readiness GO and human approvals.
+claude_worklog/v2_requirements/04_CONFIDENCE_EXPLAINABILITY_SCHEMA.md:15:- `source_redis_key`
+claude_worklog/v2_requirements/04_CONFIDENCE_EXPLAINABILITY_SCHEMA.md:35:- If fewer exist, emit explicit placeholder with `missing_flag=true`.
+claude_worklog/v2_requirements/18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA.md:17:- Symbol states include train-enabled/trade-enabled/paper-only/live-disabled.
+claude_worklog/v2_requirements/18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA.md:22:- Versioned, audited, and rollback-capable update flow defined.
+claude_worklog/v2_requirements/18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA.md:37:- Auth, RBAC, HTTPS, reverse proxy, rate limits, audit logs, IP allowlist, 2FA-ready.
+claude_worklog/v2_requirements/18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA.md:43:- Compounding, winrate, replay/paper, live-default-blocked, human-approval guardrails mandated.
+claude_worklog/v2_requirements/18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA.md:48:- Manual override governance (who/when/why/risk/rollback) is mandatory and auditable.
+claude_worklog/v2_requirements/18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA.md:52:- Risk-level approval and validation model is defined.
+claude_worklog/v2_requirements/18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA.md:53:- Dangerous live actions are explicitly non-autonomous and require human approval.
+claude_worklog/v2_requirements/13_MULTI_TRADER_FLEET_REQUIREMENTS.md:21:- `paper_live_mode`
+claude_worklog/v2_requirements/13_MULTI_TRADER_FLEET_REQUIREMENTS.md:36:- Per-trader paper/live mode with default safe mode = paper/blocked.
+claude_worklog/v2_requirements/13_MULTI_TRADER_FLEET_REQUIREMENTS.md:41:5. Attribution and audit
+claude_worklog/v2_requirements/13_MULTI_TRADER_FLEET_REQUIREMENTS.md:43:- Full action audit trail per trader instance.
+claude_worklog/v2_requirements/13_MULTI_TRADER_FLEET_REQUIREMENTS.md:47:- Dangerous actions (live mode, leverage/margin policy changes) require admin approvals and gate checks.
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:11:| Mission Control | Global runtime command center | platform status, key health, alerts, readiness summary | safe operator toggles, incident acknowledge | global emergency policy override | live mutation gates, role gates | monitor snapshots, health APIs, alert streams |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:12:| Market Universe Manager | Manage tradable symbols and states | symbol list, eligibility factors, status flags, universe versions | add/remove/update symbols, state changes | force apply/rollback universe version | approval + validation + audit required | universe service, exchange metadata, audit ledger |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:13:| Exchange Manager | Manage exchange connectors/accounts | connector health, capabilities, rate limits, account binding | enable/disable connector (safe mode) | credential binding, live endpoint enablement | connector health + auth + RBAC | connector registry, connector health APIs |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:14:| Ingestor Manager | Supervise data ingestion services | ingestor status, lag, feed freshness | restart-safe internal control endpoints (if policy allows) | topology and schedule policy edits | data freshness + auth | ingestor telemetry APIs, heartbeat keys |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:15:| Feature Flow Map | Visualize feature data flow end-to-end | source->feature lineage, transform health | trace filters | pipeline graph edits | approval + config audit | feature pipeline telemetry, lineage store |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:16:| Feature Freshness Monitor | Detect stale/missing feature keys | freshness ages, missing/stale counts, source coverage | thresholds (safe bounds) | threshold policy changes | stale-protection and RBAC | freshness monitor APIs, Redis read-only metrics |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:17:| Trainer Control Center | Control trainer modes and policy state | trainer health, mode, loop cadence, model status | bounded mode toggles (safe) | live-train policy, advanced trainer config | live gate + approval | trainer control API, heartbeat, diagnostics |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:20:| Confidence Driver Breakdown | Breakdown why confidence moved | positive/negative contributors, freshness tags | scenario compare | model-feature weighting policy edits | admin approval + audit | feature attribution API |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:21:| Orchestrator Control | Manage proposal arbitration layer | proposal flow, arbitration outcomes, queue health | safe pause/resume where allowed | arbitration policy editing | risk gateway + approval | orchestrator APIs, proposal streams |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:22:| Risk Gateway | Final risk authority view/control | allow/block decisions, budget/cooldown state, gate outcomes | read-only policy diagnostics | risk policy changes, hard blocks | mandatory authority, dual-approval for dangerous edits | risk gateway APIs, policy ledger |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:23:| Trader Fleet Manager | Manage trader instances and assignments | fleet roster, heartbeat, pnl, attribution completeness | add/remove/reassign (paper/default-safe) | live-mode enablement, high-risk changes | RBAC + readiness + risk gateway | fleet manager API, trader heartbeats |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:24:| Execution Monitor | Monitor executions and failures | order lifecycle, skip reasons, latency, fill quality | filter/triage controls | execution policy overrides | live controls blocked unless gates pass | execution telemetry, trader events |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:25:| Positions/Portfolio | Portfolio and position supervision | per-account positions, exposure, PnL, drawdown | hedge/protective requests (gated) | direct risk parameter overrides | no-loss/risk gateway/live gate | portfolio API, risk state store |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:26:| Redis/Storage Health | Storage reliability and retention | memory ratio, keyspace pressure, stream retention | runbook links, safe diagnostics | retention policy updates | admin-only mutation controls | Redis read-only metrics, storage APIs |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:27:| Continuous Monitor Dashboard | Always-on audit monitor | liveness matrix, evidence quality, alert history | refresh/inspect controls | alert policy edits | read-only by default | monitor snapshots, packet store |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:28:| Audit Ledger | Immutable action and policy history | actor/action/resource/time/result | search/export | retention and legal-hold policy | tamper-evidence controls | audit event store |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:29:| Config Admin | Controlled config lifecycle | active config sets, diffs, version graph | propose config update | approve/apply/rollback config | staged validation + approvals | config service, version store |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:30:| Replay/Paper Trading | Test strategies safely | replay outcomes, paper PnL, scenario stats | start/stop replay, paper experiments | promote profile to candidate-live | replay pass criteria + risk checks | replay engine APIs, market archives |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:31:| Claude/Codex/Ollama Review Center | AI-assisted review and evidence collation | review packets, unresolved findings, confidence tags | generate review packets | approve/reject AI recommendations | human-in-loop mandatory | review packet store, monitor/audit artifacts |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:32:| Live Readiness | Explicit GO/NO-GO gate hub | checklist status, blocking findings, gate evidence | run readiness checks | final live unlock controls | all mandatory gates must pass | readiness API, governance artifacts |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:33:| Deployment/Hosting Admin | Deployment and hosting management | environment status, release versions, security posture | stage deploy requests | production deploy/rollback, ingress policy | auth/RBAC/2FA/IP allowlist | deploy controller APIs, infra telemetry |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:34:| Mobile/iPhone Readiness | Mobile operational usability | responsive score, mobile telemetry, key action compatibility | mobile view checks | mobile policy toggles | critical action confirmation UX | frontend telemetry, UX test APIs |
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:41:- controls: safe filters and drill-downs, manual include/exclude proposals
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:43:- safety gates: dangerous override confirmation + audit + rollback value required
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:44:- underlying API/data source: discovery service, scoring engine, universe registry, audit ledger
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:50:- admin-only controls: policy weight updates, approval of high-impact selection policies
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:51:- safety gates: staged validation + approval + rollback plan
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:56:- visible data: every AI recommendation/action with `change_id`, actor, reason, evidence pointers, before/after values, risk level, validation result, rollback plan, timestamp, approval state
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:58:- admin-only controls: risk-level policy thresholds, preapproval profiles, emergency deny-all for autonomous actions
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:59:- safety gates: risk-level authorization matrix (L0-L5), mandatory human approval for dangerous levels
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:60:- underlying API/data source: AI governance ledger, review packet store, approval workflow API
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:69:	- rollback option
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:71:- no hidden AI action path is allowed outside audit/governance surfaces
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:75:- Admin-only controls include dangerous changes, live unlocks, security policy changes, and production deployment controls.
+claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md:80:- No placeholder-only page remains in release plan.
+claude_worklog/v2_requirements/09_TRAINER_INTERNAL_WORKER_SUPERVISION_REQUIREMENT.md:7:Before V2 build, monitoring must supervise trainer internal prediction-worker liveness independently of process and heartbeat liveness.
+claude_worklog/v2_requirements/09_TRAINER_INTERNAL_WORKER_SUPERVISION_REQUIREMENT.md:16:- trainer process alive
+claude_worklog/v2_requirements/09_TRAINER_INTERNAL_WORKER_SUPERVISION_REQUIREMENT.md:18:- prediction worker alive
+claude_worklog/v2_requirements/09_TRAINER_INTERNAL_WORKER_SUPERVISION_REQUIREMENT.md:28:A read-only validation run must prove detection of worker-dead/process-alive conditions and alerting with evidence packet output. Without this, V2 build remains NO-GO.
+claude_worklog/v2_architecture/10_MULTI_TRADER_FLEET_ARCHITECTURE.md:13:- `paper_live_mode`
+claude_worklog/v2_architecture/10_MULTI_TRADER_FLEET_ARCHITECTURE.md:22:- Per-trader paper/live mode with safe defaults.
+claude_worklog/v2_architecture/12_RISK_GATEWAY_ARCHITECTURE.md:13:- kill switch
+claude_worklog/v2_architecture/12_RISK_GATEWAY_ARCHITECTURE.md:16:- live trading gate
+claude_worklog/v2_requirements/08_PRE_V2_BUILD_EXIT_CRITERIA.md:22:- additive-only compatibility confirmed; no legacy key deletions introduced.
+claude_worklog/v2_architecture/11_FEATURE_ATTRIBUTION_AND_SIGNAL_EXPLAINABILITY_ARCHITECTURE.md:12:- source keys
+claude_worklog/v2_requirements/10_ENTERPRISE_WEBSITE_PRODUCT_REQUIREMENTS.md:17:- One website for runtime operations, audit, diagnostics, and governance.
+claude_worklog/v2_requirements/10_ENTERPRISE_WEBSITE_PRODUCT_REQUIREMENTS.md:20:- Page readiness requires live data bindings to real APIs/streams/stores.
+claude_worklog/v2_requirements/10_ENTERPRISE_WEBSITE_PRODUCT_REQUIREMENTS.md:21:- Static placeholder cards are prohibited outside explicit development mode.
+claude_worklog/v2_requirements/10_ENTERPRISE_WEBSITE_PRODUCT_REQUIREMENTS.md:28:- High-impact actions require explicit gate checks, approvals, and audit log entry.
+claude_worklog/v2_requirements/10_ENTERPRISE_WEBSITE_PRODUCT_REQUIREMENTS.md:32:- Every control interaction and config mutation must generate immutable audit events.
+claude_worklog/v2_requirements/10_ENTERPRISE_WEBSITE_PRODUCT_REQUIREMENTS.md:36:- Monitoring, diagnostics, read-only explainability, paper/replay operations, bounded runtime controls, safe start/stop for non-live utility components where policy allows.
+claude_worklog/v2_requirements/10_ENTERPRISE_WEBSITE_PRODUCT_REQUIREMENTS.md:39:- Exchange credential lifecycle, RBAC policy changes, live-trading enablement gates, leverage/margin policy changes, fleet topology changes, deployment/hosting controls, dangerous config mutations.
+claude_worklog/v2_requirements/10_ENTERPRISE_WEBSITE_PRODUCT_REQUIREMENTS.md:45:- End-to-end traceability from UI event to backend audit record.
+claude_worklog/v2_requirements/10_ENTERPRISE_WEBSITE_PRODUCT_REQUIREMENTS.md:48:- Website scope explicitly includes all core platform domains (market universe, ingestors, feature flow, trainer/orchestrator/risk/trader fleet, storage health, audit, config, replay/paper, readiness, hosting).
+claude_worklog/v2_requirements/10_ENTERPRISE_WEBSITE_PRODUCT_REQUIREMENTS.md:49:- Role boundary matrix defined and enforceable via RBAC.
+claude_worklog/v2_requirements/19_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION.md:12:- any future futures exchange connector
+claude_worklog/v2_requirements/19_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION.md:32:- subset approved for paper/live trade consideration
+claude_worklog/v2_requirements/19_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION.md:55:- live eligibility
+claude_worklog/v2_requirements/19_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION.md:59:- live_allowed
+claude_worklog/v2_requirements/19_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION.md:60:- manual_override_state
+claude_worklog/v2_requirements/19_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION.md:68:- supports manual include/exclude
+claude_worklog/v2_requirements/19_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION.md:70:- all changes versioned and audited
+claude_worklog/v2_requirements/19_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION.md:76:- override must show who changed it, when, why, risk level, and rollback value
+claude_worklog/v2_requirements/19_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION.md:82:- Passive discovery never implies auto-live enablement.
+claude_worklog/v2_requirements/19_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION.md:86:- Dynamic selection + manual override governance are fully specified.
+claude_worklog/v2_requirements/19_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION.md:87:- Restart-free propagation and audit requirements are explicitly tied to requirement 14.
+claude_worklog/v2_architecture/16_MOBILE_IPHONE_AND_PWA_READINESS.md:6:- future iPhone app API compatibility
+claude_worklog/v2_architecture/16_MOBILE_IPHONE_AND_PWA_READINESS.md:7:- mobile-safe approvals
+claude_worklog/v2_architecture/16_MOBILE_IPHONE_AND_PWA_READINESS.md:13:- Mobile default surface prioritizes monitoring and approvals, not high-risk direct trading controls.
+claude_worklog/v2_architecture/16_MOBILE_IPHONE_AND_PWA_READINESS.md:14:- API contracts remain client-agnostic for future native app integration.
+claude_worklog/v2_architecture/13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md:6:- L2 safe V2 non-live config
+claude_worklog/v2_architecture/13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md:9:- L5 dangerous live changes
+claude_worklog/v2_architecture/13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md:20:- `rollback_plan`
+claude_worklog/v2_architecture/13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md:23:- `approval_state`
+claude_worklog/v2_architecture/13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md:29:- Append-only audit model in DB.
+claude_worklog/v2_architecture/13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md:30:- Cross-links to monitor packets, code/spec diffs, approvals, and rollback events.
+claude_worklog/v2_architecture/01_ENTERPRISE_SYSTEM_ARCHITECTURE.md:9:3. Database (system-of-record for lineage, governance, audit)
+claude_worklog/v2_architecture/01_ENTERPRISE_SYSTEM_ARCHITECTURE.md:24:Market + account feeds → discovery/observed universe → scoring/selection → universe versions/hot-reload → trainer/orchestrator adapters → risk gateway decisions → trader fleet intents/execution (paper-first) → monitoring/evidence/audit.
+claude_worklog/v2_architecture/01_ENTERPRISE_SYSTEM_ARCHITECTURE.md:28:- Public-hosting-ready with hardened ingress and RBAC.
+claude_worklog/v2_architecture/01_ENTERPRISE_SYSTEM_ARCHITECTURE.md:30:- No V2 live execution until readiness gates pass.
+claude_worklog/v2_architecture/01_ENTERPRISE_SYSTEM_ARCHITECTURE.md:35:- Risk Gateway and approval workflow are mandatory in mutation paths.
+claude_worklog/v2_architecture/04_REDIS_NAMESPACE_AND_RETENTION_PLAN.md:5:- Legacy Redis keys are read-only to V2.
+claude_worklog/v2_architecture/04_REDIS_NAMESPACE_AND_RETENTION_PLAN.md:11:- Redis is for short-lived operational state, not infinite history.
+claude_worklog/v2_architecture/04_REDIS_NAMESPACE_AND_RETENTION_PLAN.md:22:## V2 key categories (examples)
+claude_worklog/v2_architecture/02_DOMAIN_MODEL_AND_CORE_ENTITIES.md:23:- `audit_event`
+claude_worklog/v2_architecture/02_DOMAIN_MODEL_AND_CORE_ENTITIES.md:44:- `audit_event` and `ai_action_change` reference all mutable governance actions
+claude_worklog/v2_architecture/05_API_CONTRACTS.md:8:5. Symbol override/admin approval
+claude_worklog/v2_architecture/05_API_CONTRACTS.md:27:- Mutation endpoints require auth + RBAC + audit envelope.
+claude_worklog/v2_architecture/05_API_CONTRACTS.md:28:- Risk-level tagged operations require approval workflow.
+claude_worklog/v2_architecture/05_API_CONTRACTS.md:33:- For governed mutations: `change_id`, `risk_level`, `reason`, `evidence_pointers`, `approval_state`
+claude_worklog/v2_architecture/08_HOT_RELOAD_PIPELINE_ARCHITECTURE.md:21:- `approval_chain`
+claude_worklog/v2_architecture/08_HOT_RELOAD_PIPELINE_ARCHITECTURE.md:31:- `rollback_ready`
+claude_worklog/v2_architecture/08_HOT_RELOAD_PIPELINE_ARCHITECTURE.md:34:- Immediate rollback to prior verified version.
+claude_worklog/v2_architecture/08_HOT_RELOAD_PIPELINE_ARCHITECTURE.md:35:- Rollback is versioned, audited, and re-verified.
+claude_worklog/v2_architecture/14_CONTINUOUS_MONITORING_AND_EVIDENCE_PACKET_ARCHITECTURE.md:12:- trainer liveness (corrected logic)
+claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md:4:Provide a normalized system-of-record supporting full lineage, governance, approvals, replay/paper, monitoring, and audit.
+claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md:6:## Tables and key fields
+claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md:21:- `universe_member_id` (PK), `universe_version_id` (FK), `layer` (`available|observed|training|trading`), `exchange_symbol_id` (FK), `train_enabled`, `trade_enabled`, `paper_only`, `live_allowed`, `manual_override_state`, `override_reason`, `updated_ts_ms`
+claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md:27:- `symbol_override_id` (PK), `exchange_symbol_id` (FK), `override_type`, `before_value_json`, `after_value_json`, `risk_level`, `reason`, `rollback_value_json`, `changed_by`, `approval_state`, `created_ts_ms`
+claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md:33:- `feature_value_id` (PK), `feature_snapshot_id` (FK), `feature_name`, `feature_value`, `source_key`, `freshness_age_ms`, `stale_flag`, `missing_flag`, `unused_flag`
+claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md:51:- `execution_intent_id` (PK), `risk_decision_id` (FK), `trader_id`, `intent_action`, `mode` (`paper|live`), `status`, `created_ts_ms`, `executed_ts_ms`
+claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md:54:- `trader_id` (PK), `account_id`, `exchange_id`, `strategy_profile`, `symbol_scope_json`, `risk_profile_json`, `paper_live_mode`, `heartbeat_ts_ms`, `pnl_json`, `attribution_completeness`, `status`
+claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md:59:### `audit_events`
+claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md:60:- `audit_event_id` (PK), `actor_type`, `actor_id`, `action`, `resource_type`, `resource_id`, `before_json`, `after_json`, `reason`, `evidence_pointers_json`, `approval_state`, `created_ts_ms`
+claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md:63:- `change_id` (PK), `actor` (`claude|codex|ollama|human|system`), `risk_level`, `reason`, `evidence_pointers_json`, `before_value_json`, `after_value_json`, `validation_result`, `rollback_plan`, `gui_explanation`, `approval_state`, `created_ts_ms`
+claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md:69:- `monitor_snapshot_id` (PK), `source`, `snapshot_json`, `liveness_status`, `created_ts_ms`
+claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md:74:### `redis_key_observations`
+claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md:75:- `redis_observation_id` (PK), `key_name`, `namespace`, `key_type`, `size_estimate`, `ttl`, `observed_ts_ms`
+claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md:92:### `approvals`
+claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md:93:- `approval_id` (PK), `subject_type`, `subject_id`, `required_level`, `approver_user_id`, `decision`, `decision_reason`, `created_ts_ms`
+claude_worklog/v2_architecture/07_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION_ARCHITECTURE.md:15:- future futures exchanges
+claude_worklog/v2_architecture/07_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION_ARCHITECTURE.md:16:- future ingestors
+claude_worklog/v2_architecture/07_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION_ARCHITECTURE.md:34:- live_allowed
+claude_worklog/v2_architecture/07_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION_ARCHITECTURE.md:35:- manual override state
+claude_worklog/v2_architecture/07_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION_ARCHITECTURE.md:41:- Support manual include/exclude.
+claude_worklog/v2_architecture/07_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION_ARCHITECTURE.md:42:- All changes audited and versioned.
+claude_worklog/v2_architecture/07_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION_ARCHITECTURE.md:46:- Manual overrides require actor, reason, risk level, rollback value.
+claude_worklog/v2_architecture/07_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION_ARCHITECTURE.md:47:- Dangerous overrides require explicit confirmation and approval.
+claude_worklog/v2_architecture/09_MULTI_EXCHANGE_CONNECTOR_ARCHITECTURE.md:17:- Live mutation methods remain blocked until live readiness gates pass.
+claude_worklog/v2_architecture/09_MULTI_EXCHANGE_CONNECTOR_ARCHITECTURE.md:22:- Additional futures exchanges are pluggable without rewriting core services.
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:19:- admin-only: emergency policy overrides
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:20:- safety gates: RBAC + readiness
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:27:- admin-only: force apply/rollback
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:28:- safety gates: approval + audit
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:36:- safety gates: approval for policy changes
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:51:- admin-only: credential/live endpoint settings
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:52:- safety gates: RBAC
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:58:- controls: operational non-live actions
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:60:- safety gates: policy + approval
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:68:- safety gates: approval
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:76:- safety gates: RBAC
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:84:- safety gates: non-live + approvals
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:92:- safety gates: RBAC
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:108:- safety gates: approval + audit
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:114:- controls: safe non-live flow controls
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:116:- safety gates: risk gateway + approval
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:124:- safety gates: strict approvals
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:131:- admin-only: live-mode changes
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:140:- safety gates: live gates + RBAC
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:156:- safety gates: approval required
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:161:- data: hourly/daily/alert packets, liveness
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:168:- purpose: immutable action history
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:173:- source: audit DB
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:179:- admin-only: approve/apply/rollback
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:187:- admin-only: candidate-live promotion requests
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:196:- safety gates: human-in-loop
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:201:- data: change ledger with risk levels and approvals
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:211:- admin-only: final unlock approvals
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:219:- admin-only: production deploy/rollback
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:220:- safety gates: RBAC + 2FA-ready controls
+claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md:228:- safety gates: mobile-safe approvals
+
+exec
+/bin/bash -lc "sed -n '1,220p' claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+# 03 Database Schema
+
+## Schema objective
+Provide a normalized system-of-record supporting full lineage, governance, approvals, replay/paper, monitoring, and audit.
+
+## Tables and key fields
+
+### `exchanges`
+- `exchange_id` (PK), `name`, `market_scope`, `status`, `created_ts_ms`, `updated_ts_ms`
+
+### `exchange_connectors`
+- `connector_id` (PK), `exchange_id` (FK), `version`, `capabilities_json`, `health_status`, `enabled`, `created_ts_ms`, `updated_ts_ms`
+
+### `exchange_symbols`
+- `exchange_symbol_id` (PK), `exchange_id` (FK), `symbol`, `market_type`, `base_asset`, `quote_asset`, `contract_meta_json`, `status`, `updated_ts_ms`
+
+### `universe_versions`
+- `universe_version_id` (PK), `version`, `state` (`proposed|validated|approved|applied|verified`), `change_set_json`, `requested_by`, `approved_by`, `created_ts_ms`, `applied_ts_ms`
+
+### `universe_members`
+- `universe_member_id` (PK), `universe_version_id` (FK), `layer` (`available|observed|training|trading`), `exchange_symbol_id` (FK), `train_enabled`, `trade_enabled`, `paper_only`, `live_allowed`, `manual_override_state`, `override_reason`, `updated_ts_ms`
+
+### `symbol_scores`
+- `symbol_score_id` (PK), `universe_version_id` (FK), `exchange_symbol_id` (FK), `data_completeness_score`, `liquidity_score`, `spread_score`, `volatility_score`, `funding_score`, `open_interest_score`, `orderbook_depth_score`, `liquidation_activity_score`, `technical_regime_score`, `feature_freshness_score`, `paper_performance_score`, `ranking_score`, `score_components_json`, `created_ts_ms`
+
+### `symbol_overrides`
+- `symbol_override_id` (PK), `exchange_symbol_id` (FK), `override_type`, `before_value_json`, `after_value_json`, `risk_level`, `reason`, `rollback_value_json`, `changed_by`, `approval_state`, `created_ts_ms`
+
+### `feature_snapshots`
+- `feature_snapshot_id` (PK), `symbol`, `timeframe`, `source_refs_json`, `freshness_json`, `model_checkpoint`, `created_ts_ms`
+
+### `feature_values`
+- `feature_value_id` (PK), `feature_snapshot_id` (FK), `feature_name`, `feature_value`, `source_key`, `freshness_age_ms`, `stale_flag`, `missing_flag`, `unused_flag`
+
+### `prediction_events`
+- `prediction_id` (PK), `feature_snapshot_id` (FK), `symbol`, `timeframe`, `model_version`, `checkpoint`, `raw_output_json`, `created_ts_ms`
+
+### `confidence_events`
+- `confidence_event_id` (PK), `prediction_id` (FK), `confidence_before`, `confidence_after`, `top_positive_json`, `top_negative_json`, `created_ts_ms`
+
+### `signal_events`
+- `signal_id` (PK), `prediction_id` (FK), `symbol`, `action`, `confidence`, `reason_json`, `created_ts_ms`
+
+### `orchestrator_decisions`
+- `decision_id` (PK), `signal_id` (FK), `decision_action`, `decision_reason`, `policy_trace_json`, `created_ts_ms`
+
+### `risk_decisions`
+- `risk_decision_id` (PK), `decision_id` (FK), `allow_block`, `block_reason`, `policy_checks_json`, `created_ts_ms`
+
+### `execution_intents`
+- `execution_intent_id` (PK), `risk_decision_id` (FK), `trader_id`, `intent_action`, `mode` (`paper|live`), `status`, `created_ts_ms`, `executed_ts_ms`
+
+### `trader_instances`
+- `trader_id` (PK), `account_id`, `exchange_id`, `strategy_profile`, `symbol_scope_json`, `risk_profile_json`, `paper_live_mode`, `heartbeat_ts_ms`, `pnl_json`, `attribution_completeness`, `status`
+
+### `trader_assignments`
+- `assignment_id` (PK), `trader_id` (FK), `exchange_symbol_id` (FK), `assignment_state`, `created_ts_ms`, `updated_ts_ms`
+
+### `audit_events`
+- `audit_event_id` (PK), `actor_type`, `actor_id`, `action`, `resource_type`, `resource_id`, `before_json`, `after_json`, `reason`, `evidence_pointers_json`, `approval_state`, `created_ts_ms`
+
+### `ai_action_changes`
+- `change_id` (PK), `actor` (`claude|codex|ollama|human|system`), `risk_level`, `reason`, `evidence_pointers_json`, `before_value_json`, `after_value_json`, `validation_result`, `rollback_plan`, `gui_explanation`, `approval_state`, `created_ts_ms`
+
+### `config_versions`
+- `config_version_id` (PK), `scope`, `version`, `diff_json`, `state`, `created_by`, `approved_by`, `created_ts_ms`, `applied_ts_ms`
+
+### `monitor_snapshots`
+- `monitor_snapshot_id` (PK), `source`, `snapshot_json`, `liveness_status`, `created_ts_ms`
+
+### `evidence_packets`
+- `evidence_packet_id` (PK), `packet_type` (`hourly|daily|alert|claude|codex|ollama`), `packet_json`, `related_snapshot_id`, `created_ts_ms`
+
+### `redis_key_observations`
+- `redis_observation_id` (PK), `key_name`, `namespace`, `key_type`, `size_estimate`, `ttl`, `observed_ts_ms`
+
+### `heartbeat_events`
+- `heartbeat_event_id` (PK), `component`, `component_instance`, `status`, `latency_ms`, `payload_json`, `created_ts_ms`
+
+### `replay_runs`
+- `replay_run_id` (PK), `scenario_name`, `config_version_id` (FK), `status`, `result_json`, `created_ts_ms`, `completed_ts_ms`
+
+### `paper_trades`
+- `paper_trade_id` (PK), `execution_intent_id` (FK), `symbol`, `side`, `qty`, `price`, `pnl`, `created_ts_ms`
+
+### `users`
+- `user_id` (PK), `username`, `email`, `status`, `mfa_state`, `created_ts_ms`
+
+### `roles`
+- `role_id` (PK), `role_name`, `permissions_json`, `created_ts_ms`
+
+### `approvals`
+- `approval_id` (PK), `subject_type`, `subject_id`, `required_level`, `approver_user_id`, `decision`, `decision_reason`, `created_ts_ms`
+
+## Lineage enforcement
+All workflow tables must preserve:
+`feature_snapshot_id -> prediction_id -> signal_id -> decision_id -> risk_decision_id -> execution_intent_id`
+
+exec
+/bin/bash -lc "sed -n '1,220p' claude_worklog/v2_architecture/05_API_CONTRACTS.md && sed -n '1,220p' claude_worklog/v2_architecture/12_RISK_GATEWAY_ARCHITECTURE.md && sed -n '1,220p' claude_worklog/v2_architecture/13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md && sed -n '1,220p' claude_worklog/v2_architecture/15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+# 05 API Contracts
+
+## API groups
+1. Auth/session
+2. Market universe
+3. Passive discovery
+4. Symbol scoring
+5. Symbol override/admin approval
+6. Exchanges/connectors
+7. Ingestors
+8. Feature snapshots
+9. Predictions
+10. Signals
+11. Orchestrator decisions
+12. Risk decisions
+13. Execution intents
+14. Trader fleet
+15. Monitor/evidence packets
+16. Audit ledger
+17. Config admin
+18. AI governance
+19. Replay/paper trading
+20. Live readiness
+
+## Contract conventions
+- Versioned REST/JSON APIs with explicit schema version field.
+- Mutation endpoints require auth + RBAC + audit envelope.
+- Risk-level tagged operations require approval workflow.
+- All lineage-bearing endpoints include relevant IDs.
+
+## Required payload properties (selected)
+- `request_id`, `actor`, `timestamp_ms`, `schema_version`
+- For governed mutations: `change_id`, `risk_level`, `reason`, `evidence_pointers`, `approval_state`
+- For model flow: lineage chain IDs where applicable
+
+## Safety behavior
+- Live mutation routes return blocked status by default until readiness gates pass.
+- No unauthenticated trading-control endpoints.
+# 12 Risk Gateway Architecture
+
+## Authority
+Risk Gateway is final authority for execution allow/block.
+
+## Mandatory controls
+- stale signal block
+- missing attribution block
+- duplicate execution block
+- leverage/margin block
+- stop policy block
+- daily/weekly loss gate
+- kill switch
+- position sizing
+- reduceOnly enforcement
+- live trading gate
+
+## Integration points
+- receives orchestrator decisions
+- evaluates policy bundles
+- emits `risk_decision`
+- gates execution intent generation
+
+## Non-bypass guarantee
+No trader/fleet/exchange path may bypass Risk Gateway.
+# 13 Audit Ledger and AI Change Governance
+
+## AI governance levels
+- L0 observe
+- L1 docs/reports
+- L2 safe V2 non-live config
+- L3 operational non-trading
+- L4 trading-impacting changes
+- L5 dangerous live changes
+
+## Mandatory AI change record
+- `change_id`
+- `actor`
+- `reason`
+- `evidence_pointers`
+- `before_value`
+- `after_value`
+- `risk_level`
+- `validation_result`
+- `rollback_plan`
+- `gui_explanation`
+- `timestamp`
+- `approval_state`
+
+## Hard constraint
+Level 5 is never autonomous.
+
+## Ledger architecture
+- Append-only audit model in DB.
+- Cross-links to monitor packets, code/spec diffs, approvals, and rollback events.
+- GUI transparency via AI Governance Console and Review Center.
+# 15 Public Hosting, Security, and RBAC Architecture
+
+## Security baseline
+- auth
+- RBAC
+- 2FA-ready
+- HTTPS/TLS
+- reverse proxy
+- rate limits
+- IP allowlist
+- audit logs
+- secrets isolation
+- no unauthenticated trading controls
+- admin-only dangerous controls
+
+## Layered architecture
+1. Edge ingress (TLS, reverse proxy, WAF/rate policy)
+2. Auth/session service
+3. RBAC + approval middleware
+4. API services
+5. Audit and security telemetry
+
+## Secrets policy
+- Server-side secret handling only.
+- No credential exposure in UI payloads.
+
+exec
+/bin/bash -lc "sed -n '1,180p' claude_worklog/v2_requirements/01_OBSERVABILITY_AND_ATTRIBUTION_SPEC.md && sed -n '1,180p' claude_worklog/v2_requirements/03_PREDICTION_SIGNAL_DECISION_ID_CHAIN.md && sed -n '1,180p' claude_worklog/v2_requirements/09_TRAINER_INTERNAL_WORKER_SUPERVISION_REQUIREMENT.md && sed -n '1,180p' claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+# 01 Observability and Attribution Spec
+
+## Purpose
+Define mandatory observability and attribution requirements derived from post-monitor findings, with fail-safe defaults and backward compatibility.
+
+## Runtime constraints from findings
+- Current state is `V2_BUILD_NO_GO`.
+- Feature attribution status is partial.
+- Redis memory operated near critical band (~96.8%).
+- Heartbeat key-type ambiguity (`WRONGTYPE`) exists and must be removed.
+
+## Canonical ID definitions
+All IDs are required for every actionable decision path:
+
+- `feature_snapshot_id`: Immutable ID for one trainer input snapshot assembled from Redis features for one symbol/time bucket.
+- `prediction_id`: Immutable ID for one model inference result produced from one `feature_snapshot_id`.
+- `signal_id`: Immutable ID for one published trainer signal associated to one `prediction_id`.
+- `decision_id`: Immutable ID for one orchestrator decision on a `signal_id`.
+- `risk_decision_id`: Immutable ID for one risk gateway evaluation on a `decision_id`.
+- `execution_intent_id`: Immutable ID for one executable order intent produced from one `risk_decision_id`.
+
+## Required linkage model
+Single-parent deterministic linkage is required:
+
+1. `feature_snapshot_id` -> parent of `prediction_id`
+2. `prediction_id` -> parent of `signal_id`
+3. `signal_id` -> parent of `decision_id`
+4. `decision_id` -> parent of `risk_decision_id`
+5. `risk_decision_id` -> parent of `execution_intent_id`
+
+Additionally, each child record must carry:
+- direct parent ID,
+- full upstream lineage tuple,
+- producer component name,
+- monotonic event timestamp.
+
+## Required record envelope for every stage
+Mandatory fields:
+- `event_type`
+- `event_ts_ms`
+- `symbol`
+- `timeframe`
+- all six IDs (directly or via lineage tuple)
+- `producer`
+- `schema_version`
+- `model_version`
+- `checkpoint_id` (where applicable)
+
+## Backward compatibility rules
+- Existing legacy keys/streams remain readable.
+- V2 telemetry must be additive.
+- No mutation/deletion of legacy Redis namespaces as part of attribution rollout.
+# 03 Prediction Signal Decision ID Chain
+
+## Objective
+Define exact stage-by-stage ID propagation across trainer, signal, orchestrator, risk gateway, and execution.
+
+## Stage contracts
+
+### A) Trainer inference
+Output must include:
+- `prediction_id`
+- `feature_snapshot_id`
+- `model_version`
+- `checkpoint_id`
+- `prediction_ts_ms`
+- `confidence_raw`
+- `confidence_calibrated`
+
+### B) Trainer signal publication
+Output must include:
+- `signal_id`
+- `prediction_id`
+- `feature_snapshot_id`
+- `action`
+- `action_type`
+- `confidence`
+- `signal_ts_ms`
+
+### C) Orchestrator decision
+Output must include:
+- `decision_id`
+- `signal_id`
+- `prediction_id`
+- `feature_snapshot_id`
+- `decision_ts_ms`
+- `decision_result` (allow/block/defer)
+- `decision_reason_codes[]`
+
+### D) Risk gateway
+Output must include:
+- `risk_decision_id`
+- `decision_id`
+- `signal_id`
+- `risk_ts_ms`
+- `risk_result` (allow/size_reduce/block)
+- `risk_reason_codes[]`
+
+### E) Execution intent
+Output must include:
+- `execution_intent_id`
+- `risk_decision_id`
+- `decision_id`
+- `signal_id`
+- `execution_intent_ts_ms`
+- `intent_type`
+- `intent_status`
+
+## Mandatory lineage tuple
+Every downstream record must carry:
+- `feature_snapshot_id`
+- `prediction_id`
+- `signal_id`
+- `decision_id`
+- `risk_decision_id`
+- `execution_intent_id` (if already created)
+
+## Integrity rules
+- No stage may emit child ID without parent ID.
+- Parent IDs are immutable.
+- Cross-symbol linkage is invalid.
+- Missing lineage fields are hard validation failures for observability compliance.
+# 09 Trainer Internal Worker Supervision Requirement
+
+## Requirement ID
+V2-TRAINER-LIVENESS-001
+
+## Requirement
+Before V2 build, monitoring must supervise trainer internal prediction-worker liveness independently of process and heartbeat liveness.
+
+## Failure class (must be detectable)
+`TRAINER_PREDICTION_WORKER_DEAD_PROCESS_ALIVE`
+
+## Alert (must be emitted)
+`TRAINER_INTERNAL_LIVENESS_CRITICAL`
+
+## Minimum required observability set
+- trainer process alive
+- trainer heartbeat fresh
+- prediction worker alive
+- last prediction timestamp
+- last GPU_BATCH timestamp
+- last DECONFLICT timestamp
+- last proposal timestamp
+- prediction stream growth rate
+- proposal stream growth rate
+- fatal trainer log signature
+
+## Exit criterion for pre-V2
+A read-only validation run must prove detection of worker-dead/process-alive conditions and alerting with evidence packet output. Without this, V2 build remains NO-GO.
+# AI Supervision and Autonomous Change Governance
+
+## Requirement ID
+V2-AI-SUPERVISION-GOVERNANCE-001
+
+## Scope
+Claude Code, Codex, and Ollama are used for:
+- continuous monitoring review
+- issue detection
+- root-cause analysis
+- code/spec generation
+- validation
+- recommendations
+- safe self-healing proposals
+
+But changes must be governed by risk level.
+
+## Action levels (mandatory)
+
+### Level 0 — observe only
+- read logs
+- read Redis
+- read monitor packets
+- summarize evidence
+- no mutation
+
+### Level 1 — safe documentation/report updates
+- write audit reports
+- update evidence packets
+- update dashboards/reports in rebuild workspace
+
+### Level 2 — safe V2 non-live config changes
+- change UI preferences
+- change dashboard thresholds
+- change monitor display config
+- requires audit log
+
+### Level 3 — operational non-trading changes
+- restart monitor
+- rotate logs
+- regenerate evidence packets
+- must be approved or policy-preapproved
+
+### Level 4 — trading-impacting changes
+- symbol train/trade eligibility
+- confidence thresholds
+- strategy config
+- risk limits
+- trader assignment
+- requires staged change + validation + human approval
+
+### Level 5 — dangerous live changes
+- enable live trading
+- increase leverage
+- enable cross margin
+- change margin mode
+- increase position size
+- disable stops
+- disable kill switch
+- place/cancel live orders
+- must never be autonomous
+- human approval required
+
+## Mandatory AI change ledger schema
+Every AI action/change must have:
+- change_id
+- actor: Claude/Codex/Ollama/human/system
+- reason
+- evidence pointers
+- before value
+- after value
+- risk level
+- validation result
+- rollback plan
+- GUI explanation
+- timestamp
+- approval state
+
+## GUI requirement (mandatory)
+Admin page must show every AI recommendation/action.
+User must see:
+- what was wrong
+- why AI proposed action
+- what evidence it used
+- what it changed
+- expected effect
+- rollback option
+- validation result
+
+## Role-specific policy
+### Ollama policy
+- local summarization only
+- never final authority
+- cannot approve risk/live changes
+
+### Claude policy
+- can propose fixes
+- can generate code/specs
+- can apply safe rebuild changes
+- cannot autonomously approve dangerous live actions
+
+### Codex policy
+- adversarial reviewer
+- schema/code correctness
+- can block changes if evidence incomplete
+
+## Governance and safety constraints
+- Risk level must be computed and attached before any mutation attempt.
+- Level 4 and 5 changes require explicit human approval workflows.
+- Level 5 actions are permanently non-autonomous by policy.
+- All actions must be auditable and rollback-capable.
+
+## Pre-architecture acceptance
+- Action-level matrix (L0-L5) is locked and enforceable.
+- AI change ledger schema is included in core governance baseline.
+- GUI transparency and approval workflow requirements are complete.
+
+codex
+A first adversarial issue is visible: the review files mostly assert “covered” based on presence of checklist statements, while several architecture artifacts are intentionally high-level. I’m checking whether the contracts are enforceable enough to justify an architecture GO, especially around lineage, approvals, immutable audit, and live-trading controls.
+exec
+/bin/bash -lc "sed -n '1,140p' claude_worklog/v2_architecture_review/01_ARCHITECTURE_COMPLETENESS_REVIEW.md && sed -n '1,120p' claude_worklog/v2_architecture_review/02_REQUIREMENTS_TRACEABILITY_REVIEW.md && sed -n '1,120p' claude_worklog/v2_architecture_review/10_ARCHITECTURE_REVIEW_GO_NO_GO.md && sed -n '1,80p' claude_worklog/v2_architecture/18_ARCHITECTURE_REVIEW_GO_NO_GO.md" in /home/wali/Desktop/AI BOT REBUILD
+exec
+/bin/bash -lc "sed -n '1,140p' claude_worklog/v2_architecture/01_ENTERPRISE_SYSTEM_ARCHITECTURE.md && sed -n '1,140p' claude_worklog/v2_architecture/02_DOMAIN_MODEL_AND_CORE_ENTITIES.md && sed -n '1,120p' claude_worklog/v2_architecture/04_REDIS_NAMESPACE_AND_RETENTION_PLAN.md && sed -n '1,140p' claude_worklog/v2_architecture/08_HOT_RELOAD_PIPELINE_ARCHITECTURE.md && sed -n '1,120p' claude_worklog/v2_architecture/09_MULTI_EXCHANGE_CONNECTOR_ARCHITECTURE.md && sed -n '1,120p' claude_worklog/v2_architecture/10_MULTI_TRADER_FLEET_ARCHITECTURE.md && sed -n '1,120p' claude_worklog/v2_architecture/14_CONTINUOUS_MONITORING_AND_EVIDENCE_PACKET_ARCHITECTURE.md && sed -n '1,100p' claude_worklog/v2_architecture/17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+# 01 Architecture Completeness Review
+
+## Scope
+Strict completeness review of `claude_worklog/v2_architecture/` files 00 through 18 against the V2 enterprise architecture mandate.
+
+## File presence and structural completeness
+
+| # | File | Present | Non-empty | Structural verdict |
+|---|---|---|---|---|
+| 00 | `00_REQUIREMENTS_INDEX_AND_NORMALIZATION.md` | yes | yes | Indexes all 21 requirements; normalization rule documented; gate marker `ENTERPRISE_AI_SUPERVISED_V2_REQUIREMENTS_READY_FOR_ARCHITECTURE` cited |
+| 01 | `01_ENTERPRISE_SYSTEM_ARCHITECTURE.md` | yes | yes | 15 core components defined; flow defined; safety posture explicit (live trading blocked) |
+| 02 | `02_DOMAIN_MODEL_AND_CORE_ENTITIES.md` | yes | yes | 24 core entities + relationships + mandatory lineage chain |
+| 03 | `03_DATABASE_SCHEMA.md` | yes | yes | 27 normalized tables; lineage chain enforced; governance/audit tables present |
+| 04 | `04_REDIS_NAMESPACE_AND_RETENTION_PLAN.md` | yes | yes | `v2:*` write-only; 85/90/95 thresholds; legacy read-only constraint |
+| 05 | `05_API_CONTRACTS.md` | yes | yes | 20 API groups; mutation safety/RBAC + audit envelope |
+| 06 | `06_ENTERPRISE_GUI_UX_ARCHITECTURE.md` | yes | yes | 28+ enterprise pages with purpose/data/controls/admin-only/safety/source |
+| 07 | `07_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION_ARCHITECTURE.md` | yes | yes | 4-layer universe model; explicit source list (Binance Futures, CoinAnk, CoinAPI, KuCoin, future futures, future ingestors) |
+| 08 | `08_HOT_RELOAD_PIPELINE_ARCHITECTURE.md` | yes | yes | 5-state machine; 8 propagation targets; rollback + ack contract |
+| 09 | `09_MULTI_EXCHANGE_CONNECTOR_ARCHITECTURE.md` | yes | yes | 11 mandatory methods; Binance-first + pluggable future |
+| 10 | `10_MULTI_TRADER_FLEET_ARCHITECTURE.md` | yes | yes | Trader entity schema; capacity/sharding; Risk Gateway authority preserved |
+| 11 | `11_FEATURE_ATTRIBUTION_AND_SIGNAL_EXPLAINABILITY_ARCHITECTURE.md` | yes | yes | 6 lineage IDs; full explainability payload mandated |
+| 12 | `12_RISK_GATEWAY_ARCHITECTURE.md` | yes | yes | Final authority; mandatory controls; non-bypass guarantee |
+| 13 | `13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md` | yes | yes | L0–L5 levels; 12-field AI change record; L5 never autonomous |
+| 14 | `14_CONTINUOUS_MONITORING_AND_EVIDENCE_PACKET_ARCHITECTURE.md` | yes | yes | Hourly/daily/alert/Claude/Codex/Ollama packet model; trainer liveness covered |
+| 15 | `15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md` | yes | yes | Auth/RBAC/2FA-ready/TLS/proxy/rate-limit/IP allowlist/audit/secrets |
+| 16 | `16_MOBILE_IPHONE_AND_PWA_READINESS.md` | yes | yes | Responsive + PWA + future iPhone API compatibility |
+| 17 | `17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md` | yes | yes | Sequence A→O; live mode last; gating evidence required |
+| 18 | `18_ARCHITECTURE_REVIEW_GO_NO_GO.md` | yes | yes | Single-line marker `V2_ARCHITECTURE_READY_FOR_CLAUDE_CODEX_REVIEW` |
+
+## Structural verdict
+- All 19 architecture files (00–18) are present.
+- All files have non-empty bodies.
+- Architecture marker is set to architecture-review-ready.
+
+## Cross-cutting completeness checks
+- Lineage chain `feature_snapshot_id → prediction_id → signal_id → decision_id → risk_decision_id → execution_intent_id` appears consistently in 02, 03, 11.
+- Universe layers `available/observed/training/trading` appear consistently in 02, 03, 07.
+- Hot-reload propagation targets list (8 targets) is identical between architecture file 08 and requirement 14.
+- `v2:*` Redis namespace policy and retention bands are consistent between architecture 04 and requirement 05.
+- Risk Gateway non-bypass guarantee appears in 02, 07, 09, 10, 12, 13, 14.
+- Live-trading-blocked-by-default appears in 01, 05, 09, 12, 17.
+
+## Gaps observed (not blockers)
+- File sizes for 12, 14, 15, 16 are concise checklists (≤30 lines); content is sufficient for adversarial review but will require deeper expansion at build phase (database tables for hosting/RBAC, packet schemas, mobile push schemas).
+- File 18 is a single-line marker only; this matches the GO/NO-GO contract.
+- Requirements file 11 is auto-merged with overlap from 14/19; ordering of bullets is slightly noisy but content is normalized in architecture 00 and 07.
+
+## Decision
+Architecture file inventory is complete and structurally consistent against the V2 enterprise mandate. Ready for adversarial review.
+# 02 Requirements Traceability Review
+
+## Scope
+Verify every requirement 01–21 is represented in the architecture package.
+
+## Traceability matrix
+
+| Req | Title | Architecture file(s) | Notes |
+|---|---|---|---|
+| 01 | Observability and Attribution Spec | 02, 03, 11, 14 | Lineage IDs encoded in domain + DB + explainability |
+| 02 | Feature Snapshot Schema | 03 (`feature_snapshots`, `feature_values`), 11 | Required snapshot fields persisted |
+| 03 | Prediction Signal Decision ID Chain | 02, 03, 11 | Stage records + parent/child constraints |
+| 04 | Confidence Explainability Schema | 03 (`confidence_events`), 11 | Top +/- drivers + freshness/missing flags |
+| 05 | Redis Memory and Retention Policy | 04 | Bands and offload policy explicit |
+| 06 | Heartbeat Schema Policy | 03 (`heartbeat_events`), 14 | Type/payload contract; consumed by monitor |
+| 07 | Monitoring Revalidation Plan | 14 | Continuous monitoring evidence packets |
+| 08 | Pre-V2 Build Exit Criteria | 17 | Sequence forces explicit gates before live |
+| 09 | Trainer Internal Worker Supervision | 14 | Trainer liveness packet domain |
+| 10 | Enterprise Website Product Requirements | 01, 06, 17 | Single-control-plane site; operator/admin separation |
+| 11 | Dynamic Symbol Universe Requirements | 02, 03 (`universe_*`), 06 (Market Universe Manager), 07, 08 | Add/remove/update + state model + restart-free |
+| 12 | Multi-Exchange Connector Requirements | 02, 03 (`exchange_*`), 09 | Mandatory interface + safety gates |
+| 13 | Multi-Trader Fleet Requirements | 02, 03 (`trader_instances`, `trader_assignments`), 10 | Fleet entity + risk authority |
+| 14 | Hot-Reload Pipeline Requirements | 08 | All 8 propagation targets present |
+| 15 | Public Hosting and Security Requirements | 15 | Full security baseline |
+| 16 | Enterprise GUI Page Map | 06 | 28+ enterprise pages with bound APIs |
+| 17 | 100x–1000x Goal Alignment | 01, 12, 13, 17 | Aggressive growth + survival/risk gates |
+| 18 | Updated Pre-V2 Build Exit Criteria | 17, 18 | Architecture/build gating sequence |
+| 19 | Passive Market Discovery and Adaptive Selection | 02, 03, 06, 07 | All four universe layers + scoring |
+| 20 | AI Supervision and Autonomous Change Governance | 03 (`ai_action_changes`), 06 (AI Governance Console + Review Center), 13 | L0–L5 enforced |
+| 21 | Updated Enterprise Architecture Readiness | 00, 18 | Index normalization + GO marker |
+
+## Index normalization check
+File 00 explicitly lists requirements 01–21 in strict numeric order and resolves overlaps between 11/14/19 by cross-reference rather than duplication. This matches the normalization rule.
+
+## Gap analysis
+- Every numbered requirement (01–21) maps to at least one architecture artifact.
+- Several requirements (01, 03, 04, 11, 13, 14, 19, 20) map to multiple architecture artifacts, as expected for cross-cutting concerns.
+- No requirement is silently dropped.
+
+## Decision
+Requirements traceability is complete. No requirement is unrepresented in the V2 architecture package.
+V2_ARCHITECTURE_REVIEW_PASS
+V2_ARCHITECTURE_READY_FOR_CLAUDE_CODEX_REVIEW
+
+ succeeded in 0ms:
+# 01 Enterprise System Architecture
+
+## System definition
+V2 is a local-first, enterprise-grade personal trading platform website with public-hosting-ready architecture.
+
+## Core components
+1. Web frontend (enterprise UI)
+2. API backend (domain service layer)
+3. Database (system-of-record for lineage, governance, audit)
+4. Redis V2 namespace layer (`v2:*` only writes)
+5. Monitor/evidence packet workers
+6. Passive market discovery service
+7. Adaptive symbol selection engine
+8. Trainer adapter (initially read-only integration)
+9. Orchestrator adapter
+10. Risk gateway
+11. Trader fleet manager
+12. Replay/paper trading service
+13. Audit ledger service
+14. Claude/Codex/Ollama review center services
+15. Public-hosting/security edge layer
+
+## High-level data/control flow
+Market + account feeds → discovery/observed universe → scoring/selection → universe versions/hot-reload → trainer/orchestrator adapters → risk gateway decisions → trader fleet intents/execution (paper-first) → monitoring/evidence/audit.
+
+## Modes and safety posture
+- Local-first default runtime.
+- Public-hosting-ready with hardened ingress and RBAC.
+- Live trading blocked by default.
+- No V2 live execution until readiness gates pass.
+
+## Deployment topology
+- Single-node local dev + staged multi-service deployment model.
+- Clear separation between read-only adapters and mutation-capable services.
+- Risk Gateway and approval workflow are mandatory in mutation paths.
+
+## Architecture constraints
+- No demo/sample pages in production architecture.
+- Every GUI page bound to real API/data sources.
+- Legacy runtime remains untouched; V2 interacts through governed adapters.
+# 02 Domain Model and Core Entities
+
+## Core entities
+- `exchange`
+- `exchange_connector`
+- `exchange_account`
+- `exchange_symbol`
+- `available_universe_symbol`
+- `observed_universe_symbol`
+- `training_universe_symbol`
+- `trading_universe_symbol`
+- `symbol_score`
+- `symbol_override`
+- `feature_snapshot`
+- `feature_value`
+- `prediction_event`
+- `confidence_event`
+- `signal_event`
+- `orchestrator_decision`
+- `risk_decision`
+- `execution_intent`
+- `trader_instance`
+- `audit_event`
+- `ai_action_change`
+- `config_version`
+- `monitor_snapshot`
+- `evidence_packet`
+
+## Key relationships
+- `exchange` 1:N `exchange_connector`
+- `exchange` 1:N `exchange_symbol`
+- `exchange_account` N:1 `exchange`
+- `available_universe_symbol` references `exchange_symbol`
+- `observed/training/trading_universe_symbol` reference `available_universe_symbol`
+- `symbol_score` and `symbol_override` reference universe symbol and version
+- `feature_value` N:1 `feature_snapshot`
+- `prediction_event` references `feature_snapshot`
+- `confidence_event` references `prediction_event`
+- `signal_event` references `prediction_event`
+- `orchestrator_decision` references `signal_event`
+- `risk_decision` references `orchestrator_decision`
+- `execution_intent` references `risk_decision`
+- `trader_instance` receives assignments and intents under risk policy
+- `audit_event` and `ai_action_change` reference all mutable governance actions
+
+## Mandatory lineage chain
+`feature_snapshot_id -> prediction_id -> signal_id -> decision_id -> risk_decision_id -> execution_intent_id`
+# 04 Redis Namespace and Retention Plan
+
+## Namespace policy
+- V2 writes only to `v2:*`.
+- Legacy Redis keys are read-only to V2.
+- No deletion/mutation of legacy namespaces.
+
+## Retention policy
+- Hot streams use bounded retention (`MAXLEN`/time-based archival policy).
+- Audit ledger is offloaded to database as source of truth.
+- Redis is for short-lived operational state, not infinite history.
+
+## Memory guardrails
+- Warning band: 85%
+- Elevated band: 90%
+- Critical band: 95%
+
+## Legacy finding and constraint
+- Legacy Redis reached approximately 96.8%.
+- Therefore V2 cannot permit unbounded Redis growth.
+
+## V2 key categories (examples)
+- `v2:universe:*`
+- `v2:selection:*`
+- `v2:monitor:*`
+- `v2:evidence:*`
+- `v2:risk:*`
+- `v2:fleet:*`
+
+## Operational rules
+- Every V2 stream/hash must define retention class.
+- Critical lineage and governance records must be mirrored to DB.
+- Memory alerts are mandatory inputs to readiness and safety dashboards.
+# 08 Hot-Reload Pipeline Architecture
+
+## State flow
+`proposed -> validated -> approved -> applied -> verified`
+
+## Propagation targets
+Hot-reload updates must apply to:
+- ingestors
+- feature pipeline
+- trainer adapter
+- orchestrator
+- risk gateway
+- trader fleet
+- monitor
+- GUI
+
+## Required event envelope
+- `universe_version`
+- `change_set`
+- `requested_by`
+- `approval_chain`
+- `evidence_pointers`
+- `created_ts_ms`
+
+## Component acknowledgments
+Each component returns:
+- `component_id`
+- `applied_version`
+- `ack_ts_ms`
+- `validation_status`
+- `rollback_ready`
+
+## Rollback architecture
+- Immediate rollback to prior verified version.
+- Rollback is versioned, audited, and re-verified.
+
+## Validation evidence
+- Pre-apply checks
+- Post-apply checks
+- Component health checks
+- Diff and impact summaries
+
+## Operational constraint
+- No routine full restart allowed for universe updates.
+# 09 Multi-Exchange Connector Architecture
+
+## Connector interface
+- `list_symbols`
+- `get_symbol_metadata`
+- `get_ohlcv`
+- `get_orderbook`
+- `get_funding`
+- `get_open_interest`
+- `get_account_state`
+- `create_order`
+- `cancel_order`
+- `set_leverage`
+- `set_margin_mode`
+
+## Execution safety
+- Live mutation methods remain blocked until live readiness gates pass.
+- Default mutation mode is blocked/simulated in architecture baseline.
+
+## Rollout
+- Binance Futures is first connector.
+- Additional futures exchanges are pluggable without rewriting core services.
+
+## Connector standards
+- Capability declaration per connector.
+- Unified error model.
+- Health heartbeat.
+- Audit envelope for all calls (with redaction).
+# 10 Multi-Trader Fleet Architecture
+
+## Objective
+Support many trader instances according to system capacity.
+
+## Trader instance schema
+- `trader_id`
+- `account_id`
+- `exchange_id`
+- `strategy_profile`
+- `symbol_scope`
+- `risk_profile`
+- `paper_live_mode`
+- `assigned_symbols`
+- `heartbeat`
+- `pnl`
+- `attribution_completeness`
+
+## Fleet controls
+- Dynamic trader add/remove.
+- Capacity-aware assignment and sharding.
+- Per-trader paper/live mode with safe defaults.
+- Assignment rebalancing and quarantine workflows.
+
+## Authority model
+Risk Gateway remains final authority for allow/block of execution intents.
+# 14 Continuous Monitoring and Evidence Packet Architecture
+
+## Packet model
+- hourly packets
+- daily packets
+- alert packets
+- Claude review packets
+- Codex review packets
+- Ollama summarization packets
+
+## Monitoring domains
+- trainer liveness (corrected logic)
+- feature flow monitoring
+- signal attribution monitoring
+- Redis memory monitoring
+- readiness/dashboard monitoring
+
+## Evidence storage
+- Packet metadata in DB (`evidence_packets`)
+- Raw payload retention with lifecycle policy
+- Cross-reference by `monitor_snapshot_id` and `change_id`
+
+## Dashboard readiness
+- Real-time packet ingestion status
+- confidence/evidence quality indicators
+- alert classification and ack workflows
+# 17 Implementation Sequence and Milestones
+
+## Constraint
+Do not start with live execution.
+
+## Recommended sequence
+A. architecture review
+B. V2 skeleton/scaffold
+C. database schema
+D. API contracts
+E. enterprise GUI shell
+F. monitor/evidence packet viewer
+G. passive market discovery
+H. adaptive selection engine
+I. feature attribution store
+J. trainer adapter read-only
+K. risk gateway
+L. replay/paper
+M. trader fleet paper-only
+N. live readiness gate
+O. live mode only after approval
+
+## Milestone gating
+- Each milestone requires validation artifacts and audit evidence.
+- No transition to live mode without explicit readiness GO and human approvals.
+
+exec
+/bin/bash -lc "sed -n '1,120p' claude_worklog/v2_requirements/18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA.md && sed -n '1,100p' claude_worklog/v2_requirements/21_UPDATED_ENTERPRISE_ARCHITECTURE_READINESS.md && sed -n '1,120p' claude_worklog/v2_architecture/00_REQUIREMENTS_INDEX_AND_NORMALIZATION.md" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+# 18 Updated Pre-V2 Build Exit Criteria
+
+## Consolidated enterprise exit criteria
+All requirements below must be satisfied before architecture planning and V2 build implementation:
+
+1. Existing baseline criteria from 01–09
+- Observability, lineage, explainability, retention, heartbeat semantics, continuous monitoring, trainer internal worker supervision.
+
+2. Enterprise website scope
+- Website is the primary control center.
+- Professional/polished UI requirement defined.
+- No demo/sample pages in production scope.
+- Operator vs admin boundary defined.
+
+3. Dynamic symbol universe readiness
+- GUI add/remove/update supported.
+- Symbol states include train-enabled/trade-enabled/paper-only/live-disabled.
+- Restart-free update model defined.
+
+4. Hot-reload propagation readiness
+- Universe updates propagate to ingestors, feature pipeline, trainer adapter, orchestrator, risk gateway, trader fleet, monitor, GUI.
+- Versioned, audited, and rollback-capable update flow defined.
+
+5. Multi-exchange connector readiness
+- Connector interface includes all mandatory market/account/order methods.
+- Live mutation methods explicitly blocked until gates pass.
+- Binance Futures first, pluggable expansion path defined.
+
+6. Multi-trader fleet readiness
+- Fleet scaling model with mandatory trader fields defined.
+- Risk Gateway final authority preserved.
+
+7. Enterprise page map completeness
+- Required page inventory present with purpose/data/controls/admin-only/safety/data-source mapping.
+
+8. Public hosting and security readiness
+- Auth, RBAC, HTTPS, reverse proxy, rate limits, audit logs, IP allowlist, 2FA-ready.
+- No unauthenticated trading controls.
+- Secrets never exposed to GUI.
+
+9. 100x–1000x mission alignment with hard safety constraints
+- Aggressive growth objective retained.
+- Compounding, winrate, replay/paper, live-default-blocked, human-approval guardrails mandated.
+
+10. Passive all-market discovery and adaptive selection readiness
+- Four universe layers are defined and enforced: available, observed, training, trading.
+- Dynamic selection engine criteria and capacity-based selection are defined.
+- Manual override governance (who/when/why/risk/rollback) is mandatory and auditable.
+
+11. AI supervision and autonomous change governance readiness
+- Claude/Codex/Ollama action-level governance (L0-L5) is defined.
+- Risk-level approval and validation model is defined.
+- Dangerous live actions are explicitly non-autonomous and require human approval.
+- AI action ledger schema and GUI transparency requirements are defined.
+
+## Architecture planning decision
+Criteria status after adding requirements 10–17:
+- Enterprise product scope: defined
+- Safety and governance constraints: defined
+- Data/control surface map: defined
+- Hosting/security baseline: defined
+- Passive discovery and adaptive selection baseline: defined
+- AI supervision and autonomous governance baseline: defined
+
+ENTERPRISE_V2_REQUIREMENTS_READY_FOR_ARCHITECTURE
+# 21 Updated Enterprise Architecture Readiness
+
+## Scope
+This readiness decision incorporates requirements 01 through 20, including:
+- enterprise website control-center scope
+- dynamic symbol universe
+- hot-reload propagation
+- multi-exchange connectors
+- multi-trader fleet
+- public hosting/security baseline
+- 100x–1000x mission alignment with hard safety conditions
+- passive all-market discovery and adaptive selection
+- AI supervision and autonomous change governance
+
+## Readiness checklist summary
+1. Product scope completeness
+- Full enterprise platform website scope defined.
+
+2. Data and control-plane completeness
+- Runtime domains and control surfaces mapped.
+- GUI page map includes mandatory operational/admin/governance surfaces.
+
+3. Universe and selection completeness
+- Four-layer universe model and adaptive selection governance defined.
+
+4. Governance completeness
+- AI action risk-level policy defined (L0-L5).
+- Dangerous live actions explicitly non-autonomous.
+
+5. Safety completeness
+- Risk Gateway final authority preserved.
+- Human approval requirements defined for high-risk actions.
+
+6. Architecture handoff quality
+- Requirements now support architecture planning without missing enterprise-level functional groups.
+
+## Decision
+ENTERPRISE_AI_SUPERVISED_V2_REQUIREMENTS_READY_FOR_ARCHITECTURE
+# 00 Requirements Index and Normalization
+
+## Scope
+Normalized index of approved V2 requirements for architecture (01–21).
+
+## Requirement source files
+1. [01_OBSERVABILITY_AND_ATTRIBUTION_SPEC](../v2_requirements/01_OBSERVABILITY_AND_ATTRIBUTION_SPEC.md)
+2. [02_FEATURE_SNAPSHOT_SCHEMA](../v2_requirements/02_FEATURE_SNAPSHOT_SCHEMA.md)
+3. [03_PREDICTION_SIGNAL_DECISION_ID_CHAIN](../v2_requirements/03_PREDICTION_SIGNAL_DECISION_ID_CHAIN.md)
+4. [04_CONFIDENCE_EXPLAINABILITY_SCHEMA](../v2_requirements/04_CONFIDENCE_EXPLAINABILITY_SCHEMA.md)
+5. [05_REDIS_MEMORY_AND_RETENTION_POLICY](../v2_requirements/05_REDIS_MEMORY_AND_RETENTION_POLICY.md)
+6. [06_HEARTBEAT_SCHEMA_POLICY](../v2_requirements/06_HEARTBEAT_SCHEMA_POLICY.md)
+7. [07_MONITORING_REVALIDATION_PLAN](../v2_requirements/07_MONITORING_REVALIDATION_PLAN.md)
+8. [08_PRE_V2_BUILD_EXIT_CRITERIA](../v2_requirements/08_PRE_V2_BUILD_EXIT_CRITERIA.md)
+9. [09_TRAINER_INTERNAL_WORKER_SUPERVISION_REQUIREMENT](../v2_requirements/09_TRAINER_INTERNAL_WORKER_SUPERVISION_REQUIREMENT.md)
+10. [10_ENTERPRISE_WEBSITE_PRODUCT_REQUIREMENTS](../v2_requirements/10_ENTERPRISE_WEBSITE_PRODUCT_REQUIREMENTS.md)
+11. [11_DYNAMIC_SYMBOL_UNIVERSE_REQUIREMENTS](../v2_requirements/11_DYNAMIC_SYMBOL_UNIVERSE_REQUIREMENTS.md)
+12. [12_MULTI_EXCHANGE_CONNECTOR_REQUIREMENTS](../v2_requirements/12_MULTI_EXCHANGE_CONNECTOR_REQUIREMENTS.md)
+13. [13_MULTI_TRADER_FLEET_REQUIREMENTS](../v2_requirements/13_MULTI_TRADER_FLEET_REQUIREMENTS.md)
+14. [14_HOT_RELOAD_PIPELINE_REQUIREMENTS](../v2_requirements/14_HOT_RELOAD_PIPELINE_REQUIREMENTS.md)
+15. [15_PUBLIC_HOSTING_AND_SECURITY_REQUIREMENTS](../v2_requirements/15_PUBLIC_HOSTING_AND_SECURITY_REQUIREMENTS.md)
+16. [16_ENTERPRISE_GUI_PAGE_MAP](../v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md)
+17. [17_100X_1000X_GOAL_ALIGNMENT](../v2_requirements/17_100X_1000X_GOAL_ALIGNMENT.md)
+18. [18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA](../v2_requirements/18_UPDATED_PRE_V2_BUILD_EXIT_CRITERIA.md)
+19. [19_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION](../v2_requirements/19_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION.md)
+20. [20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE](../v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md)
+21. [21_UPDATED_ENTERPRISE_ARCHITECTURE_READINESS](../v2_requirements/21_UPDATED_ENTERPRISE_ARCHITECTURE_READINESS.md)
+
+## Normalization notes
+- Requirement ordering is now strict numeric 01–21.
+- Dynamic symbol requirements are normalized as:
+  - Discovery and scoring baseline: requirement 19
+  - Operational symbol state and GUI CRUD: requirement 11
+  - Restart-free propagation and versioning: requirement 14
+  - Risk and approval governance: requirements 18 and 20
+- No requirement is removed; overlaps are cross-referenced, not duplicated.
+
+## Architecture gate status
+Requirement 21 final marker is:
+
+`ENTERPRISE_AI_SUPERVISED_V2_REQUIREMENTS_READY_FOR_ARCHITECTURE`
+
+## Non-goal reminder
+This architecture package is **not** a build/live approval artifact.
+
+exec
+/bin/bash -lc "sed -n '1,120p' claude_worklog/v2_requirements/02_FEATURE_SNAPSHOT_SCHEMA.md && sed -n '1,120p' claude_worklog/v2_requirements/04_CONFIDENCE_EXPLAINABILITY_SCHEMA.md && sed -n '1,120p' claude_worklog/v2_architecture/11_FEATURE_ATTRIBUTION_AND_SIGNAL_EXPLAINABILITY_ARCHITECTURE.md" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+# 02 Feature Snapshot Schema
+
+## Goal
+Standardize trainer input feature snapshots to make predictions auditable and reproducible.
+
+## `feature_snapshot_id` definition
+`feature_snapshot_id` is a deterministic, immutable identifier for one assembled feature snapshot.
+
+Recommended composition:
+- `symbol`
+- `trigger_timeframe`
+- `bucket_start_ts_ms`
+- `snapshot_sequence`
+- hash of normalized key/value payload
+
+## Required snapshot fields
+- `feature_snapshot_id`
+- `snapshot_ts_ms`
+- `symbol`
+- `trigger_timeframe`
+- `htf_context` (e.g., 1h/4h bias payload refs)
+- `feature_sources[]` array with entries containing:
+  - `source_key`
+  - `source_pattern`
+  - `source_ts_ms`
+  - `freshness_age_ms`
+  - `stale_flag`
+  - `missing_flag`
+  - `unused_flag`
+- `feature_values` (normalized numeric/categorical payload)
+- `schema_version`
+
+## Freshness policy fields
+Per source key, include:
+- `freshness_sla_ms`
+- `freshness_age_ms`
+- `freshness_status` in `{fresh, warning, stale, missing}`
+
+## Trainer contract
+No `prediction_id` may be generated without a valid `feature_snapshot_id` and a complete `feature_sources[]` freshness envelope.
+# 04 Confidence Explainability Schema
+
+## Goal
+Make confidence outputs explainable using source-grounded feature contributions.
+
+## Required explainability block
+Each prediction/signal record must include `confidence_explainability` with:
+
+- `top_positive_features[]` (ordered by positive contribution)
+- `top_negative_features[]` (ordered by negative contribution)
+
+Each feature contribution item must include:
+- `feature_name`
+- `contribution_score`
+- `source_redis_key`
+- `source_redis_pattern`
+- `source_ts_ms`
+- `freshness_age_ms`
+- `stale_flag`
+- `missing_flag`
+- `unused_flag`
+
+Record-level required fields:
+- `model_version`
+- `checkpoint_id`
+- `calibration_version`
+- `confidence_raw`
+- `confidence_calibrated`
+- `explainability_method`
+- `explainability_schema_version`
+
+## Minimum cardinality
+- Minimum 3 entries in `top_positive_features[]`.
+- Minimum 3 entries in `top_negative_features[]`.
+- If fewer exist, emit explicit placeholder with `missing_flag=true`.
+
+## Compliance rule
+A signal lacking `confidence_explainability` is not explainability-complete and cannot qualify for pre-V2 GO criteria.
+# 11 Feature Attribution and Signal Explainability Architecture
+
+## Lineage IDs (mandatory)
+- `feature_snapshot_id`
+- `prediction_id`
+- `signal_id`
+- `decision_id`
+- `risk_decision_id`
+- `execution_intent_id`
+
+## Required explainability payload per prediction/signal/action
+- source keys
+- feature values
+- feature freshness
+- stale/missing/unused flags
+- model version
+- checkpoint
+- confidence before/after
+- top positive/negative drivers
+- orchestrator reason
+- risk decision
+- execution/block reason
+
+## Architectural purpose
+Directly closes post-monitor feature attribution and explainability gaps through persisted lineage + explainability records.
+
+## Display surfaces
+- Signal Explainability page
+- Confidence Driver Breakdown page
+- Audit Ledger cross-linking
+
+exec
+/bin/bash -lc "sed -n '1,120p' claude_worklog/v2_requirements/05_REDIS_MEMORY_AND_RETENTION_POLICY.md && sed -n '1,120p' claude_worklog/v2_requirements/06_HEARTBEAT_SCHEMA_POLICY.md && sed -n '1,120p' claude_worklog/v2_requirements/07_MONITORING_REVALIDATION_PLAN.md" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+# 05 Redis Memory and Retention Policy
+
+## Purpose
+Define memory safety, retention, and audit offload requirements without deleting legacy namespaces.
+
+## Thresholds
+- Memory warning threshold: 85%
+- Memory elevated threshold: 90%
+- Memory critical threshold: 95%
+
+Given runtime evidence (~96.8%), current posture is critical until remediated.
+
+## Hot stream retention strategy
+- Keep hot execution/signaling streams bounded by explicit TTL/length budgets per stream category.
+- Use rolling caps sized by operational horizon, not unbounded growth.
+- Prefer append-only short horizon for operational streams; preserve lineage IDs in compact form.
+
+## Audit ledger offload strategy
+- Offload full-fidelity attribution and decision logs to durable audit storage on short intervals.
+- Keep Redis as low-latency operational cache/queue, not long-term ledger.
+- Offload payload must preserve full lineage tuple and confidence explainability block.
+
+## Safety policies
+- On warning/elevated/critical bands, emit observability alerts and stricter sampling diagnostics.
+- At critical band, block non-essential telemetry expansion until headroom restored.
+
+## Legacy compatibility
+- No deletion or mutation of legacy V1 key contracts as part of V2 rollout.
+- V2 retention controls must apply to V2 additive namespaces only.
+# 06 Heartbeat Schema Policy
+
+## Objective
+Eliminate heartbeat `WRONGTYPE` ambiguity by enforcing a single key-type and payload policy.
+
+## Canonical heartbeat contract
+For each component heartbeat key:
+- fixed Redis data type (one type only per key)
+- JSON payload with required fields:
+  - `component`
+  - `status`
+  - `heartbeat_ts_ms`
+  - `schema_version`
+  - `instance_id`
+
+## Keying policy
+- Each logical heartbeat channel has one canonical key pattern.
+- No component may write a different Redis type to an existing heartbeat key.
+- Type mismatch is a schema violation and must trigger explicit monitoring alert.
+
+## Versioning policy
+- Heartbeat payload changes require `schema_version` increment.
+- Consumers must validate `schema_version` and fail-safe on unsupported versions.
+
+## Monitoring policy
+Read-only monitor must validate:
+- key exists,
+- key type matches contract,
+- payload parses,
+- `heartbeat_ts_ms` freshness within SLA.
+# 07 Monitoring Revalidation Plan
+
+## Trigger
+Run this revalidation after observability/attribution changes are implemented.
+
+## Required method
+- Execute a full read-only monitor cycle again.
+- Use dashboard plus JSONL outputs for quantitative validation.
+- Do not mutate production services during validation.
+
+## Required pass conditions
+1. Feature attribution status is no longer partial.
+2. Full lineage tuple present across sampled trainer->signal->orchestrator->risk->execution records.
+3. `missing_signal_id` and `missing_confidence` trend to zero in sampled executed analysis.
+4. Heartbeat channels show no `WRONGTYPE` events.
+5. Redis memory operates below critical threshold for full validation window.
+6. Monitor completes naturally without critical errors.
+
+## Required dashboard metrics to review
+- monitor completion state
+- elapsed runtime hours
+- snapshot freshness
+- parse error count
+- critical error count
+- Redis memory ratio
+- feature visibility classification
+- final recommendation state
+
+## Evidence artifacts
+- updated monitor summary,
+- updated dashboard report,
+- updated feature visibility audit,
+- updated truth table with pass/fail marks.
+
+exec
+/bin/bash -lc "sed -n '1,140p' claude_worklog/v2_requirements/11_DYNAMIC_SYMBOL_UNIVERSE_REQUIREMENTS.md && sed -n '1,140p' claude_worklog/v2_requirements/14_HOT_RELOAD_PIPELINE_REQUIREMENTS.md && sed -n '1,150p' claude_worklog/v2_requirements/19_PASSIVE_MARKET_DISCOVERY_AND_ADAPTIVE_SELECTION.md" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+# 11 Dynamic Symbol Universe Requirements
+
+## Requirement ID
+V2-UNIVERSE-DYNAMIC-001
+
+## Objective
+Symbol universe must be managed from GUI without full-system restart, beginning with Binance Futures metadata and expandable to other futures exchanges.
+
+## Mandatory capabilities
+1. GUI lifecycle operations
+- Add symbol
+- Remove symbol
+- Update symbol attributes/state
+- Bulk import/sync from exchange metadata
+
+2. Symbol operational states (required)
+- `train_enabled`
+- `trade_enabled`
+- `paper_only`
+- `live_disabled`
+
+3. No full restart requirement
+## Scope extension (required)
+- Dynamic symbol universe must integrate with passive all-market discovery and adaptive selection requirements (see requirement 19).
+- Universe changes must apply through hot-reload propagation path (see requirement 14).
+- Full platform restart is non-compliant for routine symbol updates.
+- Order book depth
+- Liquidation activity
+- Volume
+6. Universe layers compatibility (required)
+- `available_universe` (passive known instruments)
+- `observed_universe` (read-only monitored instruments)
+- `training_universe` (capacity-scored train set)
+- `trading_universe` (stricter risk-gated trade candidates)
+- Spread
+- Volatility
+- Manual include/exclude and force-state controls (`force_train_only`, `force_paper_only`, `force_disabled`).
+
+- `live_allowed`
+- `manual_override_state`
+- `override_reason`
+- `orderbook_depth_score`
+- `liquidation_activity_score`
+- `data_completeness_score`
+- `feature_freshness_score`
+- `model_confidence_history`
+- `paper_performance`
+- `trade_enabled`
+- `paper_only`
+- Manual overrides must capture: who, when, why, risk level, rollback value.
+- Dangerous overrides require explicit confirmation and approval policy.
+- `volume_score`
+- `spread_score`
+- Four-layer universe compatibility and adaptive selection integration defined.
+- `trend_regime_score`
+- `universe_version`
+- `updated_by`
+- `updated_ts_ms`
+
+## Safety and governance
+- Any transition enabling live trade path requires readiness gates + admin approval.
+- Universe updates must produce audit events with before/after diff and request context.
+
+## Pre-architecture acceptance
+- GUI CRUD + policy transitions defined.
+- State model includes required enablement modes.
+- Restart-free update path specified and auditable.
+# 14 Hot-Reload Pipeline Requirements
+
+## Requirement ID
+V2-HOT-RELOAD-PIPELINE-001
+
+## Objective
+Symbol universe and related policy updates must propagate platform-wide without full-system restart.
+
+## Scope extension (required)
+- Hot-reload pipeline must support adaptive selection updates produced from passive market discovery layers (available/observed/training/trading universes in requirement 19).
+
+## Mandatory propagation targets
+Every approved universe update must propagate to:
+- ingestors
+- feature pipeline
+- trainer adapter
+- orchestrator
+- risk gateway
+- trader fleet
+- monitor
+- GUI
+
+## Required behavior
+1. Restart-free updates
+- Routine symbol universe updates must not require full platform restart.
+
+2. Versioned update events
+- Each update has immutable `universe_version` and change-set metadata.
+- Version includes author, timestamp, reason, approval chain, and diff.
+- A hot-reload event must be emitted for each approved change-set.
+
+3. Deterministic rollout
+- Publish/update/apply flow with explicit state transitions:
+  - `proposed` → `validated` → `approved` → `applied` → `verified`
+
+4. Component acknowledgment
+- Each target component must ack applied version and health state.
+- Missing ack triggers alert/escalation.
+- Ack payload must include component-local apply timestamp, validation status, and rollback readiness.
+
+5. Rollback safety
+- Fast rollback to last known-good universe version.
+- Rollback event also audited.
+
+## Validation and audit requirements
+- For each update, persist:
+  - requested change
+  - validation result
+  - approval evidence
+  - component-wise apply status
+  - post-apply health checks
+  - selection-engine evidence pointers
+  - before/after symbol set diffs for training/trading universes
+
+## Safety constraints
+- Live-trading-impacting universe changes require admin gate + readiness checks.
+- Risk Gateway enforces final trade allow/block regardless of rollout status.
+- No full restart fallback is allowed for routine universe updates.
+- Any trading-impacting update must remain blocked if validation evidence is incomplete.
+
+## Pre-architecture acceptance
+- Update state machine, versioning, and component-ack protocol defined.
+- Rollback and audit coverage defined.
+- Adaptive selection and passive-discovery update ingestion are covered in the same hot-reload protocol.
+# Passive Market Discovery and Adaptive Selection
+
+## Requirement ID
+V2-PASSIVE-DISCOVERY-ADAPTIVE-SELECTION-001
+
+## Scope
+The system must ingest/observe all available coins from:
+- Binance Futures
+- CoinAnk
+- CoinAPI
+- KuCoin
+- any future futures exchange connector
+- any additional ingestor added later
+
+## Universe layers (mandatory)
+
+### 1. Available Universe
+- every coin/instrument known from exchanges/ingestors
+- passive metadata only
+- not necessarily trained or traded
+
+### 2. Observed Universe
+- coins monitored for status, liquidity, volatility, funding, open interest, spread, volume, news/technical/flow/liquidation factors
+- read-only passive monitoring
+
+### 3. Training Universe
+- dynamically selected coins for trainer/model updates
+- based on scoring and system capacity
+- hot-reloadable without full service restart
+
+### 4. Trading Universe
+- subset approved for paper/live trade consideration
+- stricter gates than training universe
+- risk gateway final authority
+
+## Per-symbol tracking schema (required)
+For every symbol, V2 must track:
+- symbol
+- exchange
+- market type
+- base/quote asset
+- available from which ingestors
+- data completeness score
+- liquidity score
+- spread score
+- volatility score
+- funding score
+- open interest score
+- order book depth score
+- liquidation activity score
+- technical/regime score
+- feature freshness score
+- model confidence history
+- paper performance
+- live eligibility
+- train_enabled
+- trade_enabled
+- paper_only
+- live_allowed
+- manual_override_state
+- override_reason
+- last updated time
+
+## Dynamic selection engine (required)
+- ranks all available coins
+- selects training symbols based on score/capacity
+- selects trading candidates based on stricter risk/performance criteria
+- supports manual include/exclude
+- supports force train-only, force paper-only, force disabled
+- all changes versioned and audited
+- hot-reload event emitted on changes
+- no full system restart required
+
+## Manual override governance (required)
+- admin can add/remove/modify symbols in GUI
+- override must show who changed it, when, why, risk level, and rollback value
+- dangerous overrides require confirmation
+
+## Safety and rollout constraints
+- Trading Universe admission is blocked until required risk/readiness gates pass.
+- Risk Gateway remains the final authority even after selection/admission.
+- Passive discovery never implies auto-live enablement.
+
+## Pre-architecture acceptance
+- Four-layer universe model is implemented in requirements baseline.
+- Dynamic selection + manual override governance are fully specified.
+- Restart-free propagation and audit requirements are explicitly tied to requirement 14.
+
+codex
+The core pattern is now clear: the package is traceable and well scoped, but several requirements are stricter than the architecture tables/API contracts that supposedly satisfy them. I’m pulling exact line references for the blocker list so the replacement review can be grounded rather than just opinionated.
+exec
+/bin/bash -lc "nl -ba claude_worklog/v2_requirements/01_OBSERVABILITY_AND_ATTRIBUTION_SPEC.md | sed -n '20,48p'; nl -ba claude_worklog/v2_requirements/03_PREDICTION_SIGNAL_DECISION_ID_CHAIN.md | sed -n '56,70p'; nl -ba claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md | sed -n '31,56p'" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+    20	- `execution_intent_id`: Immutable ID for one executable order intent produced from one `risk_decision_id`.
+    21	
+    22	## Required linkage model
+    23	Single-parent deterministic linkage is required:
+    24	
+    25	1. `feature_snapshot_id` -> parent of `prediction_id`
+    26	2. `prediction_id` -> parent of `signal_id`
+    27	3. `signal_id` -> parent of `decision_id`
+    28	4. `decision_id` -> parent of `risk_decision_id`
+    29	5. `risk_decision_id` -> parent of `execution_intent_id`
+    30	
+    31	Additionally, each child record must carry:
+    32	- direct parent ID,
+    33	- full upstream lineage tuple,
+    34	- producer component name,
+    35	- monotonic event timestamp.
+    36	
+    37	## Required record envelope for every stage
+    38	Mandatory fields:
+    39	- `event_type`
+    40	- `event_ts_ms`
+    41	- `symbol`
+    42	- `timeframe`
+    43	- all six IDs (directly or via lineage tuple)
+    44	- `producer`
+    45	- `schema_version`
+    46	- `model_version`
+    47	- `checkpoint_id` (where applicable)
+    48	
+    56	
+    57	## Mandatory lineage tuple
+    58	Every downstream record must carry:
+    59	- `feature_snapshot_id`
+    60	- `prediction_id`
+    61	- `signal_id`
+    62	- `decision_id`
+    63	- `risk_decision_id`
+    64	- `execution_intent_id` (if already created)
+    65	
+    66	## Integrity rules
+    67	- No stage may emit child ID without parent ID.
+    68	- Parent IDs are immutable.
+    69	- Cross-symbol linkage is invalid.
+    70	- Missing lineage fields are hard validation failures for observability compliance.
+    31	
+    32	### `feature_values`
+    33	- `feature_value_id` (PK), `feature_snapshot_id` (FK), `feature_name`, `feature_value`, `source_key`, `freshness_age_ms`, `stale_flag`, `missing_flag`, `unused_flag`
+    34	
+    35	### `prediction_events`
+    36	- `prediction_id` (PK), `feature_snapshot_id` (FK), `symbol`, `timeframe`, `model_version`, `checkpoint`, `raw_output_json`, `created_ts_ms`
+    37	
+    38	### `confidence_events`
+    39	- `confidence_event_id` (PK), `prediction_id` (FK), `confidence_before`, `confidence_after`, `top_positive_json`, `top_negative_json`, `created_ts_ms`
+    40	
+    41	### `signal_events`
+    42	- `signal_id` (PK), `prediction_id` (FK), `symbol`, `action`, `confidence`, `reason_json`, `created_ts_ms`
+    43	
+    44	### `orchestrator_decisions`
+    45	- `decision_id` (PK), `signal_id` (FK), `decision_action`, `decision_reason`, `policy_trace_json`, `created_ts_ms`
+    46	
+    47	### `risk_decisions`
+    48	- `risk_decision_id` (PK), `decision_id` (FK), `allow_block`, `block_reason`, `policy_checks_json`, `created_ts_ms`
+    49	
+    50	### `execution_intents`
+    51	- `execution_intent_id` (PK), `risk_decision_id` (FK), `trader_id`, `intent_action`, `mode` (`paper|live`), `status`, `created_ts_ms`, `executed_ts_ms`
+    52	
+    53	### `trader_instances`
+    54	- `trader_id` (PK), `account_id`, `exchange_id`, `strategy_profile`, `symbol_scope_json`, `risk_profile_json`, `paper_live_mode`, `heartbeat_ts_ms`, `pnl_json`, `attribution_completeness`, `status`
+    55	
+    56	### `trader_assignments`
+
+exec
+/bin/bash -lc "nl -ba claude_worklog/v2_requirements/02_FEATURE_SNAPSHOT_SCHEMA.md | sed -n '7,40p'; nl -ba claude_worklog/v2_requirements/04_CONFIDENCE_EXPLAINABILITY_SCHEMA.md | sed -n '7,38p'; nl -ba claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md | sed -n '31,44p'" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+     7	`feature_snapshot_id` is a deterministic, immutable identifier for one assembled feature snapshot.
+     8	
+     9	Recommended composition:
+    10	- `symbol`
+    11	- `trigger_timeframe`
+    12	- `bucket_start_ts_ms`
+    13	- `snapshot_sequence`
+    14	- hash of normalized key/value payload
+    15	
+    16	## Required snapshot fields
+    17	- `feature_snapshot_id`
+    18	- `snapshot_ts_ms`
+    19	- `symbol`
+    20	- `trigger_timeframe`
+    21	- `htf_context` (e.g., 1h/4h bias payload refs)
+    22	- `feature_sources[]` array with entries containing:
+    23	  - `source_key`
+    24	  - `source_pattern`
+    25	  - `source_ts_ms`
+    26	  - `freshness_age_ms`
+    27	  - `stale_flag`
+    28	  - `missing_flag`
+    29	  - `unused_flag`
+    30	- `feature_values` (normalized numeric/categorical payload)
+    31	- `schema_version`
+    32	
+    33	## Freshness policy fields
+    34	Per source key, include:
+    35	- `freshness_sla_ms`
+    36	- `freshness_age_ms`
+    37	- `freshness_status` in `{fresh, warning, stale, missing}`
+    38	
+    39	## Trainer contract
+    40	No `prediction_id` may be generated without a valid `feature_snapshot_id` and a complete `feature_sources[]` freshness envelope.
+     7	Each prediction/signal record must include `confidence_explainability` with:
+     8	
+     9	- `top_positive_features[]` (ordered by positive contribution)
+    10	- `top_negative_features[]` (ordered by negative contribution)
+    11	
+    12	Each feature contribution item must include:
+    13	- `feature_name`
+    14	- `contribution_score`
+    15	- `source_redis_key`
+    16	- `source_redis_pattern`
+    17	- `source_ts_ms`
+    18	- `freshness_age_ms`
+    19	- `stale_flag`
+    20	- `missing_flag`
+    21	- `unused_flag`
+    22	
+    23	Record-level required fields:
+    24	- `model_version`
+    25	- `checkpoint_id`
+    26	- `calibration_version`
+    27	- `confidence_raw`
+    28	- `confidence_calibrated`
+    29	- `explainability_method`
+    30	- `explainability_schema_version`
+    31	
+    32	## Minimum cardinality
+    33	- Minimum 3 entries in `top_positive_features[]`.
+    34	- Minimum 3 entries in `top_negative_features[]`.
+    35	- If fewer exist, emit explicit placeholder with `missing_flag=true`.
+    36	
+    37	## Compliance rule
+    38	A signal lacking `confidence_explainability` is not explainability-complete and cannot qualify for pre-V2 GO criteria.
+    31	
+    32	### `feature_values`
+    33	- `feature_value_id` (PK), `feature_snapshot_id` (FK), `feature_name`, `feature_value`, `source_key`, `freshness_age_ms`, `stale_flag`, `missing_flag`, `unused_flag`
+    34	
+    35	### `prediction_events`
+    36	- `prediction_id` (PK), `feature_snapshot_id` (FK), `symbol`, `timeframe`, `model_version`, `checkpoint`, `raw_output_json`, `created_ts_ms`
+    37	
+    38	### `confidence_events`
+    39	- `confidence_event_id` (PK), `prediction_id` (FK), `confidence_before`, `confidence_after`, `top_positive_json`, `top_negative_json`, `created_ts_ms`
+    40	
+    41	### `signal_events`
+    42	- `signal_id` (PK), `prediction_id` (FK), `symbol`, `action`, `confidence`, `reason_json`, `created_ts_ms`
+    43	
+    44	### `orchestrator_decisions`
+
+exec
+/bin/bash -lc "nl -ba claude_worklog/v2_requirements/14_HOT_RELOAD_PIPELINE_REQUIREMENTS.md | sed -n '30,58p'; nl -ba claude_worklog/v2_architecture/08_HOT_RELOAD_PIPELINE_ARCHITECTURE.md | sed -n '15,34p'; nl -ba claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md | sed -n '17,21p'" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+    30	- A hot-reload event must be emitted for each approved change-set.
+    31	
+    32	3. Deterministic rollout
+    33	- Publish/update/apply flow with explicit state transitions:
+    34	  - `proposed` → `validated` → `approved` → `applied` → `verified`
+    35	
+    36	4. Component acknowledgment
+    37	- Each target component must ack applied version and health state.
+    38	- Missing ack triggers alert/escalation.
+    39	- Ack payload must include component-local apply timestamp, validation status, and rollback readiness.
+    40	
+    41	5. Rollback safety
+    42	- Fast rollback to last known-good universe version.
+    43	- Rollback event also audited.
+    44	
+    45	## Validation and audit requirements
+    46	- For each update, persist:
+    47	  - requested change
+    48	  - validation result
+    49	  - approval evidence
+    50	  - component-wise apply status
+    51	  - post-apply health checks
+    52	  - selection-engine evidence pointers
+    53	  - before/after symbol set diffs for training/trading universes
+    54	
+    55	## Safety constraints
+    56	- Live-trading-impacting universe changes require admin gate + readiness checks.
+    57	- Risk Gateway enforces final trade allow/block regardless of rollout status.
+    58	- No full restart fallback is allowed for routine universe updates.
+    15	- GUI
+    16	
+    17	## Required event envelope
+    18	- `universe_version`
+    19	- `change_set`
+    20	- `requested_by`
+    21	- `approval_chain`
+    22	- `evidence_pointers`
+    23	- `created_ts_ms`
+    24	
+    25	## Component acknowledgments
+    26	Each component returns:
+    27	- `component_id`
+    28	- `applied_version`
+    29	- `ack_ts_ms`
+    30	- `validation_status`
+    31	- `rollback_ready`
+    32	
+    33	## Rollback architecture
+    34	- Immediate rollback to prior verified version.
+    17	### `universe_versions`
+    18	- `universe_version_id` (PK), `version`, `state` (`proposed|validated|approved|applied|verified`), `change_set_json`, `requested_by`, `approved_by`, `created_ts_ms`, `applied_ts_ms`
+    19	
+    20	### `universe_members`
+    21	- `universe_member_id` (PK), `universe_version_id` (FK), `layer` (`available|observed|training|trading`), `exchange_symbol_id` (FK), `train_enabled`, `trade_enabled`, `paper_only`, `live_allowed`, `manual_override_state`, `override_reason`, `updated_ts_ms`
+
+exec
+/bin/bash -lc "nl -ba claude_worklog/v2_requirements/15_PUBLIC_HOSTING_AND_SECURITY_REQUIREMENTS.md | sed -n '7,26p'; nl -ba claude_worklog/v2_architecture/15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md | sed -n '1,25p'; nl -ba claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md | sed -n '86,94p'" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+     7	Platform is local-first but public-hosting ready with enterprise-grade security controls.
+     8	
+     9	## Mandatory security requirements
+    10	1. Authentication
+    11	- No unauthenticated access to operator/admin endpoints.
+    12	- Session and token lifecycle controls with revocation.
+    13	
+    14	2. RBAC
+    15	- Enforce role boundaries (viewer/operator/admin/security-admin).
+    16	- Trading-control actions restricted by least-privilege policy.
+    17	
+    18	3. Transport and edge
+    19	- HTTPS/TLS mandatory.
+    20	- Reverse proxy/WAF-ready ingress model.
+    21	- Request rate limits and abuse controls.
+    22	
+    23	4. Audit logging
+    24	- Immutable audit logs for auth, control actions, config changes, and gate overrides.
+    25	
+    26	5. Network controls
+     1	# 15 Public Hosting, Security, and RBAC Architecture
+     2	
+     3	## Security baseline
+     4	- auth
+     5	- RBAC
+     6	- 2FA-ready
+     7	- HTTPS/TLS
+     8	- reverse proxy
+     9	- rate limits
+    10	- IP allowlist
+    11	- audit logs
+    12	- secrets isolation
+    13	- no unauthenticated trading controls
+    14	- admin-only dangerous controls
+    15	
+    16	## Layered architecture
+    17	1. Edge ingress (TLS, reverse proxy, WAF/rate policy)
+    18	2. Auth/session service
+    19	3. RBAC + approval middleware
+    20	4. API services
+    21	5. Audit and security telemetry
+    22	
+    23	## Secrets policy
+    24	- Server-side secret handling only.
+    25	- No credential exposure in UI payloads.
+    86	### `users`
+    87	- `user_id` (PK), `username`, `email`, `status`, `mfa_state`, `created_ts_ms`
+    88	
+    89	### `roles`
+    90	- `role_id` (PK), `role_name`, `permissions_json`, `created_ts_ms`
+    91	
+    92	### `approvals`
+    93	- `approval_id` (PK), `subject_type`, `subject_id`, `required_level`, `approver_user_id`, `decision`, `decision_reason`, `created_ts_ms`
+    94	
+
+exec
+/bin/bash -lc "nl -ba claude_worklog/v2_architecture/05_API_CONTRACTS.md | sed -n '23,36p'; nl -ba claude_worklog/v2_architecture/12_RISK_GATEWAY_ARCHITECTURE.md | sed -n '1,25p'; nl -ba claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md | sed -n '47,52p'" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+    23	20. Live readiness
+    24	
+    25	## Contract conventions
+    26	- Versioned REST/JSON APIs with explicit schema version field.
+    27	- Mutation endpoints require auth + RBAC + audit envelope.
+    28	- Risk-level tagged operations require approval workflow.
+    29	- All lineage-bearing endpoints include relevant IDs.
+    30	
+    31	## Required payload properties (selected)
+    32	- `request_id`, `actor`, `timestamp_ms`, `schema_version`
+    33	- For governed mutations: `change_id`, `risk_level`, `reason`, `evidence_pointers`, `approval_state`
+    34	- For model flow: lineage chain IDs where applicable
+    35	
+    36	## Safety behavior
+     1	# 12 Risk Gateway Architecture
+     2	
+     3	## Authority
+     4	Risk Gateway is final authority for execution allow/block.
+     5	
+     6	## Mandatory controls
+     7	- stale signal block
+     8	- missing attribution block
+     9	- duplicate execution block
+    10	- leverage/margin block
+    11	- stop policy block
+    12	- daily/weekly loss gate
+    13	- kill switch
+    14	- position sizing
+    15	- reduceOnly enforcement
+    16	- live trading gate
+    17	
+    18	## Integration points
+    19	- receives orchestrator decisions
+    20	- evaluates policy bundles
+    21	- emits `risk_decision`
+    22	- gates execution intent generation
+    23	
+    24	## Non-bypass guarantee
+    25	No trader/fleet/exchange path may bypass Risk Gateway.
+    47	### `risk_decisions`
+    48	- `risk_decision_id` (PK), `decision_id` (FK), `allow_block`, `block_reason`, `policy_checks_json`, `created_ts_ms`
+    49	
+    50	### `execution_intents`
+    51	- `execution_intent_id` (PK), `risk_decision_id` (FK), `trader_id`, `intent_action`, `mode` (`paper|live`), `status`, `created_ts_ms`, `executed_ts_ms`
+    52	
+
+exec
+/bin/bash -lc "nl -ba claude_worklog/v2_requirements/20_AI_SUPERVISION_AND_AUTONOMOUS_CHANGE_GOVERNANCE.md | sed -n '47,78p'; nl -ba claude_worklog/v2_architecture/13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md | sed -n '17,31p'; nl -ba claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md | sed -n '59,64p'" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+    47	- strategy config
+    48	- risk limits
+    49	- trader assignment
+    50	- requires staged change + validation + human approval
+    51	
+    52	### Level 5 — dangerous live changes
+    53	- enable live trading
+    54	- increase leverage
+    55	- enable cross margin
+    56	- change margin mode
+    57	- increase position size
+    58	- disable stops
+    59	- disable kill switch
+    60	- place/cancel live orders
+    61	- must never be autonomous
+    62	- human approval required
+    63	
+    64	## Mandatory AI change ledger schema
+    65	Every AI action/change must have:
+    66	- change_id
+    67	- actor: Claude/Codex/Ollama/human/system
+    68	- reason
+    69	- evidence pointers
+    70	- before value
+    71	- after value
+    72	- risk level
+    73	- validation result
+    74	- rollback plan
+    75	- GUI explanation
+    76	- timestamp
+    77	- approval state
+    78	
+    17	- `after_value`
+    18	- `risk_level`
+    19	- `validation_result`
+    20	- `rollback_plan`
+    21	- `gui_explanation`
+    22	- `timestamp`
+    23	- `approval_state`
+    24	
+    25	## Hard constraint
+    26	Level 5 is never autonomous.
+    27	
+    28	## Ledger architecture
+    29	- Append-only audit model in DB.
+    30	- Cross-links to monitor packets, code/spec diffs, approvals, and rollback events.
+    31	- GUI transparency via AI Governance Console and Review Center.
+    59	### `audit_events`
+    60	- `audit_event_id` (PK), `actor_type`, `actor_id`, `action`, `resource_type`, `resource_id`, `before_json`, `after_json`, `reason`, `evidence_pointers_json`, `approval_state`, `created_ts_ms`
+    61	
+    62	### `ai_action_changes`
+    63	- `change_id` (PK), `actor` (`claude|codex|ollama|human|system`), `risk_level`, `reason`, `evidence_pointers_json`, `before_value_json`, `after_value_json`, `validation_result`, `rollback_plan`, `gui_explanation`, `approval_state`, `created_ts_ms`
+    64	
+
+exec
+/bin/bash -lc "nl -ba claude_worklog/v2_requirements/09_TRAINER_INTERNAL_WORKER_SUPERVISION_REQUIREMENT.md | sed -n '7,28p'; nl -ba claude_worklog/v2_architecture/14_CONTINUOUS_MONITORING_AND_EVIDENCE_PACKET_ARCHITECTURE.md | sed -n '1,23p'" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+     7	Before V2 build, monitoring must supervise trainer internal prediction-worker liveness independently of process and heartbeat liveness.
+     8	
+     9	## Failure class (must be detectable)
+    10	`TRAINER_PREDICTION_WORKER_DEAD_PROCESS_ALIVE`
+    11	
+    12	## Alert (must be emitted)
+    13	`TRAINER_INTERNAL_LIVENESS_CRITICAL`
+    14	
+    15	## Minimum required observability set
+    16	- trainer process alive
+    17	- trainer heartbeat fresh
+    18	- prediction worker alive
+    19	- last prediction timestamp
+    20	- last GPU_BATCH timestamp
+    21	- last DECONFLICT timestamp
+    22	- last proposal timestamp
+    23	- prediction stream growth rate
+    24	- proposal stream growth rate
+    25	- fatal trainer log signature
+    26	
+    27	## Exit criterion for pre-V2
+    28	A read-only validation run must prove detection of worker-dead/process-alive conditions and alerting with evidence packet output. Without this, V2 build remains NO-GO.
+     1	# 14 Continuous Monitoring and Evidence Packet Architecture
+     2	
+     3	## Packet model
+     4	- hourly packets
+     5	- daily packets
+     6	- alert packets
+     7	- Claude review packets
+     8	- Codex review packets
+     9	- Ollama summarization packets
+    10	
+    11	## Monitoring domains
+    12	- trainer liveness (corrected logic)
+    13	- feature flow monitoring
+    14	- signal attribution monitoring
+    15	- Redis memory monitoring
+    16	- readiness/dashboard monitoring
+    17	
+    18	## Evidence storage
+    19	- Packet metadata in DB (`evidence_packets`)
+    20	- Raw payload retention with lifecycle policy
+    21	- Cross-reference by `monitor_snapshot_id` and `change_id`
+    22	
+    23	## Dashboard readiness
+
+codex
+VERDICT: NO-GO for V2 build / implementation handoff.
+
+The package is well indexed and broadly traceable, but the prior PASS is too generous. Several hard requirements are represented only as checklist assertions, while the architecture lacks enforceable schema/API contracts needed to satisfy them.
+
+BLOCKERS:
+
+1. Lineage contract is not fully represented in DB/API design.
+Requirements mandate every downstream record carry the full lineage tuple and all six IDs where applicable (`v2_requirements/01`, `v2_requirements/03`). The DB schema mostly stores only direct parent FKs, and API contracts say “relevant IDs” rather than mandatory full lineage. Missing lineage is defined as a hard validation failure.
+
+2. Feature snapshot schema is incomplete.
+Required fields such as deterministic payload hash, snapshot timestamp, trigger timeframe, HTF context, source pattern, source timestamp, freshness SLA/status, and schema version are not explicitly modeled in `feature_snapshots` / `feature_values`.
+
+3. Confidence explainability schema is under-specified.
+Requirements demand structured top positive/negative feature contribution records, calibration version, raw/calibrated confidence, explainability method/version, and minimum cardinality. Architecture collapses this into broad JSON fields and does not prove signal-level explainability completeness.
+
+4. Risk Gateway final authority is asserted, not enforceably designed.
+The architecture says no bypass is allowed, but does not define concrete execution-order invariants, live readiness state, kill-switch persistence, policy bundle versioning, or connector-side hard blocks sufficient to prove live order creation cannot bypass Risk Gateway.
+
+5. Hot-reload persistence is missing.
+Requirements require component-wise ack status, missing-ack escalation, validation results, post-apply health checks, and rollback evidence per universe update. DB architecture only has `universe_versions` and `universe_members`; no durable per-component rollout/ack/evidence model is specified.
+
+6. Audit immutability and approval enforcement are not strong enough.
+Audit is described as append-only, but the schema lacks tamper-evidence/hash chaining, immutable sequence semantics, approval subject integrity, approval state transitions, or enforcement that L4/L5 actions cannot apply without required human approval.
+
+7. Security/RBAC architecture is too thin for “public-hosting-ready.”
+Requirements call for session/token lifecycle with revocation, viewer/operator/admin/security-admin boundaries, immutable auth/control audit, IP controls, 2FA readiness, and server-side secrets. Architecture lists these controls, but DB/API design lacks user-role mapping, sessions/tokens, revocation, permission matrix, MFA flow, and secret-provider boundary.
+
+8. Trainer internal liveness exit criterion remains unresolved.
+Requirement 09 explicitly says V2 build remains NO-GO until a read-only validation proves detection of `TRAINER_PREDICTION_WORKER_DEAD_PROCESS_ALIVE` with evidence packet output. Architecture only names “trainer liveness” as a monitoring domain; it does not define the detector contract or validation artifact.
+
+Bottom line: retain the architecture as a good planning baseline, but replace the provisional PASS with NO-GO until the blockers above are converted into enforceable schemas, API contracts, validation gates, and evidence artifacts. No files were modified, no Redis writes were made, and no service state was altered.
+tokens used
+53,062

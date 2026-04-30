@@ -1,0 +1,17 @@
+OpenAI Codex v0.128.0 (research preview)
+--------
+workdir: /home/wali/Desktop/AI BOT REBUILD
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: none
+reasoning summaries: none
+session id: 019de0aa-c782-7a01-8cc7-7bb094554531
+--------
+user
+You are in AI BOT REBUILD. Do not modify files. Print exactly CODEX_LOCAL_AGENT_READY.
+codex
+CODEX_LOCAL_AGENT_READY
+tokens used
+6,885
