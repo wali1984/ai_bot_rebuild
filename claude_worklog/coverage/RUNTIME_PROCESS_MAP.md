@@ -156,7 +156,6 @@ Unmapped bot-looking: 0
 | 143848 | mapped | /home/wali/Desktop/AI BOT | /home/wali/Desktop/AI BOT/venv/bin/python3 -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=78, pi |
 | 143849 | mapped | /home/wali/Desktop/AI BOT | /home/wali/Desktop/AI BOT/venv/bin/python3 -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=78, pi |
 | 143850 | mapped | /home/wali/Desktop/AI BOT | /home/wali/Desktop/AI BOT/venv/bin/python3 -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=78, pi |
-| 146452 | mapped | /home/wali | tail -f Desktop/AI BOT/logs/hybrid_trainer.log |
 | 146536 | mapped | /home/wali | tail -f Desktop/AI BOT/logs/trader.log |
 | 146635 | mapped | /home/wali | tail -f Desktop/AI BOT/logs/orchestrator_worker.log |
 | 146815 | mapped | /home/wali/Desktop/AI BOT | python3 ingest/live_coinank.py |
@@ -180,4 +179,5 @@ Unmapped bot-looking: 0
 | 188345 | mapped | /home/wali/Desktop/AI BOT | /usr/share/cursor/cursor /usr/share/cursor/resources/app/extensions/json-language-features/server/dist/node/jsonServerMa |
 | 2054378 | mapped | /home/wali/Desktop/AI BOT | /usr/share/code/code /home/wali/.vscode/extensions/ms-azuretools.vscode-containers-2.4.1/dist/dockerfile-language-server |
 | 2054379 | mapped | /home/wali/Desktop/AI BOT | /usr/share/code/code /home/wali/.vscode/extensions/ms-azuretools.vscode-containers-2.4.1/dist/compose-language-service/l |
-| 2193627 | mapped | /home/wali/Desktop/AI BOT REBUILD | python3 tools/collect_runtime_processes.py --legacy-root ./legacy_reference --out-dir ./claude_worklog/coverage |
+| 2235469 | mapped | /home/wali | tail -f Desktop/AI BOT/logs/hybrid_trainer.log |
+| 2241148 | mapped | /home/wali/Desktop/AI BOT REBUILD | python3 tools/collect_runtime_processes.py --legacy-root ./legacy_reference --out-dir ./claude_worklog/coverage |
