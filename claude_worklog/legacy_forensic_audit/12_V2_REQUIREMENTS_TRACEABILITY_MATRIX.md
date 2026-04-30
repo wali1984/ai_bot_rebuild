@@ -19,6 +19,14 @@ Legacy forensic findings mapped to V2 requirements (traceability only; V2 build 
 - Ollama cannot authorize V2 build, risk acceptance, or live trading transitions.
 - All safety-critical claims in traceability must be verified via deterministic artifacts and raw evidence.
 
+## Data-to-Action Explainability Requirement
+- V2 must show exact features/keys that changed confidence
+- V2 must show why those features mattered
+- V2 must show feature freshness and source timestamp
+- V2 must show whether each ingestor source was used, ignored, stale, or missing
+- V2 must link feature snapshot → prediction → confidence → signal → orchestrator → risk gateway → execution/block
+- V2 GUI must include Feature Attribution page and Signal Explanation page
+
 
 ## Raw evidence pointers
 - claude_worklog/coverage/TIER_A_RAW_REVIEW_PLAN.json

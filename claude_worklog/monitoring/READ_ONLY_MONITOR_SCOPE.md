@@ -33,3 +33,13 @@
 - PPO/MASS metrics if available
 - trainer stale flags
 - feature freshness
+
+## Feature/Ingestor Visibility Requirement
+- monitor must inventory ingestor and feature keys
+- monitor must track key freshness
+- monitor must identify stale/missing feature sources
+- monitor must detect feature keys that exist but are not consumed downstream
+- monitor must detect trainer predictions without feature snapshot references
+- monitor must detect signals without prediction_id / feature_snapshot_id
+- monitor must detect trader actions without upstream attribution
+- monitor must record data-flow gaps for V2

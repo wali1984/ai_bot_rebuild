@@ -1,0 +1,892 @@
+# Redis Feature/Ingestor Key Inventory Snapshot
+Generated: 2026-04-30T14:39:33-04:00
+
+## Candidate keys
+cursor:coinank:market_order_flow:ETH:Binance:30m:marketOrder_getBuySellVolume
+cursor:coinank:market_order_flow:BTC:Binance:30m:marketOrder_getBuySellVolume
+latest:coinank:instruments:UNIUSDT:spot
+features:coinank_endpoint:ls_global_account_ratio:DOGEUSDT:Binance:1d:normalized
+features:coinank_endpoint:ls_global_account_ratio:ETHUSDT:Binance:1h:normalized
+latest:coinank_endpoint:marketOrder_getBuySellValue:XRPUSDT:15m
+cursor:coinank:funding:SOL:Binance:15m:fundingRate_kline
+cursor:coinank:open_interest:BTC:Binance:1h:openInterest_kline
+features:coinank_endpoint:trades_largeTrades:RIVERUSDT:Binance:spot:normalized
+features:coinank_endpoint:ls_toptrader_accounts:XRPUSDT:Binance:30m:latest
+features:coinank_endpoint:liquidation_history:BTCUSDT:Binance:30m:normalized
+features:coinank_endpoint:marketOrder_getAggCvd:ETHUSDT:Binance:15m:latest
+cursor:coinank:market_order_flow:BTC:Binance:1h:marketOrder_getAggCvd
+features:coinank:market_order_flow:LINKUSDT:Binance:15m:series
+features:coinank_endpoint:marketOrder_getBuySellCount:1000SHIBUSDT:Binance:1h:latest
+dedup:liq:coinank:SOLUSDT:1774963754650:LONG_LIQ:80.58:7.74
+dedup:liq:binance:idx:1978:RAVEUSDT:1776724896102:BUY:1.01307:25.0
+dedup:liq:binance:idx:1991:RAVEUSDT:1776724814476:SELL:0.9964199:312.0
+features:coinank_endpoint:marketOrder_getBuySellCount:XRPUSDT:Binance:30m:latest
+latest:coinank:long_short:XRPUSDT:30m
+coinank:fundingRate_kline:last
+dedup:liq:coinank:XRPUSDT:1774975299688:SHORT_LIQ:1.343:30.1
+features:coinank_endpoint:fundingRate_indicator:DOGEUSDT:Binance:8h:latest
+features:coinank_endpoint:openInterest_kline:BTCUSDT:Binance:1h:normalized
+features:coinank:market_order_flow:SOLUSDT:Binance:15m:latest
+latest:coinank:long_short:HIGHUSDT:4h
+features:coinank_endpoint:fundingRate_kline:XRPUSDT:Binance:1d:latest
+features:coinank_endpoint:marketOrder_getAggCvd:UNIUSDT:Binance:1h:latest
+features:coinank_endpoint:openInterest_kline:1000SHIBUSDT:Binance:4h:normalized
+latest:coinank_endpoint:netPositions_getNetPositions:SOLUSDT:1h
+features:coinank:funding:DOGEUSDT:Binance:5m:series
+features:coinank:long_short:SOLUSDT:Binance:15m:series
+latest:coinank_endpoint:marketOrder_getAggCvd:LINKUSDT:1h
+latest:coinank_endpoint:ls_global_account_ratio:XRPUSDT:30m
+features:coinank_endpoint:fundingRate_indicator:BTCUSDT:Binance:4h:normalized
+features:coinank:funding:1000SHIBUSDT:Binance:1d:latest
+features:coinank_endpoint:openInterest_v2_chart:1000FLOKIUSDT:Binance:30m:normalized
+dedup:liq:binance:idx:1999:RAVEUSDT:1776724785330:BUY:1.0245604:97.0
+features:coinank_endpoint:ls_kline:1000FLOKIUSDT:Binance:4h:normalized
+dedup:liq:binance:idx:1833:RAVEUSDT:1776725220484:BUY:1.0414932:196.0
+latest:coinank:long_short:PIPPINUSDT:1h
+latest:coinank:advanced:SOLUSDT:spot
+dedup:liq:coinank:RIVERUSDT:1774970072175:SHORT_LIQ:18.043:0.9
+features:coinank_endpoint:ls_global_account_ratio:XRPUSDT:Binance:4h:normalized
+features:coinank_endpoint:marketOrder_getAggBuySellValue:1000FLOKIUSDT:Binance:15m:normalized
+features:coinank_endpoint:ls_kline:ALICEUSDT:Binance:1h:normalized
+features:coinank_endpoint:orderFlow_lists:1000SHIBUSDT:Binance:1h:normalized
+dedup:liq:binance:idx:1906:RAVEUSDT:1776725089084:BUY:1.0448166:1986.0
+dedup:liq:coinank:RIVERUSDT:1774964311683:LONG_LIQ:16.962:5.0
+dedup:liq:binance:idx:1794:RAVEUSDT:1776725377360:SELL:1.0143645:364.0
+ohlcv:list:coinapi:SOLUSDT:15m
+features:coinank_endpoint:ls_global_account_ratio:DOGEUSDT:Binance:15m:normalized
+features:coinank_endpoint:marketOrder_getBuySellCount:LTCUSDT:Binance:4h:latest
+features:kucoin:XRPUSDT:4h:normalized
+unified_features:FARTCOINUSDT:5m
+features:coinank:advanced:BTCUSDT:Binance:4h:normalized
+latest:coinank_endpoint:openInterest_symbol_Chart:ASTERUSDT:1h
+features:coinank:advanced:WIFUSDT:Binance:spot:series
+unified_features:LINKUSDT:15m:latest
+features:coinank_endpoint:openInterest_symbol_Chart:ETHUSDT:Binance:30m:latest
+unified_features:SOLUSDT:5m:latest
+latest:coinank_endpoint:liquidation_history:ETHUSDT:15m
+cursor:coinank:funding:XRP:Binance:1h:fundingRate_indicator
+market:XRPUSDT:price
+dedup:liq:coinank:SOLUSDT:1774968703145:LONG_LIQ:80.12:2.93
+features:coinank:long_short:BARDUSDT:Binance:4h:series
+cursor:coinank:open_interest:ETH:Binance:4h:openInterest_symbol_Chart
+coinank:marketOrder_getBuySellValue_1H:last
+features:coinank:liquidations:ETHUSDT:Binance:4h:latest
+latest:coinank:liquidations:1000BONKUSDTUSDT:spot
+dedup:liq:binance:idx:1989:RAVEUSDT:1776724815563:SELL:0.9974218:266.0
+cursor:coinank:market_order_flow:XRP:Binance:30m:marketOrder_getBuySellValue
+features:coinank:open_interest:1000FLOKIUSDT:Binance:spot:latest
+cursor:coinank:market_order_flow:LTC:Binance:4h:marketOrder_getAggCvd
+features:coinank:fundflow:1000FLOKIUSDT:Binance:4h:latest
+unified_features:AUCTIONUSDT:1m
+cursor:coinank:advanced:XRP:Binance:5m:orderFlow_lists
+features:coinank:instruments:1000FLOKIUSDT:Binance:1m:series
+features:coinank_endpoint:marketOrder_getBuySellCount:SOLUSDT:Binance:8h:normalized
+trainer:liq_prevention:status
+features:coinank_endpoint:marketOrder_getBuySellCount:XRPUSDT:Binance:4h:latest
+features:coinank:open_interest:DOGEUSDT:Binance:4h:normalized
+features:coinank_endpoint:liquidation_history:BTCUSDT:Binance:4h:latest
+features:coinank:funding:DOGEUSDT:Binance:4h:series
+features:coinank_endpoint:ls_toptrader_accounts:DOGEUSDT:Binance:15m:normalized
+features:coinank:advanced:ASTERUSDT:Binance:4h:latest
+market:WIFUSDT:price
+features:coinank:open_interest:DOGEUSDT:Binance:30m:latest
+coinank:openInterest_v2_chart_15M:last
+features:coinank_endpoint:orderFlow_lists:DOGEUSDT:Binance:1h:normalized
+features:coinank:liquidations:BTCUSDT:Binance:1m:series
+latest:coinank_endpoint:liquidation_aggregated_history:1000FLOKIUSDT:1d
+dedup:liq:binance:idx:1797:RAVEUSDT:1776725362823:BUY:1.0329909:482.0
+ohlcv:list:binance:1000BONKUSDT:15m
+latest:binance:ohlcv:AVNTUSDT:1m
+dedup:liq:coinank:ETHUSDT:1774977328692:SHORT_LIQ:2125.23:0.113
+unified_features:XRPUSDT:5m
+features:coinank:open_interest:LTCUSDT:Binance:15m:normalized
+features:coinank:funding:ETHUSDT:Binance:1h:series
+latest:coinank_endpoint:openInterest_symbol_Chart:SOLUSDT:4h
+cursor:coinank:market_order_flow:DOGE:Binance:4h:marketOrder_getAggCvd
+features:coinank:funding:XRPUSDT:Binance:15m:series
+dedup:liq:binance:idx:1585:RAVEUSDT:1776725883589:BUY:1.03282:255.0
+features:coinank_endpoint:liquidation_history:UNIUSDT:Binance:1h:normalized
+dedup:liq:coinank:SOLUSDT:1774977326229:SHORT_LIQ:83.81:1.89
+latest:coinank_endpoint:instruments_oiVsMc:1000FLOKIUSDT:1h
+features:coinank_endpoint:ls_toptrader_accounts:1000SHIBUSDT:Binance:30m:normalized
+features:coinank_endpoint:instruments_getLastPrice:1000FLOKIUSDT:Binance:spot:normalized
+features:coinank_endpoint:bigOrder_queryOrderList:SOLUSDT:Binance:spot:latest
+features:coinank_endpoint:ls_global_account_ratio:1000SHIBUSDT:Binance:1m:normalized
+features:coinank:advanced:BTCUSDT:Binance:spot:latest
+latest:coinank:advanced:DOGEUSDT:1m
+latest:coinank_endpoint:marketOrder_getBuySellCount:XRPUSDT:15m
+features:coinank_endpoint:liquidation_aggregated_history:1000FLOKIUSDT:Binance:30m:latest
+features:coinank_endpoint:marketOrder_getBuySellVolume:LINKUSDT:Binance:4h:latest
+dedup:liq:coinank:RIVERUSDT:1774969939119:SHORT_LIQ:17.703:55.7
+features:coinank_endpoint:ls_global_account_ratio:BTCUSDT:Binance:1h:normalized
+features:coinank_endpoint:marketOrder_getBuySellVolume:XRPUSDT:Binance:8h:latest
+features:coinank:advanced:UNIUSDT:Binance:1h:series
+cursor:coinank:market_order_flow:ETH:Binance:30m:marketOrder_getBuySellValue
+features:coinank_endpoint:orderFlow_lists:DOGEUSDT:Binance:5m:normalized
+features:coinank:market_order_flow:SOLUSDT:Binance:8h:normalized
+features:coinank:long_short:PENGUUSDT:Binance:4h:latest
+dedup:liq:binance:idx:1915:RAVEUSDT:1776725055238:SELL:1.02475:192.0
+cursor:coinank:market_order_flow:DOGE:Binance:15m:marketOrder_getAggCvd
+cursor:coinank:funding:BTC:Binance:8h:fundingRate_indicator
+cursor:coinank:advanced:BTC:Binance:5m:netPositions_getNetPositions
+cursor:coinank:advanced:BTC:Binance:1h:netPositions_getNetPositions
+latest:coinank:instruments:BANKUSDT:spot
+cursor:coinank:open_interest:BTC:Binance:15m:openInterest_kline
+unified_features:HIGHUSDT:5m:latest
+cursor:coinank:market_order_flow:DOGE:Binance:1h:marketOrder_getBuySellVolume
+latest:coinank_endpoint:marketOrder_getBuySellVolume:XRPUSDT:30m
+features:coinank_endpoint:fundingRate_indicator:ETHUSDT:Binance:15m:latest
+features:kucoin:WIFUSDT:4h:normalized
+unified_features:BANKUSDT:1h:latest
+cursor:coinank:advanced:DOGE:Binance:1h:netPositions_getNetPositions
+features:coinank:funding:DOGEUSDT:Binance:8h:series
+features:coinank_endpoint:marketOrder_getBuySellValue:SOLUSDT:Binance:1h:normalized
+latest:coinank:open_interest:LINKUSDT:4h
+features:coinank_endpoint:ls_toptrader_accounts:SOLUSDT:Binance:1h:latest
+features:coinank_endpoint:marketOrder_getBuySellValue:BTCUSDT:Binance:5m:normalized
+latest:coinank:long_short:BTCUSDT:5m
+features:coinank_endpoint:marketOrder_getBuySellVolume:1000SHIBUSDT:Binance:4h:latest
+features:coinank:funding:XRPUSDT:Binance:15m:normalized
+cursor:coinank:market_order_flow:1000FLOKI:Binance:4h:marketOrder_getAggBuySellCount
+dedup:liq:coinank:ETHUSDT:1774968703145:LONG_LIQ:2037.06:0.133
+meta:coinank_global:last_update
+cursor:coinank:long_short:ASTER:Binance:4h:ls_kline
+features:coinank:long_short:1000BONKUSDT:Binance:4h:series
+dedup:liq:coinank:RIVERUSDT:1774971428512:SHORT_LIQ:18.046:11.1
+dedup:liq:binance:idx:1588:RAVEUSDT:1776725881756:BUY:1.0294599:270.0
+latest:coinank:open_interest:ASTERUSDT:4h
+cursor:coinank:open_interest:SOL:Binance:8h:openInterest_kline
+latest:coinank:long_short:ASTERUSDT:1h
+dedup:liq:binance:idx:1583:RAVEUSDT:1776725883589:BUY:1.03282:255.0
+dedup:liq:binance:idx:1831:RAVEUSDT:1776725223535:BUY:1.0380599:3360.0
+features:coinank_endpoint:fundingRate_kline:1000SHIBUSDT:Binance:1d:latest
+features:coinank_endpoint:marketOrder_getBuySellValue:UNIUSDT:Binance:4h:normalized
+features:coinank:open_interest:LINKUSDT:Binance:30m:series
+dedup:liq:binance:idx:1736:RAVEUSDT:1776725471430:BUY:0.9744829:554.0
+cursor:coinank:funding:XRP:Binance:1d:fundingRate_kline
+ohlcv:list:binance:WIFUSDT:1m
+features:coinank:long_short:RIVERUSDT:Binance:1h:normalized
+latest:coinank:advanced:ASTERUSDT:5m
+latest:coinank_endpoint:trades_largeTrades:BANKUSDT:spot
+dedup:liq:binance:idx:1768:RAVEUSDT:1776725422451:SELL:0.9582763:538.0
+features:coinank:liquidations:1000SHIBUSDT:Binance:8h:normalized
+features:coinank_endpoint:bigOrder_queryOrderList:ETHUSDT:Binance:spot:normalized
+features:kucoin:LTCUSDT:5m:normalized
+dedup:liq:coinank:ASTERUSDT:1774968709714:LONG_LIQ:0.6488:444.0
+latest:coinank_endpoint:openInterest_kline:1000SHIBUSDT:8h
+price:last:BARDUSDT
+latest:binance:ohlcv:ALICEUSDT:5m
+features:coinank:long_short:ASTERUSDT:Binance:4h:series
+latest:binance:ohlcv:1000PEPEUSDT:1m
+latest:coinank_endpoint:marketOrder_getBuySellCount:ETHUSDT:4h
+unified_features:RAVEUSDT:4h:latest
+features:coinank:liquidations:UNIUSDT:Binance:1h:normalized
+latest:coinank_endpoint:openInterest_symbol_Chart:ASTERUSDT:4h
+dedup:liq:binance:idx:1528:SOLUSDT:1776726008121:SELL:85.49:65.1
+cursor:coinank:open_interest:BTC:Binance:5m:openInterest_symbol_Chart
+latest:binance:mark_price:ASTERUSDT
+dedup:liq:coinank:BTCUSDT:1774961359603:LONG_LIQ:66411.0:0.087
+features:coinank:long_short:LTCUSDT:Binance:1h:series
+features:coinank_endpoint:ls_kline:RIVERUSDT:Binance:4h:latest
+features:coinank_endpoint:trades_largeTrades:AUCTIONUSDT:Binance:spot:latest
+dedup:liq:coinank:ETHUSDT:1774975303526:SHORT_LIQ:2115.39:0.476
+cursor:coinank:market_order_flow:LINK:Binance:4h:marketOrder_getBuySellValue
+latest:coinank_endpoint:ls_kline:BANKUSDT:1h
+features:coinank:long_short:XRPUSDT:Binance:5m:series
+cursor:coinank:open_interest:LINK:Binance:1h:openInterest_kline
+features:coinank:open_interest:ETHUSDT:Binance:30m:latest
+dedup:liq:binance:idx:1670:ETHUSDT:1776725631124:SELL:2316.96:0.031
+cursor:coinank:open_interest:ASTER:Binance:1h:openInterest_symbol_Chart
+dedup:liq:binance:idx:1604:RAVEUSDT:1776725841419:BUY:0.99773:6.0
+features:coinank_endpoint:marketOrder_getAggBuySellCount:1000FLOKIUSDT:Binance:30m:normalized
+ohlcv:list:binance:UNIUSDT:1m
+dedup:liq:binance:idx:1876:RAVEUSDT:1776725146519:BUY:1.0746476:42.0
+features:coinank_endpoint:liquidation_history:UNIUSDT:Binance:1h:latest
+features:coinank_endpoint:ls_toptrader_accounts:1000SHIBUSDT:Binance:1h:normalized
+coinank:openInterest_kline_4H:last
+dedup:liq:coinank:RIVERUSDT:1774979944474:SHORT_LIQ:18.234:0.2
+features:coinank:open_interest:BTCUSDT:Binance:30m:normalized
+latest:coinank_endpoint:ls_kline:1000PEPEUSDT:1h
+unified_features:ASTERUSDT:15m
+dedup:liq:coinank:BTCUSDT:1774977328274:SHORT_LIQ:68840.3:4.34
+features:coinank_endpoint:instruments_getLastPrice:1000BONKUSDT:Binance:spot:normalized
+latest:binance:ohlcv:DOGEUSDT:5m
+latest:coinank_endpoint:openInterest_kline:UNIUSDT:15m
+features:coinank:advanced:DOGEUSDT:Binance:5m:normalized
+ohlcv:list:binance:PIPPINUSDT:5m
+latest:binance:ohlcv:BARDUSDT:1m
+features:coinank:open_interest:ASTERUSDT:Binance:4h:normalized
+latest:coinank_endpoint:marketOrder_getBuySellCount:ETHUSDT:30m
+dedup:liq:coinank:ETHUSDT:1774970053535:SHORT_LIQ:2084.48:0.073
+latest:coinank_endpoint:marketOrder_getAggCvd:BTCUSDT:8h
+dedup:liq:binance:idx:1611:RAVEUSDT:1776725821262:BUY:0.9883716:1000.0
+metrics:price_provider:BTCUSDT
+dedup:liq:binance:idx:1950:RIVERUSDT:1776724974273:SELL:5.178221:141.5
+latest:coinank_endpoint:ls_toptrader_accounts:DOGEUSDT:4h
+features:coinank_endpoint:ls_exchange_realtimeAll:1000FLOKIUSDT:Binance:1h:normalized
+features:kucoin:LINKUSDT:5m:normalized
+dedup:liq:binance:idx:1767:RAVEUSDT:1776725424604:SELL:0.9425223:4390.0
+dedup:liq:coinank:BTCUSDT:1774975299125:SHORT_LIQ:68205.4:0.078
+features:coinank:long_short:BTCUSDT:Binance:8h:series
+ohlcv:list:binance:PENGUUSDT:15m
+price:UNIUSDT
+latest:coinank:long_short:LINKUSDT:1h
+features:coinank_endpoint:marketOrder_getBuySellVolume:ETHUSDT:Binance:4h:latest
+latest:coinank_endpoint:instruments_getLastPrice:FARTCOINUSDT:spot
+features:coinank:open_interest:1000FLOKIUSDT:Binance:spot:normalized
+features:coinank:open_interest:DOGEUSDT:Binance:8h:latest
+dedup:liq:coinank:SOLUSDT:1774972639710:LONG_LIQ:80.46:2.62
+features:coinank:instruments:PENGUUSDT:Binance:spot:series
+dedup:liq:coinank:ETHUSDT:1774959766653:LONG_LIQ:2035.05:0.011
+dedup:liq:binance:idx:1674:DOGEUSDT:1776725629476:SELL:0.09555:1383.0
+latest:coinank_endpoint:marketOrder_getBuySellCount:XRPUSDT:30m
+dedup:liq:coinank:ETHUSDT:1774975296129:SHORT_LIQ:2110.78:0.59
+features:coinank:open_interest:DOGEUSDT:Binance:1h:normalized
+cursor:coinank:market_order_flow:BTC:Binance:4h:marketOrder_getBuySellCount
+features:coinank:advanced:UNIUSDT:Binance:4h:series
+dedup:liq:coinank:RIVERUSDT:1774970053277:SHORT_LIQ:17.97:4.1
+latest:coinank_endpoint:openInterest_all:1000FLOKIUSDT:spot
+cursor:coinank:instruments_oiVsMc:a5a125b8e2
+cursor:coinank:liquidations:1000SHIB:Binance:15m:liquidation_history
+cursor:coinank:long_short:DOGE:Binance:4h:ls_global_account_ratio
+dedup:liq:binance:idx:1895:RAVEUSDT:1776725116503:BUY:1.0703025:1067.0
+features:coinank:funding:ASTERUSDT:Binance:1m:series
+latest:coinank_endpoint:ls_global_account_ratio:XRPUSDT:8h
+latest:coinank:advanced:SOLUSDT:5m
+price:AUCTIONUSDT
+dedup:liq:coinank:DOGEUSDT:1774975298527:SHORT_LIQ:0.09254:655.0
+latest:coinank:advanced:1000PEPEUSDT:1h
+dedup:liq:coinank:BTCUSDT:1774970572179:SHORT_LIQ:67491.2:0.001
+coinank:fund_getFundHisList:last
+latest:coinank:liquidations:1000FLOKIUSDTUSDT:1h
+latest:coinank:fundflow:1000BONKUSDTUSDT:4h
+cursor:coinank:funding:1000BONK:Binance:1h:fundingRate_indicator
+latest:coinank_endpoint:fundingRate_kline:ETHUSDT:1h
+latest:binance:ohlcv:DOGEUSDT:1m
+features:coinank:advanced:AVNTUSDT:Binance:1m:latest
+features:coinank:funding:1000SHIBUSDT:Binance:15m:series
+latest:coinank_endpoint:fundingRate_kline:SOLUSDT:5m
+latest:coinank_endpoint:openInterest_aggKline:1000FLOKIUSDT:30m
+features:coinank:long_short:UNIUSDT:Binance:4h:latest
+unified_features:XRPUSDT:5m:latest
+coinank:ls_toptrader_accounts_8H:last
+features:coinank_endpoint:bigOrder_queryOrderList:ALICEUSDT:Binance:spot:latest
+features:coinank_endpoint:marketOrder_getAggCvd:1000SHIBUSDT:Binance:30m:normalized
+cursor:coinank:liquidations:ASTER:Binance:30m:liquidation_history
+dedup:liq:binance:idx:1731:RAVEUSDT:1776725490714:SELL:0.95764:38.0
+features:coinank:long_short:1000FLOKIUSDT:Binance:4h:normalized
+latest:coinank_endpoint:marketOrder_getBuySellCount:ASTERUSDT:30m
+cursor:coinank:market_order_flow:1000BONK:Binance:4h:marketOrder_getAggCvd
+latest:coinank_endpoint:indicator_getAltcoinSeason:1000FLOKIUSDT:spot
+coinank:marketOrder_getBuySellVolume_1H:last
+dedup:liq:binance:idx:1924:RAVEUSDT:1776725047736:BUY:1.03486:197.0
+ohlcv:list:binance:HIGHUSDT:1h
+features:coinank:open_interest:XRPUSDT:Binance:4h:latest
+cursor:coinank:open_interest:BTC:Binance:4h:openInterest_kline
+cursor:coinank:liquidations:BTC:Binance:5m:liquidation_history
+latest:coinank_endpoint:fundingRate_indicator:ETHUSDT:1h
+dedup:liq:coinank:ETHUSDT:1774975272347:SHORT_LIQ:2101.05:0.251
+features:coinank_endpoint:fundingRate_kline:1000SHIBUSDT:Binance:1h:latest
+latest:coinank:long_short:XRPUSDT:8h
+latest:coinank_endpoint:ls_toptrader_accounts:1000SHIBUSDT:15m
+latest:coinank:advanced:DOGEUSDT:5m
+ohlcv:list:binance:WIFUSDT:4h
+features:coinank:liquidations:BTCUSDT:Binance:15m:series
+features:coinank:advanced:1000BONKUSDT:Binance:5m:series
+features:coinank_endpoint:liquidation_history:1000SHIBUSDT:Binance:4h:normalized
+dedup:liq:binance:idx:1727:RAVEUSDT:1776725511715:BUY:0.96807:188.0
+latest:coinank_endpoint:openInterest_symbol_Chart:DOGEUSDT:30m
+latest:coinank_endpoint:marketOrder_getAggBuySellValue:1000FLOKIUSDT:1m
+dedup:liq:coinank:RIVERUSDT:1774970493115:SHORT_LIQ:17.999:48.6
+features:coinank:long_short:BTCUSDT:Binance:1d:series
+latest:coinank:funding:BTCUSDT:5m
+features:coinank:liquidations:LINKUSDT:Binance:15m:series
+features:coinank_endpoint:openInterest_kline:1000SHIBUSDT:Binance:1h:normalized
+dedup:liq:coinank:FARTCOINUSDT:1774968715132:LONG_LIQ:0.1638:29.7
+ohlcv:list:binance:AVNTUSDT:15m
+features:coinank_endpoint:orderFlow_lists:PIPPINUSDT:Binance:1m:normalized
+coinank:liquidation_allExchange_intervals:last
+dedup:liq:binance:idx:1646:HIGHUSDT:1776725643452:SELL:0.31145:1309.8
+latest:coinank:advanced:1000BONKUSDT:spot
+features:coinank:instruments:RAVEUSDT:Binance:spot:normalized
+features:coinank:advanced:SOLUSDT:Binance:4h:series
+cursor:coinank:market_order_flow:1000FLOKI:Binance:1h:marketOrder_getBuySellValue
+features:coinank:open_interest:1000FLOKIUSDT:Binance:1d:normalized
+latest:binance:mark_price:BTCUSDT
+features:coinank:liquidations:UNIUSDT:Binance:30m:normalized
+latest:coinank:instruments:1000FLOKIUSDTUSDT:1d
+features:coinank_endpoint:fundingRate_kline:BTCUSDT:Binance:1d:normalized
+dedup:liq:binance:idx:1552:UNIUSDT:1776726003328:SELL:3.237:48.0
+unified_features:PIPPINUSDT:1h
+latest:coinank_endpoint:instruments_oiVsMc:1000FLOKIUSDT:5m
+features:coinank:liquidations:DOGEUSDT:Binance:8h:series
+ohlcv:list:binance:ASTERUSDT:1h
+features:coinank:liquidations:LTCUSDT:Binance:4h:series
+cursor:coinank:market_order_flow:LINK:Binance:1h:marketOrder_getBuySellCount
+features:coinank_endpoint:openInterest_symbol_Chart:SOLUSDT:Binance:1h:latest
+dedup:liq:coinank:1000PEPEUSDT:1774975283748:SHORT_LIQ:0.0034093:2997242.0
+cursor:coinank:market_order_flow:ETH:Binance:4h:marketOrder_getBuySellCount
+features:coinank:instruments:ETHUSDT:Binance:spot:normalized
+ohlcv:list:binance:FARTCOINUSDT:1m
+coinank:marketOrder_getAggCvd_1H:last
+cursor:coinank:open_interest:ETH:Binance:5m:openInterest_symbol_Chart
+features:coinank:liquidations:LTCUSDT:Binance:30m:series
+cursor:coinank:market_order_flow:ASTER:Binance:1h:marketOrder_getBuySellValue
+latest:coinank_endpoint:openInterest_kline:BTCUSDT:15m
+latest:coinank_endpoint:instruments_getLastPrice:SOLUSDT:spot
+dedup:liq:coinank:BTCUSDT:1774961429419:LONG_LIQ:66381.3:0.075
+features:coinank_endpoint:netPositions_getNetPositions:ETHUSDT:Binance:4h:normalized
+cursor:coinank:fund_getFundHisList:7edb683aab
+features:coinank:liquidations:1000SHIBUSDT:Binance:8h:latest
+latest:coinank_endpoint:fundingRate_indicator:XRPUSDT:30m
+cursor:coinank:long_short:LTC:Binance:4h:ls_kline
+dedup:liq:coinank:ETHUSDT:1774969895185:SHORT_LIQ:2081.39:0.194
+features:coinank_endpoint:openInterest_symbol_Chart:1000SHIBUSDT:Binance:1h:normalized
+latest:coinank:market_order_flow:1000SHIBUSDT:15m
+features:coinank:open_interest:BTCUSDT:Binance:8h:latest
+features:coinank_endpoint:ls_kline:1000SHIBUSDT:Binance:4h:normalized
+latest:coinank_endpoint:ls_toptrader_accounts:SOLUSDT:15m
+features:coinank_endpoint:liquidation_history:ASTERUSDT:Binance:15m:normalized
+features:coinank:funding:DOGEUSDT:Binance:1d:latest
+latest:coinank_endpoint:trades_largeTrades:PENGUUSDT:spot
+dedup:liq:coinank:XRPUSDT:1774975298567:SHORT_LIQ:1.3424:246.0
+latest:coinank_endpoint:openInterest_symbol_Chart:1000SHIBUSDT:4h
+latest:coinank_endpoint:netPositions_getNetPositions:LINKUSDT:5m
+dedup:liq:binance:idx:1589:RAVEUSDT:1776725879156:BUY:1.0295732:1518.0
+features:coinank_endpoint:marketOrder_getBuySellCount:ASTERUSDT:Binance:1h:latest
+features:coinank_endpoint:liquidation_history:LINKUSDT:Binance:1h:latest
+features:coinank_endpoint:marketOrder_getBuySellVolume:LTCUSDT:Binance:1h:latest
+features:kucoin:DOGEUSDT:5m:normalized
+features:coinank_endpoint:ls_global_account_ratio:SOLUSDT:Binance:1d:normalized
+features:coinank:long_short:FARTCOINUSDT:Binance:4h:normalized
+features:coinank_endpoint:netPositions_getNetPositions:LINKUSDT:Binance:1h:latest
+features:coinank:advanced:HIGHUSDT:Binance:spot:latest
+features:coinank_endpoint:fundingRate_indicator:1000SHIBUSDT:Binance:8h:latest
+features:coinank_endpoint:ls_toptrader_accounts:1000SHIBUSDT:Binance:30m:latest
+features:coinank_endpoint:openInterest_symbol_Chart:SOLUSDT:Binance:1h:normalized
+latest:coinank_endpoint:ls_global_account_ratio:ETHUSDT:30m
+features:coinank_endpoint:marketOrder_getBuySellVolume:BTCUSDT:Binance:8h:normalized
+features:coinank:advanced:WIFUSDT:Binance:4h:normalized
+features:coinank_endpoint:marketOrder_getBuySellValue:ASTERUSDT:Binance:30m:latest
+coinank:basic:baseCoin_list
+cursor:coinank:market_order_flow:BTC:Binance:1m:marketOrder_getBuySellVolume
+dedup:liq:coinank:RIVERUSDT:1774970572179:SHORT_LIQ:17.923:1.8
+features:coinank:long_short:BTCUSDT:Binance:1h:series
+dedup:liq:binance:idx:1579:RAVEUSDT:1776725889231:BUY:1.0420383:1480.0
+features:coinank_endpoint:marketOrder_getBuySellVolume:ETHUSDT:Binance:15m:latest
+features:coinank_endpoint:fundingRate_kline:XRPUSDT:Binance:5m:latest
+latest:coinank:long_short:ETHUSDT:5m
+features:coinank_endpoint:ls_kline:AVNTUSDT:Binance:4h:latest
+unified_features:PIPPINUSDT:1m:latest
+latest:coinank_endpoint:instruments_getLastPrice:RAVEUSDT:spot
+dedup:liq:binance:idx:1675:DOGEUSDT:1776725629476:SELL:0.09555:1383.0
+features:coinank:open_interest:SOLUSDT:Binance:15m:normalized
+cursor:coinank:liquidations:LINK:Binance:30m:liquidation_history
+unified_features:PENGUUSDT:4h
+features:coinank_endpoint:liquidation_history:UNIUSDT:Binance:30m:normalized
+dedup:liq:coinank:RIVERUSDT:1774970014889:SHORT_LIQ:17.768:282.9
+features:coinank_endpoint:fundingRate_kline:XRPUSDT:Binance:15m:latest
+dedup:liq:binance:idx:1651:ETHUSDT:1776725631124:SELL:2316.96:0.031
+features:coinank_endpoint:ls_kline:1000BONKUSDT:Binance:4h:latest
+cursor:coinank:liquidations:ASTER:Binance:15m:liquidation_history
+latest:coinank:liquidations:DOGEUSDT:15m
+cursor:coinank:liquidations:ETH:Binance:1m:liquidation_history
+dedup:liq:coinank:ETHUSDT:1774975539199:SHORT_LIQ:2107.22:7.326
+features:kucoin:ETHUSDT:15m:normalized
+ohlcv:list:binance:ALICEUSDT:15m
+ohlcv:list:binance:LTCUSDT:4h
+dedup:liq:coinank:ETHUSDT:1774964676113:LONG_LIQ:2053.53:32.445
+dedup:liq:binance:idx:1997:RAVEUSDT:1776724795189:BUY:1.0336516:1229.0
+dedup:liq:binance:idx:1893:RAVEUSDT:1776725116503:BUY:1.0703025:1067.0
+features:coinank_endpoint:fundingRate_indicator:BTCUSDT:Binance:15m:latest
+features:coinank_endpoint:marketOrder_getBuySellValue:LINKUSDT:Binance:30m:normalized
+features:coinank_endpoint:fundingRate_kline:BTCUSDT:Binance:30m:latest
+latest:coinank:market_order_flow:ASTERUSDT:30m
+dedup:liq:coinank:BTCUSDT:1774975269469:SHORT_LIQ:67955.9:0.131
+price:1000BONKUSDT
+features:coinank:liquidations:BTCUSDT:Binance:1h:latest
+cursor:coinank:open_interest:UNI:Binance:30m:openInterest_kline
+features:coinank_endpoint:openInterest_kline:SOLUSDT:Binance:15m:normalized
+features:coinank_endpoint:ls_kline:ASTERUSDT:Binance:4h:normalized
+unified_features:LINKUSDT:4h
+features:coinank:open_interest:ETHUSDT:Binance:5m:series
+unified_features:RAVEUSDT:1h:latest
+latest:coinank_endpoint:openInterest_symbol_Chart:UNIUSDT:30m
+latest:coinank_endpoint:marketOrder_getBuySellVolume:BTCUSDT:30m
+signals:trading:asjad
+features:kucoin:XRPUSDT:1m:normalized
+cursor:coinank:market_order_flow:BTC:Binance:5m:marketOrder_getBuySellValue
+latest:coinank:long_short:BANKUSDT:4h
+features:coinank:long_short:1000FLOKIUSDT:Binance:5m:normalized
+features:coinank:advanced:UNIUSDT:Binance:5m:normalized
+dedup:liq:coinank:PIPPINUSDT:1774979504395:SHORT_LIQ:0.05039:3292.0
+features:coinank_endpoint:ls_toptrader_accounts:SOLUSDT:Binance:8h:normalized
+dedup:liq:coinank:1000SHIBUSDT:1774977321260:SHORT_LIQ:0.006044:381335.0
+dedup:liq:binance:idx:1732:RAVEUSDT:1776725490714:SELL:0.95764:38.0
+latest:coinank_endpoint:bigOrder_queryOrderList:ALICEUSDT:spot
+features:coinank:liquidations:1000FLOKIUSDT:Binance:1d:normalized
+features:coinank:long_short:ASTERUSDT:Binance:1m:series
+dedup:liq:binance:idx:1941:RAVEUSDT:1776725004140:BUY:1.01552:114.0
+latest:coinank:advanced:ETHUSDT:4h
+features:coinank_endpoint:marketOrder_getAggCvd:SOLUSDT:Binance:15m:normalized
+features:coinank_endpoint:ls_toptrader_accounts:BTCUSDT:Binance:1d:normalized
+price:1000FLOKIUSDT
+features:coinank:liquidations:XRPUSDT:Binance:15m:series
+features:coinank_endpoint:instruments_getLastPrice:ETHUSDT:Binance:spot:normalized
+latest:coinank_endpoint:ls_toptrader_accounts:BTCUSDT:8h
+latest:coinank_endpoint:marketOrder_getBuySellVolume:SOLUSDT:4h
+features:coinank:market_order_flow:ETHUSDT:Binance:4h:normalized
+cursor:coinank:funding:XRP:Binance:30m:fundingRate_indicator
+features:coinank_endpoint:marketOrder_getBuySellValue:XRPUSDT:Binance:8h:latest
+coinank:rsiMap_list:last
+dedup:liq:coinank:BTCUSDT:1774968973165:LONG_LIQ:66169.7:0.323
+dedup:liq:binance:idx:1511:HIGHUSDT:1776726028339:SELL:0.309739:521.1
+features:coinank:funding:XRPUSDT:Binance:8h:normalized
+features:coinank_endpoint:instruments_getLastPrice:ASTERUSDT:Binance:spot:latest
+dedup:liq:binance:idx:1597:RAVEUSDT:1776725871741:BUY:1.0151846:5013.0
+features:coinank_endpoint:marketOrder_getBuySellCount:1000SHIBUSDT:Binance:4h:normalized
+dedup:liq:coinank:SOLUSDT:1774968974465:LONG_LIQ:80.01:3.41
+features:coinank:advanced:BTCUSDT:Binance:4h:latest
+features:coinank:market_order_flow:LINKUSDT:Binance:1h:normalized
+features:coinank:liquidations:1000FLOKIUSDT:Binance:1d:latest
+dedup:liq:coinank:SOLUSDT:1774968727357:LONG_LIQ:79.96:52.51
+features:coinank:instruments:UNIUSDT:Binance:spot:latest
+features:coinank:long_short:BTCUSDT:Binance:1m:series
+features:kucoin:LINKUSDT:1h:normalized
+unified_features:ALICEUSDT:1m
+features:coinank:advanced:WIFUSDT:Binance:5m:normalized
+features:coinank_endpoint:orderFlow_lists:ETHUSDT:Binance:1h:normalized
+dedup:liq:coinank:XRPUSDT:1774975288439:SHORT_LIQ:1.3406:50.0
+dedup:liq:coinank:ETHUSDT:1774969882334:SHORT_LIQ:2078.75:0.541
+features:coinank_endpoint:marketOrder_getAggBuySellCount:1000FLOKIUSDT:Binance:1h:normalized
+features:coinank_endpoint:instruments_oiVsMc:1000FLOKIUSDT:Binance:4h:latest
+features:coinank_endpoint:ls_global_account_ratio:XRPUSDT:Binance:8h:normalized
+features:coinank:liquidations:DOGEUSDT:Binance:4h:series
+features:coinank:advanced:AUCTIONUSDT:Binance:spot:normalized
+cursor:coinank:long_short:BTC:Binance:1h:ls_toptrader_accounts
+latest:coinank_endpoint:orderFlow_lists:BTCUSDT:1h
+latest:coinank:liquidations:1000FLOKIUSDT:5m
+cursor:coinank:fund_getFundHisList:71172d5314
+features:coinank:funding:1000FLOKIUSDT:Binance:spot:latest
+latest:coinank:indicators:1000BONKUSDTUSDT:spot
+features:coinank:liquidations:XRPUSDT:Binance:8h:normalized
+features:coinank_endpoint:marketOrder_getBuySellCount:SOLUSDT:Binance:15m:normalized
+features:coinank:market_order_flow:ASTERUSDT:Binance:30m:series
+cursor:coinank:market_order_flow:ETH:Binance:5m:marketOrder_getBuySellValue
+features:coinank:open_interest:BTCUSDT:Binance:1h:latest
+dedup:liq:coinank:BTCUSDT:1774975367535:SHORT_LIQ:68249.3:0.004
+features:coinank:funding:ETHUSDT:Binance:15m:normalized
+features:coinank:long_short:1000SHIBUSDT:Binance:15m:series
+features:coinank_endpoint:openInterest_symbol_Chart:SOLUSDT:Binance:4h:latest
+dedup:liq:coinank:RIVERUSDT:1774977394647:SHORT_LIQ:18.536:1.0
+cursor:coinank:open_interest:DOGE:Binance:4h:openInterest_symbol_Chart
+features:coinank_endpoint:bigOrder_queryOrderList:1000SHIBUSDT:Binance:spot:normalized
+latest:coinank_endpoint:marketOrder_getAggCvd:LTCUSDT:1h
+coinank:marketOrder_getBuySellVolume_15M:last
+dedup:liq:binance:idx:1513:HIGHUSDT:1776726028339:SELL:0.309739:521.1
+ohlcv:list:binance:RIVERUSDT:1m
+latest:coinank_endpoint:fund_getFundHisList:1000FLOKIUSDT:1d
+dedup:liq:coinank:BTCUSDT:1774961321554:LONG_LIQ:66433.5:0.028
+latest:coinank:funding:ASTERUSDT:1m
+features:coinank_endpoint:marketOrder_getAggCvd:1000SHIBUSDT:Binance:1h:normalized
+dedup:liq:binance:idx:1783:RAVEUSDT:1776725391678:SELL:0.9687764:4801.0
+unified_features:ASTERUSDT:4h
+features:coinank:liquidations:LINKUSDT:Binance:4h:latest
+dedup:liq:binance:idx:1872:RAVEUSDT:1776725153250:BUY:1.0969673:4503.0
+cursor:coinank:liquidations:XRP:Binance:4h:liquidation_history
+dedup:liq:binance:idx:1882:RAVEUSDT:1776725140579:BUY:1.0799556:1967.0
+features:coinank_endpoint:openInterest_kline:LINKUSDT:Binance:15m:latest
+features:coinank_endpoint:fundingRate_indicator:SOLUSDT:Binance:1h:normalized
+dedup:liq:coinank:ETHUSDT:1774975278250:SHORT_LIQ:2101.75:3.316
+features:coinank:advanced:BANKUSDT:Binance:spot:series
+latest:coinank_endpoint:ls_toptrader_accounts:1000SHIBUSDT:1m
+unified_features:RAVEUSDT:4h
+features:coinank_endpoint:marketOrder_getBuySellCount:UNIUSDT:Binance:4h:normalized
+
+## Read-only metadata sample
+
+### key: cursor:coinank:market_order_flow:ETH:Binance:30m:marketOrder_getBuySellVolume
+- TYPE: string
+- TTL: -1
+- GET (truncated): 1777568400000
+
+### key: cursor:coinank:market_order_flow:BTC:Binance:30m:marketOrder_getBuySellVolume
+- TYPE: string
+- TTL: -1
+- GET (truncated): 1777568400000
+
+### key: latest:coinank:instruments:UNIUSDT:spot
+- TYPE: string
+- TTL: -1
+- GET (truncated): {"ts_ms": 1777574138750, "timestamp": 1777574138750, "family": "instruments", "symbol": "UNIUSDT", "timeframe": "spot", "exchange": "Binance", "endpoint": "instruments_getLastPrice", "data": {"success": true, "code": "1", "data": {"baseCoin": "UNI", "quoteCoin": "USDT", "symbol": "UNIUSDT", "exchang...
+
+### key: features:coinank_endpoint:ls_global_account_ratio:DOGEUSDT:Binance:1d:normalized
+- TYPE: string
+- TTL: 171780
+- GET (truncated): {"coinank_ts_epoch_ms": 1777573354057, "coinank_source_ts_ms": 1777573354057, "coinank_ts_ms": 1777573354057, "coinank_family": "long_short", "coinank_basecoin": "DOGEUSDT", "coinank_exchange": "Binance", "coinank_timeframe": "1d", "coinank_endpoint": "ls_global_account_ratio", "coinank_source": "co...
+
+### key: features:coinank_endpoint:ls_global_account_ratio:ETHUSDT:Binance:1h:normalized
+- TYPE: string
+- TTL: 6456
+- GET (truncated): {"coinank_ts_epoch_ms": 1777573630588, "coinank_source_ts_ms": 1777573630588, "coinank_ts_ms": 1777573630588, "coinank_family": "long_short", "coinank_basecoin": "ETHUSDT", "coinank_exchange": "Binance", "coinank_timeframe": "1h", "coinank_endpoint": "ls_global_account_ratio", "coinank_source": "coi...
+
+### key: latest:coinank_endpoint:marketOrder_getBuySellValue:XRPUSDT:15m
+- TYPE: string
+- TTL: 1297
+- GET (truncated): {"ts_ms": 1777573871326, "timestamp": 1777573871326, "symbol": "XRPUSDT", "exchange": "Binance", "family": "market_order_flow", "endpoint": "marketOrder_getBuySellValue", "interval": "15m", "data": {"success": true, "code": "1", "data": {"success": true, "code": "1", "data": [[1777481100000, 7376391...
+
+### key: cursor:coinank:funding:SOL:Binance:15m:fundingRate_kline
+- TYPE: string
+- TTL: -1
+- GET (truncated): 1777570200000
+
+### key: cursor:coinank:open_interest:BTC:Binance:1h:openInterest_kline
+- TYPE: string
+- TTL: -1
+- GET (truncated): 1777568400000
+
+### key: features:coinank_endpoint:trades_largeTrades:RIVERUSDT:Binance:spot:normalized
+- TYPE: string
+- TTL: 63
+- GET (truncated): {"coinank_ts_epoch_ms": 1777573837091, "coinank_source_ts_ms": 1777573837091, "coinank_ts_ms": 1777573837091, "coinank_family": "advanced", "coinank_basecoin": "RIVERUSDT", "coinank_exchange": "Binance", "coinank_timeframe": "spot", "coinank_endpoint": "trades_largeTrades", "coinank_source": "coinan...
+
+### key: features:coinank_endpoint:ls_toptrader_accounts:XRPUSDT:Binance:30m:latest
+- TYPE: string
+- TTL: 3326
+- GET (truncated): {"ts_epoch_ms": 1777574099745, "source_ts_ms": 1777574099745, "timestamp": 1777574099745, "ts_ms": 1777574099745, "family": "long_short", "baseCoin": "XRPUSDT", "exchange": "Binance", "interval": "30m", "endpoint": "ls_toptrader_accounts", "source": "coinank", "raw_data": {"success": true, "code": "...
+
+### key: features:coinank_endpoint:liquidation_history:BTCUSDT:Binance:30m:normalized
+- TYPE: string
+- TTL: 3457
+- GET (truncated): {"coinank_ts_epoch_ms": 1777574231306, "coinank_source_ts_ms": 1777574231306, "coinank_ts_ms": 1777574231306, "coinank_family": "liquidations", "coinank_basecoin": "BTCUSDT", "coinank_exchange": "Binance", "coinank_timeframe": "30m", "coinank_endpoint": "liquidation_history", "coinank_source": "coin...
+
+### key: features:coinank_endpoint:marketOrder_getAggCvd:ETHUSDT:Binance:15m:latest
+- TYPE: string
+- TTL: 300
+- GET (truncated): {"ts_epoch_ms": 1777572873660, "source_ts_ms": 1777572873660, "timestamp": 1777572873660, "ts_ms": 1777572873660, "family": "market_order_flow", "baseCoin": "ETHUSDT", "exchange": "Binance", "interval": "15m", "endpoint": "marketOrder_getAggCvd", "source": "coinank", "raw_data": {"success": false, "...
+
+### key: cursor:coinank:market_order_flow:BTC:Binance:1h:marketOrder_getAggCvd
+- TYPE: string
+- TTL: -1
+- GET (truncated): 1777568400000
+
+### key: features:coinank:market_order_flow:LINKUSDT:Binance:15m:series
+- TYPE: string
+- TTL: -1
+- GET (truncated): [{"ts_epoch_ms": 1777456311398, "source_ts_ms": 1777456311398, "timestamp": 1777456311398, "ts_ms": 1777456311398, "family": "market_order_flow", "baseCoin": "LINKUSDT", "exchange": "Binance", "interval": "15m", "endpoint": "marketOrder_getBuySellVolume", "source": "coinank", "raw_data": {"success":...
+
+### key: features:coinank_endpoint:marketOrder_getBuySellCount:1000SHIBUSDT:Binance:1h:latest
+- TYPE: string
+- TTL: 6893
+- GET (truncated): {"ts_epoch_ms": 1777574067210, "source_ts_ms": 1777574067210, "timestamp": 1777574067210, "ts_ms": 1777574067210, "family": "market_order_flow", "baseCoin": "1000SHIBUSDT", "exchange": "Binance", "interval": "1h", "endpoint": "marketOrder_getBuySellCount", "source": "coinank", "raw_data": {"success"...
+
+### key: dedup:liq:coinank:SOLUSDT:1774963754650:LONG_LIQ:80.58:7.74
+- TYPE: string
+- TTL: 4846
+- GET (truncated): 1
+
+### key: dedup:liq:binance:idx:1978:RAVEUSDT:1776724896102:BUY:1.01307:25.0
+- TYPE: string
+- TTL: 9635
+- GET (truncated): 1
+
+### key: dedup:liq:binance:idx:1991:RAVEUSDT:1776724814476:SELL:0.9964199:312.0
+- TYPE: string
+- TTL: 9634
+- GET (truncated): 1
+
+### key: features:coinank_endpoint:marketOrder_getBuySellCount:XRPUSDT:Binance:30m:latest
+- TYPE: string
+- TTL: 2640
+- GET (truncated): {"ts_epoch_ms": 1777573414297, "source_ts_ms": 1777573414297, "timestamp": 1777573414297, "ts_ms": 1777573414297, "family": "market_order_flow", "baseCoin": "XRPUSDT", "exchange": "Binance", "interval": "30m", "endpoint": "marketOrder_getBuySellCount", "source": "coinank", "raw_data": {"success": tr...
+
+### key: latest:coinank:long_short:XRPUSDT:30m
+- TYPE: string
+- TTL: -1
+- GET (truncated): {"ts_ms": 1777574099745, "timestamp": 1777574099745, "family": "long_short", "symbol": "XRPUSDT", "timeframe": "30m", "exchange": "Binance", "endpoint": "ls_toptrader_accounts", "data": {"success": true, "code": "1", "data": {"tss": [1777392000000, 1777393800000, 1777395600000, 1777397400000, 177739...
+
+### key: coinank:fundingRate_kline:last
+- TYPE: string
+- TTL: 509
+- GET (truncated): {"ts": 1777574283505, "endpoint": "fundingRate_kline", "params": {"exchange": "Binance", "symbol": "1000SHIBUSDT", "interval": "1d", "endTime": "1777507200000", "size": 100}, "data": {"success": true, "code": "1", "data": [{"begin": 1768953600000, "open": 0.001547, "close": 0.00806, "low": -0.004465...
+
+### key: dedup:liq:coinank:XRPUSDT:1774975299688:SHORT_LIQ:1.343:30.1
+- TYPE: string
+- TTL: 15640
+- GET (truncated): 1
+
+### key: features:coinank_endpoint:fundingRate_indicator:DOGEUSDT:Binance:8h:latest
+- TYPE: string
+- TTL: 56570
+- GET (truncated): {"ts_epoch_ms": 1777573343903, "source_ts_ms": 1777573343903, "timestamp": 1777573343903, "ts_ms": 1777573343903, "family": "funding", "baseCoin": "DOGEUSDT", "exchange": "Binance", "interval": "8h", "endpoint": "fundingRate_indicator", "source": "coinank", "raw_data": {"success": true, "code": "1",...
+
+### key: features:coinank_endpoint:openInterest_kline:BTCUSDT:Binance:1h:normalized
+- TYPE: string
+- TTL: 6599
+- GET (truncated): {"coinank_ts_epoch_ms": 1777573773121, "coinank_source_ts_ms": 1777573773121, "coinank_ts_ms": 1777573773121, "coinank_family": "open_interest", "coinank_basecoin": "BTCUSDT", "coinank_exchange": "Binance", "coinank_timeframe": "1h", "coinank_endpoint": "openInterest_kline", "coinank_source": "coina...
+
+### key: features:coinank:market_order_flow:SOLUSDT:Binance:15m:latest
+- TYPE: string
+- TTL: 1296
+- GET (truncated): {"ts_epoch_ms": 1777573870664, "source_ts_ms": 1777573870664, "timestamp": 1777573870664, "ts_ms": 1777573870664, "family": "market_order_flow", "baseCoin": "SOLUSDT", "exchange": "Binance", "interval": "15m", "endpoint": "marketOrder_getBuySellValue", "source": "coinank", "raw_data": {"success": tr...
+
+### key: latest:coinank:long_short:HIGHUSDT:4h
+- TYPE: string
+- TTL: -1
+- GET (truncated): {"ts_ms": 1777574293076, "timestamp": 1777574293076, "family": "long_short", "symbol": "HIGHUSDT", "timeframe": "4h", "exchange": "Binance", "endpoint": "ls_kline", "data": {"success": true, "code": "1", "data": [{"id": "69f18273d9643a9c2fdf295e", "begin": 1777435200000, "open": 0.8839, "close": 0.8...
+
+### key: features:coinank_endpoint:fundingRate_kline:XRPUSDT:Binance:1d:latest
+- TYPE: string
+- TTL: 172520
+- GET (truncated): {"ts_epoch_ms": 1777574094580, "source_ts_ms": 1777574094580, "timestamp": 1777574094580, "ts_ms": 1777574094580, "family": "funding", "baseCoin": "XRPUSDT", "exchange": "Binance", "interval": "1d", "endpoint": "fundingRate_kline", "source": "coinank", "raw_data": {"success": true, "code": "1", "dat...
+
+### key: features:coinank_endpoint:marketOrder_getAggCvd:UNIUSDT:Binance:1h:latest
+- TYPE: string
+- TTL: 6250
+- GET (truncated): {"ts_epoch_ms": 1777573424627, "source_ts_ms": 1777573424627, "timestamp": 1777573424627, "ts_ms": 1777573424627, "family": "market_order_flow", "baseCoin": "UNIUSDT", "exchange": "Binance", "interval": "1h", "endpoint": "marketOrder_getAggCvd", "source": "coinank", "raw_data": {"success": false, "c...
+
+### key: features:coinank_endpoint:openInterest_kline:1000SHIBUSDT:Binance:4h:normalized
+- TYPE: string
+- TTL: 28488
+- GET (truncated): {"coinank_ts_epoch_ms": 1777574062076, "coinank_source_ts_ms": 1777574062076, "coinank_ts_ms": 1777574062076, "coinank_family": "open_interest", "coinank_basecoin": "1000SHIBUSDT", "coinank_exchange": "Binance", "coinank_timeframe": "4h", "coinank_endpoint": "openInterest_kline", "coinank_source": "...
+
+### key: latest:coinank_endpoint:netPositions_getNetPositions:SOLUSDT:1h
+- TYPE: string
+- TTL: 6474
+- GET (truncated): {"ts_ms": 1777573648607, "timestamp": 1777573648607, "symbol": "SOLUSDT", "exchange": "Binance", "family": "advanced", "endpoint": "netPositions_getNetPositions", "interval": "1h", "data": {"success": true, "code": "1", "data": [{"begin": 1777212000000, "netLongsHigh": 37833, "netLongsClose": 31702,...
+
+### key: features:coinank:funding:DOGEUSDT:Binance:5m:series
+- TYPE: string
+- TTL: -1
+- GET (truncated): [{"ts_epoch_ms": 1777459405106, "source_ts_ms": 1777459405106, "timestamp": 1777459405106, "ts_ms": 1777459405106, "family": "funding", "baseCoin": "DOGEUSDT", "exchange": "Binance", "interval": "5m", "endpoint": "fundingRate_indicator", "source": "coinank", "raw_data": {"success": true, "code": "1"...
+
+### key: features:coinank:long_short:SOLUSDT:Binance:15m:series
+- TYPE: string
+- TTL: -1
+- GET (truncated): [{"ts_epoch_ms": 1777481361474, "source_ts_ms": 1777481361474, "timestamp": 1777481361474, "ts_ms": 1777481361474, "family": "long_short", "baseCoin": "SOLUSDT", "exchange": "Binance", "interval": "15m", "endpoint": "ls_global_account_ratio", "source": "coinank", "raw_data": {"success": true, "code"...
+
+### key: latest:coinank_endpoint:marketOrder_getAggCvd:LINKUSDT:1h
+- TYPE: string
+- TTL: 6250
+- GET (truncated): {"ts_ms": 1777573424019, "timestamp": 1777573424019, "symbol": "LINKUSDT", "exchange": "Binance", "family": "market_order_flow", "endpoint": "marketOrder_getAggCvd", "interval": "1h", "data": {"success": false, "code": "0", "msg": "system error!"}}
+
+### key: latest:coinank_endpoint:ls_global_account_ratio:XRPUSDT:30m
+- TYPE: string
+- TTL: 3323
+- GET (truncated): {"ts_ms": 1777574097216, "timestamp": 1777574097216, "symbol": "XRPUSDT", "exchange": "Binance", "family": "long_short", "endpoint": "ls_global_account_ratio", "interval": "30m", "data": {"success": true, "code": "1", "data": {"tss": [1777392000000, 1777393800000, 1777395600000, 1777397400000, 17773...
+
+### key: features:coinank_endpoint:fundingRate_indicator:BTCUSDT:Binance:4h:normalized
+- TYPE: string
+- TTL: 27952
+- GET (truncated): {"coinank_ts_epoch_ms": 1777573526498, "coinank_source_ts_ms": 1777573526498, "coinank_ts_ms": 1777573526498, "coinank_family": "funding", "coinank_basecoin": "BTCUSDT", "coinank_exchange": "Binance", "coinank_timeframe": "4h", "coinank_endpoint": "fundingRate_indicator", "coinank_source": "coinank"...
+
+### key: features:coinank:funding:1000SHIBUSDT:Binance:1d:latest
+- TYPE: string
+- TTL: 172709
+- GET (truncated): {"ts_epoch_ms": 1777574283505, "source_ts_ms": 1777574283505, "timestamp": 1777574283505, "ts_ms": 1777574283505, "family": "funding", "baseCoin": "1000SHIBUSDT", "exchange": "Binance", "interval": "1d", "endpoint": "fundingRate_kline", "source": "coinank", "raw_data": {"success": true, "code": "1",...
+
+### key: features:coinank_endpoint:openInterest_v2_chart:1000FLOKIUSDT:Binance:30m:normalized
+- TYPE: string
+- TTL: 3565
+- GET (truncated): {"coinank_ts_epoch_ms": 1777574339526, "coinank_source_ts_ms": 1777574339526, "coinank_ts_ms": 1777574339526, "coinank_family": "open_interest", "coinank_basecoin": "1000FLOKIUSDT", "coinank_exchange": "Binance", "coinank_timeframe": "30m", "coinank_endpoint": "openInterest_v2_chart", "coinank_sourc...
+
+### key: dedup:liq:binance:idx:1999:RAVEUSDT:1776724785330:BUY:1.0245604:97.0
+- TYPE: string
+- TTL: 9634
+- GET (truncated): 1
+
+### key: features:coinank_endpoint:ls_kline:1000FLOKIUSDT:Binance:4h:normalized
+- TYPE: string
+- TTL: 28621
+- GET (truncated): {"coinank_ts_epoch_ms": 1777574195626, "coinank_source_ts_ms": 1777574195626, "coinank_ts_ms": 1777574195626, "coinank_family": "long_short", "coinank_basecoin": "1000FLOKIUSDT", "coinank_exchange": "Binance", "coinank_timeframe": "4h", "coinank_endpoint": "ls_kline", "coinank_source": "coinank", "c...
+
+### key: dedup:liq:binance:idx:1833:RAVEUSDT:1776725220484:BUY:1.0414932:196.0
+- TYPE: string
+- TTL: 9634
+- GET (truncated): 1
+
+### key: latest:coinank:long_short:PIPPINUSDT:1h
+- TYPE: string
+- TTL: -1
+- GET (truncated): {"ts_ms": 1777574006760, "timestamp": 1777574006760, "family": "long_short", "symbol": "PIPPINUSDT", "timeframe": "1h", "exchange": "Binance", "endpoint": "ls_kline", "data": {"success": true, "code": "1", "data": [{"id": "69f30c4dd9643a9c2f8d23d2", "begin": 1777536000000, "open": 2.413, "close": 2....
+
+### key: latest:coinank:advanced:SOLUSDT:spot
+- TYPE: string
+- TTL: -1
+- GET (truncated): {"ts_ms": 1777574316580, "timestamp": 1777574316580, "family": "advanced", "symbol": "SOLUSDT", "timeframe": "spot", "exchange": "Binance", "endpoint": "bigOrder_queryOrderList", "data": {"success": true, "code": "1", "data": [{"exchangeName": "Binance", "exchangeType": "SWAP", "baseCoin": "SOL", "s...
+
+### key: dedup:liq:coinank:RIVERUSDT:1774970072175:SHORT_LIQ:18.043:0.9
+- TYPE: string
+- TTL: 12087
+- GET (truncated): 1
+
+### key: features:coinank_endpoint:ls_global_account_ratio:XRPUSDT:Binance:4h:normalized
+- TYPE: string
+- TTL: 28522
+- GET (truncated): {"coinank_ts_epoch_ms": 1777574096608, "coinank_source_ts_ms": 1777574096608, "coinank_ts_ms": 1777574096608, "coinank_family": "long_short", "coinank_basecoin": "XRPUSDT", "coinank_exchange": "Binance", "coinank_timeframe": "4h", "coinank_endpoint": "ls_global_account_ratio", "coinank_source": "coi...
+
+### key: features:coinank_endpoint:marketOrder_getAggBuySellValue:1000FLOKIUSDT:Binance:15m:normalized
+- TYPE: string
+- TTL: 1697
+- GET (truncated): {"coinank_ts_epoch_ms": 1777574270918, "coinank_source_ts_ms": 1777574270918, "coinank_ts_ms": 1777574270918, "coinank_family": "market_order_flow", "coinank_basecoin": "1000FLOKIUSDT", "coinank_exchange": "Binance", "coinank_timeframe": "15m", "coinank_endpoint": "marketOrder_getAggBuySellValue", "...
+
+### key: features:coinank_endpoint:ls_kline:ALICEUSDT:Binance:1h:normalized
+- TYPE: string
+- TTL: 6185
+- GET (truncated): {"coinank_ts_epoch_ms": 1777573359495, "coinank_source_ts_ms": 1777573359495, "coinank_ts_ms": 1777573359495, "coinank_family": "long_short", "coinank_basecoin": "ALICEUSDT", "coinank_exchange": "Binance", "coinank_timeframe": "1h", "coinank_endpoint": "ls_kline", "coinank_source": "coinank", "coina...
+
+### key: features:coinank_endpoint:orderFlow_lists:1000SHIBUSDT:Binance:1h:normalized
+- TYPE: string
+- TTL: 6566
+- GET (truncated): {"coinank_ts_epoch_ms": 1777573740555, "coinank_source_ts_ms": 1777573740555, "coinank_ts_ms": 1777573740555, "coinank_family": "advanced", "coinank_basecoin": "1000SHIBUSDT", "coinank_exchange": "Binance", "coinank_timeframe": "1h", "coinank_endpoint": "orderFlow_lists", "coinank_source": "coinank"...
+
+### key: dedup:liq:binance:idx:1906:RAVEUSDT:1776725089084:BUY:1.0448166:1986.0
+- TYPE: string
+- TTL: 9634
+- GET (truncated): 1
+
+### key: dedup:liq:coinank:RIVERUSDT:1774964311683:LONG_LIQ:16.962:5.0
+- TYPE: string
+- TTL: 4846
+- GET (truncated): 1
+
+### key: dedup:liq:binance:idx:1794:RAVEUSDT:1776725377360:SELL:1.0143645:364.0
+- TYPE: string
+- TTL: 9634
+- GET (truncated): 1
+
+### key: ohlcv:list:coinapi:SOLUSDT:15m
+- TYPE: list
+- TTL: 2540990
+- LRANGE 0 5:
+  {"timestamp": 1777517100000, "open": 82.845, "high": 82.93, "low": 82.66, "close": 82.905, "volume": 137279.31, "source": "coinapi_v1"}
+  {"timestamp": 1777517100000, "open": 82.845, "high": 82.93, "low": 82.66, "close": 82.905, "volume": 137281.78, "source": "coinapi_v1"}
+  {"timestamp": 1777517100000, "open": 82.845, "high": 82.93, "low": 82.66, "close": 82.9, "volume": 137285.46, "source": "coinapi_v1"}
+  {"timestamp": 1777517100000, "open": 82.845, "high": 82.93, "low": 82.66, "close": 82.905, "volume": 137361.15, "source": "coinapi_v1"}
+  {"timestamp": 1777517100000, "open": 82.845, "high": 82.93, "low": 82.66, "close": 82.905, "volume": 137368.2, "source": "coinapi_v1"}
+  {"timestamp": 1777517100000, "open": 82.845, "high": 82.93, "low": 82.66, "close": 82.905, "volume": 137387.39, "source": "coinapi_v1"}
+
+### key: features:coinank_endpoint:ls_global_account_ratio:DOGEUSDT:Binance:15m:normalized
+- TYPE: string
+- TTL: 687
+- GET (truncated): {"coinank_ts_epoch_ms": 1777573261115, "coinank_source_ts_ms": 1777573261115, "coinank_ts_ms": 1777573261115, "coinank_family": "long_short", "coinank_basecoin": "DOGEUSDT", "coinank_exchange": "Binance", "coinank_timeframe": "15m", "coinank_endpoint": "ls_global_account_ratio", "coinank_source": "c...
+
+### key: features:coinank_endpoint:marketOrder_getBuySellCount:LTCUSDT:Binance:4h:latest
+- TYPE: string
+- TTL: 27747
+- GET (truncated): {"ts_epoch_ms": 1777573321607, "source_ts_ms": 1777573321607, "timestamp": 1777573321607, "ts_ms": 1777573321607, "family": "market_order_flow", "baseCoin": "LTCUSDT", "exchange": "Binance", "interval": "4h", "endpoint": "marketOrder_getBuySellCount", "source": "coinank", "raw_data": {"success": tru...
+
+### key: features:kucoin:XRPUSDT:4h:normalized
+- TYPE: string
+- TTL: 248
+- GET (truncated): {"ohlcv_symbol": "XRPUSDT", "ohlcv_timeframe": "4h", "ohlcv_ts_ms": 1777564800000, "ohlcv_open": 1.3695, "ohlcv_high": 1.37098, "ohlcv_low": 1.3629, "ohlcv_close": 1.36917, "ohlcv_volume": 3234844.1978, "ohlcv_source": "kucoin"}
+
+### key: unified_features:FARTCOINUSDT:5m
+- TYPE: hash
+- TTL: 598
+- HGETALL (head):
+  liquidation_short_strength
+  85.64831401437523
+  ind_ind_FARTCOINUSDT_ta_HT_TRENDMODE_5m
+  0.0
+  depth_bps_25_total_usd
+  178699.10106999998
+  ind_ta_AD_5m
+  14343597.596701652
+  ind_ind_FARTCOINUSDT_ta_MINUS_DI_14_5m
+  25.693579744534077
+  ind_ind_FARTCOINUSDT_ta_HT_SINE_leadsine_5m
+  0.5411163609859769
+  ind_ta_T3_5_5m
+  0.2016111997750203
+  ind_ind_FARTCOINUSDT_ta_TEMA_20_5m
+  0.20150052478999117
+  xtf_1m_atr_14
+  0.0003095713461263514
+  xtf_1h_liquidation_long_strength
+  3268.121621618217
+  depth_source
+  coinapi_wsds
+  ind_ind_FARTCOINUSDT_ta_LINEARREG_SLOPE_21_5m
+  -0.00012857142857143256
+  xtf_4h_ccxt_volume
+  12876111.2
+  ind_ta_HT_SINE_sine_5m
+  -0.21201279394003736
+  ind_ind_FARTCOINUSDT_ta_NATR_21_5m
+  0.41099733810167044
+  ccxt_volume
+  163656.6
+  ind_ta_CDLENGULFING_5m
+  -100.0
+  ind_ind_FARTCOINUSDT_ta_SMA_100_5m
+  0.20238499999999998
+  depth_impact_per_musd_1s
+  0.0
+  ind_ta_RSI_21_5m
+  39.70896132285336
+
+### key: features:coinank:advanced:BTCUSDT:Binance:4h:normalized
+- TYPE: string
+- TTL: 27980
+- GET (truncated): {"coinank_ts_epoch_ms": 1777573554591, "coinank_source_ts_ms": 1777573554591, "coinank_ts_ms": 1777573554591, "coinank_family": "advanced", "coinank_basecoin": "BTCUSDT", "coinank_exchange": "Binance", "coinank_timeframe": "4h", "coinank_endpoint": "netPositions_getNetPositions", "coinank_source": "...
+
+### key: latest:coinank_endpoint:openInterest_symbol_Chart:ASTERUSDT:1h
+- TYPE: string
+- TTL: 6687
+- GET (truncated): {"ts_ms": 1777573860919, "timestamp": 1777573860919, "symbol": "ASTERUSDT", "exchange": "Binance", "family": "open_interest", "endpoint": "openInterest_symbol_Chart", "interval": "1h", "data": {"success": true, "code": "1", "data": [{"exchangeName": "Binance", "baseCoin": "ASTER", "symbol": "ASTERUS...
+
+### key: features:coinank:advanced:WIFUSDT:Binance:spot:series
+- TYPE: string
+- TTL: -1
+- GET (truncated): [{"ts_epoch_ms": 1777465813542, "source_ts_ms": 1777465813542, "timestamp": 1777465813542, "ts_ms": 1777465813542, "family": "advanced", "baseCoin": "WIFUSDT", "exchange": "Binance", "interval": "spot", "endpoint": "trades_largeTrades", "source": "coinank", "raw_data": {"success": true, "code": "1",...
+
+### key: unified_features:LINKUSDT:15m:latest
+- TYPE: hash
+- TTL: 885
+- HGETALL (head):
+  ind_ind_LINKUSDT_ta_CDLLONGLINE_15m
+  100.0
+  ind_ind_LINKUSDT_ta_ROC_21_15m
+  -0.3221303554171717
+  liquidation_short_strength
+  1489.1107743555156
+  depth_bps_25_total_usd
+  380943.15118
+  ind_ta_STOCH_d_fastk_period14_slowk_period3_slowk_matype0_slowd_period3_slowd_matype0_15m
+  7.766176529136253
+  ind_ta_PLUS_DI_14_15m
+  20.279806026481833
+  ind_ind_LINKUSDT_ta_RSI_28_15m
+  51.451977629194154
+  xtf_1m_atr_14
+  0.005967287778023171
+  ind_ta_NATR_21_15m
+  0.43631630436962165
+  xtf_1h_liquidation_long_strength
+  4187.358150655202
+  depth_source
+  coinapi_wsds
+  ind_ind_LINKUSDT_ta_EMA_20_15m
+  9.303688561581694
+  ind_ind_LINKUSDT_ta_MINUS_DI_21_15m
+  17.73378743547753
+  xtf_4h_ccxt_volume
+  57145.17
+  coinank_marketOrder_getBuySellVolume_data_col1_first
+  41984.97
+  ind_ta_CORREL_30_15m
+  0.9202897429073348
+  ccxt_volume
+  7887.38
+  depth_impact_per_musd_1s
+  0.0
+  ind_ind_LINKUSDT_ta_NATR_14_15m
+  0.41554041124496927
+  xtf_5m_rsi_14
+  41.95026707831818
+
+### key: features:coinank_endpoint:openInterest_symbol_Chart:ETHUSDT:Binance:30m:latest
+- TYPE: string
+- TTL: 3378
+- GET (truncated): {"ts_epoch_ms": 1777574152455, "source_ts_ms": 1777574152455, "timestamp": 1777574152455, "ts_ms": 1777574152455, "family": "open_interest", "baseCoin": "ETHUSDT", "exchange": "Binance", "interval": "30m", "endpoint": "openInterest_symbol_Chart", "source": "coinank", "raw_data": {"success": true, "c...
