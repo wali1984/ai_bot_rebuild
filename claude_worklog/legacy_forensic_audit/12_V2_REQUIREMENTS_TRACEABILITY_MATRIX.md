@@ -14,6 +14,11 @@ Legacy forensic findings mapped to V2 requirements (traceability only; V2 build 
 | Operator control-plane gaps | Admin AI + hosting/mobile readiness controls |
 | Premature live activation risk | Explicit live-trading blocked gates |
 
+## Ollama optional support note
+- Ollama may assist with local summarization/evidence packet drafting only.
+- Ollama cannot authorize V2 build, risk acceptance, or live trading transitions.
+- All safety-critical claims in traceability must be verified via deterministic artifacts and raw evidence.
+
 
 ## Raw evidence pointers
 - claude_worklog/coverage/TIER_A_RAW_REVIEW_PLAN.json

@@ -29,4 +29,9 @@
 ## Readiness
 - Ready for 12-hour read-only runtime monitor: YES
 
+## Ollama optional support note
+- Ollama is optional local support for summarization/compression/evidence packet drafts.
+- Ollama output is non-authoritative and must map back to raw evidence and verification commands.
+- If unavailable, runtime monitor proceeds under `OLLAMA_OPTIONAL_NOT_BLOCKING`.
+
 LEGACY_FORENSIC_AUDIT_READY_FOR_RUNTIME_MONITOR

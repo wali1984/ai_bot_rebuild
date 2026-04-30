@@ -21,6 +21,12 @@ Sampling interval: **60 seconds** baseline + **5 minutes** rollup.
 - unresolved risk deltas
 - recommendation for next forensic step
 
+## Ollama optional support note
+- Ollama is optional and local-only for summarization/compression/evidence-packet drafting.
+- Ollama output is never final evidence and cannot approve risk/live/V2/exchange safety decisions.
+- Every Ollama summary must reference raw evidence pointers (file/range/log line/command/artifact).
+- If unavailable, continue monitor flow with: `OLLAMA_OPTIONAL_NOT_BLOCKING`.
+
 ## Raw evidence pointers
 - claude_worklog/coverage/TIER_A_RAW_REVIEW_PLAN.json
 - claude_worklog/coverage/EXCHANGE_ACTION_MAP.json

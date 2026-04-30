@@ -199,6 +199,7 @@ def main() -> int:
     out_dir = os.path.abspath(args.output_dir)
     os.makedirs(out_dir, exist_ok=True)
     jsonl_path = os.path.join(out_dir, "snapshots.jsonl")
+    trainer_metrics_path = os.path.join(out_dir, "trainer_metrics.jsonl")
     summary_path = os.path.join(out_dir, "..", "monitoring_summary.md")
     summary_path = os.path.normpath(summary_path)
 
@@ -263,6 +264,19 @@ def main() -> int:
 
         with open(jsonl_path, "a", encoding="utf-8") as jf:
             jf.write(json.dumps(_redact(rec), separators=(",", ":")) + "\n")
+
+        trainer_metric = {
+            "tick": tick,
+            "ts_utc": rec["ts_utc"],
+            "trainer_heartbeat": hb.get("heartbeat:trainer", {}).get("value")
+            or hb.get("heartbeat:Trainer", {}).get("value"),
+            "trainer_signal_heartbeat": hb.get("signals:trainer:heartbeat", {}).get("value"),
+            "predictions_stream_xlen": xlen("wma:trainer:predictions"),
+            "primary_stream_xlen": lengths.get("signals:trading:primary"),
+            "redis_ping_ok": ok_ping,
+        }
+        with open(trainer_metrics_path, "a", encoding="utf-8") as tf:
+            tf.write(json.dumps(_redact(trainer_metric), separators=(",", ":")) + "\n")
 
         time.sleep(max(5, int(args.interval_seconds)))
 
