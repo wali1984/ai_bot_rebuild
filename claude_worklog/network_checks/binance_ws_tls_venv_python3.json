@@ -1,0 +1,20 @@
+WS TLS stream.binance.com:443 → OK
+WS TLS stream.binance.com:9443 → OK
+WS TLS fstream.binance.com:443 → OK
+Traceback (most recent call last):
+  File "/home/wali/Desktop/AI BOT REBUILD/tools/check_binance_ws_tls.py", line 68, in <module>
+    main()
+  File "/home/wali/Desktop/AI BOT REBUILD/tools/check_binance_ws_tls.py", line 53, in main
+    r = ws_tls_check(host, port)
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/wali/Desktop/AI BOT REBUILD/tools/check_binance_ws_tls.py", line 27, in ws_tls_check
+    with ctx.wrap_socket(raw, server_hostname=host) as s:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/ssl.py", line 455, in wrap_socket
+    return self.sslsocket_class._create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/ssl.py", line 1042, in _create
+    self.do_handshake()
+  File "/usr/lib/python3.12/ssl.py", line 1320, in do_handshake
+    self._sslobj.do_handshake()
+KeyboardInterrupt

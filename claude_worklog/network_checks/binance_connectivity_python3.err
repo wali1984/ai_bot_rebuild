@@ -1,0 +1,27 @@
+[DNS] Checking hosts...
+  DNS api.binance.com: OK
+  DNS fapi.binance.com: OK
+  DNS stream.binance.com: OK
+  DNS fstream.binance.com: OK
+  DNS ws-api.binance.com: OK
+[TLS] Checking TLS handshakes...
+  TLS api.binance.com:443 OK
+  TLS fapi.binance.com:443 OK
+  TLS stream.binance.com:443 OK
+Traceback (most recent call last):
+  File "/home/wali/Desktop/AI BOT REBUILD/tools/check_binance_public_connectivity.py", line 163, in <module>
+    main()
+  File "/home/wali/Desktop/AI BOT REBUILD/tools/check_binance_public_connectivity.py", line 128, in main
+    r = tls_check(host, 443)
+        ^^^^^^^^^^^^^^^^^^^^
+  File "/home/wali/Desktop/AI BOT REBUILD/tools/check_binance_public_connectivity.py", line 53, in tls_check
+    with ctx.wrap_socket(raw, server_hostname=host) as s:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/ssl.py", line 455, in wrap_socket
+    return self.sslsocket_class._create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/ssl.py", line 1042, in _create
+    self.do_handshake()
+  File "/usr/lib/python3.12/ssl.py", line 1320, in do_handshake
+    self._sslobj.do_handshake()
+KeyboardInterrupt

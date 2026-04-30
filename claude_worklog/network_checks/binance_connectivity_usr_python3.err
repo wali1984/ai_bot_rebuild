@@ -1,0 +1,19 @@
+[DNS] Checking hosts...
+  DNS api.binance.com: OK
+  DNS fapi.binance.com: OK
+  DNS stream.binance.com: OK
+  DNS fstream.binance.com: OK
+  DNS ws-api.binance.com: OK
+[TLS] Checking TLS handshakes...
+  TLS api.binance.com:443 OK
+  TLS fapi.binance.com:443 OK
+  TLS stream.binance.com:443 OK
+  TLS fstream.binance.com:443 OK
+  TLS ws-api.binance.com:443 OK
+[REST] Fetching public endpoints...
+  REST spot_time: FAIL
+  REST futures_time: FAIL
+  REST spot_exchangeInfo: FAIL
+  REST futures_exchangeInfo: FAIL
+[IP] Detecting public IP...
+  Public IP: {'status': 'OK', 'ip': '98.116.148.30', 'source': 'https://api.ipify.org'}

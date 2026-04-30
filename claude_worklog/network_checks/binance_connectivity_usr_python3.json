@@ -1,0 +1,118 @@
+{
+  "timestamp_utc": "2026-04-30T03:30:08Z",
+  "python": "3.12.3 (main, Mar 23 2026, 19:04:32) [GCC 13.3.0]",
+  "executable": "/usr/bin/python3",
+  "dns": [
+    {
+      "status": "OK",
+      "host": "api.binance.com",
+      "ip": "3.168.103.185",
+      "elapsed_ms": 7
+    },
+    {
+      "status": "OK",
+      "host": "fapi.binance.com",
+      "ip": "108.138.128.6",
+      "elapsed_ms": 8
+    },
+    {
+      "status": "OK",
+      "host": "stream.binance.com",
+      "ip": "57.183.52.138",
+      "elapsed_ms": 6
+    },
+    {
+      "status": "OK",
+      "host": "fstream.binance.com",
+      "ip": "57.180.119.1",
+      "elapsed_ms": 4
+    },
+    {
+      "status": "OK",
+      "host": "ws-api.binance.com",
+      "ip": "52.196.166.182",
+      "elapsed_ms": 6
+    }
+  ],
+  "tls": [
+    {
+      "status": "OK",
+      "host": "api.binance.com",
+      "port": 443,
+      "tls_version": "TLSv1.3",
+      "cert_cn": "*.binance.com",
+      "elapsed_ms": 33
+    },
+    {
+      "status": "OK",
+      "host": "fapi.binance.com",
+      "port": 443,
+      "tls_version": "TLSv1.3",
+      "cert_cn": "*.binance.com",
+      "elapsed_ms": 41
+    },
+    {
+      "status": "OK",
+      "host": "stream.binance.com",
+      "port": 443,
+      "tls_version": "TLSv1.3",
+      "cert_cn": "*.binance.com",
+      "elapsed_ms": 341
+    },
+    {
+      "status": "OK",
+      "host": "fstream.binance.com",
+      "port": 443,
+      "tls_version": "TLSv1.3",
+      "cert_cn": "*.binance.com",
+      "elapsed_ms": 351
+    },
+    {
+      "status": "OK",
+      "host": "ws-api.binance.com",
+      "port": 443,
+      "tls_version": "TLSv1.2",
+      "cert_cn": "*.binance.com",
+      "elapsed_ms": 556
+    }
+  ],
+  "rest": [
+    {
+      "status": "FAIL",
+      "label": "spot_time",
+      "url": "https://api.binance.com/api/v3/time",
+      "error": "HTTP Error 451: "
+    },
+    {
+      "status": "FAIL",
+      "label": "futures_time",
+      "url": "https://fapi.binance.com/fapi/v1/time",
+      "error": "HTTP Error 451: "
+    },
+    {
+      "status": "FAIL",
+      "label": "spot_exchangeInfo",
+      "url": "https://api.binance.com/api/v3/exchangeInfo",
+      "error": "HTTP Error 451: "
+    },
+    {
+      "status": "FAIL",
+      "label": "futures_exchangeInfo",
+      "url": "https://fapi.binance.com/fapi/v1/exchangeInfo",
+      "error": "HTTP Error 451: "
+    }
+  ],
+  "public_ip": {
+    "status": "OK",
+    "ip": "98.116.148.30",
+    "source": "https://api.ipify.org"
+  },
+  "summary": {
+    "dns_fail": 0,
+    "tls_fail": 0,
+    "rest_fail": 4,
+    "ip_fail": 0,
+    "total_fail": 4,
+    "verdict": "FAIL"
+  }
+}
