@@ -1,0 +1,39 @@
+{
+  "task_id": "013_v2_scaffold_planning",
+  "agent": "claude",
+  "risk_level": "L1",
+  "status": "completed",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/v2_scaffold_planning/"
+  ],
+  "required_output_files": [
+    "claude_worklog/v2_scaffold_planning/01_SCAFFOLD_SCOPE_AND_BOUNDARIES.md",
+    "claude_worklog/v2_scaffold_planning/02_PACKAGE_AND_MODULE_MAP.md",
+    "claude_worklog/v2_scaffold_planning/03_DATABASE_MIGRATION_PLAN.md",
+    "claude_worklog/v2_scaffold_planning/04_API_ROUTE_SCAFFOLD_PLAN.md",
+    "claude_worklog/v2_scaffold_planning/05_ENTERPRISE_GUI_SCAFFOLD_PLAN.md",
+    "claude_worklog/v2_scaffold_planning/06_AGENT_SUPERVISED_BUILD_SEQUENCE.md",
+    "claude_worklog/v2_scaffold_planning/07_TEST_AND_CI_PLAN.md",
+    "claude_worklog/v2_scaffold_planning/08_SCAFFOLD_PLANNING_GO_NO_GO.md"
+  ],
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not place/cancel orders. Do not change leverage/margin. Do not enable live trading. Do not build implementation code. Do not create a deployable app. Planning artifacts only. Create a V2 scaffold planning package based on: claude_worklog/v2_architecture/*.md, claude_worklog/v2_requirements/*.md, claude_worklog/v2_architecture_codex_review/15_ACTUAL_CODEX_RERUN_AFTER_REMEDIATION.md, claude_worklog/v2_architecture_codex_review/16_ACTUAL_CODEX_RERUN_GO_NO_GO.md. The planning package must cover: enterprise website control center, admin/public page split, dynamic all-market passive universe, adaptive symbol selection, hot reload, multi-exchange futures connectors, multi-trader fleet, feature snapshot lineage, confidence explainability, risk gateway, audit ledger, Claude/Codex/Ollama supervision, public hosting/security/RBAC, iPhone/PWA readiness, tests and CI, build order, and scaffold boundaries. Output exactly 8 BEGIN_FILE blocks and no other text for: claude_worklog/v2_scaffold_planning/01_SCAFFOLD_SCOPE_AND_BOUNDARIES.md, 02_PACKAGE_AND_MODULE_MAP.md, 03_DATABASE_MIGRATION_PLAN.md, 04_API_ROUTE_SCAFFOLD_PLAN.md, 05_ENTERPRISE_GUI_SCAFFOLD_PLAN.md, 06_AGENT_SUPERVISED_BUILD_SEQUENCE.md, 07_TEST_AND_CI_PLAN.md, 08_SCAFFOLD_PLANNING_GO_NO_GO.md. The final file 08_SCAFFOLD_PLANNING_GO_NO_GO.md must be exactly one line: V2_SCAFFOLD_PLANNING_READY or V2_SCAFFOLD_PLANNING_BLOCKED.",
+  "depends_on": [
+    "010_actual_codex_architecture_rerun_after_remediation"
+  ],
+  "auto_commit": false,
+  "commit_message": "Create V2 scaffold planning package",
+  "max_attempts": 3,
+  "retry_count": 0,
+  "resume_after_utc": null,
+  "priority": 60,
+  "next_tasks_on_success": [],
+  "next_tasks_on_failure": [],
+  "last_run": {
+    "start": "2026-05-01T16:56:42.126740+00:00",
+    "end": "2026-05-01T17:03:42.756048+00:00",
+    "status": "completed"
+  },
+  "run_pid": null
+}
