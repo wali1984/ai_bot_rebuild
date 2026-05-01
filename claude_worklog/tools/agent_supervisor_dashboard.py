@@ -1,4 +1,14 @@
 #!/usr/bin/env python3
+"""Agent Supervisor Dashboard — reliability-hardened build.
+
+Surfaces:
+- Heartbeat (pid, age, loop_count, current_task, tmux session, heartbeat_stale flag)
+- Lockfile holder
+- Stale-state alerts (stale_running, no_event, no_output_growth)
+- Quota / auth blocks
+- human_attention_required tasks
+- Existing queue/agent/process panels
+"""
 import argparse
 import datetime as dt
 import json
@@ -13,8 +23,12 @@ EVENTS = BASE / "events.jsonl"
 STATUS = BASE / "status/current_status.json"
 QUEUE_STATUS = BASE / "status/queue_status.json"
 AGENT_HEALTH = BASE / "status/agent_health.json"
+HEARTBEAT = BASE / "status/supervisor_heartbeat.json"
+LOCK_FILE = BASE / "supervisor.lock"
 RUNS = BASE / "runs"
 WORKSPACE = pathlib.Path(os.path.expanduser("~/Desktop/AI BOT REBUILD"))
+
+HEARTBEAT_STALE_S = 600
 
 
 def read_text(path: pathlib.Path) -> str:
@@ -77,8 +91,34 @@ def latest_agent_summary(agent_name: str) -> str:
     return latest_summary
 
 
-def marker_contains(path: pathlib.Path, token: str) -> bool:
-    return token in read_text(path)
+def parse_iso_utc(value: Optional[str]) -> Optional[dt.datetime]:
+    if not value:
+        return None
+    try:
+        parsed = dt.datetime.fromisoformat(value)
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=dt.timezone.utc)
+        return parsed.astimezone(dt.timezone.utc)
+    except Exception:
+        return None
+
+
+def heartbeat_age_seconds(hb: Dict[str, Any]) -> Optional[float]:
+    parsed = parse_iso_utc(hb.get("last_loop_ts"))
+    if parsed is None:
+        return None
+    return (dt.datetime.now(dt.timezone.utc) - parsed).total_seconds()
+
+
+def heartbeat_pid_alive(hb: Dict[str, Any]) -> Optional[bool]:
+    pid = hb.get("pid")
+    if not isinstance(pid, int) or pid <= 0:
+        return None
+    try:
+        os.kill(pid, 0)
+        return True
+    except Exception:
+        return False
 
 
 def continuous_monitor_status() -> str:
@@ -99,8 +139,44 @@ def v2_build_gate_status() -> str:
 
 
 def live_mutation_gate_status() -> str:
-    # Architectural default-safe signal.
     return "LIVE_MUTATION_BLOCKED_BY_DEFAULT"
+
+
+def render_alert_lines(queue: Dict[str, Any]) -> List[str]:
+    lines: List[str] = []
+    counts = {
+        "stale_running": int(queue.get("stale_running_count", 0) or 0),
+        "no_event": int(queue.get("no_event_count", 0) or 0),
+        "no_output_growth": int(queue.get("no_output_growth_count", 0) or 0),
+        "human_attention_required": int(queue.get("human_attention_required_count", 0) or 0),
+    }
+    blocked_quota = queue.get("blocked_quota") or {}
+    has_alerts = any(v > 0 for v in counts.values()) or bool(blocked_quota)
+    if not has_alerts:
+        lines.append("no stale-state alerts")
+        return lines
+
+    if counts["stale_running"]:
+        ids = queue.get("stale_running_tasks") or []
+        lines.append(f"stale_running ({counts['stale_running']}): {', '.join(ids[:5]) or '-'}")
+    if counts["no_event"]:
+        ids = queue.get("no_event_tasks") or []
+        lines.append(f"no_event ({counts['no_event']}): {', '.join(ids[:5]) or '-'}")
+    if counts["no_output_growth"]:
+        ids = queue.get("no_output_growth_tasks") or []
+        lines.append(f"no_output_growth ({counts['no_output_growth']}): {', '.join(ids[:5]) or '-'}")
+    if blocked_quota:
+        lines.append(
+            f"blocked_quota: {blocked_quota.get('task_id')} agent={blocked_quota.get('agent')} "
+            f"resume={blocked_quota.get('resume_after_utc')}"
+        )
+    if counts["human_attention_required"]:
+        for entry in (queue.get("human_attention_required_tasks") or [])[:5]:
+            lines.append(
+                f"human_attention_required: {entry.get('task_id')} agent={entry.get('agent')} "
+                f"reason={entry.get('attention_reason') or entry.get('last_summary') or '-'}"
+            )
+    return lines
 
 
 def print_dashboard(refresh_seconds: int) -> None:
@@ -111,6 +187,8 @@ def print_dashboard(refresh_seconds: int) -> None:
         current = read_json(WORKSPACE / STATUS)
         queue = read_json(WORKSPACE / QUEUE_STATUS)
         health = read_json(WORKSPACE / AGENT_HEALTH)
+        heartbeat = read_json(WORKSPACE / HEARTBEAT)
+        lockfile = read_json(WORKSPACE / LOCK_FILE)
 
         claude_path = which("claude")
         codex_path = which("codex")
@@ -131,12 +209,39 @@ def print_dashboard(refresh_seconds: int) -> None:
         ollama_models = ((health.get("ollama") or {}).get("models")) if isinstance(health, dict) else []
         last_auto_commit_hash = health.get("last_auto_commit_hash") if isinstance(health, dict) else None
 
+        hb_age = heartbeat_age_seconds(heartbeat)
+        hb_alive = heartbeat_pid_alive(heartbeat)
+        hb_stale = (hb_age is not None and hb_age > HEARTBEAT_STALE_S) or (hb_alive is False)
+
         print("=" * 96)
-        print("AI BOT REBUILD - Agent Supervisor Dashboard")
+        print("AI BOT REBUILD - Agent Supervisor Dashboard (reliability-hardened)")
         print(f"Timestamp: {now} | Refresh: {refresh_seconds}s")
         print("=" * 96)
         print("VS Code/Copilot is terminal operator only.")
         print("Active agents: Claude/Codex/Ollama")
+
+        print("\n[SUPERVISOR HEARTBEAT]")
+        if heartbeat:
+            print(f"pid: {heartbeat.get('pid')} (alive: {hb_alive})")
+            print(f"started_at: {heartbeat.get('started_at')}")
+            print(f"last_loop_ts: {heartbeat.get('last_loop_ts')}  age_s: {int(hb_age) if hb_age is not None else '-'}")
+            print(f"loop_count: {heartbeat.get('loop_count')}")
+            print(f"current_task: {heartbeat.get('current_task') or '-'}")
+            print(f"tmux_session: {heartbeat.get('tmux_session') or '-'}")
+            print(f"version: {heartbeat.get('version') or '-'}")
+            print(f"heartbeat_stale: {'YES' if hb_stale else 'no'} (threshold {HEARTBEAT_STALE_S}s)")
+        else:
+            print("heartbeat: missing (daemon never started?)")
+
+        print("\n[SUPERVISOR LOCK]")
+        if lockfile:
+            print(f"holder pid: {lockfile.get('pid')} acquired_at: {lockfile.get('acquired_at')}")
+        else:
+            print("lock: not held")
+
+        print("\n[STALE-STATE ALERTS]")
+        for line in render_alert_lines(queue if isinstance(queue, dict) else {}):
+            print(f"  {line}")
 
         print("\n[AGENT INSTALL / HEALTH]")
         print(f"Claude installed: {'yes' if claude_path else 'no'} | path: {claude_path or '-'}")
@@ -167,7 +272,8 @@ def print_dashboard(refresh_seconds: int) -> None:
             f"blocked={counts.get('blocked', 0)} "
             f"pending={counts.get('pending', 0)} "
             f"running={counts.get('running', 0)} "
-            f"retry={counts.get('retry_scheduled', 0)}"
+            f"retry={counts.get('retry_scheduled', 0)} "
+            f"human_attention={counts.get('human_attention_required', 0)}"
         )
 
         print("\n[LATEST TASK STATUS]")
@@ -193,7 +299,7 @@ def print_dashboard(refresh_seconds: int) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Agent Supervisor Dashboard")
+    parser = argparse.ArgumentParser(description="Agent Supervisor Dashboard (reliability-hardened)")
     parser.add_argument("--refresh-seconds", type=int, default=10)
     args = parser.parse_args()
     print_dashboard(max(1, args.refresh_seconds))

@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+"""Agent Supervisor — reliability-hardened build.
+
+Implements:
+- Task definition vs runtime state separation (state/tasks/<id>.json)
+- Daemon heartbeat (status/supervisor_heartbeat.json)
+- Lockfile + duplicate-daemon protection (supervisor.lock)
+- Stale-running detection
+- No-event-for-N-minutes detection
+- No-output-growth-for-N-minutes detection
+- Subprocess timeout classification
+- Quota / auth failure classification
+- Retry policy (max_attempts, retry_count, resume_after_utc, retry reason)
+- human_attention_required terminal state when retries exhausted
+- Stale-state alerts surfaced through queue_status.json for dashboard
+"""
 import argparse
 import datetime as dt
 import glob
@@ -20,6 +35,8 @@ except Exception:  # pragma: no cover
 
 BASE_DIR = pathlib.Path("claude_worklog/agent_supervisor")
 TASKS_DIR = BASE_DIR / "tasks"
+STATE_DIR = BASE_DIR / "state"
+STATE_TASKS_DIR = STATE_DIR / "tasks"
 RUNS_DIR = BASE_DIR / "runs"
 STATUS_DIR = BASE_DIR / "status"
 LOGS_DIR = BASE_DIR / "logs"
@@ -27,6 +44,8 @@ EVENTS_FILE = BASE_DIR / "events.jsonl"
 CURRENT_STATUS_FILE = STATUS_DIR / "current_status.json"
 QUEUE_STATUS_FILE = STATUS_DIR / "queue_status.json"
 AGENT_HEALTH_FILE = STATUS_DIR / "agent_health.json"
+HEARTBEAT_FILE = STATUS_DIR / "supervisor_heartbeat.json"
+LOCK_FILE = BASE_DIR / "supervisor.lock"
 
 WORKSPACE_ROOT = pathlib.Path(os.path.expanduser("~/Desktop/AI BOT REBUILD")).resolve()
 FORBIDDEN_ROOT = pathlib.Path("/home/wali/Desktop/AI BOT").resolve()
@@ -34,18 +53,35 @@ FORBIDDEN_ROOT = pathlib.Path("/home/wali/Desktop/AI BOT").resolve()
 SUPPORTED_AGENTS = {"claude", "codex", "ollama", "system_check"}
 ALLOWED_AUTORUN = {"L0", "L1", "L2"}
 
+DEFAULT_NO_EVENT_TIMEOUT_S = 1800
+DEFAULT_NO_OUTPUT_GROWTH_TIMEOUT_S = 1200
+HEARTBEAT_STALE_S = 600
+SUPERVISOR_VERSION = "2.0-reliability-hardened"
+
+DEFINITION_FIELDS = {
+    "task_id", "agent", "risk_level", "cwd", "prompt", "command", "model",
+    "depends_on", "priority", "emit_files", "allowed_output_prefixes",
+    "required_output_files", "next_tasks_on_success", "next_tasks_on_failure",
+    "max_attempts", "task_timeout_seconds", "no_event_timeout_seconds",
+    "no_output_growth_timeout_seconds",
+    "preapproved", "approval_file", "auto_commit", "commit_message",
+    "next_recommended_action", "description",
+}
+
+STATE_FIELDS = {
+    "status", "retry_count", "run_pid", "last_run", "last_summary",
+    "resume_after_utc", "last_status_change_ts", "last_retry_reason",
+    "attention_reason", "history", "last_event_ts",
+}
+
 STATUS_VALUES = {
-    "pending",
-    "running",
-    "completed",
-    "failed",
-    "blocked_quota",
-    "blocked_auth",
-    "blocked_approval",
-    "blocked_dependency",
-    "retry_scheduled",
-    "skipped",
-    "cancelled",
+    "pending", "running", "completed", "failed",
+    "blocked_quota", "blocked_auth", "blocked_approval", "blocked_dependency",
+    "retry_scheduled", "skipped", "cancelled", "human_attention_required",
+}
+
+TERMINAL_BLOCKING_STATUSES = {
+    "failed", "cancelled", "blocked_auth", "blocked_approval", "human_attention_required",
 }
 
 CREDENTIAL_PATTERN = re.compile(
@@ -79,22 +115,30 @@ def now_iso() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat()
 
 
+def now_ts() -> float:
+    return time.time()
+
+
 def ensure_dirs() -> None:
-    for p in [BASE_DIR, TASKS_DIR, RUNS_DIR, STATUS_DIR, LOGS_DIR]:
+    for p in [BASE_DIR, TASKS_DIR, STATE_DIR, STATE_TASKS_DIR, RUNS_DIR, STATUS_DIR, LOGS_DIR]:
         p.mkdir(parents=True, exist_ok=True)
 
 
 def write_json(path: pathlib.Path, payload: Dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with tmp.open("w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, ensure_ascii=False)
         f.write("\n")
+    os.replace(tmp, path)
 
 
 def append_event(event: Dict[str, Any]) -> None:
     EVENTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    payload = dict(event)
+    payload.setdefault("ts", now_iso())
     with EVENTS_FILE.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(event, ensure_ascii=False) + "\n")
+        f.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
 def load_json(path: pathlib.Path) -> Dict[str, Any]:
@@ -110,19 +154,129 @@ def in_workspace(path: pathlib.Path) -> bool:
         return False
 
 
-def task_approved(task: Dict[str, Any]) -> bool:
-    risk = str(task.get("risk_level", "L0")).upper()
-    if risk in ALLOWED_AUTORUN:
-        if risk == "L2":
-            return True
-        return True
-    approval_file = task.get("approval_file")
-    if not approval_file:
-        return False
-    ap = pathlib.Path(approval_file)
-    if not ap.is_absolute():
-        ap = WORKSPACE_ROOT / ap
-    return ap.exists()
+# ---------------------------------------------------------------------------
+# Task definition + runtime state separation
+# ---------------------------------------------------------------------------
+
+
+def load_task_definition(task_path: pathlib.Path) -> Dict[str, Any]:
+    raw = load_json(task_path)
+    return {k: v for k, v in raw.items() if k in DEFINITION_FIELDS or k.startswith("_")}
+
+
+def state_path_for(task_id: str) -> pathlib.Path:
+    return STATE_TASKS_DIR / f"{task_id}.json"
+
+
+def load_task_state(task_id: str) -> Dict[str, Any]:
+    sp = state_path_for(task_id)
+    if sp.exists():
+        try:
+            return load_json(sp)
+        except Exception:
+            pass
+    return {
+        "task_id": task_id,
+        "status": "pending",
+        "retry_count": 0,
+        "run_pid": None,
+        "last_run": None,
+        "last_summary": "",
+        "resume_after_utc": None,
+        "last_status_change_ts": None,
+        "last_retry_reason": None,
+        "attention_reason": None,
+        "history": [],
+        "last_event_ts": None,
+    }
+
+
+def write_task_state(task_id: str, state: Dict[str, Any]) -> None:
+    state = dict(state)
+    state["task_id"] = task_id
+    write_json(state_path_for(task_id), state)
+
+
+def update_task_state(task_id: str, **fields: Any) -> Dict[str, Any]:
+    state = load_task_state(task_id)
+    new_status = fields.get("status")
+    if new_status and new_status != state.get("status"):
+        state["last_status_change_ts"] = now_iso()
+        hist = list(state.get("history") or [])
+        hist.append({
+            "ts": now_iso(),
+            "status": new_status,
+            "reason": fields.get("last_retry_reason")
+                       or fields.get("attention_reason")
+                       or fields.get("last_summary"),
+        })
+        state["history"] = hist[-50:]
+    state.update(fields)
+    state["last_event_ts"] = now_iso()
+    write_task_state(task_id, state)
+    return state
+
+
+def load_task(task_path: pathlib.Path) -> Dict[str, Any]:
+    """Return merged definition + state dict for callers that want one view."""
+    raw = load_json(task_path)
+    task_id = str(raw.get("task_id", task_path.stem))
+    state = load_task_state(task_id)
+    merged = {k: v for k, v in raw.items() if k in DEFINITION_FIELDS or k.startswith("_")}
+    merged.update({k: v for k, v in state.items() if k in STATE_FIELDS or k == "task_id"})
+    return merged
+
+
+def migrate_legacy_task_files() -> int:
+    """One-shot migration: pull state fields out of legacy task definition files
+    into state/tasks/<id>.json so definitions become stable.
+    Idempotent — safe to run on every daemon start."""
+    moved = 0
+    if not TASKS_DIR.exists():
+        return 0
+    for p in sorted(TASKS_DIR.glob("*.json")):
+        try:
+            raw = load_json(p)
+        except Exception:
+            continue
+        task_id = str(raw.get("task_id", p.stem))
+        sp = state_path_for(task_id)
+
+        legacy_state = {k: raw[k] for k in STATE_FIELDS if k in raw}
+
+        if not sp.exists():
+            base = {
+                "task_id": task_id,
+                "status": "pending",
+                "retry_count": 0,
+                "run_pid": None,
+                "last_run": None,
+                "last_summary": "",
+                "resume_after_utc": None,
+                "last_status_change_ts": None,
+                "last_retry_reason": None,
+                "attention_reason": None,
+                "history": [],
+                "last_event_ts": None,
+            }
+            base.update(legacy_state)
+            write_task_state(task_id, base)
+        elif legacy_state:
+            existing = load_json(sp)
+            for k, v in legacy_state.items():
+                existing.setdefault(k, v)
+            write_task_state(task_id, existing)
+
+        if any(k in raw for k in STATE_FIELDS):
+            cleaned = {k: v for k, v in raw.items() if k not in STATE_FIELDS}
+            write_json(p, cleaned)
+            moved += 1
+    return moved
+
+
+# ---------------------------------------------------------------------------
+# Validation + safety
+# ---------------------------------------------------------------------------
 
 
 def validate_task(task: Dict[str, Any]) -> Optional[str]:
@@ -153,8 +307,42 @@ def validate_task(task: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def run_cmd(cmd: List[str], cwd: pathlib.Path, stdout_path: pathlib.Path, stderr_path: pathlib.Path) -> int:
-    return run_cmd_with_pid(cmd, cwd, stdout_path, stderr_path)[0]
+def task_approved_v2(task: Dict[str, Any]) -> Tuple[bool, str]:
+    risk = str(task.get("risk_level", "L0")).upper()
+    approval_file = str(task.get("approval_file", "")).strip()
+    preapproved = bool(task.get("preapproved", False))
+
+    if risk in {"L0", "L1"}:
+        return True, ""
+    if risk == "L2":
+        cwd = pathlib.Path(task.get("cwd", str(WORKSPACE_ROOT))).expanduser()
+        if not cwd.is_absolute():
+            cwd = WORKSPACE_ROOT / cwd
+        return in_workspace(cwd), "L2 allowed only inside AI BOT REBUILD"
+    if risk == "L3":
+        if preapproved:
+            return True, ""
+        if not approval_file:
+            return False, "L3 requires approval_file or preapproved=true"
+        ap = pathlib.Path(approval_file)
+        if not ap.is_absolute():
+            ap = WORKSPACE_ROOT / ap
+        return ap.exists(), "L3 approval_file missing"
+    if risk == "L4":
+        if not approval_file:
+            return False, "L4 requires approval_file"
+        ap = pathlib.Path(approval_file)
+        if not ap.is_absolute():
+            ap = WORKSPACE_ROOT / ap
+        return ap.exists(), "L4 approval_file missing"
+    if risk == "L5":
+        return False, "L5 never auto-executes; recommendation packet only"
+    return False, f"unsupported risk level {risk}"
+
+
+# ---------------------------------------------------------------------------
+# Subprocess execution with hard timeout
+# ---------------------------------------------------------------------------
 
 
 def run_cmd_with_pid(
@@ -164,7 +352,10 @@ def run_cmd_with_pid(
     stderr_path: pathlib.Path,
     timeout_seconds: Optional[int] = None,
     on_start: Optional[Callable[[int], None]] = None,
-) -> Tuple[int, Optional[int]]:
+) -> Tuple[int, Optional[int], bool]:
+    """Run a child process bounded by timeout. Returns (returncode, pid, timed_out).
+    On timeout, kills entire process group; returncode forced to 124."""
+    timed_out = False
     with stdout_path.open("w", encoding="utf-8") as out, stderr_path.open("w", encoding="utf-8") as err:
         proc = subprocess.Popen(
             cmd,
@@ -181,8 +372,9 @@ def run_cmd_with_pid(
                 pass
         try:
             rc = proc.wait(timeout=timeout_seconds)
-            return rc, proc.pid
+            return rc, proc.pid, False
         except subprocess.TimeoutExpired:
+            timed_out = True
             err.write(f"\n[agent_supervisor] subprocess timeout after {timeout_seconds}s; terminating process tree\n")
             err.flush()
             try:
@@ -193,8 +385,7 @@ def run_cmd_with_pid(
                 except Exception:
                     pass
             try:
-                rc = proc.wait(timeout=10)
-                return rc if rc != 0 else 124, proc.pid
+                proc.wait(timeout=10)
             except Exception:
                 try:
                     os.killpg(proc.pid, signal.SIGKILL)
@@ -207,15 +398,14 @@ def run_cmd_with_pid(
                     proc.wait(timeout=5)
                 except Exception:
                     pass
-                return 124, proc.pid
+            return 124, proc.pid, timed_out
 
 
 def file_contains(path: pathlib.Path, needle: str) -> bool:
     if not path.exists():
         return False
     try:
-        txt = path.read_text(encoding="utf-8", errors="ignore")
-        return needle in txt
+        return needle in path.read_text(encoding="utf-8", errors="ignore")
     except Exception:
         return False
 
@@ -243,19 +433,6 @@ def is_relpath_allowed(rel_path: str, allowed_output_prefixes: List[str]) -> boo
 
 
 def extract_emit_file_blocks(text: str) -> List[Dict[str, str]]:
-    """
-    Extract emit-file blocks from agent output.
-
-    Supports both:
-    A) Strict blocks:
-       BEGIN_FILE: path
-       ...content...
-       END_FILE
-
-    B) Fallback blocks:
-       BEGIN_FILE: path
-       ...content until next BEGIN_FILE or EOF
-    """
     begin_pattern = re.compile(r"(?m)^BEGIN_FILE:\s*(.+?)\s*$")
     markers = list(begin_pattern.finditer(text))
     blocks: List[Dict[str, str]] = []
@@ -269,9 +446,7 @@ def extract_emit_file_blocks(text: str) -> List[Dict[str, str]]:
         if content.startswith("\n"):
             content = content[1:]
 
-        # Strip optional strict terminator when present.
         content = re.sub(r"\n?END_FILE\s*$", "", content.rstrip(), flags=re.MULTILINE)
-
         blocks.append({"path": rel_path, "content": content})
 
     return blocks
@@ -281,7 +456,7 @@ def materialize_emit_files(
     stdout_path: pathlib.Path,
     allowed_output_prefixes: List[str],
 ) -> Dict[str, Any]:
-    result = {
+    result: Dict[str, Any] = {
         "materialized_files": [],
         "errors": [],
         "blocks_found": 0,
@@ -328,24 +503,17 @@ def materialize_emit_files(
     return result
 
 
+# ---------------------------------------------------------------------------
+# Agent readiness
+# ---------------------------------------------------------------------------
+
+
 def codex_ready() -> bool:
-    ready_file = BASE_DIR / "CODEX_LOCAL_AGENT_READY.md"
-    return file_contains(ready_file, "CODEX_LOCAL_AGENT_READY")
+    return file_contains(BASE_DIR / "CODEX_LOCAL_AGENT_READY.md", "CODEX_LOCAL_AGENT_READY")
 
 
 def claude_ready() -> bool:
-    ready_file = BASE_DIR / "CLAUDE_LOCAL_AGENT_READY.md"
-    return file_contains(ready_file, "CLAUDE_LOCAL_AGENT_READY")
-
-
-def ollama_has_model() -> bool:
-    try:
-        with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8", errors="ignore"))
-        models = data.get("models", [])
-        return isinstance(models, list) and len(models) > 0
-    except Exception:
-        return False
+    return file_contains(BASE_DIR / "CLAUDE_LOCAL_AGENT_READY.md", "CLAUDE_LOCAL_AGENT_READY")
 
 
 def ollama_models() -> List[str]:
@@ -426,9 +594,28 @@ def classify_agent_block(agent: str, stdout_path: pathlib.Path, stderr_path: pat
     return None, None
 
 
+def detect_quota_block(agent: str, stdout_path: pathlib.Path, stderr_path: pathlib.Path) -> Tuple[bool, Optional[str]]:
+    raw = (read_text(stdout_path) + "\n" + read_text(stderr_path)).lower()
+    if agent == "claude":
+        if any(k in raw for k in ["usage limit", "hit your limit", "resets", "quota", "rate limit"]):
+            return True, parse_claude_reset_to_utc(read_text(stdout_path) + "\n" + read_text(stderr_path))
+    if agent == "codex":
+        if any(k in raw for k in ["rate limit", "quota", "usage limit", "too many requests"]):
+            return True, None
+    return False, None
+
+
 def run_claude_readiness_check() -> bool:
-    rc, out, err = command_quick(["claude", "--print", "Print CLAUDE_READY_FOR_SMALL_TASK", "--output-format", "text"], timeout=40)
+    rc, out, err = command_quick(
+        ["claude", "--print", "Print CLAUDE_READY_FOR_SMALL_TASK", "--output-format", "text"],
+        timeout=40,
+    )
     return rc == 0 and "CLAUDE_READY_FOR_SMALL_TASK" in (out + "\n" + err)
+
+
+# ---------------------------------------------------------------------------
+# Task discovery / queue
+# ---------------------------------------------------------------------------
 
 
 def get_task_file_by_id(task_id: str) -> Optional[pathlib.Path]:
@@ -449,7 +636,7 @@ def list_tasks() -> List[Tuple[pathlib.Path, Dict[str, Any]]]:
     items: List[Tuple[pathlib.Path, Dict[str, Any]]] = []
     for p in sorted(pathlib.Path(x) for x in glob.glob(str(TASKS_DIR / "*.json"))):
         try:
-            items.append((p, load_json(p)))
+            items.append((p, load_task(p)))
         except Exception:
             continue
     return items
@@ -495,6 +682,26 @@ def task_timeout_seconds(task: Dict[str, Any]) -> int:
     return default_task_timeout_seconds(task)
 
 
+def task_no_event_timeout_seconds(task: Dict[str, Any]) -> int:
+    try:
+        val = int(task.get("no_event_timeout_seconds", 0))
+        if val > 0:
+            return val
+    except Exception:
+        pass
+    return DEFAULT_NO_EVENT_TIMEOUT_S
+
+
+def task_no_output_growth_timeout_seconds(task: Dict[str, Any]) -> int:
+    try:
+        val = int(task.get("no_output_growth_timeout_seconds", 0))
+        if val > 0:
+            return val
+    except Exception:
+        pass
+    return DEFAULT_NO_OUTPUT_GROWTH_TIMEOUT_S
+
+
 def process_alive(pid: Optional[int]) -> bool:
     if not pid or pid <= 0:
         return False
@@ -519,9 +726,9 @@ def has_active_process_for_task(task_id: str) -> bool:
         )
         if proc.returncode != 0:
             return False
-        lines = [ln.strip() for ln in (proc.stdout or "").splitlines() if ln.strip()]
-        for ln in lines:
-            if "pgrep -af" in ln:
+        for ln in (proc.stdout or "").splitlines():
+            ln = ln.strip()
+            if not ln or "pgrep -af" in ln:
                 continue
             return True
         return False
@@ -529,18 +736,7 @@ def has_active_process_for_task(task_id: str) -> bool:
         return False
 
 
-def detect_quota_block(agent: str, stdout_path: pathlib.Path, stderr_path: pathlib.Path) -> Tuple[bool, Optional[str]]:
-    raw = (read_text(stdout_path) + "\n" + read_text(stderr_path)).lower()
-    if agent == "claude":
-        if any(k in raw for k in ["usage limit", "hit your limit", "resets", "quota", "rate limit"]):
-            return True, parse_claude_reset_to_utc(read_text(stdout_path) + "\n" + read_text(stderr_path))
-    if agent == "codex":
-        if any(k in raw for k in ["rate limit", "quota", "usage limit", "too many requests"]):
-            return True, None
-    return False, None
-
-
-def task_last_activity_ts(summary_path: pathlib.Path, stdout_path: pathlib.Path, stderr_path: pathlib.Path) -> Optional[float]:
+def task_last_output_growth_ts(summary_path: pathlib.Path, stdout_path: pathlib.Path, stderr_path: pathlib.Path) -> Optional[float]:
     ts: List[float] = []
     for p in [summary_path, stdout_path, stderr_path]:
         if p.exists():
@@ -553,25 +749,91 @@ def task_last_activity_ts(summary_path: pathlib.Path, stdout_path: pathlib.Path,
     return max(ts)
 
 
-def stale_running_now(task: Dict[str, Any], task_id: str) -> bool:
-    if str(task.get("status", "")) != "running":
-        return False
+def task_last_event_ts_seconds(state: Dict[str, Any]) -> Optional[float]:
+    parsed = parse_iso_utc(state.get("last_event_ts"))
+    if parsed is None:
+        return None
+    return parsed.timestamp()
+
+
+# ---------------------------------------------------------------------------
+# Stale state classification
+# ---------------------------------------------------------------------------
+
+
+def classify_running_task_alerts(task: Dict[str, Any], task_id: str, state: Dict[str, Any]) -> Dict[str, Any]:
+    """Pure inspection — does NOT mutate task state. Returns alert flags."""
     run_dir = RUNS_DIR / task_id
     summary_path = run_dir / "summary.json"
     stdout_path = run_dir / "stdout.txt"
     stderr_path = run_dir / "stderr.txt"
 
-    active = process_alive(task.get("run_pid")) or has_active_process_for_task(task_id)
-    if active:
-        return False
-    if not check_required_outputs(task):
-        return False
+    pid = state.get("run_pid") or task.get("run_pid")
+    active = process_alive(pid) or has_active_process_for_task(task_id)
 
     timeout_s = task_timeout_seconds(task)
-    last_ts = task_last_activity_ts(summary_path, stdout_path, stderr_path)
-    if last_ts is None:
+    no_event_s = task_no_event_timeout_seconds(task)
+    no_output_s = task_no_output_growth_timeout_seconds(task)
+
+    last_output_ts = task_last_output_growth_ts(summary_path, stdout_path, stderr_path)
+    last_event_ts = task_last_event_ts_seconds(state)
+
+    now = now_ts()
+    output_idle = (now - last_output_ts) if last_output_ts is not None else None
+    event_idle = (now - last_event_ts) if last_event_ts is not None else None
+
+    alerts: List[str] = []
+    if not active and (output_idle is None or output_idle > timeout_s):
+        alerts.append("stale_running_no_process")
+    if active and output_idle is not None and output_idle > no_output_s:
+        alerts.append("no_output_growth")
+    if active and event_idle is not None and event_idle > no_event_s:
+        alerts.append("no_event")
+    return {
+        "task_id": task_id,
+        "active_process": bool(active),
+        "output_idle_seconds": int(output_idle) if output_idle is not None else None,
+        "event_idle_seconds": int(event_idle) if event_idle is not None else None,
+        "timeout_seconds": timeout_s,
+        "no_event_timeout_seconds": no_event_s,
+        "no_output_growth_timeout_seconds": no_output_s,
+        "alerts": alerts,
+    }
+
+
+def stale_running_now(task: Dict[str, Any], task_id: str) -> bool:
+    if str(task.get("status", "")) != "running":
+        return False
+    state = load_task_state(task_id)
+    info = classify_running_task_alerts(task, task_id, state)
+    if "stale_running_no_process" in info["alerts"]:
+        if not check_required_outputs(task):
+            return False
         return True
-    return (time.time() - last_ts) > float(timeout_s)
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Reconciler
+# ---------------------------------------------------------------------------
+
+
+def _decide_retry_or_attention(task: Dict[str, Any], reason: str) -> Tuple[str, str, Optional[str]]:
+    """Return (status, summary, resume_after_utc_iso)."""
+    max_attempts = int(task.get("max_attempts", 3))
+    retry_count = int(task.get("retry_count", 0))
+    if retry_count + 1 < max_attempts:
+        resume = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5)).isoformat()
+        return (
+            "retry_scheduled",
+            f"reconciled with retry {retry_count + 1}/{max_attempts}: {reason}",
+            resume,
+        )
+    return (
+        "human_attention_required",
+        f"max_attempts {max_attempts} exhausted after reason: {reason}",
+        None,
+    )
 
 
 def reconcile_stale_running_tasks() -> int:
@@ -592,62 +854,78 @@ def reconcile_stale_running_tasks() -> int:
         stderr_path = run_dir / "stderr.txt"
         summary_path = run_dir / "summary.json"
 
-        required_missing = check_required_outputs(task)
-        active = process_alive(task.get("run_pid")) or has_active_process_for_task(task_id)
-        timeout_s = task_timeout_seconds(task)
-        last_ts = task_last_activity_ts(summary_path, stdout_path, stderr_path)
-        idle_seconds = (time.time() - last_ts) if last_ts is not None else float(timeout_s) + 1.0
+        state = load_task_state(task_id)
+        info = classify_running_task_alerts(task, task_id, state)
+        active = info["active_process"]
+        alerts = info["alerts"]
 
+        required_missing = check_required_outputs(task)
         quota_blocked, reset_iso = detect_quota_block(agent, stdout_path, stderr_path)
+
         status: Optional[str] = None
         summary = ""
         reason = ""
+        resume_iso: Optional[str] = None
+        retry_count_increment = 0
         materialized: List[str] = []
+        attention_reason: Optional[str] = None
 
         if not required_missing and not active:
             status = "completed"
             summary = "normalized stale-running task: required output files exist"
             reason = "required_outputs_present_no_active_process"
             materialized = [str(x) for x in task.get("required_output_files", []) if str(x).strip()]
-        elif quota_blocked:
+        elif quota_blocked and not active:
             status = "blocked_quota"
             summary = f"{agent} blocked_quota detected during stale-running reconciliation"
             reason = "quota_detected"
             resume = parse_iso_utc(reset_iso)
             if resume is None:
                 resume = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=30)
-            task["resume_after_utc"] = resume.isoformat()
-        elif (not active) and idle_seconds > float(timeout_s):
-            max_attempts = int(task.get("max_attempts", 3))
-            retry_count = int(task.get("retry_count", 0))
-            if retry_count < max_attempts:
-                task["retry_count"] = retry_count + 1
-                task["resume_after_utc"] = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5)).isoformat()
-                status = "retry_scheduled"
-                summary = f"stale-running timeout recovered; retry {retry_count + 1}/{max_attempts} scheduled"
-                reason = "timeout_retry_scheduled"
-            else:
-                status = "failed"
-                summary = "stale-running timeout recovered as failed: no active process and no output growth"
-                reason = "timeout_failed"
+            resume_iso = resume.isoformat()
+        elif "stale_running_no_process" in alerts:
+            new_status, new_summary, new_resume = _decide_retry_or_attention(task, "stale_running_no_process")
+            status = new_status
+            summary = new_summary
+            reason = "stale_running_no_process"
+            resume_iso = new_resume
+            retry_count_increment = 1 if new_status == "retry_scheduled" else 0
+            if new_status == "human_attention_required":
+                attention_reason = "max_attempts_exhausted_stale_running"
+        elif "no_output_growth" in alerts or "no_event" in alerts:
+            new_status, new_summary, new_resume = _decide_retry_or_attention(
+                task, "no_output_growth" if "no_output_growth" in alerts else "no_event",
+            )
+            status = new_status
+            summary = new_summary
+            reason = "; ".join(alerts)
+            resume_iso = new_resume
+            retry_count_increment = 1 if new_status == "retry_scheduled" else 0
+            if new_status == "human_attention_required":
+                attention_reason = f"max_attempts_exhausted_{reason}"
 
         if not status:
             continue
 
         start_time = None
-        if isinstance(task.get("last_run"), dict):
-            start_time = task.get("last_run", {}).get("start")
+        last_run = state.get("last_run") or {}
+        if isinstance(last_run, dict):
+            start_time = last_run.get("start")
 
         end_time = now.isoformat()
-        task["status"] = status
-        task["run_pid"] = None
-        task["last_run"] = {
-            "start": start_time,
-            "end": end_time,
+        new_state_fields: Dict[str, Any] = {
             "status": status,
+            "run_pid": None,
+            "last_run": {"start": start_time, "end": end_time, "status": status},
+            "last_summary": summary,
+            "last_retry_reason": reason if status == "retry_scheduled" else state.get("last_retry_reason"),
+            "attention_reason": attention_reason or (None if status != "human_attention_required" else state.get("attention_reason")),
+            "resume_after_utc": resume_iso if resume_iso is not None else (None if status == "completed" else state.get("resume_after_utc")),
         }
-        task["last_summary"] = summary
-        write_json(task_path, task)
+        if retry_count_increment:
+            new_state_fields["retry_count"] = int(task.get("retry_count", 0)) + retry_count_increment
+
+        update_task_state(task_id, **new_state_fields)
 
         run_summary = {
             "task_id": task_id,
@@ -659,7 +937,7 @@ def reconcile_stale_running_tasks() -> int:
             "stdout_path": str(stdout_path),
             "stderr_path": str(stderr_path),
             "summary": summary,
-            "next_recommended_action": "continue queue if completed; retry later if blocked_quota/retry_scheduled; inspect output if failed",
+            "next_recommended_action": "continue queue if completed; retry later if blocked_quota/retry_scheduled; human review if human_attention_required",
             "materialized_files": materialized,
             "run_pid": None,
         }
@@ -669,8 +947,10 @@ def reconcile_stale_running_tasks() -> int:
             "event": "stale_running_reconciled",
             **run_summary,
             "reason": reason,
-            "timeout_seconds": timeout_s,
-            "idle_seconds": int(idle_seconds),
+            "alerts": alerts,
+            "timeout_seconds": info["timeout_seconds"],
+            "output_idle_seconds": info["output_idle_seconds"],
+            "event_idle_seconds": info["event_idle_seconds"],
             "active_process": active,
         })
         set_next_tasks(task, success=status == "completed")
@@ -679,54 +959,9 @@ def reconcile_stale_running_tasks() -> int:
     return reconciled
 
 
-def task_approved_v2(task: Dict[str, Any]) -> Tuple[bool, str]:
-    risk = str(task.get("risk_level", "L0")).upper()
-    approval_file = str(task.get("approval_file", "")).strip()
-    preapproved = bool(task.get("preapproved", False))
-
-    if risk in {"L0", "L1"}:
-        return True, ""
-    if risk == "L2":
-        cwd = pathlib.Path(task.get("cwd", str(WORKSPACE_ROOT))).expanduser()
-        if not cwd.is_absolute():
-            cwd = WORKSPACE_ROOT / cwd
-        return in_workspace(cwd), "L2 allowed only inside AI BOT REBUILD"
-    if risk == "L3":
-        if preapproved:
-            return True, ""
-        if not approval_file:
-            return False, "L3 requires approval_file or preapproved=true"
-        ap = pathlib.Path(approval_file)
-        if not ap.is_absolute():
-            ap = WORKSPACE_ROOT / ap
-        return ap.exists(), "L3 approval_file missing"
-    if risk == "L4":
-        if not approval_file:
-            return False, "L4 requires approval_file"
-        ap = pathlib.Path(approval_file)
-        if not ap.is_absolute():
-            ap = WORKSPACE_ROOT / ap
-        return ap.exists(), "L4 approval_file missing"
-    if risk == "L5":
-        return False, "L5 never auto-executes; recommendation packet only"
-    return False, f"unsupported risk level {risk}"
-
-
-def task_priority(task: Dict[str, Any]) -> int:
-    try:
-        return int(task.get("priority", 0))
-    except Exception:
-        return 0
-
-
-def should_defer_resume(task: Dict[str, Any]) -> bool:
-    st = str(task.get("status", ""))
-    if st not in {"blocked_quota", "retry_scheduled"}:
-        return False
-    resume = parse_iso_utc(task.get("resume_after_utc"))
-    if resume is None:
-        return False
-    return dt.datetime.now(dt.timezone.utc) < resume
+# ---------------------------------------------------------------------------
+# Auto-commit
+# ---------------------------------------------------------------------------
 
 
 def safe_secret_scan(paths: List[pathlib.Path]) -> Tuple[bool, List[str]]:
@@ -787,6 +1022,11 @@ def auto_commit_task_outputs(task_path: pathlib.Path, task: Dict[str, Any], resu
     return True, "auto-commit successful", commit_hash
 
 
+# ---------------------------------------------------------------------------
+# Health, queue, gates
+# ---------------------------------------------------------------------------
+
+
 def derive_gate(tasks: List[Tuple[pathlib.Path, Dict[str, Any]]]) -> str:
     status_map = {str(t.get("task_id", "")): str(t.get("status", "pending")) for _, t in tasks}
 
@@ -794,6 +1034,8 @@ def derive_gate(tasks: List[Tuple[pathlib.Path, Dict[str, Any]]]) -> str:
         return "CODEX_RERUN_RUNNING"
     if any(v == "blocked_quota" for v in status_map.values()):
         return "WAITING_FOR_CLAUDE_QUOTA"
+    if any(v == "human_attention_required" for v in status_map.values()):
+        return "BLOCKED_HUMAN_ATTENTION_REQUIRED"
     if status_map.get("010_actual_codex_architecture_rerun_after_remediation") == "completed":
         gate_file = WORKSPACE_ROOT / "claude_worklog/v2_architecture_codex_review/16_ACTUAL_CODEX_RERUN_GO_NO_GO.md"
         txt = read_text(gate_file)
@@ -815,26 +1057,42 @@ def derive_gate(tasks: List[Tuple[pathlib.Path, Dict[str, Any]]]) -> str:
     return "ARCHITECTURE_REMEDIATION_PARTIAL"
 
 
+def task_priority(task: Dict[str, Any]) -> int:
+    try:
+        return int(task.get("priority", 0))
+    except Exception:
+        return 0
+
+
+def should_defer_resume(task: Dict[str, Any]) -> bool:
+    st = str(task.get("status", ""))
+    if st not in {"blocked_quota", "retry_scheduled"}:
+        return False
+    resume = parse_iso_utc(task.get("resume_after_utc"))
+    if resume is None:
+        return False
+    return dt.datetime.now(dt.timezone.utc) < resume
+
+
 def write_health_and_queue(current: Dict[str, Any]) -> None:
     write_json(CURRENT_STATUS_FILE, current)
 
     tasks = list_tasks()
     status_map = {str(t.get("task_id", "")): str(t.get("status", "pending")) for _, t in tasks}
     counts = {
-        "pending": 0,
-        "running": 0,
-        "completed": 0,
-        "failed": 0,
-        "blocked": 0,
-        "retry_scheduled": 0,
-        "skipped": 0,
-        "cancelled": 0,
+        "pending": 0, "running": 0, "completed": 0, "failed": 0, "blocked": 0,
+        "retry_scheduled": 0, "skipped": 0, "cancelled": 0,
+        "human_attention_required": 0,
     }
     next_pending = None
     running = None
     blocked_quota = None
     runnable_candidates: List[Tuple[int, str]] = []
-    stale_running_count = 0
+
+    stale_running_tasks: List[str] = []
+    no_event_tasks: List[str] = []
+    no_output_growth_tasks: List[str] = []
+    human_attention_tasks: List[Dict[str, Any]] = []
 
     for _, t in tasks:
         tid = str(t.get("task_id", ""))
@@ -847,8 +1105,14 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
             counts["running"] += 1
             if running is None:
                 running = tid
-            if stale_running_now(t, tid):
-                stale_running_count += 1
+            state = load_task_state(tid)
+            info = classify_running_task_alerts(t, tid, state)
+            if "stale_running_no_process" in info["alerts"]:
+                stale_running_tasks.append(tid)
+            if "no_event" in info["alerts"]:
+                no_event_tasks.append(tid)
+            if "no_output_growth" in info["alerts"]:
+                no_output_growth_tasks.append(tid)
         elif st == "completed":
             counts["completed"] += 1
         elif st in {"failed", "blocked_auth", "blocked_approval", "blocked_dependency", "blocked_quota"}:
@@ -868,8 +1132,17 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
             counts["skipped"] += 1
         elif st == "cancelled":
             counts["cancelled"] += 1
+        elif st == "human_attention_required":
+            counts["human_attention_required"] += 1
+            human_attention_tasks.append({
+                "task_id": tid,
+                "agent": t.get("agent"),
+                "attention_reason": t.get("attention_reason"),
+                "last_summary": t.get("last_summary"),
+            })
 
-        if st in {"completed", "running", "cancelled", "failed", "blocked_auth", "blocked_approval"}:
+        if st in {"completed", "running", "cancelled", "failed",
+                  "blocked_auth", "blocked_approval", "human_attention_required"}:
             continue
         if should_defer_resume(t):
             continue
@@ -887,7 +1160,14 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
         "next_pending_task": next_pending,
         "current_running_task": running,
         "blocked_quota": blocked_quota,
-        "stale_running_count": stale_running_count,
+        "stale_running_count": len(stale_running_tasks),
+        "stale_running_tasks": stale_running_tasks,
+        "no_event_count": len(no_event_tasks),
+        "no_event_tasks": no_event_tasks,
+        "no_output_growth_count": len(no_output_growth_tasks),
+        "no_output_growth_tasks": no_output_growth_tasks,
+        "human_attention_required_count": len(human_attention_tasks),
+        "human_attention_required_tasks": human_attention_tasks,
         "counts": counts,
         "gate": derive_gate(tasks),
     }
@@ -901,7 +1181,8 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
         "claude": {"ready_marker": claude_ready()},
         "codex": {"ready_marker": codex_ready()},
         "ollama": {"model_count": len(ollama_list), "models": ollama_list[:8]},
-        "last_auto_commit_hash": current.get("auto_commit", {}).get("commit_hash"),
+        "last_auto_commit_hash": current.get("auto_commit", {}).get("commit_hash") if isinstance(current.get("auto_commit"), dict) else None,
+        "supervisor_version": SUPERVISOR_VERSION,
     }
     write_json(AGENT_HEALTH_FILE, health_payload)
 
@@ -914,11 +1195,10 @@ def set_next_tasks(task: Dict[str, Any], success: bool) -> None:
         if not tf:
             continue
         try:
-            t = load_json(tf)
+            t = load_task(tf)
             if str(t.get("status", "")) in {"completed", "running"}:
                 continue
-            t["status"] = "pending"
-            write_json(tf, t)
+            update_task_state(ntid, status="pending")
         except Exception:
             continue
 
@@ -934,7 +1214,7 @@ def select_next_task_file() -> Optional[pathlib.Path]:
 
         if status == "completed":
             continue
-        if status in {"cancelled", "failed", "blocked_auth", "blocked_approval"}:
+        if status in {"cancelled", "failed", "blocked_auth", "blocked_approval", "human_attention_required"}:
             continue
         if should_defer_resume(task):
             continue
@@ -942,13 +1222,14 @@ def select_next_task_file() -> Optional[pathlib.Path]:
         blockers = dependency_blockers(task, status_map)
         if blockers:
             if status != "blocked_dependency":
-                task["status"] = "blocked_dependency"
-                task["last_summary"] = f"waiting on dependencies: {', '.join(blockers)}"
-                write_json(p, task)
+                update_task_state(
+                    tid,
+                    status="blocked_dependency",
+                    last_summary=f"waiting on dependencies: {', '.join(blockers)}",
+                )
             continue
         if status == "blocked_dependency":
-            task["status"] = "pending"
-            write_json(p, task)
+            update_task_state(tid, status="pending")
 
         candidates.append((-task_priority(task), tid, p))
 
@@ -958,8 +1239,65 @@ def select_next_task_file() -> Optional[pathlib.Path]:
     return candidates[0][2]
 
 
+# ---------------------------------------------------------------------------
+# Lockfile + heartbeat
+# ---------------------------------------------------------------------------
+
+
+def acquire_lock() -> Tuple[bool, str]:
+    """Acquire supervisor lock. Refuses if a live daemon already holds it."""
+    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    if LOCK_FILE.exists():
+        try:
+            existing = json.loads(LOCK_FILE.read_text(encoding="utf-8"))
+            other_pid = int(existing.get("pid", 0) or 0)
+            if other_pid and process_alive(other_pid) and other_pid != os.getpid():
+                return False, f"duplicate daemon: existing pid={other_pid} acquired_at={existing.get('acquired_at')}"
+        except Exception:
+            pass
+    payload = {
+        "pid": os.getpid(),
+        "acquired_at": now_iso(),
+        "tmux_session": os.environ.get("TMUX_PANE") or os.environ.get("TMUX") or "",
+        "host": os.uname().nodename if hasattr(os, "uname") else "",
+        "version": SUPERVISOR_VERSION,
+    }
+    write_json(LOCK_FILE, payload)
+    return True, "lock acquired"
+
+
+def release_lock() -> None:
+    try:
+        if not LOCK_FILE.exists():
+            return
+        existing = json.loads(LOCK_FILE.read_text(encoding="utf-8"))
+        if int(existing.get("pid", 0) or 0) == os.getpid():
+            LOCK_FILE.unlink()
+    except Exception:
+        pass
+
+
+def write_heartbeat(loop_count: int, current_task: Optional[str], started_at: str, last_event_ts: Optional[str]) -> None:
+    payload = {
+        "pid": os.getpid(),
+        "tmux_session": os.environ.get("TMUX_PANE") or os.environ.get("TMUX") or "",
+        "loop_count": loop_count,
+        "last_loop_ts": now_iso(),
+        "current_task": current_task,
+        "last_event_ts": last_event_ts or now_iso(),
+        "started_at": started_at,
+        "version": SUPERVISOR_VERSION,
+    }
+    write_json(HEARTBEAT_FILE, payload)
+
+
+# ---------------------------------------------------------------------------
+# Run a single task
+# ---------------------------------------------------------------------------
+
+
 def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
-    task = load_json(task_path)
+    task = load_task(task_path)
     task_id = str(task.get("task_id", task_path.stem))
     agent = str(task.get("agent", ""))
     risk = str(task.get("risk_level", "L0")).upper()
@@ -989,6 +1327,9 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
             "message": "",
             "commit_hash": None,
         },
+        "timed_out": False,
+        "attention_reason": None,
+        "last_retry_reason": None,
     }
 
     validation_error = validate_task(task)
@@ -1017,14 +1358,12 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                     result["status"] = "pending"
                     result["summary"] = "dry-run: task not executed"
                 else:
-                    task["status"] = "running"
-                    task["last_run"] = {
-                        "start": start,
-                        "end": None,
-                        "status": "running",
-                    }
-                    task["run_pid"] = None
-                    write_json(task_path, task)
+                    update_task_state(
+                        task_id,
+                        status="running",
+                        last_run={"start": start, "end": None, "status": "running"},
+                        run_pid=None,
+                    )
                     running_status = {
                         "task_id": task_id,
                         "agent": agent,
@@ -1050,10 +1389,10 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
 
                     rc = 1
                     run_pid: Optional[int] = None
+                    timed_out = False
 
                     def _mark_run_pid(pid: int) -> None:
-                        task["run_pid"] = pid
-                        write_json(task_path, task)
+                        update_task_state(task_id, run_pid=pid)
                         running_status["run_pid"] = pid
                         write_json(summary_path, running_status)
                         write_health_and_queue(running_status)
@@ -1064,7 +1403,11 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                             result["summary"] = "claude not ready"
                         else:
                             prompt = str(task.get("prompt", ""))
-                            rc, run_pid = run_cmd_with_pid(["claude", "--print", prompt, "--output-format", "text"], cwd, stdout_path, stderr_path, timeout_seconds=hard_timeout_s, on_start=_mark_run_pid)
+                            rc, run_pid, timed_out = run_cmd_with_pid(
+                                ["claude", "--print", prompt, "--output-format", "text"],
+                                cwd, stdout_path, stderr_path,
+                                timeout_seconds=hard_timeout_s, on_start=_mark_run_pid,
+                            )
                             result["status"] = "completed" if rc == 0 else "failed"
                     elif agent == "codex":
                         if not codex_ready():
@@ -1072,7 +1415,11 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                             result["summary"] = "codex not ready"
                         else:
                             prompt = str(task.get("prompt", ""))
-                            rc, run_pid = run_cmd_with_pid(["codex", "exec", prompt], cwd, stdout_path, stderr_path, timeout_seconds=hard_timeout_s, on_start=_mark_run_pid)
+                            rc, run_pid, timed_out = run_cmd_with_pid(
+                                ["codex", "exec", prompt],
+                                cwd, stdout_path, stderr_path,
+                                timeout_seconds=hard_timeout_s, on_start=_mark_run_pid,
+                            )
                             result["status"] = "completed" if rc == 0 else "failed"
                     elif agent == "ollama":
                         model = str(task.get("model", "llama3"))
@@ -1081,7 +1428,11 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                             result["summary"] = f"ollama model missing: {model}"
                         else:
                             prompt = str(task.get("prompt", ""))
-                            rc, run_pid = run_cmd_with_pid(["ollama", "run", model, prompt], cwd, stdout_path, stderr_path, timeout_seconds=hard_timeout_s, on_start=_mark_run_pid)
+                            rc, run_pid, timed_out = run_cmd_with_pid(
+                                ["ollama", "run", model, prompt],
+                                cwd, stdout_path, stderr_path,
+                                timeout_seconds=hard_timeout_s, on_start=_mark_run_pid,
+                            )
                             result["status"] = "completed" if rc == 0 else "failed"
                     elif agent == "system_check":
                         cmd = task.get("command")
@@ -1090,10 +1441,22 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                             stderr_path.write_text("missing command\n", encoding="utf-8")
                             result["status"] = "failed"
                         else:
-                            rc, run_pid = run_cmd_with_pid(["bash", "-lc", str(cmd)], cwd, stdout_path, stderr_path, timeout_seconds=hard_timeout_s, on_start=_mark_run_pid)
+                            rc, run_pid, timed_out = run_cmd_with_pid(
+                                ["bash", "-lc", str(cmd)],
+                                cwd, stdout_path, stderr_path,
+                                timeout_seconds=hard_timeout_s, on_start=_mark_run_pid,
+                            )
                             result["status"] = "completed" if rc == 0 else "failed"
 
                     result["run_pid"] = run_pid
+                    result["timed_out"] = timed_out
+
+                    if timed_out and result["status"] == "failed":
+                        result["summary"] = (
+                            (result.get("summary") or "")
+                            + f" subprocess hard timeout after {hard_timeout_s}s"
+                        ).strip()
+                        result["last_retry_reason"] = "subprocess_timeout"
 
                     if result["status"] == "failed":
                         classified_status, reset_iso = classify_agent_block(agent, stdout_path, stderr_path)
@@ -1104,7 +1467,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                                 resume = parse_iso_utc(reset_iso)
                                 if resume is None:
                                     resume = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=30)
-                                task["resume_after_utc"] = resume.isoformat()
+                                update_task_state(task_id, resume_after_utc=resume.isoformat())
 
                     emit_files = bool(task.get("emit_files", False))
                     if emit_files and agent in {"claude", "codex"} and result["status"] == "completed":
@@ -1140,17 +1503,41 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                             if run_claude_readiness_check():
                                 result["status"] = "retry_scheduled"
                                 result["summary"] = "claude ready check passed; retry scheduled"
-                                task["resume_after_utc"] = None
+                                result["last_retry_reason"] = "quota_reset_recovered"
+                                update_task_state(task_id, resume_after_utc=None)
                             else:
-                                task["resume_after_utc"] = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=30)).isoformat()
+                                update_task_state(
+                                    task_id,
+                                    resume_after_utc=(dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=30)).isoformat(),
+                                )
 
                     max_attempts = int(task.get("max_attempts", 3))
                     retry_count = int(task.get("retry_count", 0))
-                    if result["status"] == "failed" and retry_count < max_attempts:
-                        task["retry_count"] = retry_count + 1
-                        task["resume_after_utc"] = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5)).isoformat()
-                        result["status"] = "retry_scheduled"
-                        result["summary"] = (result.get("summary", "failed") + f"; retry {retry_count + 1}/{max_attempts} scheduled")
+                    if result["status"] == "failed":
+                        if retry_count + 1 < max_attempts:
+                            new_retry = retry_count + 1
+                            update_task_state(
+                                task_id,
+                                retry_count=new_retry,
+                                resume_after_utc=(dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5)).isoformat(),
+                                last_retry_reason=result.get("last_retry_reason") or "task_failed",
+                            )
+                            result["status"] = "retry_scheduled"
+                            result["summary"] = (
+                                result.get("summary", "failed")
+                                + f"; retry {new_retry}/{max_attempts} scheduled"
+                            )
+                        else:
+                            result["status"] = "human_attention_required"
+                            result["attention_reason"] = (
+                                f"max_attempts {max_attempts} exhausted; last reason: "
+                                + (result.get("last_retry_reason") or "task_failed")
+                            )
+                            result["summary"] = (
+                                result.get("summary", "failed")
+                                + f"; max_attempts {max_attempts} exhausted -> human_attention_required"
+                            )
+
     if not result["summary"]:
         result["summary"] = f"agent run status: {result['status']}"
 
@@ -1161,23 +1548,27 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
         result["auto_commit"]["message"] = msg
         result["auto_commit"]["commit_hash"] = commit_hash
         if not ok and "secret scan blocked" in msg:
-            result["status"] = "failed"
+            result["status"] = "human_attention_required"
+            result["attention_reason"] = "secret_scan_blocked_auto_commit"
             result["summary"] = msg
 
     result["end_time"] = now_iso()
 
-    task["status"] = result["status"]
-    task["run_pid"] = None
-    task.setdefault("retry_count", int(task.get("retry_count", 0)))
-    task["last_run"] = {
-        "start": result["start_time"],
-        "end": result["end_time"],
+    update_fields: Dict[str, Any] = {
         "status": result["status"],
+        "run_pid": None,
+        "last_run": {"start": result["start_time"], "end": result["end_time"], "status": result["status"]},
+        "last_summary": result["summary"],
     }
-    write_json(task_path, task)
+    if result.get("attention_reason"):
+        update_fields["attention_reason"] = result["attention_reason"]
+    if result.get("last_retry_reason"):
+        update_fields["last_retry_reason"] = result["last_retry_reason"]
+    update_task_state(task_id, **update_fields)
+
     write_json(summary_path, result)
     write_health_and_queue(result)
-    append_event(result)
+    append_event({"event": "task_completed", **result})
     set_next_tasks(task, success=result["status"] == "completed")
     return result
 
@@ -1193,16 +1584,16 @@ def normalize_existing_completion() -> None:
         tf = get_task_file_by_id(task_id)
         if not tf:
             continue
-        task = load_json(tf)
-        if str(task.get("status", "")) != "completed":
-            task["status"] = "completed"
-            write_json(tf, task)
+        state = load_task_state(task_id)
+        if str(state.get("status", "")) != "completed":
+            update_task_state(task_id, status="completed")
 
 
 def dry_run_queue() -> Dict[str, Any]:
+    nf = select_next_task_file()
     payload = {
         "generated_at": now_iso(),
-        "next_task_file": str(select_next_task_file()) if select_next_task_file() else None,
+        "next_task_file": str(nf) if nf else None,
         "gate": derive_gate(list_tasks()),
     }
     status = {
@@ -1219,64 +1610,111 @@ def dry_run_queue() -> Dict[str, Any]:
     return payload
 
 
+# ---------------------------------------------------------------------------
+# Daemon loop
+# ---------------------------------------------------------------------------
+
+
 def daemon_loop(poll_seconds: int, max_run_hours: Optional[float], stop_after_idle_minutes: Optional[float], dry_run: bool) -> int:
+    ok, message = acquire_lock()
+    if not ok:
+        sys.stderr.write(f"[agent_supervisor] {message}\n")
+        append_event({"event": "duplicate_daemon_blocked", "message": message})
+        return 2
+
     started = dt.datetime.now(dt.timezone.utc)
+    started_iso = started.isoformat()
     idle_started = started
+    loop_count = 0
+    last_event_ts = started_iso
+    current_task: Optional[str] = None
+
+    write_heartbeat(loop_count, current_task, started_iso, last_event_ts)
+    migrate_legacy_task_files()
     reconcile_stale_running_tasks()
-    while True:
-        now = dt.datetime.now(dt.timezone.utc)
-        if max_run_hours is not None and (now - started).total_seconds() >= max_run_hours * 3600:
-            status = {
-                "task_id": None,
-                "agent": None,
-                "start_time": now_iso(),
-                "end_time": now_iso(),
-                "status": "cancelled",
-                "summary": "daemon max-run-hours reached",
-                "next_recommended_action": "restart daemon if needed",
-            }
-            write_health_and_queue(status)
-            append_event(status)
-            return 0
 
-        reconcile_stale_running_tasks()
+    try:
+        while True:
+            loop_count += 1
+            now = dt.datetime.now(dt.timezone.utc)
+            write_heartbeat(loop_count, current_task, started_iso, last_event_ts)
 
-        task_file = select_next_task_file()
-        if not task_file:
-            status = {
-                "task_id": None,
-                "agent": None,
-                "start_time": now_iso(),
-                "end_time": now_iso(),
-                "status": "pending",
-                "summary": "no runnable task",
-                "next_recommended_action": "wait for dependencies/quota or add pending tasks",
-            }
-            write_health_and_queue(status)
-            append_event(status)
-            if stop_after_idle_minutes is not None and (now - idle_started).total_seconds() >= stop_after_idle_minutes * 60:
+            if max_run_hours is not None and (now - started).total_seconds() >= max_run_hours * 3600:
+                status = {
+                    "task_id": None, "agent": None,
+                    "start_time": now_iso(), "end_time": now_iso(),
+                    "status": "cancelled",
+                    "summary": "daemon max-run-hours reached",
+                    "next_recommended_action": "restart daemon if needed",
+                }
+                write_health_and_queue(status)
+                append_event({"event": "daemon_cancelled", **status})
                 return 0
-            time.sleep(max(5, poll_seconds))
-            continue
 
-        idle_started = now
-        result = run_task(task_file, dry_run=dry_run)
-        print(json.dumps(result, indent=2, ensure_ascii=False))
-        time.sleep(max(2, poll_seconds))
+            reconcile_stale_running_tasks()
+
+            task_file = select_next_task_file()
+            if not task_file:
+                status = {
+                    "task_id": None, "agent": None,
+                    "start_time": now_iso(), "end_time": now_iso(),
+                    "status": "pending",
+                    "summary": "no runnable task",
+                    "next_recommended_action": "wait for dependencies/quota or add pending tasks",
+                }
+                write_health_and_queue(status)
+                append_event({"event": "no_runnable_task", **status})
+                last_event_ts = now_iso()
+                if stop_after_idle_minutes is not None and (now - idle_started).total_seconds() >= stop_after_idle_minutes * 60:
+                    return 0
+                time.sleep(max(5, poll_seconds))
+                continue
+
+            idle_started = now
+            try:
+                td = load_task(task_file)
+                current_task = str(td.get("task_id", task_file.stem))
+            except Exception:
+                current_task = task_file.stem
+            write_heartbeat(loop_count, current_task, started_iso, last_event_ts)
+
+            result = run_task(task_file, dry_run=dry_run)
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+            last_event_ts = now_iso()
+            current_task = None
+            time.sleep(max(2, poll_seconds))
+    finally:
+        release_lock()
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Agent Supervisor")
+    parser = argparse.ArgumentParser(description="Agent Supervisor (reliability-hardened)")
     parser.add_argument("--task-id", help="Run a specific task_id from tasks directory")
     parser.add_argument("--daemon", action="store_true", help="Run autonomous queue manager loop")
     parser.add_argument("--poll-seconds", type=int, default=30)
     parser.add_argument("--max-run-hours", type=float)
     parser.add_argument("--stop-after-idle-minutes", type=float)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--reconcile", action="store_true", help="Run reconciler once and exit")
+    parser.add_argument("--migrate", action="store_true", help="Migrate legacy task state and exit")
     args = parser.parse_args()
 
     ensure_dirs()
+    moved = migrate_legacy_task_files()
+    if args.migrate:
+        print(json.dumps({"migrated_definition_files": moved}))
+        return 0
     normalize_existing_completion()
+
+    if args.reconcile:
+        n = reconcile_stale_running_tasks()
+        print(json.dumps({"reconciled": n}))
+        return 0
 
     if args.dry_run and not args.task_id and not args.daemon:
         payload = dry_run_queue()
@@ -1299,32 +1737,24 @@ def main() -> int:
 
     if not task_file:
         status = {
-            "task_id": None,
-            "agent": None,
-            "start_time": now_iso(),
-            "end_time": now_iso(),
+            "task_id": None, "agent": None,
+            "start_time": now_iso(), "end_time": now_iso(),
             "status": "pending",
-            "stdout_path": None,
-            "stderr_path": None,
+            "stdout_path": None, "stderr_path": None,
             "summary": "no runnable task",
             "next_recommended_action": "check dependency/quota/approval statuses",
         }
         write_health_and_queue(status)
-        append_event(status)
+        append_event({"event": "no_runnable_task", **status})
         print("No runnable task.")
         return 0
 
     result = run_task(task_file, dry_run=args.dry_run)
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0 if result.get("status") in {
-        "completed",
-        "skipped",
-        "pending",
-        "retry_scheduled",
-        "blocked_dependency",
-        "blocked_quota",
-        "blocked_auth",
-        "blocked_approval",
+        "completed", "skipped", "pending",
+        "retry_scheduled", "blocked_dependency", "blocked_quota",
+        "blocked_auth", "blocked_approval",
     } else 1
 
 
