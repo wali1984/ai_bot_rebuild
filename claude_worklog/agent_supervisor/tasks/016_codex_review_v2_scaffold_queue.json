@@ -1,0 +1,17 @@
+{
+  "task_id": "016_codex_review_v2_scaffold_queue",
+  "agent": "codex",
+  "risk_level": "L1",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/v2_scaffold_queue/"
+  ],
+  "required_output_files": [
+    "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_REVIEW.md",
+    "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_GO_NO_GO.md"
+  ],
+  "prompt": "You are Codex in /home/wali/Desktop/AI BOT REBUILD. Review the V2 scaffold implementation queue definitions only. Do not generate implementation code. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Inputs: claude_worklog/v2_scaffold_queue/00_QUEUE_OVERVIEW.md, 01_IMPLEMENTATION_WAVES.md, 02_TASK_DEPENDENCY_GRAPH.md, 03_SCAFFOLD_BUILD_GUARDRAILS.md, 04_CODEX_QUEUE_REVIEW_INPUT.md, 05_SCAFFOLD_QUEUE_GO_NO_GO.md, and tasks 015a-015f. Validate dependency ordering, safety boundaries, observability, tests, rollback, audit evidence, and blocked_approval status. Output BEGIN_FILE blocks only for: (1) 06_CODEX_QUEUE_REVIEW.md containing findings, blockers, and required fixes; (2) 06_CODEX_QUEUE_GO_NO_GO.md containing exactly one line: V2_SCAFFOLD_QUEUE_CODEX_REVIEW_PASS or V2_SCAFFOLD_QUEUE_CODEX_REVIEW_BLOCKED.",
+  "next_recommended_action": "If PASS, hold 015A-015F in blocked_approval until explicit human approval to begin implementation.",
+  "normalized_from_artifact": false
+}
