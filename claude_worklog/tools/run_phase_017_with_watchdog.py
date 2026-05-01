@@ -598,6 +598,17 @@ def read_task_logs() -> Tuple[str, str]:
     return out, err
 
 
+def task_logs_touched_since(started_epoch: float) -> bool:
+    for name in ("stdout.txt", "stderr.txt"):
+        p = TASK_017_RUN_DIR / name
+        try:
+            if p.exists() and p.stat().st_mtime >= started_epoch:
+                return True
+        except OSError:
+            pass
+    return False
+
+
 def finalize_with_codex_followup() -> Dict[str, Any]:
     planner = planner_once_no_execute()
     pstat = planner.get("planner_status", {})
@@ -690,24 +701,25 @@ def poll_loop() -> int:
         task_def = load_json(TASK_017_DEF, {})
 
         # quota/auth detection
-        stdout, stderr = read_task_logs()
-        quota, auth, prompt_permission = detect_quota_auth_or_prompt_permission(stdout, stderr)
-        if prompt_permission:
-            stop_daemon()
-            normalize_task_state(TASK_017, "failed", "prompt_permission_model_error")
-            append_event({"event": "task_prompt_permission_model_error", "task_id": TASK_017})
-            append_event({"event": "phase_017_prompt_permission_model_error", "task_id": TASK_017})
-            return 5
-        if quota:
-            stop_daemon()
-            normalize_task_state(TASK_017, "blocked_quota", "quota detected in 017 logs")
-            append_event({"event": "phase_017_blocked_quota", "task_id": TASK_017})
-            return 4
-        if auth:
-            stop_daemon()
-            normalize_task_state(TASK_017, "blocked_auth", "auth detected in 017 logs")
-            append_event({"event": "phase_017_failed", "reason": "auth_detected"})
-            return 5
+        if task_logs_touched_since(started):
+            stdout, stderr = read_task_logs()
+            quota, auth, prompt_permission = detect_quota_auth_or_prompt_permission(stdout, stderr)
+            if prompt_permission:
+                stop_daemon()
+                normalize_task_state(TASK_017, "failed", "prompt_permission_model_error")
+                append_event({"event": "task_prompt_permission_model_error", "task_id": TASK_017})
+                append_event({"event": "phase_017_prompt_permission_model_error", "task_id": TASK_017})
+                return 5
+            if quota:
+                stop_daemon()
+                normalize_task_state(TASK_017, "blocked_quota", "quota detected in 017 logs")
+                append_event({"event": "phase_017_blocked_quota", "task_id": TASK_017})
+                return 4
+            if auth:
+                stop_daemon()
+                normalize_task_state(TASK_017, "blocked_auth", "auth detected in 017 logs")
+                append_event({"event": "phase_017_failed", "reason": "auth_detected"})
+                return 5
 
         # daemon missing recovery
         if not daemon_running(snapshot.get("processes", [])) and t017.get("status") not in {"completed", "failed", "blocked_quota", "blocked_auth", "human_attention_required"}:
