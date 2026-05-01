@@ -1,87 +1,68 @@
-# 02 — Task Dependency Graph
+# 02 — V2 Scaffold Task Dependency Graph
 
-## 1. Purpose
-Define the directed acyclic graph (DAG) of dependencies between queue tasks `015A`–`015F`. The supervisor consumes the `depends_on` field of each task JSON to enforce this graph at dispatch time. This document is the human-readable view of the same graph.
+This file is the canonical DAG over the 015X tasks. It is consumed by the
+wave dispatcher together with `01_IMPLEMENTATION_WAVES.md`. All edges are
+hard dependencies; soft "preferred" ordering is not encoded here.
 
-## 2. Nodes
-- `015A` — Repo / package skeleton.
-- `015B` — Database migration skeleton.
-- `015C` — API route skeleton.
-- `015D` — Enterprise frontend shell.
-- `015E` — Test / CI skeleton.
-- `015F` — Agent supervisor / dashboard integration.
-
-## 3. Edges (parent -> child)
-- `015A -> 015B`
-- `015A -> 015E`
-- `015B -> 015C`
-- `015C -> 015D`
-- `015A -> 015F`
-- `015B -> 015F`
-- `015C -> 015F`
-- `015D -> 015F`
-- `015E -> 015F`
-
-## 4. ASCII rendering
+## DAG (text form)
 
 ```
-              ┌──────────┐
-              │  015A    │
-              │ skeleton │
-              └────┬─────┘
-                   │
-        ┌──────────┼──────────────┐
-        ▼                         ▼
-  ┌───────────┐              ┌──────────┐
-  │  015B DB  │              │ 015E     │
-  │ migration │              │ test/CI  │
-  └─────┬─────┘              └────┬─────┘
-        │                          │
-        ▼                          │
-  ┌───────────┐                    │
-  │ 015C API  │                    │
-  │  routes   │                    │
-  └─────┬─────┘                    │
-        │                          │
-        ▼                          │
-  ┌───────────┐                    │
-  │ 015D GUI  │                    │
-  │  shell    │                    │
-  └─────┬─────┘                    │
-        │                          │
-        └──────────┬───────────────┘
-                   ▼
-            ┌───────────────┐
-            │ 015F agent /  │
-            │ dashboard     │
-            │ integration   │
-            └───────────────┘
+015a -> 015b
+015a -> 015c
+015a -> 015d
+015b -> 015d
+015c -> 015d
+015a -> 015e
+015b -> 015e
+015c -> 015e
+015d -> 015e
+015a -> 015f
+015b -> 015f
+015c -> 015f
+015d -> 015f
 ```
 
-## 5. Topological order (one valid linearization)
-1. 015A
-2. 015E (parallel with 015B if W1 parallelism is approved)
-3. 015B
-4. 015C
-5. 015D
-6. 015F
+## DAG (mermaid)
 
-## 6. Cycle / conflict guarantees
-- The graph is acyclic. The CI script `ops/ci/import_cycle_check.py` (materialized by 015E) re-checks the dependency declarations of each task against the actual import graph of `v2/**` and fails on any cycle.
-- No task depends on a downstream milestone artifact (e.g., 015A does NOT depend on `K_RISK_VALIDATION.md`). Cross-milestone work is forbidden inside the scaffold queue.
+```mermaid
+graph TD
+  A[015a foundation] --> B[015b control-plane]
+  A --> C[015c audit-ledger]
+  A --> D[015d risk-gateway]
+  B --> D
+  C --> D
+  A --> E[015e monitor-center]
+  B --> E
+  C --> E
+  D --> E
+  A --> F[015f gui-shell]
+  B --> F
+  C --> F
+  D --> F
+```
 
-## 7. Forbidden cross-edges
-- 015A MUST NOT write under `v2/ops/ci/**` (that path is owned by 015E).
-- 015B MUST NOT write under `v2/backend/app/api/v1/**` (that path is owned by 015C).
-- 015C MUST NOT write under `v2/frontend/**` (that path is owned by 015D).
-- 015D MUST NOT modify `v2/backend/migrations/**` (owned by 015B).
-- 015F MUST NOT introduce any new write path under `v2/backend/app/api/v1/**` or `v2/frontend/src/pages/**`; it integrates dashboard endpoints by adding new route files under `v2/backend/app/api/v1/_meta/` and new components under `v2/frontend/src/components/dashboard/` only.
+## B2 remediation note
 
-The supervisor's pre-dispatch path-validator enforces these forbidden cross-edges.
+The earlier graph permitted a path where 015d became schedulable while
+015c was still `blocked_approval`. The edges `015c -> 015d` and the
+W3 `forbidden_until` rule in `01_IMPLEMENTATION_WAVES.md` jointly close
+that path. Together they enforce: no risk-gateway scaffold without an
+audit-ledger scaffold sink.
 
-## 8. Dependency-failure semantics
-- If `015B` fails, `015C`/`015D`/`015F` automatically transition to `blocked_dependency` (via the supervisor's dependency check) and remain there until 015B is re-run successfully.
-- A task that is `blocked_approval` at dispatch time stays `blocked_approval` regardless of dependency state — human approval is the higher gate.
+## Invariants
 
-## 9. Status
-DAG: DEFINED. ENFORCEMENT: SUPERVISOR `depends_on`. ROLLBACK: PER `00_QUEUE_OVERVIEW.md` §8.
+- DAG is acyclic. CI must reject any PR that introduces a cycle.
+- Every node has `status ∈ {blocked_approval, approved, in_progress, merged, abandoned}`.
+- `015a..015f.status == "blocked_approval"` while remediation gates are red.
+
+## Verification
+
+```
+python -c "import json,glob; \
+  edges=[('015a','015b'),('015a','015c'),('015a','015d'),('015b','015d'),('015c','015d'), \
+         ('015a','015e'),('015b','015e'),('015c','015e'),('015d','015e'), \
+         ('015a','015f'),('015b','015f'),('015c','015f'),('015d','015f')]; \
+  ids=[json.load(open(p))['id'] for p in sorted(glob.glob('claude_worklog/v2_scaffold_queue/tasks/015*.json'))]; \
+  assert set(ids)=={'015a','015b','015c','015d','015e','015f'}, ids; \
+  print('DAG nodes ok:', ids); print('edges:', edges)"
+```

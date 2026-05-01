@@ -1,0 +1,41 @@
+{
+  "id": "015e",
+  "title": "V2 monitor center scaffold",
+  "wave": "W4",
+  "depends_on": ["015a", "015b", "015c", "015d"],
+  "status": "blocked_approval",
+  "approval_required": true,
+  "scope": "Author the V2 Monitor Center scaffold. Ingests summary.json from 015a-015d and surfaces monitor-script status, last run/success/failure, metrics emitted, Redis keys watched, alert generation, trainer prediction stream, signal causality, feature freshness, model health, risk gate status, execution latency, Claude/Ollama/Codex status. Implementation gated on human approval.",
+  "non_goals": [
+    "No edits under v2/** until status flips to approved.",
+    "No mutation of legacy monitors."
+  ],
+  "gate_evidence_ref": [
+    "claim: V2 Monitor Center scaffold satisfies CLAUDE.md Monitor Center requirements",
+    "CLAUDE.md#monitor-center-requirements",
+    "python tools/validate_task_audit_evidence.py claude_worklog/v2_scaffold_queue/tasks/015e.json",
+    "unverified",
+    "Pre-fix gate_evidence_ref length and schema conformance must be diffed by supervisor",
+    "PENDING (Codex rerun consumes 04_CODEX_QUEUE_REVIEW_INPUT.md block 015e)",
+    "v2/observability/015e/summary.json (path declared; not yet emitted while status=blocked_approval)",
+    "claude_worklog/v2_scaffold_queue/03_SCAFFOLD_BUILD_GUARDRAILS.md#rollback"
+  ],
+  "audit_evidence": {
+    "schema_version": "v1",
+    "claim": "Task 015e is gated; depends_on supersets {015a,015b,015c,015d}.",
+    "raw_evidence_pointer": "claude_worklog/v2_scaffold_queue/02_TASK_DEPENDENCY_GRAPH.md",
+    "verification_command": "python -c \"import json;d=json.load(open('claude_worklog/v2_scaffold_queue/tasks/015e.json'));assert d['status']=='blocked_approval' and len(d['gate_evidence_ref'])==8 and {'015a','015b','015c','015d'}<=set(d['depends_on']);print('015e ok')\"",
+    "confidence": "medium",
+    "missing_evidence": "Pre-fix JSON not diffed in headless run.",
+    "codex_review_pointer": "claude_worklog/v2_scaffold_queue/04_CODEX_QUEUE_REVIEW_INPUT.md#015e"
+  },
+  "observability": {
+    "summary_json_required": true,
+    "summary_json_path": "v2/observability/015e/summary.json"
+  },
+  "rollback": {
+    "policy": "revert_pr",
+    "runbook": "claude_worklog/v2_scaffold_queue/03_SCAFFOLD_BUILD_GUARDRAILS.md#rollback",
+    "live_state_to_undo": "none_while_blocked_approval"
+  }
+}

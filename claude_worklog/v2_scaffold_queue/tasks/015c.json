@@ -1,0 +1,41 @@
+{
+  "id": "015c",
+  "title": "V2 audit ledger scaffold",
+  "wave": "W2",
+  "depends_on": ["015a"],
+  "status": "blocked_approval",
+  "approval_required": true,
+  "scope": "Author the V2 audit ledger scaffold per claude_worklog/v2_architecture/13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md. Provides the sink that the W3 risk-gateway scaffold writes to. Implementation gated on human approval.",
+  "non_goals": [
+    "No edits under v2/** until status flips to approved.",
+    "No retention/rotation policy decisions outside the architecture doc."
+  ],
+  "gate_evidence_ref": [
+    "claim: V2 audit ledger scaffold realizes the contract in 13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md",
+    "claude_worklog/v2_architecture/13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md",
+    "python tools/validate_task_audit_evidence.py claude_worklog/v2_scaffold_queue/tasks/015c.json",
+    "unverified",
+    "Pre-fix gate_evidence_ref length and schema conformance must be diffed by supervisor",
+    "PENDING (Codex rerun consumes 04_CODEX_QUEUE_REVIEW_INPUT.md block 015c)",
+    "v2/observability/015c/summary.json (path declared; not yet emitted while status=blocked_approval)",
+    "claude_worklog/v2_scaffold_queue/03_SCAFFOLD_BUILD_GUARDRAILS.md#rollback"
+  ],
+  "audit_evidence": {
+    "schema_version": "v1",
+    "claim": "Task 015c is gated; audit-ledger scaffold is a hard predecessor of 015d (B4).",
+    "raw_evidence_pointer": "claude_worklog/v2_scaffold_queue/01_IMPLEMENTATION_WAVES.md#w3--risk-gateway",
+    "verification_command": "python -c \"import json;d=json.load(open('claude_worklog/v2_scaffold_queue/tasks/015c.json'));assert d['status']=='blocked_approval' and len(d['gate_evidence_ref'])==8 and '015a' in d['depends_on'];print('015c ok')\"",
+    "confidence": "medium",
+    "missing_evidence": "Pre-fix JSON not diffed in headless run.",
+    "codex_review_pointer": "claude_worklog/v2_scaffold_queue/04_CODEX_QUEUE_REVIEW_INPUT.md#015c"
+  },
+  "observability": {
+    "summary_json_required": true,
+    "summary_json_path": "v2/observability/015c/summary.json"
+  },
+  "rollback": {
+    "policy": "revert_pr",
+    "runbook": "claude_worklog/v2_scaffold_queue/03_SCAFFOLD_BUILD_GUARDRAILS.md#rollback",
+    "live_state_to_undo": "none_while_blocked_approval"
+  }
+}

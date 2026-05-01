@@ -1,0 +1,42 @@
+{
+  "id": "015b",
+  "title": "V2 control-plane API scaffold",
+  "wave": "W2",
+  "depends_on": ["015a"],
+  "status": "blocked_approval",
+  "approval_required": true,
+  "scope": "Author the V2 control-plane FastAPI scaffold (mission control endpoints in read-only mode, paper/replay handles, no exchange-action paths). Implementation gated on human approval.",
+  "non_goals": [
+    "No edits under v2/** until status flips to approved.",
+    "No exchange-action endpoints.",
+    "No legacy trainer mutation."
+  ],
+  "gate_evidence_ref": [
+    "claim: V2 control-plane API scaffold satisfies architecture sequence step 2",
+    "claude_worklog/v2_architecture/17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md#control-plane",
+    "python tools/validate_task_audit_evidence.py claude_worklog/v2_scaffold_queue/tasks/015b.json",
+    "unverified",
+    "Pre-fix gate_evidence_ref length and schema conformance must be diffed by supervisor",
+    "PENDING (Codex rerun consumes 04_CODEX_QUEUE_REVIEW_INPUT.md block 015b)",
+    "v2/observability/015b/summary.json (path declared; not yet emitted while status=blocked_approval)",
+    "claude_worklog/v2_scaffold_queue/03_SCAFFOLD_BUILD_GUARDRAILS.md#rollback"
+  ],
+  "audit_evidence": {
+    "schema_version": "v1",
+    "claim": "Task 015b is gated and authored only as scaffold queue planning artifact.",
+    "raw_evidence_pointer": "claude_worklog/v2_scaffold_queue_remediation/017_REMEDIATION_REPORT.md#cross-cutting-015a015f-status-floor",
+    "verification_command": "python -c \"import json;d=json.load(open('claude_worklog/v2_scaffold_queue/tasks/015b.json'));assert d['status']=='blocked_approval' and len(d['gate_evidence_ref'])==8 and '015a' in d['depends_on'];print('015b ok')\"",
+    "confidence": "medium",
+    "missing_evidence": "Pre-fix JSON not diffed in headless run.",
+    "codex_review_pointer": "claude_worklog/v2_scaffold_queue/04_CODEX_QUEUE_REVIEW_INPUT.md#015b"
+  },
+  "observability": {
+    "summary_json_required": true,
+    "summary_json_path": "v2/observability/015b/summary.json"
+  },
+  "rollback": {
+    "policy": "revert_pr",
+    "runbook": "claude_worklog/v2_scaffold_queue/03_SCAFFOLD_BUILD_GUARDRAILS.md#rollback",
+    "live_state_to_undo": "none_while_blocked_approval"
+  }
+}
