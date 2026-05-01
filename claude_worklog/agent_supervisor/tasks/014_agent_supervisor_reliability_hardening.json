@@ -19,6 +19,5 @@
   ],
   "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not build V2 implementation. Harden the agent supervisor reliability layer only. Inputs: claude_worklog/tools/agent_supervisor.py, claude_worklog/tools/agent_supervisor_dashboard.py, claude_worklog/agent_supervisor_reliability/01_RELIABILITY_HARDENING_REQUIREMENTS.md, claude_worklog/v2_scaffold_planning/09_ENTERPRISE_IMPLEMENTATION_GUARDRAILS.md. Implement separation of task definitions from runtime task state, daemon heartbeat, lockfile, duplicate daemon protection, stale running detection, no-event detection, timeout classification, retry policy, human_attention_required status, and dashboard stale-state alerts. Output full updated files with BEGIN_FILE blocks. Also create implementation report, validation report, and GO/NO-GO file. GO/NO-GO file must contain exactly AGENT_SUPERVISOR_RELIABILITY_HARDENING_READY or AGENT_SUPERVISOR_RELIABILITY_HARDENING_BLOCKED.",
   "next_recommended_action": "Validate hardening, then proceed to scaffold implementation planning.",
-  "status": "completed",
   "normalized_from_artifact": true
 }

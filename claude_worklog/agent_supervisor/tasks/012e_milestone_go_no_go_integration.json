@@ -25,6 +25,5 @@
     "010_actual_codex_architecture_rerun_after_remediation"
   ],
   "next_tasks_on_failure": [],
-  "status": "completed",
   "normalized_from_artifact": true
 }

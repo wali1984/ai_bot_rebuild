@@ -22,6 +22,5 @@
   "priority": 70,
   "next_tasks_on_success": [],
   "next_tasks_on_failure": [],
-  "status": "completed",
   "normalized_from_artifact": true
 }

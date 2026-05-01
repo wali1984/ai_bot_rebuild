@@ -12,6 +12,5 @@
   ],
   "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Produce architecture remediation for blocker: full API endpoint contracts with method/path/request/response/error/idempotency/RBAC. Output exactly one BEGIN_FILE block for claude_worklog/v2_architecture_remediation/04_API_CONTRACT_REMEDIATION.md with concrete endpoint matrices and contract schema deltas.",
   "next_recommended_action": "Review API remediation and map to architecture file updates.",
-  "status": "completed",
   "normalized_from_artifact": true
 }

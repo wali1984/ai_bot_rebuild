@@ -23,6 +23,5 @@
     "012b_api_lineage_enforcement"
   ],
   "next_tasks_on_failure": [],
-  "status": "completed",
   "normalized_from_artifact": true
 }

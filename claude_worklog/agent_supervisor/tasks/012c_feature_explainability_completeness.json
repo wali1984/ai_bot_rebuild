@@ -24,6 +24,5 @@
     "012d_trainer_liveness_validation_evidence"
   ],
   "next_tasks_on_failure": [],
-  "status": "completed",
   "normalized_from_artifact": true
 }
