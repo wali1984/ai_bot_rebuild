@@ -2,7 +2,7 @@
   "task_id": "012ao_summarize_database_schema_context",
   "agent": "ollama",
   "risk_level": "L1",
-  "status": "pending",
+  "status": "completed",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "allowed_output_prefixes": [
@@ -11,5 +11,11 @@
   "required_output_files": [
     "claude_worklog/agent_supervisor/ollama_context/012a_database_schema_context.md"
   ],
-  "prompt": "You are local Ollama operating in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Create a concise pre-brief for task 012a_database_lineage_constraints. Inputs: claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md, claude_worklog/v2_requirements/02_FEATURE_SNAPSHOT_SCHEMA.md, claude_worklog/v2_requirements/04_CONFIDENCE_EXPLAINABILITY_SCHEMA.md, claude_worklog/post_monitor/06_FEATURE_DATA_FLOW_GAPS.md, claude_worklog/agent_supervisor/ollama_context/011o_codex_blockers_summary.md. Output exactly one BEGIN_FILE block at claude_worklog/agent_supervisor/ollama_context/012a_database_schema_context.md. Keep under 120 lines. Include: current lineage gaps, required FK/index/nullability constraints, attribution rejection requirements, and an acceptance checklist. If any file is missing, list it under Missing Inputs."
+  "prompt": "You are local Ollama operating in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Create a concise pre-brief for task 012a_database_lineage_constraints. Inputs: claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md, claude_worklog/v2_requirements/02_FEATURE_SNAPSHOT_SCHEMA.md, claude_worklog/v2_requirements/04_CONFIDENCE_EXPLAINABILITY_SCHEMA.md, claude_worklog/post_monitor/06_FEATURE_DATA_FLOW_GAPS.md, claude_worklog/agent_supervisor/ollama_context/011o_codex_blockers_summary.md. Output exactly one BEGIN_FILE block at claude_worklog/agent_supervisor/ollama_context/012a_database_schema_context.md. Keep under 120 lines. Include: current lineage gaps, required FK/index/nullability constraints, attribution rejection requirements, and an acceptance checklist. If any file is missing, list it under Missing Inputs.",
+  "model": "qwen2.5-coder:7b",
+  "last_run": {
+    "start": "2026-05-01T03:38:42.750001+00:00",
+    "end": "2026-05-01T03:38:44.833863+00:00",
+    "status": "completed"
+  }
 }
