@@ -6,6 +6,7 @@ import json
 import os
 import pathlib
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -161,17 +162,52 @@ def run_cmd_with_pid(
     cwd: pathlib.Path,
     stdout_path: pathlib.Path,
     stderr_path: pathlib.Path,
+    timeout_seconds: Optional[int] = None,
     on_start: Optional[Callable[[int], None]] = None,
 ) -> Tuple[int, Optional[int]]:
     with stdout_path.open("w", encoding="utf-8") as out, stderr_path.open("w", encoding="utf-8") as err:
-        proc = subprocess.Popen(cmd, cwd=str(cwd), stdout=out, stderr=err, text=True)
+        proc = subprocess.Popen(
+            cmd,
+            cwd=str(cwd),
+            stdout=out,
+            stderr=err,
+            text=True,
+            preexec_fn=os.setsid,
+        )
         if on_start is not None:
             try:
                 on_start(proc.pid)
             except Exception:
                 pass
-        rc = proc.wait()
-        return rc, proc.pid
+        try:
+            rc = proc.wait(timeout=timeout_seconds)
+            return rc, proc.pid
+        except subprocess.TimeoutExpired:
+            err.write(f"\n[agent_supervisor] subprocess timeout after {timeout_seconds}s; terminating process tree\n")
+            err.flush()
+            try:
+                os.killpg(proc.pid, signal.SIGTERM)
+            except Exception:
+                try:
+                    proc.terminate()
+                except Exception:
+                    pass
+            try:
+                rc = proc.wait(timeout=10)
+                return rc if rc != 0 else 124, proc.pid
+            except Exception:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except Exception:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+                try:
+                    proc.wait(timeout=5)
+                except Exception:
+                    pass
+                return 124, proc.pid
 
 
 def file_contains(path: pathlib.Path, needle: str) -> bool:
@@ -1010,6 +1046,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                     cwd = pathlib.Path(task.get("cwd", str(WORKSPACE_ROOT))).expanduser()
                     if not cwd.is_absolute():
                         cwd = WORKSPACE_ROOT / cwd
+                    hard_timeout_s = task_timeout_seconds(task)
 
                     rc = 1
                     run_pid: Optional[int] = None
@@ -1027,7 +1064,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                             result["summary"] = "claude not ready"
                         else:
                             prompt = str(task.get("prompt", ""))
-                            rc, run_pid = run_cmd_with_pid(["claude", "--print", prompt, "--output-format", "text"], cwd, stdout_path, stderr_path, on_start=_mark_run_pid)
+                            rc, run_pid = run_cmd_with_pid(["claude", "--print", prompt, "--output-format", "text"], cwd, stdout_path, stderr_path, timeout_seconds=hard_timeout_s, on_start=_mark_run_pid)
                             result["status"] = "completed" if rc == 0 else "failed"
                     elif agent == "codex":
                         if not codex_ready():
@@ -1035,7 +1072,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                             result["summary"] = "codex not ready"
                         else:
                             prompt = str(task.get("prompt", ""))
-                            rc, run_pid = run_cmd_with_pid(["codex", "exec", prompt], cwd, stdout_path, stderr_path, on_start=_mark_run_pid)
+                            rc, run_pid = run_cmd_with_pid(["codex", "exec", prompt], cwd, stdout_path, stderr_path, timeout_seconds=hard_timeout_s, on_start=_mark_run_pid)
                             result["status"] = "completed" if rc == 0 else "failed"
                     elif agent == "ollama":
                         model = str(task.get("model", "llama3"))
@@ -1044,7 +1081,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                             result["summary"] = f"ollama model missing: {model}"
                         else:
                             prompt = str(task.get("prompt", ""))
-                            rc, run_pid = run_cmd_with_pid(["ollama", "run", model, prompt], cwd, stdout_path, stderr_path, on_start=_mark_run_pid)
+                            rc, run_pid = run_cmd_with_pid(["ollama", "run", model, prompt], cwd, stdout_path, stderr_path, timeout_seconds=hard_timeout_s, on_start=_mark_run_pid)
                             result["status"] = "completed" if rc == 0 else "failed"
                     elif agent == "system_check":
                         cmd = task.get("command")
@@ -1053,7 +1090,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                             stderr_path.write_text("missing command\n", encoding="utf-8")
                             result["status"] = "failed"
                         else:
-                            rc, run_pid = run_cmd_with_pid(["bash", "-lc", str(cmd)], cwd, stdout_path, stderr_path, on_start=_mark_run_pid)
+                            rc, run_pid = run_cmd_with_pid(["bash", "-lc", str(cmd)], cwd, stdout_path, stderr_path, timeout_seconds=hard_timeout_s, on_start=_mark_run_pid)
                             result["status"] = "completed" if rc == 0 else "failed"
 
                     result["run_pid"] = run_pid

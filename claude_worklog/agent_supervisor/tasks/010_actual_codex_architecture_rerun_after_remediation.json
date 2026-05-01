@@ -2,7 +2,7 @@
   "task_id": "010_actual_codex_architecture_rerun_after_remediation",
   "agent": "codex",
   "risk_level": "L1",
-  "status": "blocked_dependency",
+  "status": "pending",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "allowed_output_prefixes": [
