@@ -4,3 +4,18 @@ legacy_reference/
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Agent supervisor runtime artifacts
+claude_worklog/agent_supervisor/runtime/
+claude_worklog/agent_supervisor/runs/
+claude_worklog/agent_supervisor/events.jsonl
+claude_worklog/agent_supervisor/supervisor.lock
+claude_worklog/agent_supervisor/status/current_status.json
+claude_worklog/agent_supervisor/status/queue_status.json
+claude_worklog/agent_supervisor/status/planner_status.json
+claude_worklog/agent_supervisor/status/agent_health.json
+claude_worklog/agent_supervisor/status/supervisor_heartbeat.json
+claude_worklog/agent_supervisor/status/phase_017_watchdog.json
+claude_worklog/agent_supervisor/state/tasks/*.json
+.vscode/
+.local_scratch/
