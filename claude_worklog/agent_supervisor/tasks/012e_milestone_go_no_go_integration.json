@@ -2,7 +2,6 @@
   "task_id": "012e_milestone_go_no_go_integration",
   "agent": "claude",
   "risk_level": "L1",
-  "status": "completed",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "allowed_output_prefixes": [
@@ -21,18 +20,11 @@
   "auto_commit": true,
   "commit_message": "Close architecture milestone GO-NO-GO integration gap",
   "max_attempts": 3,
-  "retry_count": 0,
-  "resume_after_utc": null,
   "priority": 80,
   "next_tasks_on_success": [
     "010_actual_codex_architecture_rerun_after_remediation"
   ],
   "next_tasks_on_failure": [],
-  "last_summary": "normalized stale-running 012E: required output files exist",
-  "last_run": {
-    "start": "2026-05-01T14:02:04.077978+00:00",
-    "end": "2026-05-01T16:10:23.982458+00:00",
-    "status": "completed"
-  },
-  "run_pid": null
+  "status": "completed",
+  "normalized_from_artifact": true
 }

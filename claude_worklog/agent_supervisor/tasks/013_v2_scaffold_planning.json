@@ -2,7 +2,6 @@
   "task_id": "013_v2_scaffold_planning",
   "agent": "claude",
   "risk_level": "L1",
-  "status": "completed",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "allowed_output_prefixes": [
@@ -25,15 +24,9 @@
   "auto_commit": false,
   "commit_message": "Create V2 scaffold planning package",
   "max_attempts": 3,
-  "retry_count": 0,
-  "resume_after_utc": null,
   "priority": 60,
   "next_tasks_on_success": [],
   "next_tasks_on_failure": [],
-  "last_run": {
-    "start": "2026-05-01T16:56:42.126740+00:00",
-    "end": "2026-05-01T17:03:42.756048+00:00",
-    "status": "completed"
-  },
-  "run_pid": null
+  "status": "completed",
+  "normalized_from_artifact": true
 }

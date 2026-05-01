@@ -2,7 +2,6 @@
   "task_id": "012d_trainer_liveness_validation_evidence",
   "agent": "claude",
   "risk_level": "L1",
-  "status": "completed",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "allowed_output_prefixes": [
@@ -20,17 +19,11 @@
   "auto_commit": true,
   "commit_message": "Close trainer liveness evidence architecture gap",
   "max_attempts": 3,
-  "retry_count": 0,
-  "resume_after_utc": null,
   "priority": 90,
   "next_tasks_on_success": [
     "012e_milestone_go_no_go_integration"
   ],
   "next_tasks_on_failure": [],
-  "last_summary": "normalized stale-running 012D: required output files exist",
-  "last_run": {
-    "start": null,
-    "end": "2026-05-01T13:59:45.018931+00:00",
-    "status": "completed"
-  }
+  "status": "completed",
+  "normalized_from_artifact": true
 }

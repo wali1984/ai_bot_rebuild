@@ -1,0 +1,18 @@
+{
+  "task_id": "011o_summarize_codex_blockers",
+  "status": "completed",
+  "retry_count": 0,
+  "run_pid": null,
+  "last_run": {
+    "start": "2026-05-01T03:38:08.258374+00:00",
+    "end": "2026-05-01T03:38:42.701687+00:00",
+    "status": "completed"
+  },
+  "last_summary": "",
+  "resume_after_utc": null,
+  "last_status_change_ts": null,
+  "last_retry_reason": null,
+  "attention_reason": null,
+  "history": [],
+  "last_event_ts": null
+}

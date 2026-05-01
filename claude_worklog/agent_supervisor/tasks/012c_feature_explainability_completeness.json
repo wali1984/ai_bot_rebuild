@@ -2,7 +2,6 @@
   "task_id": "012c_feature_explainability_completeness",
   "agent": "claude",
   "risk_level": "L1",
-  "status": "pending",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "allowed_output_prefixes": [
@@ -20,11 +19,11 @@
   "auto_commit": true,
   "commit_message": "Close feature explainability architecture gap",
   "max_attempts": 3,
-  "retry_count": 0,
-  "resume_after_utc": null,
   "priority": 100,
   "next_tasks_on_success": [
     "012d_trainer_liveness_validation_evidence"
   ],
-  "next_tasks_on_failure": []
+  "next_tasks_on_failure": [],
+  "status": "completed",
+  "normalized_from_artifact": true
 }

@@ -1,0 +1,19 @@
+{
+  "generated_at": "2026-05-01T17:37:54.266215+00:00",
+  "next_pending_task": null,
+  "current_running_task": null,
+  "blocked_quota": null,
+  "stale_running_count": 0,
+  "counts": {
+    "pending": 0,
+    "running": 0,
+    "completed": null,
+    "failed": 0,
+    "blocked": 0,
+    "retry_scheduled": 0,
+    "skipped": 0,
+    "cancelled": 0
+  },
+  "gate": "READY_FOR_V2_SCAFFOLD_QUEUE_CREATION",
+  "note": "historical tasks normalized from artifacts; do not replay 001-014"
+}

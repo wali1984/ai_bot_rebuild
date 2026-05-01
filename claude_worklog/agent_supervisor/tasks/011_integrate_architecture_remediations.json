@@ -2,7 +2,6 @@
   "task_id": "011_integrate_architecture_remediations",
   "agent": "claude",
   "risk_level": "L1",
-  "status": "completed",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "allowed_output_prefixes": [
@@ -19,9 +18,6 @@
   ],
   "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Integrate completed remediations into canonical architecture files. OUTPUT FORMAT IS STRICT: print only BEGIN_FILE/END_FILE blocks and nothing else. Emit exactly 6 files with complete replacement content (concise but scaffoldable): 1) claude_worklog/v2_architecture/05_API_CONTRACTS.md with endpoint groups, route contract requirements, error classes, idempotency, RBAC + approval enforcement. 2) claude_worklog/v2_architecture/08_HOT_RELOAD_PIPELINE_ARCHITECTURE.md with ack timeouts, retry policy, quorum rules, partial-failure handling, rollback triggers. 3) claude_worklog/v2_architecture/12_RISK_GATEWAY_ARCHITECTURE.md with deterministic policy schema, phase/order, precedence, duplicate guard, stale defaults, test vectors. 4) claude_worklog/v2_architecture/13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md with L4/L5 approval state machine, subject binding, immutable audit chain rules. 5) claude_worklog/v2_architecture/15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md with auth/session lifecycle, RBAC route permissions, step-up auth, secrets provider boundary. 6) claude_worklog/v2_architecture_remediation/10_CANONICAL_INTEGRATION_SUMMARY.md mapping integrated sections to prior Codex blockers. Use BEGIN_FILE: <path> then file content then END_FILE for each file.",
   "next_recommended_action": "Run task 012 to close remaining lineage/explainability/liveness readiness gaps.",
-  "last_run": {
-    "start": "2026-05-01T02:48:42.000075+00:00",
-    "end": "2026-05-01T02:54:10.171954+00:00",
-    "status": "completed"
-  }
+  "status": "completed",
+  "normalized_from_artifact": true
 }

@@ -2,7 +2,6 @@
   "task_id": "012a_database_lineage_constraints",
   "agent": "claude",
   "risk_level": "L1",
-  "status": "completed",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "allowed_output_prefixes": [
@@ -18,17 +17,12 @@
   "auto_commit": true,
   "commit_message": "Close database lineage architecture gap",
   "max_attempts": 3,
-  "retry_count": 0,
-  "resume_after_utc": null,
   "priority": 120,
   "depends_on": [],
   "next_tasks_on_success": [
     "012b_api_lineage_enforcement"
   ],
   "next_tasks_on_failure": [],
-  "last_run": {
-    "start": "2026-05-01T04:05:26.169195+00:00",
-    "end": "2026-05-01T04:07:16.241661+00:00",
-    "status": "completed"
-  }
+  "status": "completed",
+  "normalized_from_artifact": true
 }

@@ -1,0 +1,18 @@
+{
+  "task_id": "012_close_remaining_architecture_readiness_gaps",
+  "status": "failed",
+  "retry_count": 0,
+  "run_pid": null,
+  "last_run": {
+    "start": "2026-05-01T02:54:45.039402+00:00",
+    "end": "2026-05-01T02:56:38.974659+00:00",
+    "status": "failed"
+  },
+  "last_summary": "",
+  "resume_after_utc": null,
+  "last_status_change_ts": null,
+  "last_retry_reason": null,
+  "attention_reason": null,
+  "history": [],
+  "last_event_ts": null
+}

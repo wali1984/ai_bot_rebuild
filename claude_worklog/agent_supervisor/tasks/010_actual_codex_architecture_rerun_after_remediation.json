@@ -2,7 +2,6 @@
   "task_id": "010_actual_codex_architecture_rerun_after_remediation",
   "agent": "codex",
   "risk_level": "L1",
-  "status": "completed",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "allowed_output_prefixes": [
@@ -20,16 +19,9 @@
   "auto_commit": true,
   "commit_message": "Rerun actual Codex architecture review after all readiness closures",
   "max_attempts": 3,
-  "retry_count": 0,
-  "resume_after_utc": null,
   "priority": 70,
   "next_tasks_on_success": [],
   "next_tasks_on_failure": [],
-  "last_run": {
-    "start": "2026-05-01T16:11:15.095842+00:00",
-    "end": "2026-05-01T16:50:01.848082+00:00",
-    "status": "completed"
-  },
-  "last_summary": "normalized stale-running 010: required output files materialized from existing stdout",
-  "run_pid": null
+  "status": "completed",
+  "normalized_from_artifact": true
 }
