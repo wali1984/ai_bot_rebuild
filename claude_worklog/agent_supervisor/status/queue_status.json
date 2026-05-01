@@ -1,11 +1,26 @@
 {
-  "generated_at": "2026-05-01T19:25:53.931999+00:00",
+  "generated_at": "2026-05-01T19:58:48.097242+00:00",
   "next_pending_task": "017_remediate_v2_scaffold_queue_codex_blockers",
   "current_running_task": null,
   "blocked_quota": null,
   "stale_running_count": 0,
-  "gate": "SCAFFOLD_QUEUE_CODEX_BLOCKED_REMEDIATION_PENDING",
-  "note": "015A-015F blocked_approval; 017 is next safe remediation task",
-  "implementation_tasks_blocked": true,
-  "human_action_required": false
+  "stale_running_tasks": [],
+  "no_event_count": 0,
+  "no_event_tasks": [],
+  "no_output_growth_count": 0,
+  "no_output_growth_tasks": [],
+  "human_attention_required_count": 0,
+  "human_attention_required_tasks": [],
+  "counts": {
+    "pending": 1,
+    "running": 0,
+    "completed": 24,
+    "failed": 1,
+    "blocked": 6,
+    "retry_scheduled": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "human_attention_required": 0
+  },
+  "gate": "READY_FOR_SCAFFOLD_PLANNING"
 }
