@@ -7,91 +7,32 @@
 - `claude_worklog/v2_architecture_codex_review/*.md`
 - `claude_worklog/v2_architecture_remediation/*.md`
 
-Key remediation files reviewed:
-- `claude_worklog/v2_architecture_remediation/04_API_CONTRACT_REMEDIATION.md`
-- `claude_worklog/v2_architecture_remediation/05_RISK_GATEWAY_REMEDIATION.md`
-- `claude_worklog/v2_architecture_remediation/06_HOT_RELOAD_REMEDIATION.md`
-- `claude_worklog/v2_architecture_remediation/07_AI_GOVERNANCE_REMEDIATION.md`
-- `claude_worklog/v2_architecture_remediation/08_SECURITY_RBAC_REMEDIATION.md`
-- `claude_worklog/v2_architecture_remediation/09_REMEDIATION_SUMMARY.md`
-
-Prior Codex findings reviewed:
-- `claude_worklog/v2_architecture_codex_review/04_API_CONTRACT_REVIEW.md`
-- `claude_worklog/v2_architecture_codex_review/06_DYNAMIC_UNIVERSE_HOT_RELOAD_REVIEW.md`
-- `claude_worklog/v2_architecture_codex_review/08_AI_GOVERNANCE_REVIEW.md`
-- `claude_worklog/v2_architecture_codex_review/09_SECURITY_HOSTING_REVIEW.md`
-- `claude_worklog/v2_architecture_codex_review/10_IMPLEMENTATION_RISK_REGISTER.md`
-- `claude_worklog/v2_architecture_codex_review/12_ACTUAL_CODEX_CLI_ARCHITECTURE_REVIEW_OUTPUT.md`
-- `claude_worklog/v2_architecture_codex_review/13_ACTUAL_CODEX_RECONCILIATION.md`
-- `claude_worklog/v2_architecture_codex_review/14_ACTUAL_CODEX_ARCHITECTURE_GO_NO_GO.md`
-
 ## Previous blockers
+1. API endpoint contracts.
+2. Risk Gateway enforceability.
+3. Hot-reload failure semantics.
+4. L4 human approval governance.
+5. Security/auth/session/RBAC contracts.
 
-The five previous architecture blockers were:
-1. API endpoint contracts were not scaffoldable.
-2. Risk Gateway final authority was asserted but not enforceably designed.
-3. Hot-reload failure semantics were under-specified.
-4. L4/L5 human approval governance was not architecture-locked.
-5. Security/auth/session/RBAC contracts were too thin for public-hosting readiness.
-
-## Rerun assessment
-
-### 1. API endpoint contracts
-Status: **Partially resolved, not fully closed.**
-
-`04_API_CONTRACT_REMEDIATION.md` adds the missing endpoint matrix, request/response envelopes, error catalog, idempotency, optimistic concurrency, pagination/filtering/sorting, RBAC scope bindings, live-block response envelope, and schema deltas. This materially resolves the original contract-content gap.
-
-Remaining blocker: the remediation file itself says final acceptance still requires integration into `claude_worklog/v2_architecture/05_API_CONTRACTS.md` as the authoritative replacement or appendix. The canonical architecture file remains a stub relative to the remediation content. Therefore the API blocker is closeable but not fully closed in the architecture package.
-
-### 2. Risk Gateway enforceability
-Status: **Partially resolved, not fully closed.**
-
-`05_RISK_GATEWAY_REMEDIATION.md` supplies the missing non-bypass invariants, policy bundle schema, deterministic evaluation order, failure precedence, duplicate guard, stale-signal defaults, kill-switch persistence, live-readiness state, connector-side hard blocks, risk-decision envelope, persistence model, evidence requirements, and test vectors.
-
-Remaining blocker: the file’s own gate recommendation says Codex Blocker 4 is only closeable after the V2 scaffold implements the sections verbatim and a re-run confirms enforcement. It also keeps V2 build NO-GO until explicit PASS/GO. It is a strong architecture-layer remediation, but the canonical architecture handoff is still conditional.
-
-### 3. Hot-reload failure semantics
-Status: **Not fully resolved.**
-
-`06_HOT_RELOAD_REMEDIATION.md` is strong on content: component registry, ack envelope, timeout/retry/dead-letter policy, quorum semantics, partial-failure handling, rollback triggers, rollback state machine, health checks, durable rollout tables, event envelopes, version pinning, evidence packets, and test vectors.
-
-Remaining blocker: this file explicitly states that the architecture remains NO-GO on Blocker 5 until the remediation is folded into `03_DATABASE_SCHEMA.md`, `04_REDIS_NAMESPACE_AND_RETENTION_PLAN.md`, and `08_HOT_RELOAD_PIPELINE_ARCHITECTURE.md`, and until the API route surface is reconciled. Those edits have not been made in the reviewed package. This remains a high blocker.
-
-### 4. L4 human approval governance
-Status: **Partially resolved, not fully closed.**
-
-`07_AI_GOVERNANCE_REMEDIATION.md` adds the missing approval object model, state machine, subject-binding hash, actor capability matrix, L4/L5 hard gates, rollback validation, tamper-evident audit hash chain, immutable sequence semantics, cross-domain approval binding, persistence tables, evidence packets, and test vectors.
-
-Remaining blocker: the document’s gate recommendation says the blocker is closeable only if the scaffold implements the contract, chain-walker, CI assertions, and DB role grants, followed by explicit PASS/GO. The architecture-level content is now credible, but the package still self-declares NO-GO pending integration and re-review.
-
-### 5. Security/auth/session/RBAC contracts
-Status: **Partially resolved, not fully closed.**
-
-`08_SECURITY_RBAC_REMEDIATION.md` provides the missing identity model, users/roles/role_grants, sessions, token issuance/refresh/revocation, MFA and step-up flow, L5 dual assertion, route-permission matrix, role-scope matrix, secrets-provider lease boundary, IP controls, rate limits, persistence tables, public-hosting hardening evidence, audit coupling, and test vectors.
-
-Remaining blocker: the file states Blocker 7 is closed only conditionally, requiring test-vector pass, evidence packets, CI lint rules, amended canonical architecture, and explicit PASS on re-review. The canonical `15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md` was not amended in the reviewed set, so this remains not fully closed for scaffold handoff.
+## Resolution assessment
+1. API endpoint contracts: **Resolved at architecture tier.** `05_API_CONTRACTS.md` and `04_API_CONTRACT_REMEDIATION.md` now define envelopes, errors, idempotency, concurrency, pagination, RBAC/approval levels, live-block behavior, schema deltas, and endpoint-group coverage. Residual risk: canonical file summarizes route groups while full route detail is in remediation.
+2. Risk Gateway enforceability: **Resolved at architecture tier.** `12_RISK_GATEWAY_ARCHITECTURE.md` now specifies non-bypass invariants, deterministic phase order, failure precedence, duplicate guard, stale defaults, policy bundle states, kill-switch persistence, live-readiness state, connector-side hard blocks, DDL sketches, evidence, and test vectors.
+3. Hot-reload failure semantics: **Resolved at architecture tier.** `08_HOT_RELOAD_PIPELINE_ARCHITECTURE.md` now includes persisted rollout/target/event models, ack binding, timeout escalation, retry/dead-letter behavior, quorum rules, partial-failure policy, rollback triggers, rollback state machine, post-apply health checks, evidence packets, and test vectors.
+4. L4 human approval governance: **Resolved at architecture tier.** `13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md` now defines L0-L5 taxonomy, approval chains/assertions, subject/body binding, capability matrix, L4/L5 three-gate enforcement, single-use consumption, rollback rules, tamper-evident audit chain, monotonic sequence semantics, DDL sketches, and test vectors.
+5. Security/auth/session/RBAC contracts: **Resolved at architecture tier.** `15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md` now defines identity/account tables, sessions/tokens/revocation, MFA and step-up assertions, RBAC route examples and middleware order, service identity limits, secrets lease boundary, IP allowlist/rate limits, auth audit hash chain, evidence packets, and security test vectors.
 
 ## Remaining risks
-
-- The remediation documents are detailed addenda, but multiple files explicitly say the canonical architecture remains NO-GO until those addenda are folded into the authoritative architecture files.
-- Several gate recommendations are stronger than architecture review alone and require future scaffold/test evidence; this creates ambiguity between “architecture content is specified” and “build gate is clear.”
-- Some remediation files still refer to related blockers as future work even though companion remediation files now exist. This is not fatal, but it shows the remediation set has not been reconciled into one canonical package.
-- The previous actual Codex review identified additional blockers outside the five-item remediation set: full lineage DB/API enforcement, feature snapshot schema completeness, confidence explainability schema, and trainer internal liveness validation. The current rerun request focused on five previous blockers, but those additional actual-Codex blockers still matter to overall V2 readiness unless separately closed.
+The five targeted blockers are materially remediated, but the architecture is still not cleanly ready for V2 scaffold planning because prior actual Codex blockers outside this five-item remediation set remain open or only partially addressed:
+- Full lineage DB/API enforcement is still not closed end-to-end across database schema and all downstream records.
+- Feature snapshot/value schema completeness remains under-specified relative to requirements.
+- Confidence/explainability still needs a fully structured contributor/calibration/method contract, not only broad shape references.
+- Trainer internal liveness exit criterion remains unresolved: no read-only validation artifact proving detection of `TRAINER_PREDICTION_WORKER_DEAD_PROCESS_ALIVE` with evidence packet output.
+- Minor integration drift remains between canonical summaries and remediation detail, including `/v1` vs `/api/v1` path convention and scope-token grammar differences.
 
 ## Scaffold-readiness assessment
-
-The remediation pass significantly improves the architecture and gives enough raw material for scaffold planning. However, the reviewed package is **not yet cleanly scaffold-ready** because the remediation addenda are not integrated into the authoritative architecture files and several remediation files explicitly preserve a NO-GO gate.
+The five named architecture blockers are resolved at the architecture-remediation level. However, the whole architecture package is **not yet V2 scaffold-planning ready** under the requested go/no-go rule because critical/high gaps remain from the actual Codex review set.
 
 Decision: **ACTUAL_CODEX_ARCHITECTURE_RERUN_FAIL**
 
 ## Recommended next step
-
-Create one canonical architecture integration pass that folds the remediation content into:
-- `05_API_CONTRACTS.md`
-- `12_RISK_GATEWAY_ARCHITECTURE.md`
-- `08_HOT_RELOAD_PIPELINE_ARCHITECTURE.md`
-- `13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md`
-- `15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md`
-- related schema/Redis/audit files where the remediation files require it
-
-Then run a fresh Codex review against the amended canonical architecture set, not just the remediation addenda.
+Do not begin V2 scaffold planning yet. Remediate the remaining actual-Codex blockers for lineage DB/API closure, feature snapshot schema, confidence explainability schema, and trainer liveness validation, then reconcile path/scope conventions across canonical and remediation files and rerun the architecture review.
