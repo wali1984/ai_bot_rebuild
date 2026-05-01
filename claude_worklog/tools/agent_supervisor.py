@@ -6,11 +6,16 @@ import json
 import os
 import pathlib
 import re
-import shlex
 import subprocess
 import sys
+import time
 import urllib.request
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+try:
+    from zoneinfo import ZoneInfo
+except Exception:  # pragma: no cover
+    ZoneInfo = None
 
 BASE_DIR = pathlib.Path("claude_worklog/agent_supervisor")
 TASKS_DIR = BASE_DIR / "tasks"
@@ -19,12 +24,34 @@ STATUS_DIR = BASE_DIR / "status"
 LOGS_DIR = BASE_DIR / "logs"
 EVENTS_FILE = BASE_DIR / "events.jsonl"
 CURRENT_STATUS_FILE = STATUS_DIR / "current_status.json"
+QUEUE_STATUS_FILE = STATUS_DIR / "queue_status.json"
+AGENT_HEALTH_FILE = STATUS_DIR / "agent_health.json"
 
 WORKSPACE_ROOT = pathlib.Path(os.path.expanduser("~/Desktop/AI BOT REBUILD")).resolve()
 FORBIDDEN_ROOT = pathlib.Path("/home/wali/Desktop/AI BOT").resolve()
 
 SUPPORTED_AGENTS = {"claude", "codex", "ollama", "system_check"}
 ALLOWED_AUTORUN = {"L0", "L1", "L2"}
+
+STATUS_VALUES = {
+    "pending",
+    "running",
+    "completed",
+    "failed",
+    "blocked_quota",
+    "blocked_auth",
+    "blocked_approval",
+    "blocked_dependency",
+    "retry_scheduled",
+    "skipped",
+    "cancelled",
+}
+
+CREDENTIAL_PATTERN = re.compile(
+    r"AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|-----BEGIN (RSA|EC|OPENSSH|DSA) PRIVATE KEY-----|"
+    r"xox[baprs]-|ghp_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9]{20,}",
+    re.IGNORECASE,
+)
 
 BANNED_PATTERNS = [
     "redis-cli",
@@ -260,7 +287,393 @@ def ollama_has_model() -> bool:
         return False
 
 
-def run_task(task_path: pathlib.Path) -> Dict[str, Any]:
+def ollama_models() -> List[str]:
+    try:
+        with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+        models = data.get("models", [])
+        if not isinstance(models, list):
+            return []
+        return [m.get("name", "") for m in models if isinstance(m, dict)]
+    except Exception:
+        return []
+
+
+def parse_iso_utc(value: Optional[str]) -> Optional[dt.datetime]:
+    if not value:
+        return None
+    try:
+        parsed = dt.datetime.fromisoformat(value)
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=dt.timezone.utc)
+        return parsed.astimezone(dt.timezone.utc)
+    except Exception:
+        return None
+
+
+def parse_claude_reset_to_utc(raw: str) -> Optional[str]:
+    match = re.search(r"resets\s+([0-9]{1,2}:[0-9]{2}\s*[ap]m)\s*\(([^)]+)\)", raw, re.IGNORECASE)
+    if not match or ZoneInfo is None:
+        return None
+    try:
+        time_str = match.group(1).lower().replace(" ", "")
+        tz_name = match.group(2).strip()
+        hh, mm = time_str[:-2].split(":")
+        ap = time_str[-2:]
+        hour = int(hh) % 12
+        if ap == "pm":
+            hour += 12
+        minute = int(mm)
+
+        tz = ZoneInfo(tz_name)
+        now_local = dt.datetime.now(tz)
+        candidate = now_local.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if candidate <= now_local:
+            candidate += dt.timedelta(days=1)
+        return candidate.astimezone(dt.timezone.utc).isoformat()
+    except Exception:
+        return None
+
+
+def command_quick(cmd: List[str], timeout: int = 30) -> Tuple[int, str, str]:
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(WORKSPACE_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout,
+        )
+        return proc.returncode, proc.stdout or "", proc.stderr or ""
+    except Exception as ex:
+        return 1, "", str(ex)
+
+
+def classify_agent_block(agent: str, stdout_path: pathlib.Path, stderr_path: pathlib.Path) -> Tuple[Optional[str], Optional[str]]:
+    raw = (read_text(stdout_path) + "\n" + read_text(stderr_path)).lower()
+    if agent == "claude":
+        if any(k in raw for k in ["usage limit", "hit your limit", "resets", "quota"]):
+            return "blocked_quota", parse_claude_reset_to_utc(read_text(stdout_path) + "\n" + read_text(stderr_path))
+        if any(k in raw for k in ["unauthorized", "not authenticated", "auth", "forbidden", "login"]):
+            return "blocked_auth", None
+    if agent == "codex":
+        if any(k in raw for k in ["rate limit", "quota", "usage limit", "too many requests"]):
+            return "blocked_quota", None
+        if any(k in raw for k in ["unauthorized", "not authenticated", "auth", "forbidden", "login"]):
+            return "blocked_auth", None
+    return None, None
+
+
+def run_claude_readiness_check() -> bool:
+    rc, out, err = command_quick(["claude", "--print", "Print CLAUDE_READY_FOR_SMALL_TASK", "--output-format", "text"], timeout=40)
+    return rc == 0 and "CLAUDE_READY_FOR_SMALL_TASK" in (out + "\n" + err)
+
+
+def get_task_file_by_id(task_id: str) -> Optional[pathlib.Path]:
+    direct = TASKS_DIR / f"{task_id}.json"
+    if direct.exists():
+        return direct
+    for p in TASKS_DIR.glob("*.json"):
+        try:
+            t = load_json(p)
+            if str(t.get("task_id")) == task_id:
+                return p
+        except Exception:
+            continue
+    return None
+
+
+def list_tasks() -> List[Tuple[pathlib.Path, Dict[str, Any]]]:
+    items: List[Tuple[pathlib.Path, Dict[str, Any]]] = []
+    for p in sorted(pathlib.Path(x) for x in glob.glob(str(TASKS_DIR / "*.json"))):
+        try:
+            items.append((p, load_json(p)))
+        except Exception:
+            continue
+    return items
+
+
+def dependency_blockers(task: Dict[str, Any], status_map: Dict[str, str]) -> List[str]:
+    deps = [str(x) for x in task.get("depends_on", []) if str(x).strip()]
+    return [d for d in deps if status_map.get(d) != "completed"]
+
+
+def check_required_outputs(task: Dict[str, Any]) -> List[str]:
+    required = [str(x) for x in task.get("required_output_files", []) if str(x).strip()]
+    missing: List[str] = []
+    for req in required:
+        rp = pathlib.Path(req)
+        if rp.is_absolute():
+            missing.append(req)
+            continue
+        full = (WORKSPACE_ROOT / rp).resolve()
+        if not full.exists():
+            missing.append(req)
+    return missing
+
+
+def task_approved_v2(task: Dict[str, Any]) -> Tuple[bool, str]:
+    risk = str(task.get("risk_level", "L0")).upper()
+    approval_file = str(task.get("approval_file", "")).strip()
+    preapproved = bool(task.get("preapproved", False))
+
+    if risk in {"L0", "L1"}:
+        return True, ""
+    if risk == "L2":
+        cwd = pathlib.Path(task.get("cwd", str(WORKSPACE_ROOT))).expanduser()
+        if not cwd.is_absolute():
+            cwd = WORKSPACE_ROOT / cwd
+        return in_workspace(cwd), "L2 allowed only inside AI BOT REBUILD"
+    if risk == "L3":
+        if preapproved:
+            return True, ""
+        if not approval_file:
+            return False, "L3 requires approval_file or preapproved=true"
+        ap = pathlib.Path(approval_file)
+        if not ap.is_absolute():
+            ap = WORKSPACE_ROOT / ap
+        return ap.exists(), "L3 approval_file missing"
+    if risk == "L4":
+        if not approval_file:
+            return False, "L4 requires approval_file"
+        ap = pathlib.Path(approval_file)
+        if not ap.is_absolute():
+            ap = WORKSPACE_ROOT / ap
+        return ap.exists(), "L4 approval_file missing"
+    if risk == "L5":
+        return False, "L5 never auto-executes; recommendation packet only"
+    return False, f"unsupported risk level {risk}"
+
+
+def task_priority(task: Dict[str, Any]) -> int:
+    try:
+        return int(task.get("priority", 0))
+    except Exception:
+        return 0
+
+
+def should_defer_resume(task: Dict[str, Any]) -> bool:
+    st = str(task.get("status", ""))
+    if st not in {"blocked_quota", "retry_scheduled"}:
+        return False
+    resume = parse_iso_utc(task.get("resume_after_utc"))
+    if resume is None:
+        return False
+    return dt.datetime.now(dt.timezone.utc) < resume
+
+
+def safe_secret_scan(paths: List[pathlib.Path]) -> Tuple[bool, List[str]]:
+    hits: List[str] = []
+    for p in paths:
+        if not p.exists() or not p.is_file():
+            continue
+        txt = read_text(p)
+        for idx, line in enumerate(txt.splitlines(), start=1):
+            if CREDENTIAL_PATTERN.search(line):
+                hits.append(f"{p}:{idx}:{line[:180]}")
+    return (len(hits) == 0), hits
+
+
+def auto_commit_task_outputs(task_path: pathlib.Path, task: Dict[str, Any], result: Dict[str, Any]) -> Tuple[bool, str, Optional[str]]:
+    if not bool(task.get("auto_commit", False)):
+        return False, "auto_commit disabled", None
+
+    risk = str(task.get("risk_level", "L0")).upper()
+    if risk not in {"L0", "L1", "L2"}:
+        return False, f"auto_commit blocked for risk {risk}", None
+
+    materialized = [str(x) for x in result.get("materialized_files", []) if str(x).strip()]
+    stage_rel = [str(task_path.relative_to(WORKSPACE_ROOT))]
+    candidates_rel = list(dict.fromkeys(materialized + stage_rel))
+
+    candidates: List[pathlib.Path] = []
+    for rel in candidates_rel:
+        if "/runs/" in rel or "/logs/" in rel or "/packets/" in rel:
+            continue
+        p = (WORKSPACE_ROOT / rel).resolve()
+        if not in_workspace(p):
+            continue
+        candidates.append(p)
+
+    if not candidates:
+        return False, "no commit-eligible files", None
+
+    ok, hits = safe_secret_scan(candidates)
+    if not ok:
+        return False, "secret scan blocked auto-commit: " + " | ".join(hits[:5]), None
+
+    for p in candidates:
+        if p.exists():
+            subprocess.run(["git", "add", str(p)], cwd=str(WORKSPACE_ROOT), check=False)
+
+    msg = str(task.get("commit_message", "")).strip() or f"Auto-commit task {task.get('task_id')} outputs"
+    commit = subprocess.run(["git", "commit", "-m", msg], cwd=str(WORKSPACE_ROOT), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    out = (commit.stdout or "") + (commit.stderr or "")
+    if commit.returncode != 0:
+        if "nothing to commit" in out.lower():
+            return False, "nothing to commit", None
+        return False, out.strip(), None
+
+    last = subprocess.run(["git", "log", "--oneline", "-1"], cwd=str(WORKSPACE_ROOT), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    line = (last.stdout or "").strip()
+    commit_hash = line.split()[0] if line else None
+    return True, "auto-commit successful", commit_hash
+
+
+def derive_gate(tasks: List[Tuple[pathlib.Path, Dict[str, Any]]]) -> str:
+    status_map = {str(t.get("task_id", "")): str(t.get("status", "pending")) for _, t in tasks}
+
+    if status_map.get("010_actual_codex_architecture_rerun_after_remediation") == "running":
+        return "CODEX_RERUN_RUNNING"
+    if any(v == "blocked_quota" for v in status_map.values()):
+        return "WAITING_FOR_CLAUDE_QUOTA"
+    if status_map.get("010_actual_codex_architecture_rerun_after_remediation") == "completed":
+        gate_file = WORKSPACE_ROOT / "claude_worklog/v2_architecture_codex_review/16_ACTUAL_CODEX_RERUN_GO_NO_GO.md"
+        txt = read_text(gate_file)
+        if "PASS" in txt:
+            return "READY_FOR_SCAFFOLD_PLANNING"
+        return "BLOCKED_BY_CODEX"
+    if all(status_map.get(k) == "completed" for k in [
+        "012c_feature_explainability_completeness",
+        "012d_trainer_liveness_validation_evidence",
+        "012e_milestone_go_no_go_integration",
+    ]):
+        return "READY_FOR_CODEX_RERUN"
+    if any(status_map.get(k) == "running" for k in [
+        "012c_feature_explainability_completeness",
+        "012d_trainer_liveness_validation_evidence",
+        "012e_milestone_go_no_go_integration",
+    ]):
+        return "RUNNING_ARCHITECTURE_REMEDIATION"
+    return "ARCHITECTURE_REMEDIATION_PARTIAL"
+
+
+def write_health_and_queue(current: Dict[str, Any]) -> None:
+    write_json(CURRENT_STATUS_FILE, current)
+
+    tasks = list_tasks()
+    counts = {
+        "pending": 0,
+        "running": 0,
+        "completed": 0,
+        "failed": 0,
+        "blocked": 0,
+        "retry_scheduled": 0,
+        "skipped": 0,
+        "cancelled": 0,
+    }
+    next_pending = None
+    running = None
+    blocked_quota = None
+
+    for _, t in tasks:
+        tid = str(t.get("task_id", ""))
+        st = str(t.get("status", "pending"))
+        if st == "pending":
+            counts["pending"] += 1
+            if next_pending is None:
+                next_pending = tid
+        elif st == "running":
+            counts["running"] += 1
+            if running is None:
+                running = tid
+        elif st == "completed":
+            counts["completed"] += 1
+        elif st in {"failed", "blocked_auth", "blocked_approval", "blocked_dependency", "blocked_quota"}:
+            if st == "failed":
+                counts["failed"] += 1
+            else:
+                counts["blocked"] += 1
+            if st == "blocked_quota" and blocked_quota is None:
+                blocked_quota = {
+                    "task_id": tid,
+                    "agent": t.get("agent"),
+                    "resume_after_utc": t.get("resume_after_utc"),
+                }
+        elif st == "retry_scheduled":
+            counts["retry_scheduled"] += 1
+        elif st == "skipped":
+            counts["skipped"] += 1
+        elif st == "cancelled":
+            counts["cancelled"] += 1
+
+    queue_payload = {
+        "generated_at": now_iso(),
+        "next_pending_task": next_pending,
+        "current_running_task": running,
+        "blocked_quota": blocked_quota,
+        "counts": counts,
+        "gate": derive_gate(tasks),
+    }
+    write_json(QUEUE_STATUS_FILE, queue_payload)
+
+    ollama_list = ollama_models()
+    health_payload = {
+        "generated_at": now_iso(),
+        "terminal_operator": "VS Code/Copilot",
+        "active_agents": ["Claude", "Codex", "Ollama"],
+        "claude": {"ready_marker": claude_ready()},
+        "codex": {"ready_marker": codex_ready()},
+        "ollama": {"model_count": len(ollama_list), "models": ollama_list[:8]},
+        "last_auto_commit_hash": current.get("auto_commit", {}).get("commit_hash"),
+    }
+    write_json(AGENT_HEALTH_FILE, health_payload)
+
+
+def set_next_tasks(task: Dict[str, Any], success: bool) -> None:
+    key = "next_tasks_on_success" if success else "next_tasks_on_failure"
+    next_ids = [str(x) for x in task.get(key, []) if str(x).strip()]
+    for ntid in next_ids:
+        tf = get_task_file_by_id(ntid)
+        if not tf:
+            continue
+        try:
+            t = load_json(tf)
+            if str(t.get("status", "")) in {"completed", "running"}:
+                continue
+            t["status"] = "pending"
+            write_json(tf, t)
+        except Exception:
+            continue
+
+
+def select_next_task_file() -> Optional[pathlib.Path]:
+    tasks = list_tasks()
+    status_map = {str(t.get("task_id", "")): str(t.get("status", "pending")) for _, t in tasks}
+    candidates: List[Tuple[int, str, pathlib.Path]] = []
+
+    for p, task in tasks:
+        status = str(task.get("status", "pending"))
+        tid = str(task.get("task_id", p.stem))
+
+        if status == "completed":
+            continue
+        if status in {"cancelled", "failed", "blocked_auth", "blocked_approval"}:
+            continue
+        if should_defer_resume(task):
+            continue
+
+        blockers = dependency_blockers(task, status_map)
+        if blockers:
+            if status != "blocked_dependency":
+                task["status"] = "blocked_dependency"
+                task["last_summary"] = f"waiting on dependencies: {', '.join(blockers)}"
+                write_json(p, task)
+            continue
+        if status == "blocked_dependency":
+            task["status"] = "pending"
+            write_json(p, task)
+
+        candidates.append((-task_priority(task), tid, p))
+
+    if not candidates:
+        return None
+    candidates.sort()
+    return candidates[0][2]
+
+
+def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
     task = load_json(task_path)
     task_id = str(task.get("task_id", task_path.stem))
     agent = str(task.get("agent", ""))
@@ -279,135 +692,162 @@ def run_task(task_path: pathlib.Path) -> Dict[str, Any]:
         "risk_level": risk,
         "start_time": start,
         "end_time": None,
-        "status": "blocked",
+        "status": "failed",
         "stdout_path": str(stdout_path),
         "stderr_path": str(stderr_path),
         "summary": "",
-        "next_recommended_action": "",
+        "next_recommended_action": "inspect run output",
         "materialized_files": [],
+        "auto_commit": {
+            "attempted": False,
+            "ok": False,
+            "message": "",
+            "commit_hash": None,
+        },
     }
 
     validation_error = validate_task(task)
     if validation_error:
-        result["status"] = "blocked"
+        result["status"] = "failed"
         result["summary"] = validation_error
         result["next_recommended_action"] = "fix task definition"
-    elif not task_approved(task):
-        result["status"] = "blocked"
-        result["summary"] = f"approval required for risk level {risk}"
-        result["next_recommended_action"] = "add approval file and rerun"
     else:
-        cwd = pathlib.Path(task.get("cwd", str(WORKSPACE_ROOT))).expanduser()
-        if not cwd.is_absolute():
-            cwd = WORKSPACE_ROOT / cwd
-
-        precheck_file = task.get("precheck_file")
-        precheck_contains = task.get("precheck_contains")
-        if precheck_file and precheck_contains:
-            pf = pathlib.Path(precheck_file)
-            if not pf.is_absolute():
-                pf = WORKSPACE_ROOT / pf
-            if file_contains(pf, str(precheck_contains)):
-                stdout_path.write_text("precheck satisfied\n", encoding="utf-8")
-                stderr_path.write_text("", encoding="utf-8")
-                result["status"] = "completed"
-                result["summary"] = "precheck satisfied; existing artifact verified"
-                result["next_recommended_action"] = "proceed to next task"
-                result["end_time"] = now_iso()
-                task["status"] = result["status"]
-                task["last_run"] = {
-                    "start": result["start_time"],
-                    "end": result["end_time"],
-                    "status": result["status"],
-                }
-                write_json(task_path, task)
-                write_json(summary_path, result)
-                write_json(CURRENT_STATUS_FILE, result)
-                append_event(result)
-                return result
-
-        rc = 1
-        if agent == "claude":
-            if not claude_ready():
-                result["status"] = "blocked"
-                result["summary"] = "claude not ready"
-                result["next_recommended_action"] = "complete claude auth test"
+        approved, reason = task_approved_v2(task)
+        if not approved:
+            result["status"] = "blocked_approval"
+            result["summary"] = reason
+            result["next_recommended_action"] = "add approval and rerun"
+        else:
+            status_map = {str(t.get("task_id", "")): str(t.get("status", "pending")) for _, t in list_tasks()}
+            blockers = dependency_blockers(task, status_map)
+            if blockers:
+                result["status"] = "blocked_dependency"
+                result["summary"] = f"waiting on dependencies: {', '.join(blockers)}"
             else:
-                prompt = str(task.get("prompt", ""))
-                rc = run_cmd(["claude", "--print", prompt, "--output-format", "text"], cwd, stdout_path, stderr_path)
-                result["status"] = "completed" if rc == 0 else "failed"
-        elif agent == "codex":
-            if not codex_ready():
-                result["status"] = "blocked"
-                result["summary"] = "codex not ready"
-                result["next_recommended_action"] = "complete codex auth test"
-            else:
-                prompt = str(task.get("prompt", ""))
-                rc = run_cmd(["codex", "exec", prompt], cwd, stdout_path, stderr_path)
-                result["status"] = "completed" if rc == 0 else "failed"
-        elif agent == "ollama":
-            if not ollama_has_model():
-                stdout_path.write_text("ollama running but no model present\n", encoding="utf-8")
-                stderr_path.write_text("", encoding="utf-8")
-                result["status"] = "skipped"
-                result["summary"] = "ollama model missing"
-                result["next_recommended_action"] = "pull a small model explicitly if needed"
-            else:
-                prompt = str(task.get("prompt", ""))
-                model = str(task.get("model", "llama3"))
-                rc = run_cmd(["ollama", "run", model, prompt], cwd, stdout_path, stderr_path)
-                result["status"] = "completed" if rc == 0 else "failed"
-        elif agent == "system_check":
-            cmd = task.get("command")
-            if not cmd:
-                stdout_path.write_text("", encoding="utf-8")
-                stderr_path.write_text("missing command\n", encoding="utf-8")
-                result["status"] = "failed"
-            else:
-                rc = run_cmd(["bash", "-lc", str(cmd)], cwd, stdout_path, stderr_path)
-                result["status"] = "completed" if rc == 0 else "failed"
+                existing_missing = check_required_outputs(task)
+                if not existing_missing and str(task.get("status", "")) == "completed":
+                    result["status"] = "completed"
+                    result["summary"] = "required outputs already exist"
+                elif dry_run:
+                    result["status"] = "pending"
+                    result["summary"] = "dry-run: task not executed"
+                else:
+                    task["status"] = "running"
+                    write_json(task_path, task)
 
-        emit_files = bool(task.get("emit_files", False))
-        if emit_files and agent in {"claude", "codex"} and result["status"] == "completed":
-            allowed_prefixes_raw = task.get("allowed_output_prefixes", [])
-            allowed_output_prefixes = [str(x) for x in allowed_prefixes_raw if str(x).strip()]
-            if not allowed_output_prefixes:
-                result["status"] = "failed"
-                result["summary"] = "emit_files=true but allowed_output_prefixes missing"
-            else:
-                mat = materialize_emit_files(stdout_path, allowed_output_prefixes)
-                result["materialized_files"] = mat.get("materialized_files", [])
-                errors = mat.get("errors", [])
-                if errors:
-                    result["status"] = "failed"
-                    result["summary"] = "; ".join(errors)
+                    cwd = pathlib.Path(task.get("cwd", str(WORKSPACE_ROOT))).expanduser()
+                    if not cwd.is_absolute():
+                        cwd = WORKSPACE_ROOT / cwd
 
-                required_output_files_raw = task.get("required_output_files", [])
-                required_output_files = [str(x) for x in required_output_files_raw if str(x).strip()]
-                missing_required: List[str] = []
-                for req in required_output_files:
-                    req_path = pathlib.Path(req)
-                    if req_path.is_absolute():
-                        missing_required.append(req)
-                        continue
-                    full_req = (WORKSPACE_ROOT / req_path).resolve()
-                    if not full_req.exists():
-                        missing_required.append(req)
+                    rc = 1
+                    if agent == "claude":
+                        if not claude_ready():
+                            result["status"] = "blocked_auth"
+                            result["summary"] = "claude not ready"
+                        else:
+                            prompt = str(task.get("prompt", ""))
+                            rc = run_cmd(["claude", "--print", prompt, "--output-format", "text"], cwd, stdout_path, stderr_path)
+                            result["status"] = "completed" if rc == 0 else "failed"
+                    elif agent == "codex":
+                        if not codex_ready():
+                            result["status"] = "blocked_auth"
+                            result["summary"] = "codex not ready"
+                        else:
+                            prompt = str(task.get("prompt", ""))
+                            rc = run_cmd(["codex", "exec", prompt], cwd, stdout_path, stderr_path)
+                            result["status"] = "completed" if rc == 0 else "failed"
+                    elif agent == "ollama":
+                        model = str(task.get("model", "llama3"))
+                        if not any(m == model for m in ollama_models()):
+                            result["status"] = "blocked_dependency"
+                            result["summary"] = f"ollama model missing: {model}"
+                        else:
+                            prompt = str(task.get("prompt", ""))
+                            rc = run_cmd(["ollama", "run", model, prompt], cwd, stdout_path, stderr_path)
+                            result["status"] = "completed" if rc == 0 else "failed"
+                    elif agent == "system_check":
+                        cmd = task.get("command")
+                        if not cmd:
+                            stdout_path.write_text("", encoding="utf-8")
+                            stderr_path.write_text("missing command\n", encoding="utf-8")
+                            result["status"] = "failed"
+                        else:
+                            rc = run_cmd(["bash", "-lc", str(cmd)], cwd, stdout_path, stderr_path)
+                            result["status"] = "completed" if rc == 0 else "failed"
 
-                if missing_required:
-                    result["status"] = "failed"
-                    prior = result.get("summary", "")
-                    extra = f"missing required output files: {', '.join(missing_required)}"
-                    result["summary"] = f"{prior}; {extra}".strip("; ")
+                    if result["status"] == "failed":
+                        classified_status, reset_iso = classify_agent_block(agent, stdout_path, stderr_path)
+                        if classified_status:
+                            result["status"] = classified_status
+                            result["summary"] = f"{agent} {classified_status} detected"
+                            if classified_status == "blocked_quota":
+                                resume = parse_iso_utc(reset_iso)
+                                if resume is None:
+                                    resume = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=30)
+                                task["resume_after_utc"] = resume.isoformat()
 
-        if not result["summary"]:
-            result["summary"] = f"agent run status: {result['status']}"
-        if not result["next_recommended_action"]:
-            result["next_recommended_action"] = task.get("next_recommended_action", "inspect run output")
+                    emit_files = bool(task.get("emit_files", False))
+                    if emit_files and agent in {"claude", "codex"} and result["status"] == "completed":
+                        allowed_prefixes = [str(x) for x in task.get("allowed_output_prefixes", []) if str(x).strip()]
+                        if not allowed_prefixes:
+                            result["status"] = "failed"
+                            result["summary"] = "emit_files=true but allowed_output_prefixes missing"
+                        else:
+                            mat = materialize_emit_files(stdout_path, allowed_prefixes)
+                            result["materialized_files"] = mat.get("materialized_files", [])
+                            errors = mat.get("errors", [])
+                            if errors:
+                                result["status"] = "failed"
+                                result["summary"] = "; ".join(errors)
+
+                            missing_required = check_required_outputs(task)
+                            if missing_required:
+                                retry_mat = materialize_emit_files(stdout_path, allowed_prefixes)
+                                result["materialized_files"] = list(
+                                    dict.fromkeys(result["materialized_files"] + retry_mat.get("materialized_files", []))
+                                )
+                                missing_required = check_required_outputs(task)
+
+                            if missing_required:
+                                result["status"] = "failed"
+                                prior = result.get("summary", "")
+                                extra = f"missing required output files: {', '.join(missing_required)}"
+                                result["summary"] = f"{prior}; {extra}".strip("; ")
+
+                    if result["status"] == "blocked_quota" and agent == "claude":
+                        resume_at = parse_iso_utc(task.get("resume_after_utc"))
+                        if resume_at is not None and dt.datetime.now(dt.timezone.utc) >= resume_at:
+                            if run_claude_readiness_check():
+                                result["status"] = "retry_scheduled"
+                                result["summary"] = "claude ready check passed; retry scheduled"
+                                task["resume_after_utc"] = None
+                            else:
+                                task["resume_after_utc"] = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=30)).isoformat()
+
+                    max_attempts = int(task.get("max_attempts", 3))
+                    retry_count = int(task.get("retry_count", 0))
+                    if result["status"] == "failed" and retry_count < max_attempts:
+                        task["retry_count"] = retry_count + 1
+                        task["resume_after_utc"] = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5)).isoformat()
+                        result["status"] = "retry_scheduled"
+                        result["summary"] = (result.get("summary", "failed") + f"; retry {retry_count + 1}/{max_attempts} scheduled")
+    if not result["summary"]:
+        result["summary"] = f"agent run status: {result['status']}"
+
+    if result["status"] == "completed" and bool(task.get("auto_commit", False)) and not dry_run:
+        result["auto_commit"]["attempted"] = True
+        ok, msg, commit_hash = auto_commit_task_outputs(task_path, task, result)
+        result["auto_commit"]["ok"] = ok
+        result["auto_commit"]["message"] = msg
+        result["auto_commit"]["commit_hash"] = commit_hash
+        if not ok and "secret scan blocked" in msg:
+            result["status"] = "failed"
+            result["summary"] = msg
 
     result["end_time"] = now_iso()
 
     task["status"] = result["status"]
+    task.setdefault("retry_count", int(task.get("retry_count", 0)))
     task["last_run"] = {
         "start": result["start_time"],
         "end": result["end_time"],
@@ -415,47 +855,123 @@ def run_task(task_path: pathlib.Path) -> Dict[str, Any]:
     }
     write_json(task_path, task)
     write_json(summary_path, result)
-    write_json(CURRENT_STATUS_FILE, result)
+    write_health_and_queue(result)
     append_event(result)
+    set_next_tasks(task, success=result["status"] == "completed")
     return result
 
 
-def next_task_file() -> Optional[pathlib.Path]:
-    files = sorted(pathlib.Path(p) for p in glob.glob(str(TASKS_DIR / "*.json")))
-    for f in files:
-        try:
-            task = load_json(f)
-        except Exception:
+def normalize_existing_completion() -> None:
+    closures = [
+        ("012a_database_lineage_constraints", WORKSPACE_ROOT / "claude_worklog/v2_architecture_remediation/12A_DATABASE_LINEAGE_CLOSURE.md"),
+        ("012b_api_lineage_enforcement", WORKSPACE_ROOT / "claude_worklog/v2_architecture_remediation/12B_API_LINEAGE_ENFORCEMENT_CLOSURE.md"),
+    ]
+    for task_id, closure in closures:
+        if not closure.exists():
             continue
-        status = str(task.get("status", "pending")).lower()
-        if status in {"pending", "queued", "retry"}:
-            return f
-    return None
+        tf = get_task_file_by_id(task_id)
+        if not tf:
+            continue
+        task = load_json(tf)
+        if str(task.get("status", "")) != "completed":
+            task["status"] = "completed"
+            write_json(tf, task)
+
+
+def dry_run_queue() -> Dict[str, Any]:
+    payload = {
+        "generated_at": now_iso(),
+        "next_task_file": str(select_next_task_file()) if select_next_task_file() else None,
+        "gate": derive_gate(list_tasks()),
+    }
+    status = {
+        "task_id": None,
+        "agent": None,
+        "start_time": now_iso(),
+        "end_time": now_iso(),
+        "status": "pending",
+        "summary": "dry-run queue check completed",
+        "next_recommended_action": "start daemon if queue is valid",
+    }
+    write_health_and_queue(status)
+    append_event({"event": "dry_run", **payload})
+    return payload
+
+
+def daemon_loop(poll_seconds: int, max_run_hours: Optional[float], stop_after_idle_minutes: Optional[float], dry_run: bool) -> int:
+    started = dt.datetime.now(dt.timezone.utc)
+    idle_started = started
+    while True:
+        now = dt.datetime.now(dt.timezone.utc)
+        if max_run_hours is not None and (now - started).total_seconds() >= max_run_hours * 3600:
+            status = {
+                "task_id": None,
+                "agent": None,
+                "start_time": now_iso(),
+                "end_time": now_iso(),
+                "status": "cancelled",
+                "summary": "daemon max-run-hours reached",
+                "next_recommended_action": "restart daemon if needed",
+            }
+            write_health_and_queue(status)
+            append_event(status)
+            return 0
+
+        task_file = select_next_task_file()
+        if not task_file:
+            status = {
+                "task_id": None,
+                "agent": None,
+                "start_time": now_iso(),
+                "end_time": now_iso(),
+                "status": "pending",
+                "summary": "no runnable task",
+                "next_recommended_action": "wait for dependencies/quota or add pending tasks",
+            }
+            write_health_and_queue(status)
+            append_event(status)
+            if stop_after_idle_minutes is not None and (now - idle_started).total_seconds() >= stop_after_idle_minutes * 60:
+                return 0
+            time.sleep(max(5, poll_seconds))
+            continue
+
+        idle_started = now
+        result = run_task(task_file, dry_run=dry_run)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        time.sleep(max(2, poll_seconds))
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Agent Supervisor")
     parser.add_argument("--task-id", help="Run a specific task_id from tasks directory")
+    parser.add_argument("--daemon", action="store_true", help="Run autonomous queue manager loop")
+    parser.add_argument("--poll-seconds", type=int, default=30)
+    parser.add_argument("--max-run-hours", type=float)
+    parser.add_argument("--stop-after-idle-minutes", type=float)
+    parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
     ensure_dirs()
+    normalize_existing_completion()
+
+    if args.dry_run and not args.task_id and not args.daemon:
+        payload = dry_run_queue()
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+
+    if args.daemon:
+        return daemon_loop(
+            poll_seconds=max(5, args.poll_seconds),
+            max_run_hours=args.max_run_hours,
+            stop_after_idle_minutes=args.stop_after_idle_minutes,
+            dry_run=args.dry_run,
+        )
 
     task_file: Optional[pathlib.Path] = None
     if args.task_id:
-        candidate = TASKS_DIR / f"{args.task_id}.json"
-        if candidate.exists():
-            task_file = candidate
-        else:
-            for p in TASKS_DIR.glob("*.json"):
-                try:
-                    t = load_json(p)
-                    if str(t.get("task_id")) == args.task_id:
-                        task_file = p
-                        break
-                except Exception:
-                    continue
+        task_file = get_task_file_by_id(args.task_id)
     else:
-        task_file = next_task_file()
+        task_file = select_next_task_file()
 
     if not task_file:
         status = {
@@ -463,20 +979,29 @@ def main() -> int:
             "agent": None,
             "start_time": now_iso(),
             "end_time": now_iso(),
-            "status": "idle",
+            "status": "pending",
             "stdout_path": None,
             "stderr_path": None,
-            "summary": "no pending task",
-            "next_recommended_action": "add pending task json",
+            "summary": "no runnable task",
+            "next_recommended_action": "check dependency/quota/approval statuses",
         }
-        write_json(CURRENT_STATUS_FILE, status)
+        write_health_and_queue(status)
         append_event(status)
-        print("No pending task.")
+        print("No runnable task.")
         return 0
 
-    result = run_task(task_file)
+    result = run_task(task_file, dry_run=args.dry_run)
     print(json.dumps(result, indent=2, ensure_ascii=False))
-    return 0 if result.get("status") in {"completed", "skipped"} else 1
+    return 0 if result.get("status") in {
+        "completed",
+        "skipped",
+        "pending",
+        "retry_scheduled",
+        "blocked_dependency",
+        "blocked_quota",
+        "blocked_auth",
+        "blocked_approval",
+    } else 1
 
 
 if __name__ == "__main__":

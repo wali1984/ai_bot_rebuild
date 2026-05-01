@@ -6,12 +6,13 @@ import os
 import pathlib
 import subprocess
 import time
-import urllib.request
 from typing import Any, Dict, List, Optional
 
 BASE = pathlib.Path("claude_worklog/agent_supervisor")
 EVENTS = BASE / "events.jsonl"
 STATUS = BASE / "status/current_status.json"
+QUEUE_STATUS = BASE / "status/queue_status.json"
+AGENT_HEALTH = BASE / "status/agent_health.json"
 RUNS = BASE / "runs"
 WORKSPACE = pathlib.Path(os.path.expanduser("~/Desktop/AI BOT REBUILD"))
 
@@ -48,21 +49,6 @@ def which(name: str) -> Optional[str]:
 def process_lines(pattern: str) -> List[str]:
     out = cmd_out(["bash", "-lc", f"pgrep -af {pattern!r} || true"])
     return [ln for ln in out.splitlines() if ln.strip()]
-
-
-def ollama_status() -> Dict[str, Any]:
-    data = {"api": "down", "model_count": 0, "models": []}
-    try:
-        with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=5) as resp:
-            payload = json.loads(resp.read().decode("utf-8", errors="ignore"))
-        models = payload.get("models", []) if isinstance(payload, dict) else []
-        data["api"] = "up"
-        data["model_count"] = len(models) if isinstance(models, list) else 0
-        if isinstance(models, list):
-            data["models"] = [m.get("name", "") for m in models[:5] if isinstance(m, dict)]
-    except Exception:
-        pass
-    return data
 
 
 def last_events(n: int = 10) -> List[str]:
@@ -122,35 +108,43 @@ def print_dashboard(refresh_seconds: int) -> None:
         os.system("clear")
         now = dt.datetime.now().isoformat()
 
+        current = read_json(WORKSPACE / STATUS)
+        queue = read_json(WORKSPACE / QUEUE_STATUS)
+        health = read_json(WORKSPACE / AGENT_HEALTH)
+
         claude_path = which("claude")
         codex_path = which("codex")
         ollama_path = which("ollama")
-
-        claude_ready = marker_contains(WORKSPACE / "claude_worklog/agent_supervisor/CLAUDE_LOCAL_AGENT_READY.md", "CLAUDE_LOCAL_AGENT_READY")
-        codex_ready = marker_contains(WORKSPACE / "claude_worklog/agent_supervisor/CODEX_LOCAL_AGENT_READY.md", "CODEX_LOCAL_AGENT_READY")
-        ollama_ready = marker_contains(WORKSPACE / "claude_worklog/agent_supervisor/OLLAMA_LOCAL_AGENT_READY.md", "OLLAMA_LOCAL_AGENT_READY")
-
-        ol = ollama_status()
-        current = read_json(WORKSPACE / STATUS)
 
         claude_ps = process_lines("claude")
         codex_ps = process_lines("codex")
         ollama_ps = process_lines("ollama")
         supervisor_ps = process_lines("agent_supervisor.py")
 
+        counts = queue.get("counts", {}) if isinstance(queue, dict) else {}
+        blocked_quota = queue.get("blocked_quota", {}) if isinstance(queue, dict) else {}
+        next_pending = queue.get("next_pending_task", "-")
+        running_task = queue.get("current_running_task", "-")
+        gate = queue.get("gate", "ARCHITECTURE_REMEDIATION_PARTIAL")
+        claude_state = ((health.get("claude") or {}).get("ready_marker")) if isinstance(health, dict) else None
+        codex_state = ((health.get("codex") or {}).get("ready_marker")) if isinstance(health, dict) else None
+        ollama_models = ((health.get("ollama") or {}).get("models")) if isinstance(health, dict) else []
+        last_auto_commit_hash = health.get("last_auto_commit_hash") if isinstance(health, dict) else None
+
         print("=" * 96)
         print("AI BOT REBUILD - Agent Supervisor Dashboard")
         print(f"Timestamp: {now} | Refresh: {refresh_seconds}s")
         print("=" * 96)
+        print("VS Code/Copilot is terminal operator only.")
+        print("Active agents: Claude/Codex/Ollama")
 
-        print("\n[AGENT INSTALL/AUTH STATUS]")
+        print("\n[AGENT INSTALL / HEALTH]")
         print(f"Claude installed: {'yes' if claude_path else 'no'} | path: {claude_path or '-'}")
-        print(f"Claude auth ready: {'yes' if claude_ready else 'no'}")
+        print(f"Claude ready marker: {'yes' if claude_state else 'no'}")
         print(f"Codex installed: {'yes' if codex_path else 'no'} | path: {codex_path or '-'}")
-        print(f"Codex auth ready: {'yes' if codex_ready else 'no'}")
+        print(f"Codex ready marker: {'yes' if codex_state else 'no'}")
         print(f"Ollama installed: {'yes' if ollama_path else 'no'} | path: {ollama_path or '-'}")
-        print(f"Ollama API: {ol['api']} | model count: {ol['model_count']} | models: {', '.join(ol['models']) if ol['models'] else '-'}")
-        print(f"Ollama ready marker: {'yes' if ollama_ready else 'no'}")
+        print(f"Ollama models: {', '.join(ollama_models) if ollama_models else '-'}")
 
         print("\n[PROCESS STATUS]")
         print(f"claude processes: {len(claude_ps)}")
@@ -158,13 +152,32 @@ def print_dashboard(refresh_seconds: int) -> None:
         print(f"ollama processes: {len(ollama_ps)}")
         print(f"agent supervisor running: {'yes' if supervisor_ps else 'no'}")
 
+        print("\n[QUEUE STATUS]")
+        print(f"current gate: {gate}")
+        print(f"next pending task: {next_pending}")
+        print(f"current running task: {running_task}")
+        if blocked_quota:
+            print(f"blocked_quota task: {blocked_quota.get('task_id')} | resume_after_utc: {blocked_quota.get('resume_after_utc')}")
+        else:
+            print("blocked_quota task: -")
+        print(
+            "counts => "
+            f"completed={counts.get('completed', 0)} "
+            f"failed={counts.get('failed', 0)} "
+            f"blocked={counts.get('blocked', 0)} "
+            f"pending={counts.get('pending', 0)} "
+            f"running={counts.get('running', 0)} "
+            f"retry={counts.get('retry_scheduled', 0)}"
+        )
+
         print("\n[LATEST TASK STATUS]")
-        print(f"latest task id: {current.get('task_id', 'N/A')}")
-        print(f"latest task agent: {current.get('agent', 'N/A')}")
-        print(f"latest task status: {current.get('status', 'N/A')}")
+        print(f"latest task id: {current.get('task_id', '-')}")
+        print(f"latest task agent: {current.get('agent', '-')}")
+        print(f"latest task status: {current.get('status', '-')}")
         print(f"latest Claude run summary: {latest_agent_summary('claude')}")
         print(f"latest Codex run summary: {latest_agent_summary('codex')}")
         print(f"latest Ollama run summary: {latest_agent_summary('ollama')}")
+        print(f"last auto-commit hash: {last_auto_commit_hash or '-'}")
 
         print("\n[SAFETY & GATES]")
         print(f"continuous monitor status: {continuous_monitor_status()}")

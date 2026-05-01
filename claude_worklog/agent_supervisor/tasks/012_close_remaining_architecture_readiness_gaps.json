@@ -1,0 +1,28 @@
+{
+  "task_id": "012_close_remaining_architecture_readiness_gaps",
+  "agent": "claude",
+  "risk_level": "L1",
+  "status": "failed",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/v2_architecture/",
+    "claude_worklog/v2_architecture_remediation/"
+  ],
+  "required_output_files": [
+    "claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md",
+    "claude_worklog/v2_architecture/05_API_CONTRACTS.md",
+    "claude_worklog/v2_architecture/11_FEATURE_ATTRIBUTION_AND_SIGNAL_EXPLAINABILITY_ARCHITECTURE.md",
+    "claude_worklog/v2_architecture/14_CONTINUOUS_MONITORING_AND_EVIDENCE_PACKET_ARCHITECTURE.md",
+    "claude_worklog/v2_architecture/17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md",
+    "claude_worklog/v2_architecture/18_ARCHITECTURE_REVIEW_GO_NO_GO.md",
+    "claude_worklog/v2_architecture_remediation/11_REMAINING_GAPS_CLOSURE_SUMMARY.md"
+  ],
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Close the remaining architecture readiness gaps noted by actual Codex rerun: lineage/API enforcement, snapshot/explainability completeness, and trainer liveness validation evidence. Inputs: claude_worklog/v2_architecture/*.md, claude_worklog/v2_requirements/*.md, claude_worklog/post_monitor/*.md, claude_worklog/continuous_monitoring_impl/*.md. Output full updated files with BEGIN_FILE blocks only. Updates required: 03_DATABASE_SCHEMA.md must include enforceable lineage constraints and indexes; 05_API_CONTRACTS.md must include API validation contracts for lineage fields and missing attribution errors; 11_FEATURE_ATTRIBUTION_AND_SIGNAL_EXPLAINABILITY_ARCHITECTURE.md must include minimum contributor cardinality, stale/missing/unused feature flags, and snapshot completeness validation; 14_CONTINUOUS_MONITORING_AND_EVIDENCE_PACKET_ARCHITECTURE.md must include trainer liveness validation evidence using corrected timezone/stream-ID logic; 17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md must include objective gate evidence before scaffold planning; 18_ARCHITECTURE_REVIEW_GO_NO_GO.md must be updated to architecture-ready-for-Codex-rerun state, not build-ready. Also create 11_REMAINING_GAPS_CLOSURE_SUMMARY.md.",
+  "next_recommended_action": "Run actual Codex architecture rerun after canonical integration.",
+  "last_run": {
+    "start": "2026-05-01T02:54:45.039402+00:00",
+    "end": "2026-05-01T02:56:38.974659+00:00",
+    "status": "failed"
+  }
+}

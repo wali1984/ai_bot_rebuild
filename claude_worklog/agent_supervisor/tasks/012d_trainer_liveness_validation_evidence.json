@@ -2,7 +2,7 @@
   "task_id": "012d_trainer_liveness_validation_evidence",
   "agent": "claude",
   "risk_level": "L1",
-  "status": "pending",
+  "status": "blocked_dependency",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "allowed_output_prefixes": [
@@ -13,5 +13,19 @@
     "claude_worklog/v2_architecture/14_CONTINUOUS_MONITORING_AND_EVIDENCE_PACKET_ARCHITECTURE.md",
     "claude_worklog/v2_architecture_remediation/12D_TRAINER_LIVENESS_EVIDENCE_CLOSURE.md"
   ],
-  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Close only the trainer liveness validation evidence gap. Inputs: claude_worklog/v2_architecture/14_CONTINUOUS_MONITORING_AND_EVIDENCE_PACKET_ARCHITECTURE.md, claude_worklog/continuous_monitoring_impl/TRAINER_LIVENESS_MONITOR_FALSE_POSITIVE_FIX_REPORT.md, claude_worklog/continuous_monitoring_impl/TRAINER_LIVENESS_POST_FIX_10MIN_VALIDATION.md, claude_worklog/continuous_monitoring_impl/TRAINER_PREDICTION_WORKER_ROOT_CAUSE_AUDIT.md, claude_worklog/agent_supervisor/ollama_context/012d_trainer_liveness_context.md (if present). Output full updated architecture file and summary claude_worklog/v2_architecture_remediation/12D_TRAINER_LIVENESS_EVIDENCE_CLOSURE.md using BEGIN_FILE blocks only. Requirements: include corrected timezone handling, stream-ID growth over XLEN for capped streams, validation evidence required before scaffold planning, evidence packet fields, and dashboard gate metrics."
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Close only the trainer liveness validation evidence gap. Inputs: claude_worklog/v2_architecture/14_CONTINUOUS_MONITORING_AND_EVIDENCE_PACKET_ARCHITECTURE.md, claude_worklog/continuous_monitoring_impl/TRAINER_LIVENESS_MONITOR_FALSE_POSITIVE_FIX_REPORT.md, claude_worklog/continuous_monitoring_impl/TRAINER_LIVENESS_POST_FIX_10MIN_VALIDATION.md, claude_worklog/continuous_monitoring_impl/TRAINER_PREDICTION_WORKER_ROOT_CAUSE_AUDIT.md, claude_worklog/agent_supervisor/ollama_context/012d_trainer_liveness_context.md (if present). Output full updated architecture file and summary claude_worklog/v2_architecture_remediation/12D_TRAINER_LIVENESS_EVIDENCE_CLOSURE.md using BEGIN_FILE blocks only. Requirements: include corrected timezone handling, stream-ID growth over XLEN for capped streams, validation evidence required before scaffold planning, evidence packet fields, and dashboard gate metrics.",
+  "depends_on": [
+    "012c_feature_explainability_completeness"
+  ],
+  "auto_commit": true,
+  "commit_message": "Close trainer liveness evidence architecture gap",
+  "max_attempts": 3,
+  "retry_count": 0,
+  "resume_after_utc": null,
+  "priority": 90,
+  "next_tasks_on_success": [
+    "012e_milestone_go_no_go_integration"
+  ],
+  "next_tasks_on_failure": [],
+  "last_summary": "waiting on dependencies: 012c_feature_explainability_completeness"
 }
