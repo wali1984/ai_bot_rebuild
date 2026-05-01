@@ -66,6 +66,7 @@ ALLOWED_AUTORUN = {"L0", "L1", "L2"}
 
 DEFAULT_NO_EVENT_TIMEOUT_S = 1800
 DEFAULT_NO_OUTPUT_GROWTH_TIMEOUT_S = 1200
+DEFAULT_PLANNER_TIMEOUT_S = 420
 HEARTBEAT_STALE_S = 600
 SUPERVISOR_VERSION = "2.0-reliability-hardened"
 
@@ -839,31 +840,57 @@ def planner_human_action_required() -> bool:
     return "human action required: yes" in txt or "human approval" in txt
 
 
-def codex_gate_failed() -> bool:
-    gate_files = [
-        WORKSPACE_ROOT / "claude_worklog/v2_architecture_codex_review/16_ACTUAL_CODEX_RERUN_GO_NO_GO.md",
-        WORKSPACE_ROOT / "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_GO_NO_GO.md",
-    ]
-    for gf in gate_files:
-        if not gf.exists():
-            continue
-        first = ""
-        for ln in read_text(gf).splitlines():
-            if ln.strip():
-                first = ln.strip().upper()
-                break
-        if "FAIL" in first or "BLOCKED" in first:
-            return True
-    return False
+def first_non_empty_line(path: pathlib.Path) -> str:
+    txt = read_text(path)
+    for ln in txt.splitlines():
+        if ln.strip():
+            return ln.strip()
+    return ""
+
+
+def planner_task_trigger_gate_ok(task: Dict[str, Any]) -> Tuple[bool, str]:
+    """Validate optional per-task trigger gate contract.
+
+    If a task defines trigger_gate.file + trigger_gate.expected_value,
+    the referenced marker must exist and match exactly.
+    """
+    tg = task.get("trigger_gate")
+    if not isinstance(tg, dict):
+        return True, ""
+
+    gate_file_raw = str(tg.get("file", "")).strip()
+    expected = str(tg.get("expected_value", "")).strip()
+    if not gate_file_raw or not expected:
+        return True, ""
+
+    gate_path = pathlib.Path(gate_file_raw)
+    if not gate_path.is_absolute():
+        gate_path = WORKSPACE_ROOT / gate_path
+    gate_path = gate_path.resolve()
+
+    if not in_workspace(gate_path):
+        return False, f"trigger_gate file outside workspace: {gate_file_raw}"
+    if not gate_path.exists():
+        return False, f"trigger_gate file missing: {gate_file_raw}"
+
+    actual = first_non_empty_line(gate_path)
+    if actual != expected:
+        return False, (
+            f"trigger_gate mismatch for {gate_file_raw}: "
+            f"expected '{expected}' got '{actual or 'EMPTY'}'"
+        )
+    return True, ""
 
 
 def planner_task_autorun_allowed(task_path: pathlib.Path, human_required: bool) -> Tuple[bool, str]:
     if human_required:
         return False, "human action required"
-    if codex_gate_failed():
-        return False, "codex gate failed/blocked"
 
     task = load_task(task_path)
+    gate_ok, gate_reason = planner_task_trigger_gate_ok(task)
+    if not gate_ok:
+        return False, gate_reason
+
     risk = str(task.get("risk_level", "L0")).upper()
     if risk not in ALLOWED_AUTORUN:
         return False, f"risk level {risk} not auto-runnable"
@@ -975,6 +1002,8 @@ def run_planner_once(no_execute_planned_tasks: bool = False, autonomous_mode_act
         "NEXT_TASKS.json must include task_id entries and dependency/gate context."
     )
 
+    planner_timeout_s = int(os.environ.get("AGENT_SUPERVISOR_PLANNER_TIMEOUT_SECONDS", str(DEFAULT_PLANNER_TIMEOUT_S)))
+
     rc = 1
     timed_out = False
     if not claude_ready():
@@ -993,7 +1022,7 @@ def run_planner_once(no_execute_planned_tasks: bool = False, autonomous_mode_act
             WORKSPACE_ROOT,
             stdout_path,
             stderr_path,
-            timeout_seconds=1200,
+            timeout_seconds=max(60, planner_timeout_s),
             on_start=None,
         )
         if rc == 0:
