@@ -13,10 +13,11 @@
     "claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md",
     "claude_worklog/v2_architecture_remediation/12A_DATABASE_LINEAGE_CLOSURE.md"
   ],
-  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Close only the database lineage constraint gap. Inputs: claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md, claude_worklog/v2_requirements/*.md, claude_worklog/v2_architecture_remediation/*.md, claude_worklog/agent_supervisor/ollama_context/012a_database_schema_context.md (if present). Output full updated claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md and summary claude_worklog/v2_architecture_remediation/12A_DATABASE_LINEAGE_CLOSURE.md using BEGIN_FILE blocks only. Requirements: enforce feature_snapshot_id -> prediction_id -> signal_id -> decision_id -> risk_decision_id -> execution_intent_id with foreign keys/indexes/unique constraints/nullability rules; include missing-attribution rejection support; include query indexes for explainability and audit.",
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. This is a small focused task. Read claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md and update it to add enforceable database lineage constraints for feature_snapshot_id -> prediction_id -> signal_id -> decision_id -> risk_decision_id -> execution_intent_id. Include tables/constraints/indexes/nullability rules for feature_snapshots, prediction_events, signal_events, orchestrator_decisions, risk_decisions, execution_intents. Include missing-attribution rejection support and query indexes for explainability/audit. Print exactly two BEGIN_FILE blocks and no other text. First: BEGIN_FILE: claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md with the full updated file. Second: BEGIN_FILE: claude_worklog/v2_architecture_remediation/12A_DATABASE_LINEAGE_CLOSURE.md with a concise summary proving the database lineage gap is closed. Use only architecture text, no code build.",
+  "next_recommended_action": "Run 012B after 012A succeeds.",
   "last_run": {
-    "start": "2026-05-01T03:53:36.035315+00:00",
-    "end": "2026-05-01T04:01:55.848808+00:00",
+    "start": "2026-05-01T04:05:26.169195+00:00",
+    "end": "2026-05-01T04:07:16.241661+00:00",
     "status": "failed"
   }
 }
