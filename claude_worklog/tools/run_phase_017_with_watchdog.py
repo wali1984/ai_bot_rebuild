@@ -183,12 +183,17 @@ def is_implementation_blocked() -> Tuple[bool, Dict[str, str]]:
 
 
 def start_daemon() -> Tuple[bool, str]:
-    cmd = [
-        "bash",
-        "-lc",
-        f"AGENT_SUPERVISOR_PLANNER_TIMEOUT_SECONDS={PLANNER_TIMEOUT_SECONDS} {AUTON_START}",
-    ]
-    cp = run(cmd, timeout=60)
+    env = os.environ.copy()
+    env["AGENT_SUPERVISOR_PLANNER_TIMEOUT_SECONDS"] = str(PLANNER_TIMEOUT_SECONDS)
+    cp = subprocess.run(
+        [str(AUTON_START)],
+        cwd=str(WORKSPACE),
+        env=env,
+        timeout=60,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     msg = (cp.stdout + "\n" + cp.stderr).strip()
     return cp.returncode == 0, msg
 
@@ -392,7 +397,17 @@ def safe_non_implementation_task(task_id: str) -> bool:
 
 
 def preflight() -> Dict[str, Any]:
-    git_status = run(["git", "status", "--short"]).stdout.strip()
+    raw_git = run(["git", "status", "--short"]).stdout.strip()
+    ignored_runtime = {
+        "claude_worklog/agent_supervisor/status/phase_017_watchdog.json",
+    }
+    kept_lines: List[str] = []
+    for ln in (raw_git.splitlines() if raw_git else []):
+        rel = ln[3:].strip() if len(ln) >= 4 else ln.strip()
+        if rel in ignored_runtime:
+            continue
+        kept_lines.append(ln)
+    git_status = "\n".join(kept_lines).strip()
     git_clean = (git_status == "")
     state017 = load_json(TASK_017_STATE, {})
     t017_pending = (state017.get("status") == "pending")
@@ -409,6 +424,7 @@ def preflight() -> Dict[str, Any]:
         "safe_to_start": safe_to_start,
         "impl_states": impl_states,
         "git_status": git_status,
+        "raw_git_status": raw_git,
     }
 
 
