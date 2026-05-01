@@ -1,0 +1,20 @@
+- Tracked task definitions under `claude_worklog/agent_supervisor/tasks/*.json` are immutable task intent after creation.
+- Runtime task state belongs under `claude_worklog/agent_supervisor/state/tasks/<task_id>.json`.
+- Current status belongs under `claude_worklog/agent_supervisor/status/current_status.json`.
+- Queue status belongs under `claude_worklog/agent_supervisor/status/queue_status.json`.
+- Agent health, heartbeat, lockfiles, run stdout/stderr, planner input packets, and transient planner outputs are runtime artifacts.
+- Runtime artifacts must not be committed unless explicitly promoted into a durable report.
+- The daemon must not write status fields into task definition files.
+- The daemon must not rewrite task definition files during dry-run, planner-run, daemon-run, or watchdog-run.
+- Durable files that may be committed:
+  - architecture docs
+  - requirements docs
+  - scaffold planning docs
+  - scaffold queue docs
+  - remediation docs
+  - Codex/Claude review reports
+  - explicit GO/NO-GO marker files
+  - source code changes
+  - task definition files only when task intent changes
+- Final line:
+RUNTIME_STORAGE_POLICY_READY

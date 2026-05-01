@@ -40,7 +40,10 @@ STATE_TASKS_DIR = STATE_DIR / "tasks"
 RUNS_DIR = BASE_DIR / "runs"
 STATUS_DIR = BASE_DIR / "status"
 LOGS_DIR = BASE_DIR / "logs"
-PLANNER_DIR = BASE_DIR / "planner"
+TRACKED_PLANNER_DIR = BASE_DIR / "planner"
+RUNTIME_DIR = BASE_DIR / "runtime"
+RUNTIME_PLANNER_DIR = RUNTIME_DIR / "planner"
+PLANNER_DIR = RUNTIME_PLANNER_DIR
 EVENTS_FILE = BASE_DIR / "events.jsonl"
 CURRENT_STATUS_FILE = STATUS_DIR / "current_status.json"
 QUEUE_STATUS_FILE = STATUS_DIR / "queue_status.json"
@@ -56,7 +59,7 @@ PLANNER_DECISION_FILE = PLANNER_DIR / "PLANNER_DECISION.md"
 PLANNER_NEXT_TASKS_FILE = PLANNER_DIR / "NEXT_TASKS.json"
 PLANNER_HUMAN_ACTION_FILE = PLANNER_DIR / "HUMAN_ACTION_REQUIRED.md"
 PLANNER_GO_NO_GO_FILE = PLANNER_DIR / "PLANNER_GO_NO_GO.md"
-PLANNER_OUTPUT_PREFIX = "claude_worklog/agent_supervisor/planner/"
+PLANNER_OUTPUT_PREFIX = "claude_worklog/agent_supervisor/runtime/planner/"
 
 WORKSPACE_ROOT = pathlib.Path(os.path.expanduser("~/Desktop/AI BOT REBUILD")).resolve()
 FORBIDDEN_ROOT = pathlib.Path("/home/wali/Desktop/AI BOT").resolve()
@@ -131,8 +134,32 @@ def now_ts() -> float:
     return time.time()
 
 
+def set_planner_output_target(promote: bool = False) -> None:
+    """Select planner output storage.
+
+    Default daemon/planner operation writes ignored runtime files. Tracked
+    planner files are touched only when --promote-planner-output is supplied.
+    """
+    global PLANNER_DIR
+    global PLANNER_INPUT_PACKET_FILE
+    global PLANNER_DECISION_FILE
+    global PLANNER_NEXT_TASKS_FILE
+    global PLANNER_HUMAN_ACTION_FILE
+    global PLANNER_GO_NO_GO_FILE
+    global PLANNER_OUTPUT_PREFIX
+
+    PLANNER_DIR = TRACKED_PLANNER_DIR if promote else RUNTIME_PLANNER_DIR
+    PLANNER_INPUT_PACKET_FILE = PLANNER_DIR / "PLANNER_INPUT_PACKET.md"
+    PLANNER_DECISION_FILE = PLANNER_DIR / "PLANNER_DECISION.md"
+    PLANNER_NEXT_TASKS_FILE = PLANNER_DIR / "NEXT_TASKS.json"
+    PLANNER_HUMAN_ACTION_FILE = PLANNER_DIR / "HUMAN_ACTION_REQUIRED.md"
+    PLANNER_GO_NO_GO_FILE = PLANNER_DIR / "PLANNER_GO_NO_GO.md"
+    base = "claude_worklog/agent_supervisor/planner/" if promote else "claude_worklog/agent_supervisor/runtime/planner/"
+    PLANNER_OUTPUT_PREFIX = base
+
+
 def ensure_dirs() -> None:
-    for p in [BASE_DIR, TASKS_DIR, STATE_DIR, STATE_TASKS_DIR, RUNS_DIR, STATUS_DIR, LOGS_DIR, PLANNER_DIR]:
+    for p in [BASE_DIR, TASKS_DIR, STATE_DIR, STATE_TASKS_DIR, RUNS_DIR, STATUS_DIR, LOGS_DIR, TRACKED_PLANNER_DIR, RUNTIME_PLANNER_DIR]:
         p.mkdir(parents=True, exist_ok=True)
 
 
@@ -173,23 +200,21 @@ def in_workspace(path: pathlib.Path) -> bool:
 
 def load_task_definition(task_path: pathlib.Path) -> Dict[str, Any]:
     raw = load_json(task_path)
-    return {k: v for k, v in raw.items() if k in DEFINITION_FIELDS or k.startswith("_")}
+    return dict(raw)
 
 
-def state_path_for(task_id: str) -> pathlib.Path:
+def task_state_path(task_id: str) -> pathlib.Path:
     return STATE_TASKS_DIR / f"{task_id}.json"
 
 
-def load_task_state(task_id: str) -> Dict[str, Any]:
-    sp = state_path_for(task_id)
-    if sp.exists():
-        try:
-            return load_json(sp)
-        except Exception:
-            pass
+def state_path_for(task_id: str) -> pathlib.Path:
+    return task_state_path(task_id)
+
+
+def default_task_state(task_id: str, fallback_status: str = "pending") -> Dict[str, Any]:
     return {
         "task_id": task_id,
-        "status": "pending",
+        "status": fallback_status or "pending",
         "retry_count": 0,
         "run_pid": None,
         "last_run": None,
@@ -203,10 +228,20 @@ def load_task_state(task_id: str) -> Dict[str, Any]:
     }
 
 
+def load_task_state(task_id: str) -> Dict[str, Any]:
+    sp = task_state_path(task_id)
+    if sp.exists():
+        try:
+            return load_json(sp)
+        except Exception:
+            pass
+    return default_task_state(task_id)
+
+
 def write_task_state(task_id: str, state: Dict[str, Any]) -> None:
     state = dict(state)
     state["task_id"] = task_id
-    write_json(state_path_for(task_id), state)
+    write_json(task_state_path(task_id), state)
 
 
 def update_task_state(task_id: str, **fields: Any) -> Dict[str, Any]:
@@ -226,23 +261,59 @@ def update_task_state(task_id: str, **fields: Any) -> Dict[str, Any]:
     state.update(fields)
     state["last_event_ts"] = now_iso()
     write_task_state(task_id, state)
+    append_event({
+        "event": "runtime_state_updated",
+        "task_id": task_id,
+        "status": state.get("status"),
+        "state_path": str(task_state_path(task_id)),
+    })
+    append_event({
+        "event": "task_definition_untouched",
+        "task_id": task_id,
+        "definition_dir": str(TASKS_DIR),
+    })
     return state
 
 
-def load_task(task_path: pathlib.Path) -> Dict[str, Any]:
-    """Return merged definition + state dict for callers that want one view."""
-    raw = load_json(task_path)
-    task_id = str(raw.get("task_id", task_path.stem))
-    state = load_task_state(task_id)
-    merged = {k: v for k, v in raw.items() if k in DEFINITION_FIELDS or k.startswith("_")}
+def save_task_state(task_id: str, state: Dict[str, Any]) -> None:
+    write_task_state(task_id, state)
+
+
+def set_task_runtime_status(task_id: str, status: str, summary: str = "", **fields: Any) -> Dict[str, Any]:
+    fields = dict(fields)
+    fields["status"] = status
+    if summary:
+        fields["last_summary"] = summary
+    return update_task_state(task_id, **fields)
+
+
+def merged_task_view(task_def: Dict[str, Any]) -> Dict[str, Any]:
+    """Return immutable task intent plus runtime state for scheduling."""
+    task_id = str(task_def.get("task_id", ""))
+    definition = {k: v for k, v in task_def.items() if k in DEFINITION_FIELDS or k.startswith("_")}
+    if not task_id:
+        task_id = str(definition.get("task_id", ""))
+    sp = task_state_path(task_id) if task_id else None
+    if sp is not None and sp.exists():
+        state = load_task_state(task_id)
+    else:
+        state = default_task_state(task_id, str(task_def.get("status", "pending") or "pending"))
+    merged = dict(definition)
     merged.update({k: v for k, v in state.items() if k in STATE_FIELDS or k == "task_id"})
     return merged
+
+
+def load_task(task_path: pathlib.Path) -> Dict[str, Any]:
+    """Return merged definition + runtime state for callers that want one view."""
+    raw = load_task_definition(task_path)
+    raw.setdefault("task_id", task_path.stem)
+    return merged_task_view(raw)
 
 
 def migrate_legacy_task_files() -> int:
     """One-shot migration: pull state fields out of legacy task definition files
     into state/tasks/<id>.json so definitions become stable.
-    Idempotent — safe to run on every daemon start."""
+    Idempotent and state-only: task definition files are never rewritten."""
     moved = 0
     if not TASKS_DIR.exists():
         return 0
@@ -252,37 +323,26 @@ def migrate_legacy_task_files() -> int:
         except Exception:
             continue
         task_id = str(raw.get("task_id", p.stem))
-        sp = state_path_for(task_id)
+        sp = task_state_path(task_id)
 
         legacy_state = {k: raw[k] for k in STATE_FIELDS if k in raw}
 
         if not sp.exists():
-            base = {
-                "task_id": task_id,
-                "status": "pending",
-                "retry_count": 0,
-                "run_pid": None,
-                "last_run": None,
-                "last_summary": "",
-                "resume_after_utc": None,
-                "last_status_change_ts": None,
-                "last_retry_reason": None,
-                "attention_reason": None,
-                "history": [],
-                "last_event_ts": None,
-            }
+            base = default_task_state(task_id, str(raw.get("status", "pending") or "pending"))
             base.update(legacy_state)
             write_task_state(task_id, base)
+            moved += 1
         elif legacy_state:
             existing = load_json(sp)
             for k, v in legacy_state.items():
                 existing.setdefault(k, v)
             write_task_state(task_id, existing)
-
-        if any(k in raw for k in STATE_FIELDS):
-            cleaned = {k: v for k, v in raw.items() if k not in STATE_FIELDS}
-            write_json(p, cleaned)
             moved += 1
+        append_event({
+            "event": "task_definition_untouched",
+            "task_id": task_id,
+            "definition_path": str(p),
+        })
     return moved
 
 
@@ -429,6 +489,19 @@ def read_text(path: pathlib.Path) -> str:
         return path.read_text(encoding="utf-8", errors="ignore")
     except Exception:
         return ""
+
+
+def planner_fallback_path(path: pathlib.Path) -> pathlib.Path:
+    if RUNTIME_PLANNER_DIR in path.parents or path.parent == RUNTIME_PLANNER_DIR:
+        return TRACKED_PLANNER_DIR / path.name
+    return RUNTIME_PLANNER_DIR / path.name
+
+
+def read_planner_text(path: pathlib.Path) -> str:
+    txt = read_text(path)
+    if txt:
+        return txt
+    return read_text(planner_fallback_path(path))
 
 
 def normalize_relpath(path_str: str) -> str:
@@ -767,9 +840,10 @@ def build_planner_input_packet() -> pathlib.Path:
 
 
 def parse_planner_next_tasks() -> List[str]:
-    if not PLANNER_NEXT_TASKS_FILE.exists():
+    source = PLANNER_NEXT_TASKS_FILE if PLANNER_NEXT_TASKS_FILE.exists() else planner_fallback_path(PLANNER_NEXT_TASKS_FILE)
+    if not source.exists():
         return []
-    raw = read_text(PLANNER_NEXT_TASKS_FILE)
+    raw = read_text(source)
     data: Any = None
     try:
         data = json.loads(raw)
@@ -815,7 +889,7 @@ def parse_planner_next_tasks() -> List[str]:
 
 
 def planner_go_no_go_value() -> str:
-    txt = read_text(PLANNER_GO_NO_GO_FILE)
+    txt = read_planner_text(PLANNER_GO_NO_GO_FILE)
     allowed = {
         "PLANNER_NEXT_TASKS_READY",
         "PLANNER_HUMAN_ACTION_REQUIRED",
@@ -834,7 +908,7 @@ def planner_human_action_required() -> bool:
         return True
     if marker == "PLANNER_NEXT_TASKS_READY":
         return False
-    txt = read_text(PLANNER_HUMAN_ACTION_FILE).lower()
+    txt = read_planner_text(PLANNER_HUMAN_ACTION_FILE).lower()
     if "no human action required" in txt:
         return False
     return "human action required: yes" in txt or "human approval" in txt
@@ -960,8 +1034,13 @@ def write_planner_status(payload: Dict[str, Any]) -> None:
     write_json(PLANNER_STATUS_FILE, payload)
 
 
-def run_planner_once(no_execute_planned_tasks: bool = False, autonomous_mode_active: bool = False) -> Dict[str, Any]:
+def run_planner_once(
+    no_execute_planned_tasks: bool = False,
+    autonomous_mode_active: bool = False,
+    promote_planner_output: bool = False,
+) -> Dict[str, Any]:
     ensure_dirs()
+    set_planner_output_target(promote_planner_output)
     packet_path = build_planner_input_packet()
     start = now_iso()
 
@@ -991,11 +1070,11 @@ def run_planner_once(no_execute_planned_tasks: bool = False, autonomous_mode_act
 
     planner_prompt = (
         "You are Claude planner for AI BOT REBUILD. "
-        "Read claude_worklog/agent_supervisor/planner/PLANNER_INPUT_PACKET.md and decide the next safe task only. "
+        f"Read {PLANNER_INPUT_PACKET_FILE} and decide the next safe task only. "
         "Hard constraints: do not touch /home/wali/Desktop/AI BOT, do not write Redis, do not delete Redis keys, "
         "do not restart live services, do not place/cancel orders, do not change leverage/margin, "
         "do not enable live trading, do not start V2 implementation scaffold yet. "
-        "Output BEGIN_FILE blocks only under claude_worklog/agent_supervisor/planner/ for these files exactly: "
+        f"Output BEGIN_FILE blocks only under {PLANNER_OUTPUT_PREFIX} for these files exactly: "
         "PLANNER_DECISION.md, NEXT_TASKS.json, HUMAN_ACTION_REQUIRED.md, PLANNER_GO_NO_GO.md. "
         "PLANNER_GO_NO_GO.md must be exactly one line: PLANNER_NEXT_TASKS_READY or "
         "PLANNER_HUMAN_ACTION_REQUIRED or PLANNER_BLOCKED. "
@@ -1096,7 +1175,7 @@ def run_planner_once(no_execute_planned_tasks: bool = False, autonomous_mode_act
     human_required = planner_human_action_required() or (go_no_go == "PLANNER_HUMAN_ACTION_REQUIRED")
     next_tasks = parse_planner_next_tasks()
 
-    decision_text = read_text(PLANNER_DECISION_FILE)
+    decision_text = read_planner_text(PLANNER_DECISION_FILE)
     for ln in decision_text.splitlines():
         stripped = ln.strip()
         if not stripped:
@@ -2257,6 +2336,7 @@ def autonomous_daemon_loop(
     max_run_hours: Optional[float],
     stop_after_idle_minutes: Optional[float],
     no_execute_planned_tasks: bool,
+    promote_planner_output: bool = False,
 ) -> int:
     ok, message = acquire_lock()
     if not ok:
@@ -2290,6 +2370,7 @@ def autonomous_daemon_loop(
             planner_payload = run_planner_once(
                 no_execute_planned_tasks=no_execute_planned_tasks,
                 autonomous_mode_active=True,
+                promote_planner_output=promote_planner_output,
             )
             last_event_ts = now_iso()
 
@@ -2317,6 +2398,7 @@ def main() -> int:
     parser.add_argument("--planner-once", action="store_true", help="Run one autonomous planner cycle")
     parser.add_argument("--autonomous-daemon", action="store_true", help="Run autonomous planner daemon loop")
     parser.add_argument("--no-execute-planned-tasks", action="store_true", help="Plan only; do not auto-run planned tasks")
+    parser.add_argument("--promote-planner-output", action="store_true", help="Write planner packet/output to tracked planner files")
     parser.add_argument("--poll-seconds", type=int, default=30)
     parser.add_argument("--max-run-hours", type=float)
     parser.add_argument("--stop-after-idle-minutes", type=float)
@@ -2341,6 +2423,7 @@ def main() -> int:
         payload = run_planner_once(
             no_execute_planned_tasks=bool(args.no_execute_planned_tasks),
             autonomous_mode_active=False,
+            promote_planner_output=bool(args.promote_planner_output),
         )
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
@@ -2351,6 +2434,7 @@ def main() -> int:
             max_run_hours=args.max_run_hours,
             stop_after_idle_minutes=args.stop_after_idle_minutes,
             no_execute_planned_tasks=bool(args.no_execute_planned_tasks),
+            promote_planner_output=bool(args.promote_planner_output),
         )
 
     if args.dry_run and not args.task_id and not args.daemon:

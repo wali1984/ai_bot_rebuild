@@ -15,6 +15,7 @@ BASE = WORKSPACE / "claude_worklog/agent_supervisor"
 STATUS_DIR = BASE / "status"
 STATE_TASKS_DIR = BASE / "state/tasks"
 PLANNER_DIR = BASE / "planner"
+RUNTIME_PLANNER_DIR = BASE / "runtime/planner"
 RUNS_DIR = BASE / "runs"
 EVENTS_FILE = BASE / "events.jsonl"
 WATCHDOG_STATUS_FILE = STATUS_DIR / "phase_017_watchdog.json"
@@ -40,7 +41,7 @@ ALLOWED_PREFIXES = [
     "claude_worklog/v2_scaffold_queue/",
     "claude_worklog/agent_supervisor/tasks/",
     "claude_worklog/v2_scaffold_queue_review/",
-    "claude_worklog/agent_supervisor/planner/",
+    "claude_worklog/agent_supervisor/runtime/planner/",
     "claude_worklog/approvals/",
 ]
 
@@ -315,6 +316,17 @@ def normalize_task_state(task_id: str, status: str, summary: str, materialized_f
     p.write_text(json.dumps(d, indent=2) + "\n", encoding="utf-8")
 
     append_event({
+        "event": "runtime_state_updated",
+        "task_id": task_id,
+        "status": status,
+        "state_path": str(p.relative_to(WORKSPACE)),
+    })
+    append_event({
+        "event": "task_definition_untouched",
+        "task_id": task_id,
+        "definition_path": str(TASK_017_DEF.relative_to(WORKSPACE)) if task_id == TASK_017 else "",
+    })
+    append_event({
         "event": "phase_017_recovered" if status == "completed" else "phase_017_failed",
         "task_id": task_id,
         "status": status,
@@ -433,7 +445,7 @@ def preflight() -> Dict[str, Any]:
     kept_lines: List[str] = []
     for ln in (raw_git.splitlines() if raw_git else []):
         rel = ln[3:].strip() if len(ln) >= 4 else ln.strip()
-        if rel in ignored_runtime:
+        if rel in ignored_runtime or rel.startswith("claude_worklog/agent_supervisor/runtime/"):
             continue
         kept_lines.append(ln)
     git_status = "\n".join(kept_lines).strip()

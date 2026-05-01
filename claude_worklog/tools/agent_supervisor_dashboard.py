@@ -27,9 +27,11 @@ PLANNER_STATUS = BASE / "status/planner_status.json"
 HEARTBEAT = BASE / "status/supervisor_heartbeat.json"
 LOCK_FILE = BASE / "supervisor.lock"
 RUNS = BASE / "runs"
-PLANNER_DECISION = BASE / "planner/PLANNER_DECISION.md"
-PLANNER_HUMAN_ACTION = BASE / "planner/HUMAN_ACTION_REQUIRED.md"
-PLANNER_GO_NO_GO = BASE / "planner/PLANNER_GO_NO_GO.md"
+TRACKED_PLANNER = BASE / "planner"
+RUNTIME_PLANNER = BASE / "runtime/planner"
+PLANNER_DECISION = RUNTIME_PLANNER / "PLANNER_DECISION.md"
+PLANNER_HUMAN_ACTION = RUNTIME_PLANNER / "HUMAN_ACTION_REQUIRED.md"
+PLANNER_GO_NO_GO = RUNTIME_PLANNER / "PLANNER_GO_NO_GO.md"
 NEXT_PHASE = BASE / "state/NEXT_PHASE.md"
 WORKSPACE = pathlib.Path(os.path.expanduser("~/Desktop/AI BOT REBUILD"))
 
@@ -41,6 +43,13 @@ def read_text(path: pathlib.Path) -> str:
         return path.read_text(encoding="utf-8", errors="ignore").strip()
     except Exception:
         return ""
+
+
+def planner_text(path: pathlib.Path) -> str:
+    txt = read_text(path)
+    if txt:
+        return txt
+    return read_text(TRACKED_PLANNER / path.name)
 
 
 def read_json(path: pathlib.Path) -> Dict[str, Any]:
@@ -62,7 +71,30 @@ def cmd_out(cmd: List[str]) -> str:
 
 def git_cleanliness() -> str:
     out = cmd_out(["git", "-C", str(WORKSPACE), "status", "--short"])
-    return "clean" if not out.strip() else "dirty"
+    substantive = substantive_git_status_lines(out)
+    return "clean" if not substantive else "dirty"
+
+
+def substantive_git_status_lines(raw: str) -> List[str]:
+    ignored_exact = {
+        "claude_worklog/agent_supervisor/status/agent_health.json",
+        "claude_worklog/agent_supervisor/status/supervisor_heartbeat.json",
+        "claude_worklog/agent_supervisor/status/phase_017_watchdog.json",
+        "claude_worklog/agent_supervisor/status/planner_status.json",
+        "claude_worklog/agent_supervisor/supervisor.lock",
+    }
+    ignored_prefixes = (
+        "claude_worklog/agent_supervisor/runtime/",
+        "claude_worklog/agent_supervisor/runs/",
+        "claude_worklog/agent_supervisor/state/tasks/",
+    )
+    lines: List[str] = []
+    for ln in raw.splitlines():
+        rel = ln[3:].strip() if len(ln) >= 4 else ln.strip()
+        if rel in ignored_exact or any(rel.startswith(pfx) for pfx in ignored_prefixes):
+            continue
+        lines.append(ln)
+    return lines
 
 
 def which(name: str) -> Optional[str]:
@@ -92,6 +124,21 @@ def task_state(task_id: str) -> Dict[str, Any]:
         return {}
     p = WORKSPACE / f"claude_worklog/agent_supervisor/state/tasks/{task_id}.json"
     return read_json(p)
+
+
+def task_definition(task_id: str) -> Dict[str, Any]:
+    if not task_id:
+        return {}
+    p = WORKSPACE / f"claude_worklog/agent_supervisor/tasks/{task_id}.json"
+    return read_json(p)
+
+
+def task_definition_path(task_id: str) -> str:
+    return f"claude_worklog/agent_supervisor/tasks/{task_id}.json" if task_id else "-"
+
+
+def task_runtime_state_path(task_id: str) -> str:
+    return f"claude_worklog/agent_supervisor/state/tasks/{task_id}.json" if task_id else "-"
 
 
 def last_events(n: int = 10) -> List[str]:
@@ -260,7 +307,10 @@ def print_dashboard(refresh_seconds: int) -> None:
         current_task_id = str(current.get("task_id") or "") if isinstance(current, dict) else ""
         current_task_status = str(current.get("status") or "") if isinstance(current, dict) else ""
         current_task_state = task_state(current_task_id)
+        current_task_def = task_definition(current_task_id)
         current_state_status = str(current_task_state.get("status") or "")
+        current_def_status = str(current_task_def.get("status") or "")
+        current_state_source = "runtime" if current_task_state else ("definition fallback" if current_def_status else "default pending")
         current_task_proc = process_running_for_task(current_task_id)
         running_state_stale = (
             current_task_status == "running"
@@ -294,9 +344,9 @@ def print_dashboard(refresh_seconds: int) -> None:
         human_action_required = bool(planner.get("human_action_required")) if isinstance(planner, dict) else False
         next_planned_task = planner.get("next_planned_task") if isinstance(planner, dict) else None
         will_execute_automatically = bool(planner.get("will_execute_automatically")) if isinstance(planner, dict) else False
-        planner_go_no_go = read_text(WORKSPACE / PLANNER_GO_NO_GO) or str(planner.get("planner_go_no_go", "-"))
-        human_action_text = read_text(WORKSPACE / PLANNER_HUMAN_ACTION)
-        planner_decision_line = first_content_line(read_text(WORKSPACE / PLANNER_DECISION))
+        planner_go_no_go = planner_text(WORKSPACE / PLANNER_GO_NO_GO) or str(planner.get("planner_go_no_go", "-"))
+        human_action_text = planner_text(WORKSPACE / PLANNER_HUMAN_ACTION)
+        planner_decision_line = first_content_line(planner_text(WORKSPACE / PLANNER_DECISION))
         auto_phase = autonomous_phase(planner if isinstance(planner, dict) else {}, queue if isinstance(queue, dict) else {})
 
         current_time = dt.datetime.now(dt.timezone.utc)
@@ -389,6 +439,11 @@ def print_dashboard(refresh_seconds: int) -> None:
                 f"| process_alive: {'yes' if current_task_proc else 'no'} "
                 f"| stale_status_view: {'yes' if running_state_stale else 'no'}"
             )
+            print(f"task definition path: {task_definition_path(current_task_id)}")
+            print(f"runtime state path: {task_runtime_state_path(current_task_id)}")
+            print(f"runtime status: {current_state_status or '-'}")
+            print(f"task definition status: {current_def_status or '-'}")
+            print(f"state source: {current_state_source}")
         print(f"latest Claude run summary: {latest_agent_summary('claude')}")
         print(f"latest Codex run summary: {latest_agent_summary('codex')}")
         print(f"latest Ollama run summary: {latest_agent_summary('ollama')}")
@@ -411,7 +466,15 @@ def print_dashboard(refresh_seconds: int) -> None:
         print(f"continuous monitor status: {continuous_monitor_status()}")
         print(f"V2 build gate status: {v2_build_gate_status()}")
         print(f"live mutation gate status: {live_mutation_gate_status()}")
-        print(f"git cleanliness: {git_cleanliness()}")
+        raw_git = cmd_out(["git", "-C", str(WORKSPACE), "status", "--short"])
+        substantive_dirty = substantive_git_status_lines(raw_git)
+        print(f"git cleanliness: {'clean' if not substantive_dirty else 'dirty'}")
+        if substantive_dirty:
+            print("dirty git warning: substantive tracked/unignored changes present")
+        elif raw_git.strip():
+            print("dirty git warning: only ignored/runtime supervisor artifacts present")
+        else:
+            print("dirty git warning: none")
         print(f"last event age seconds: {last_event_age}")
         print(f"daemon heartbeat age seconds: {int(hb_age) if hb_age is not None else '-'}")
 
