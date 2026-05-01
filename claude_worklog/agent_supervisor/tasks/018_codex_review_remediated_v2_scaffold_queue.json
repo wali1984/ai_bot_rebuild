@@ -1,0 +1,17 @@
+{
+  "task_id": "018_codex_review_remediated_v2_scaffold_queue",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/v2_scaffold_queue_review/"
+  ],
+  "required_output_files": [
+    "claude_worklog/v2_scaffold_queue_review/08_CODEX_REVIEW_AFTER_017_REMEDIATION.md",
+    "claude_worklog/v2_scaffold_queue_review/09_CODEX_QUEUE_GO_NO_GO_AFTER_017.md"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not create implementation code. Review the remediated V2 scaffold implementation queue after task 017. Inputs: claude_worklog/v2_scaffold_queue/*.md, claude_worklog/v2_scaffold_queue_remediation/*.md, claude_worklog/agent_supervisor/tasks/015a_*.json through 015f_*.json, claude_worklog/v2_scaffold_planning/*.md, claude_worklog/v2_architecture/*.md, claude_worklog/v2_requirements/*.md. Verify implementation tasks remain blocked_approval, queue blockers are remediated, observability/tests/rollback/audit/GO-NO-GO are present, and no live trading/legacy mutation is enabled. Output exactly two BEGIN_FILE blocks. The GO/NO-GO file must contain exactly one line: V2_SCAFFOLD_QUEUE_CODEX_PASS or V2_SCAFFOLD_QUEUE_CODEX_FAIL.",
+  "next_recommended_action": "If Codex passes, request human approval to unblock 015A only."
+}
