@@ -1,0 +1,17 @@
+{
+  "task_id": "012a_database_lineage_constraints",
+  "agent": "claude",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/v2_architecture/",
+    "claude_worklog/v2_architecture_remediation/"
+  ],
+  "required_output_files": [
+    "claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md",
+    "claude_worklog/v2_architecture_remediation/12A_DATABASE_LINEAGE_CLOSURE.md"
+  ],
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Close only the database lineage constraint gap. Inputs: claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md, claude_worklog/v2_requirements/*.md, claude_worklog/v2_architecture_remediation/*.md. Output full updated claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md and summary claude_worklog/v2_architecture_remediation/12A_DATABASE_LINEAGE_CLOSURE.md using BEGIN_FILE blocks only. Requirements: enforce feature_snapshot_id -> prediction_id -> signal_id -> decision_id -> risk_decision_id -> execution_intent_id with foreign keys/indexes/unique constraints/nullability rules; include missing-attribution rejection support; include query indexes for explainability and audit."
+}

@@ -1,0 +1,18 @@
+{
+  "task_id": "012e_milestone_go_no_go_integration",
+  "agent": "claude",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/v2_architecture/",
+    "claude_worklog/v2_architecture_remediation/"
+  ],
+  "required_output_files": [
+    "claude_worklog/v2_architecture/17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md",
+    "claude_worklog/v2_architecture/18_ARCHITECTURE_REVIEW_GO_NO_GO.md",
+    "claude_worklog/v2_architecture_remediation/12E_MILESTONE_GO_NO_GO_CLOSURE.md"
+  ],
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Close only the implementation sequence and GO/NO-GO integration gap. Inputs: claude_worklog/v2_architecture/17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md, claude_worklog/v2_architecture/18_ARCHITECTURE_REVIEW_GO_NO_GO.md, claude_worklog/v2_architecture_remediation/12A_DATABASE_LINEAGE_CLOSURE.md, 12B_API_LINEAGE_ENFORCEMENT_CLOSURE.md, 12C_FEATURE_EXPLAINABILITY_CLOSURE.md, 12D_TRAINER_LIVENESS_EVIDENCE_CLOSURE.md. Output full updated milestone file, full updated GO/NO-GO file, and summary claude_worklog/v2_architecture_remediation/12E_MILESTONE_GO_NO_GO_CLOSURE.md using BEGIN_FILE blocks only. Requirements: include objective gate evidence before scaffold planning and set 18_ARCHITECTURE_REVIEW_GO_NO_GO.md to architecture-ready-for-Codex-rerun, not build-ready."
+}

@@ -1,0 +1,17 @@
+{
+  "task_id": "012b_api_lineage_enforcement",
+  "agent": "claude",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/v2_architecture/",
+    "claude_worklog/v2_architecture_remediation/"
+  ],
+  "required_output_files": [
+    "claude_worklog/v2_architecture/05_API_CONTRACTS.md",
+    "claude_worklog/v2_architecture_remediation/12B_API_LINEAGE_ENFORCEMENT_CLOSURE.md"
+  ],
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Close only the API lineage enforcement gap. Inputs: claude_worklog/v2_architecture/05_API_CONTRACTS.md, claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md, claude_worklog/v2_requirements/*.md. Output full updated claude_worklog/v2_architecture/05_API_CONTRACTS.md and summary claude_worklog/v2_architecture_remediation/12B_API_LINEAGE_ENFORCEMENT_CLOSURE.md using BEGIN_FILE blocks only. Requirements: add request/response validation for lineage fields, missing attribution error classes, endpoint-level enforcement for prediction/signal/orchestrator/risk/execution, and scaffoldable test vectors."
+}
