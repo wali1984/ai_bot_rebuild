@@ -2,7 +2,7 @@
   "task_id": "010_actual_codex_architecture_rerun_after_remediation",
   "agent": "codex",
   "risk_level": "L1",
-  "status": "pending",
+  "status": "completed",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "allowed_output_prefixes": [
@@ -26,9 +26,10 @@
   "next_tasks_on_success": [],
   "next_tasks_on_failure": [],
   "last_run": {
-    "start": "2026-05-01T02:57:56.341545+00:00",
-    "end": "2026-05-01T02:59:14.789083+00:00",
-    "status": "pending"
+    "start": "2026-05-01T16:11:15.095842+00:00",
+    "end": "2026-05-01T16:50:01.848082+00:00",
+    "status": "completed"
   },
-  "last_summary": "waiting on dependencies: 012e_milestone_go_no_go_integration"
+  "last_summary": "normalized stale-running 010: required output files materialized from existing stdout",
+  "run_pid": null
 }
