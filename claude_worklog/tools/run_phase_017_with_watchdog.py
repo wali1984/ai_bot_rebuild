@@ -131,6 +131,24 @@ def daemon_running(procs: List[Dict[str, Any]]) -> bool:
     return any("agent_supervisor.py --autonomous-daemon" in p["cmd"] for p in procs)
 
 
+def stop_agent_children() -> List[int]:
+    """Stop stale agent child processes only (claude/codex/ollama subprocesses)."""
+    killed: List[int] = []
+    for p in process_list():
+        cmd = p.get("cmd", "")
+        if "agent_supervisor.py" in cmd:
+            continue
+        pid = int(p.get("pid", 0) or 0)
+        if pid <= 0:
+            continue
+        try:
+            os.kill(pid, 15)
+            killed.append(pid)
+        except Exception:
+            continue
+    return killed
+
+
 def read_first_line(path: pathlib.Path) -> str:
     try:
         for ln in path.read_text(encoding="utf-8", errors="ignore").splitlines():
@@ -200,6 +218,8 @@ def start_daemon() -> Tuple[bool, str]:
 
 def stop_daemon() -> None:
     run(["bash", str(AUTON_STOP)], timeout=60)
+    # ensure stale agent child processes do not continue detached
+    stop_agent_children()
 
 
 def safe_relpath(path_text: str, allowed_prefixes: List[str]) -> Optional[pathlib.Path]:
@@ -474,6 +494,17 @@ def task_child_timed_out(snapshot: Dict[str, Any]) -> bool:
     return False
 
 
+def task_017_child_age_seconds(snapshot: Dict[str, Any]) -> Optional[int]:
+    ages: List[int] = []
+    for p in snapshot.get("processes", []):
+        cmd = p.get("cmd", "")
+        if TASK_017 in cmd:
+            ages.append(int(p.get("etimes", 0) or 0))
+    if not ages:
+        return None
+    return max(ages)
+
+
 def no_output_growth(snapshot: Dict[str, Any]) -> bool:
     t017 = snapshot.get("task_017_state", {})
     if t017.get("status") != "running":
@@ -564,6 +595,11 @@ def poll_loop() -> int:
     started = time.time()
     append_event({"event": "phase_017_started", "task_id": TASK_017})
 
+    # clear stale child processes from prior interrupted runs
+    stale_killed = stop_agent_children()
+    if stale_killed:
+        append_event({"event": "phase_017_recovered", "reason": "stale_agent_children_stopped", "pids": stale_killed})
+
     ok, msg = start_daemon()
     if not ok:
         append_event({"event": "phase_017_failed", "reason": "daemon_start_failed", "detail": msg})
@@ -627,7 +663,7 @@ def poll_loop() -> int:
                 return 6
 
         # planner stuck recovery
-        if planner_stuck(snapshot):
+        if planner_stuck(snapshot) and t017.get("status") != "running":
             stop_daemon()
             ok3, msg3 = start_daemon()
             append_event({"event": "phase_017_recovered", "reason": "planner_stuck_restart", "restart_ok": ok3, "detail": msg3})
@@ -660,10 +696,18 @@ def poll_loop() -> int:
             return 9
 
         if no_output_growth(snapshot):
+            child_age = task_017_child_age_seconds(snapshot)
             if req_ok:
                 mat = materialize_begin_file_blocks(TASK_017_RUN_DIR / "stdout.txt", ALLOWED_PREFIXES)
                 normalize_task_state(TASK_017, "completed", "no growth but required outputs present; normalized", mat.get("materialized_files", []))
                 append_event({"event": "phase_017_recovered", "reason": "no_output_growth_with_outputs"})
+            elif child_age is not None and child_age <= TASK_CHILD_TIMEOUT_SECONDS:
+                append_event({
+                    "event": "phase_017_recovered",
+                    "reason": "no_output_growth_watch",
+                    "task_child_age_seconds": child_age,
+                    "action": "waiting_until_child_timeout",
+                })
             else:
                 stop_daemon()
                 normalize_task_state(TASK_017, "human_attention_required", "017 stuck running with no output growth")
