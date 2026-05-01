@@ -1,6 +1,5 @@
 {
   "task_id": "015b_database_migration_skeleton",
-  "status": "blocked_approval",
   "agent": "claude",
   "risk_level": "L2",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
@@ -86,7 +85,7 @@
   "tests": {
     "unit": [],
     "integration": [
-      "v2/backend/tests/integration/test_alembic_round_trip.py — boots ephemeral postgres via testcontainers (or local pg_ctl), runs `alembic upgrade head` (no-op on skeleton) and `alembic downgrade base` and asserts return code 0 and zero schema diff"
+      "v2/backend/tests/integration/test_alembic_round_trip.py \u2014 boots ephemeral postgres via testcontainers (or local pg_ctl), runs `alembic upgrade head` (no-op on skeleton) and `alembic downgrade base` and asserts return code 0 and zero schema diff"
     ],
     "contract": [],
     "e2e": [],
@@ -116,6 +115,15 @@
   },
   "go_no_go_marker": "C_DATABASE_SKELETON_VALIDATION_READY",
   "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not run alembic against any legacy or production DB; only an ephemeral postgres for the round-trip test. Materialize the Alembic + SQLAlchemy harness ONLY (no migration versions). Create v2/backend/migrations/env.py, script.py.mako, README.md, the db engine/session/base modules, and one integration test that boots ephemeral postgres and asserts alembic upgrade head + downgrade base round-trip exits 0. Do NOT author any migration version files; those belong to milestone C proper. Produce claude_worklog/v2_build/C_DATABASE_SKELETON_VALIDATION.md ending in exactly C_DATABASE_SKELETON_VALIDATION_READY or C_DATABASE_SKELETON_VALIDATION_BLOCKED. Output BEGIN_FILE blocks only.",
-  "next_recommended_action": "After completion, run 015c_api_route_skeleton (sequential).",
-  "normalized_from_artifact": false
+  "next_recommended_action": "Do not run automatically. Wait for Codex queue pass and explicit human approval.",
+  "normalized_from_artifact": false,
+  "status": "blocked_approval",
+  "approval_required": true,
+  "requires_human_approval": true,
+  "do_not_autorun": true,
+  "blocked_reason": "Implementation scaffold task remains blocked until scaffold queue Codex review passes and user explicitly approves unblocking this individual task.",
+  "gates_required": [
+    "V2_SCAFFOLD_QUEUE_CODEX_PASS",
+    "HUMAN_APPROVAL_FOR_THIS_TASK"
+  ]
 }

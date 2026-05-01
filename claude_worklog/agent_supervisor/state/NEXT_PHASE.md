@@ -1,20 +1,18 @@
 # Next Phase
 
-Current validated gate:
+Current validated gates:
 - ACTUAL_CODEX_ARCHITECTURE_RERUN_PASS
 - V2_SCAFFOLD_PLANNING_READY
 - AGENT_SUPERVISOR_RELIABILITY_HARDENING_READY
 
-Do not replay historical tasks 001-014.
+Current queue state:
+- Scaffold implementation tasks 015A-015F exist but are blocked_approval.
+- Scaffold queue Codex review is blocked/fail.
+- Next safe task is 017_remediate_v2_scaffold_queue_codex_blockers.
 
-Next allowed phase:
-- V2 implementation scaffold queue creation
+Do not run 015A-015F.
+Do not build V2 implementation.
+Do not mutate legacy bot.
+Do not write Redis.
 
-Still blocked:
-- live trading
-- legacy bot mutation
-- Redis writes
-- deployment
-- live exchange actions
-
-NEXT_PHASE_V2_SCAFFOLD_QUEUE_CREATION
+NEXT_PHASE_REMEDIATE_SCAFFOLD_QUEUE_CODEX_BLOCKERS

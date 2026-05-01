@@ -1,6 +1,5 @@
 {
   "task_id": "015a_repo_package_skeleton",
-  "status": "blocked_approval",
   "agent": "claude",
   "risk_level": "L2",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
@@ -106,7 +105,7 @@
       "ruff check v2/backend (zero warnings)",
       "mypy v2/backend --strict (zero errors)",
       "tsc --noEmit over v2/frontend (zero errors)",
-      "ops/ci/import_cycle_check.py (no cycles, no forbidden edges per 02_PACKAGE_AND_MODULE_MAP.md §3)"
+      "ops/ci/import_cycle_check.py (no cycles, no forbidden edges per 02_PACKAGE_AND_MODULE_MAP.md \u00a73)"
     ]
   },
   "rollback": {
@@ -130,6 +129,15 @@
   },
   "go_no_go_marker": "B_SCAFFOLD_VALIDATION_READY",
   "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not place/cancel orders. Do not import legacy trainer modules into the FastAPI process; subprocess boundary only. Do not pip install into the trainer venv. Materialize the V2 repo/package skeleton EXACTLY as specified by claude_worklog/v2_scaffold_planning/02_PACKAGE_AND_MODULE_MAP.md. Create empty packages with __init__.py for every path listed there. Create pyproject.toml, package.json, tsconfig.json, alembic.ini at v2/. NO runtime behavior: app/main.py registers routers but performs no I/O at import; settings.py reads env via pydantic-settings only; no router has handler bodies. Frontend: package.json + tsconfig.json + vite.config.ts only; no pages yet. Migrations harness only; no Alembic versions. Produce claude_worklog/v2_build/B_SCAFFOLD_VALIDATION.md ending in exactly the line B_SCAFFOLD_VALIDATION_READY or B_SCAFFOLD_VALIDATION_BLOCKED. Output BEGIN_FILE blocks only.",
-  "next_recommended_action": "After Codex queue review PASS and human L2 approval, flip status from blocked_approval to pending. After completion, run 015e_test_ci_skeleton (parallel) and 015b_database_migration_skeleton (sequential).",
-  "normalized_from_artifact": false
+  "next_recommended_action": "Do not run automatically. Wait for Codex queue pass and explicit human approval.",
+  "normalized_from_artifact": false,
+  "status": "blocked_approval",
+  "approval_required": true,
+  "requires_human_approval": true,
+  "do_not_autorun": true,
+  "blocked_reason": "Implementation scaffold task remains blocked until scaffold queue Codex review passes and user explicitly approves unblocking this individual task.",
+  "gates_required": [
+    "V2_SCAFFOLD_QUEUE_CODEX_PASS",
+    "HUMAN_APPROVAL_FOR_THIS_TASK"
+  ]
 }

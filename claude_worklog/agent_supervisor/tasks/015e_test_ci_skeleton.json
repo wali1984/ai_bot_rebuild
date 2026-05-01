@@ -1,6 +1,5 @@
 {
   "task_id": "015e_test_ci_skeleton",
-  "status": "blocked_approval",
   "agent": "claude",
   "risk_level": "L2",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
@@ -91,7 +90,7 @@
     "e2e": [],
     "static": [
       "make ci runs lint + type + import-cycle + schema-drift + (empty) test suites and exits 0",
-      "ops/ci/import_cycle_check.py refuses any forbidden edge listed in 02_PACKAGE_AND_MODULE_MAP.md §3",
+      "ops/ci/import_cycle_check.py refuses any forbidden edge listed in 02_PACKAGE_AND_MODULE_MAP.md \u00a73",
       "ops/ci/orphan_path_check.py refuses any unreachable file under v2/**",
       "ops/ci/secrets_scan.sh runs gitleaks over the diff and refuses any hit"
     ]
@@ -118,6 +117,15 @@
   },
   "go_no_go_marker": "B_TEST_CI_VALIDATION_READY",
   "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. CI MUST run local-native; Docker must not be required. CI MUST NOT target legacy Redis, legacy DB, the trainer venv, or any real exchange. Materialize the test/CI skeleton per claude_worklog/v2_scaffold_planning/07_TEST_AND_CI_PLAN.md: ops/ci/lint.sh, type_check.sh, test.sh, import_cycle_check.py (grimp + madge), schema_drift_check.py (Alembic head vs SQLAlchemy metadata), secrets_scan.sh (gitleaks), orphan_path_check.py, .github/workflows/ci.yml wiring those stages, and a top-level Makefile target `make ci`. Required stages: lint, type, import-cycle, schema-drift (advisory until 015B), unit, integration, contract, frontend-unit, e2e, a11y, coverage, security-audit, secrets-scan. Produce claude_worklog/v2_build/B_TEST_CI_VALIDATION.md ending in exactly B_TEST_CI_VALIDATION_READY or B_TEST_CI_VALIDATION_BLOCKED. Output BEGIN_FILE blocks only.",
-  "next_recommended_action": "After completion, 015F may run once 015A-D are also complete.",
-  "normalized_from_artifact": false
+  "next_recommended_action": "Do not run automatically. Wait for Codex queue pass and explicit human approval.",
+  "normalized_from_artifact": false,
+  "status": "blocked_approval",
+  "approval_required": true,
+  "requires_human_approval": true,
+  "do_not_autorun": true,
+  "blocked_reason": "Implementation scaffold task remains blocked until scaffold queue Codex review passes and user explicitly approves unblocking this individual task.",
+  "gates_required": [
+    "V2_SCAFFOLD_QUEUE_CODEX_PASS",
+    "HUMAN_APPROVAL_FOR_THIS_TASK"
+  ]
 }

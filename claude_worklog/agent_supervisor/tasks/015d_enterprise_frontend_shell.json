@@ -1,6 +1,5 @@
 {
   "task_id": "015d_enterprise_frontend_shell",
-  "status": "blocked_approval",
   "agent": "claude",
   "risk_level": "L2",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
@@ -133,10 +132,10 @@
     "integration": [],
     "contract": [],
     "e2e": [
-      "nav_smoke.spec.ts — every one of the 26 admin pages + 3 public pages renders its placeholder",
-      "live_block_banner.spec.ts — banner persists across every route change, cannot be dismissed",
-      "rbac_visibility.spec.ts — viewer/operator/reviewer/admin/live_approver each see the documented set of pages and no others",
-      "default_deny_inventory.spec.ts — every dangerous control listed in 05_ENTERPRISE_GUI_SCAFFOLD_PLAN.md §6 renders disabled with a RequiresApprovalBadge"
+      "nav_smoke.spec.ts \u2014 every one of the 26 admin pages + 3 public pages renders its placeholder",
+      "live_block_banner.spec.ts \u2014 banner persists across every route change, cannot be dismissed",
+      "rbac_visibility.spec.ts \u2014 viewer/operator/reviewer/admin/live_approver each see the documented set of pages and no others",
+      "default_deny_inventory.spec.ts \u2014 every dangerous control listed in 05_ENTERPRISE_GUI_SCAFFOLD_PLAN.md \u00a76 renders disabled with a RequiresApprovalBadge"
     ],
     "static": [
       "tsc --noEmit (zero errors)",
@@ -166,7 +165,16 @@
     "hash_chain_link": "prior_event_hash + this_event_payload -> event_hash"
   },
   "go_no_go_marker": "E_GUI_SHELL_VALIDATION_READY",
-  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not render any dangerous control as enabled. Do not allow the LIVE TRADING: BLOCKED banner to be dismissed. Materialize the V2 enterprise frontend shell with placeholder pages for all 26 admin/operator pages plus the 3 public pages enumerated in claude_worklog/v2_scaffold_planning/05_ENTERPRISE_GUI_SCAFFOLD_PLAN.md §3. Every page folder MUST include index.tsx + route.ts + rbac.ts + meta.ts. Render LiveBlockBanner on every route. Render every dangerous control disabled with a RequiresApprovalBadge. Implement RBAC nav visibility via auth/rbac.ts. Implement lineage block component. Implement PWA manifest + cache-only service worker (no background trade actions). Implement mobile bridge contract (TypeScript-only). Add Playwright e2e tests: nav_smoke, live_block_banner, rbac_visibility, default_deny_inventory. Produce claude_worklog/v2_build/E_GUI_SHELL_VALIDATION.md ending in exactly E_GUI_SHELL_VALIDATION_READY or E_GUI_SHELL_VALIDATION_BLOCKED. Output BEGIN_FILE blocks only.",
-  "next_recommended_action": "After completion, run 015f_agent_dashboard_integration (sequential, requires 015E also complete).",
-  "normalized_from_artifact": false
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not render any dangerous control as enabled. Do not allow the LIVE TRADING: BLOCKED banner to be dismissed. Materialize the V2 enterprise frontend shell with placeholder pages for all 26 admin/operator pages plus the 3 public pages enumerated in claude_worklog/v2_scaffold_planning/05_ENTERPRISE_GUI_SCAFFOLD_PLAN.md \u00a73. Every page folder MUST include index.tsx + route.ts + rbac.ts + meta.ts. Render LiveBlockBanner on every route. Render every dangerous control disabled with a RequiresApprovalBadge. Implement RBAC nav visibility via auth/rbac.ts. Implement lineage block component. Implement PWA manifest + cache-only service worker (no background trade actions). Implement mobile bridge contract (TypeScript-only). Add Playwright e2e tests: nav_smoke, live_block_banner, rbac_visibility, default_deny_inventory. Produce claude_worklog/v2_build/E_GUI_SHELL_VALIDATION.md ending in exactly E_GUI_SHELL_VALIDATION_READY or E_GUI_SHELL_VALIDATION_BLOCKED. Output BEGIN_FILE blocks only.",
+  "next_recommended_action": "Do not run automatically. Wait for Codex queue pass and explicit human approval.",
+  "normalized_from_artifact": false,
+  "status": "blocked_approval",
+  "approval_required": true,
+  "requires_human_approval": true,
+  "do_not_autorun": true,
+  "blocked_reason": "Implementation scaffold task remains blocked until scaffold queue Codex review passes and user explicitly approves unblocking this individual task.",
+  "gates_required": [
+    "V2_SCAFFOLD_QUEUE_CODEX_PASS",
+    "HUMAN_APPROVAL_FOR_THIS_TASK"
+  ]
 }
