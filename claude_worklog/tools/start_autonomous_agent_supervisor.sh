@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$HOME/Desktop/AI BOT REBUILD"
+SESSION="ai_bot_autonomous_agent_supervisor"
+
+if tmux has-session -t "$SESSION" 2>/dev/null; then
+  echo "tmux session already running: $SESSION"
+  exit 0
+fi
+
+tmux new-session -d -s "$SESSION" "cd '$HOME/Desktop/AI BOT REBUILD' && python3 claude_worklog/tools/agent_supervisor.py --autonomous-daemon --poll-seconds 60"
+echo "started tmux session: $SESSION"

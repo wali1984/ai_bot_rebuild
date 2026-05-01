@@ -1,0 +1,151 @@
+{
+  "generated_at": "2026-05-01T18:34:00+00:00",
+  "planner_cycle": 3,
+  "planner_go_no_go": "PLANNER_NEXT_TASKS_READY",
+  "human_action_required": false,
+  "continuity_note": "Cycle 3 reconfirms cycle 2 selection. Queue state, gates, and task statuses unchanged since 2026-05-01T18:30:00+00:00.",
+  "next_planned_tasks": [
+    {
+      "task_id": "017_remediate_v2_scaffold_queue_codex_blockers",
+      "agent": "claude",
+      "risk_level": "L1",
+      "decision_level": "L1",
+      "autonomous_dispatchable": true,
+      "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+      "purpose": "Address all 8 blockers from claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_REVIEW.md by editing queue documents and 015A-015F task JSONs. Hold all six implementation tasks in blocked_approval. Produce a remediation closure file and GO/NO-GO marker that gates the next-cycle Codex rerun.",
+      "trigger_gate": {
+        "file": "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_GO_NO_GO.md",
+        "expected_value": "V2_SCAFFOLD_QUEUE_CODEX_REVIEW_BLOCKED",
+        "verified": true
+      },
+      "dependencies": {
+        "must_be_present_and_passing": [
+          "claude_worklog/v2_architecture_remediation/12A_DATABASE_LINEAGE_CLOSURE.md",
+          "claude_worklog/v2_architecture_remediation/12B_API_LINEAGE_ENFORCEMENT_CLOSURE.md",
+          "claude_worklog/v2_architecture_remediation/12C_FEATURE_EXPLAINABILITY_CLOSURE.md",
+          "claude_worklog/v2_architecture_remediation/12D_TRAINER_LIVENESS_EVIDENCE_CLOSURE.md",
+          "claude_worklog/v2_architecture_codex_review/16_ACTUAL_CODEX_RERUN_GO_NO_GO.md",
+          "claude_worklog/v2_scaffold_planning/08_SCAFFOLD_PLANNING_GO_NO_GO.md",
+          "claude_worklog/agent_supervisor_reliability/04_GO_NO_GO.md",
+          "claude_worklog/v2_scaffold_queue/05_SCAFFOLD_QUEUE_GO_NO_GO.md",
+          "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_GO_NO_GO.md",
+          "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_REVIEW.md"
+        ],
+        "must_be_blocked_approval": [
+          "claude_worklog/agent_supervisor/state/tasks/015a_repo_package_skeleton.json",
+          "claude_worklog/agent_supervisor/state/tasks/015b_database_migration_skeleton.json",
+          "claude_worklog/agent_supervisor/state/tasks/015c_api_route_skeleton.json",
+          "claude_worklog/agent_supervisor/state/tasks/015d_enterprise_frontend_shell.json",
+          "claude_worklog/agent_supervisor/state/tasks/015e_test_ci_skeleton.json",
+          "claude_worklog/agent_supervisor/state/tasks/015f_agent_dashboard_integration.json"
+        ],
+        "must_remain_blocked": [
+          "live trading",
+          "legacy bot mutation",
+          "legacy Redis writes",
+          "deployment",
+          "live exchange actions",
+          "V2 implementation scaffold (015A-015F dispatch)"
+        ]
+      },
+      "allowed_output_prefixes": [
+        "claude_worklog/v2_scaffold_queue/",
+        "claude_worklog/agent_supervisor/tasks/",
+        "claude_worklog/agent_supervisor/state/tasks/"
+      ],
+      "required_output_files": [
+        "claude_worklog/v2_scaffold_queue/00_QUEUE_OVERVIEW.md",
+        "claude_worklog/v2_scaffold_queue/01_IMPLEMENTATION_WAVES.md",
+        "claude_worklog/v2_scaffold_queue/02_TASK_DEPENDENCY_GRAPH.md",
+        "claude_worklog/v2_scaffold_queue/03_SCAFFOLD_BUILD_GUARDRAILS.md",
+        "claude_worklog/v2_scaffold_queue/04_CODEX_QUEUE_REVIEW_INPUT.md",
+        "claude_worklog/v2_scaffold_queue/07_REMEDIATION_CLOSURE.md",
+        "claude_worklog/v2_scaffold_queue/07_REMEDIATION_GO_NO_GO.md",
+        "claude_worklog/agent_supervisor/tasks/015a_repo_package_skeleton.json",
+        "claude_worklog/agent_supervisor/tasks/015b_database_migration_skeleton.json",
+        "claude_worklog/agent_supervisor/tasks/015c_api_route_skeleton.json",
+        "claude_worklog/agent_supervisor/tasks/015d_enterprise_frontend_shell.json",
+        "claude_worklog/agent_supervisor/tasks/015e_test_ci_skeleton.json",
+        "claude_worklog/agent_supervisor/tasks/015f_agent_dashboard_integration.json"
+      ],
+      "blockers_to_remediate": [
+        {
+          "id": "B1",
+          "claim": "Task definition JSONs do not carry status=blocked_approval.",
+          "evidence_ref": "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_REVIEW.md:9-14",
+          "fix_summary": "Add \"status\": \"blocked_approval\" to each 015A-015F task JSON; document field semantics in 03_SCAFFOLD_BUILD_GUARDRAILS.md."
+        },
+        {
+          "id": "B2",
+          "claim": "015E dependency ordering contradicts the wave model.",
+          "evidence_ref": "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_REVIEW.md:16-20",
+          "fix_summary": "Pick exactly one model: either move 015E to W2 (and keep 015A->015E edge plus B_SCAFFOLD_VALIDATION.md gate) or remove the 015A dependency and the validation gate from 015E and keep W1 parallel. Update 01_IMPLEMENTATION_WAVES.md, 02_TASK_DEPENDENCY_GRAPH.md, and 015e_test_ci_skeleton.json accordingly."
+        },
+        {
+          "id": "B3",
+          "claim": "Global gate-evidence floor not enumerated on every task.",
+          "evidence_ref": "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_REVIEW.md:22-27",
+          "fix_summary": "Inject the eight global floor items from 00_QUEUE_OVERVIEW.md:54-63 into every 015X gate_evidence_ref, then append per-task items."
+        },
+        {
+          "id": "B4",
+          "claim": "Early-task acceptance tests reference CI files produced later.",
+          "evidence_ref": "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_REVIEW.md:29-33",
+          "fix_summary": "Either (a) move CI harness to wave 0 (would conflict with B2 chosen model), (b) remove the CI checks from 015A/015B acceptance criteria and re-add them in 015E, or (c) add 015E as a hard dependency for 015B and re-sequence the waves. Decide and document in 01_IMPLEMENTATION_WAVES.md."
+        },
+        {
+          "id": "B5",
+          "claim": "015D required-outputs list does not match the per-page contract.",
+          "evidence_ref": "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_REVIEW.md:35-39",
+          "fix_summary": "Enumerate index.tsx + route.ts + rbac.ts + meta.ts for every required page folder in 015d_enterprise_frontend_shell.json required_outputs."
+        },
+        {
+          "id": "B6",
+          "claim": "Audit-row schema not enforced per task.",
+          "evidence_ref": "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_REVIEW.md:41-44",
+          "fix_summary": "Every 015X audit_evidence block must require rows containing prior_event_hash, event_hash, task_id, risk_level, actor_subject, gate_evidence_ref[], materialized_files[], validation_artifact_path."
+        },
+        {
+          "id": "B7",
+          "claim": "Observability blocks omit summary.json.",
+          "evidence_ref": "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_REVIEW.md:46-49",
+          "fix_summary": "Every 015X observability block must require emission of claude_worklog/agent_supervisor/runs/<task_id>/<ts>/summary.json."
+        },
+        {
+          "id": "B8",
+          "claim": "Codex queue marker contract is inconsistent across review input, task 016 prompt, and current marker file.",
+          "evidence_ref": "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_REVIEW.md:51-54",
+          "fix_summary": "Normalize 04_CODEX_QUEUE_REVIEW_INPUT.md:84-90 to V2_SCAFFOLD_QUEUE_CODEX_REVIEW_PASS / V2_SCAFFOLD_QUEUE_CODEX_REVIEW_BLOCKED. Confirm the supervisor reads the same pair (already true in 016 task JSON)."
+        }
+      ],
+      "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD operating at L1. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not delete Redis keys. Do not restart live services. Do not place or cancel orders. Do not change leverage or margin mode. Do not enable live trading. Do not author any file under v2/**. Do not flip any 015X status to pending; all six MUST remain blocked_approval. Inputs: claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_REVIEW.md (8 blockers), 00_QUEUE_OVERVIEW.md, 01_IMPLEMENTATION_WAVES.md, 02_TASK_DEPENDENCY_GRAPH.md, 03_SCAFFOLD_BUILD_GUARDRAILS.md, 04_CODEX_QUEUE_REVIEW_INPUT.md, 015a-015f task JSONs, claude_worklog/v2_scaffold_planning/05/06/07/09, claude_worklog/v2_architecture/13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md, 17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md, claude_worklog/agent_supervisor_reliability/02_IMPLEMENTATION_REPORT.md, CLAUDE.md. For each of the 8 blockers, author the corresponding fix to the queue documents and task JSONs. Use BEGIN_FILE blocks only. Required outputs: 00_QUEUE_OVERVIEW.md (refresh status text), 01_IMPLEMENTATION_WAVES.md (B2/B4 sequencing), 02_TASK_DEPENDENCY_GRAPH.md (B2 DAG), 03_SCAFFOLD_BUILD_GUARDRAILS.md (B6/B7 schemas), 04_CODEX_QUEUE_REVIEW_INPUT.md (B8 marker normalization), 07_REMEDIATION_CLOSURE.md (NEW: one row per blocker with claim, raw evidence pointer, fix location, post-fix evidence pointer, confidence, missing_evidence), 07_REMEDIATION_GO_NO_GO.md (single line: V2_SCAFFOLD_QUEUE_REMEDIATION_READY_FOR_CODEX_RERUN or V2_SCAFFOLD_QUEUE_REMEDIATION_BLOCKED), and the six 015X task JSONs with status=blocked_approval, full eight-item gate_evidence_ref floor, normalized audit_evidence schema, and observability summary.json requirement. Do not edit CLAUDE.md, the architecture set, or the planning package. After authoring all files, set 07_REMEDIATION_GO_NO_GO.md to ...READY_FOR_CODEX_RERUN only if every blocker is fully remediated and the closure file's missing_evidence is empty for every row.",
+      "next_recommended_action": "On success, planner cycle 4 enqueues 018_codex_queue_rerun_after_remediation (Codex agent, L1, depends on 07_REMEDIATION_GO_NO_GO.md resolving to ...READY_FOR_CODEX_RERUN).",
+      "rollback": "Restore previous queue documents and task JSONs from git HEAD. The remediation introduces no executable code, so rollback is a single git revert of 017's commit.",
+      "audit_evidence": {
+        "events_required": ["task.start", "task.adapter_call", "task.complete"],
+        "row_schema": ["prior_event_hash", "event_hash", "task_id", "risk_level", "actor_subject", "gate_evidence_ref[]", "materialized_files[]", "validation_artifact_path"]
+      },
+      "observability": {
+        "stdout_path": "claude_worklog/agent_supervisor/runs/017_remediate_v2_scaffold_queue_codex_blockers/stdout.txt",
+        "stderr_path": "claude_worklog/agent_supervisor/runs/017_remediate_v2_scaffold_queue_codex_blockers/stderr.txt",
+        "summary_json_path": "claude_worklog/agent_supervisor/runs/017_remediate_v2_scaffold_queue_codex_blockers/<ts>/summary.json"
+      }
+    }
+  ],
+  "tasks_explicitly_not_planned_this_cycle": [
+    {
+      "task_id_pattern": "015a..015f",
+      "reason": "User instruction forbids starting V2 implementation scaffold. Codex BLOCKED verdict on queue. State files hold blocked_approval. Will be unblocked only by Codex rerun PASS plus human L2 approval per 00_QUEUE_OVERVIEW.md:36-39."
+    },
+    {
+      "task_id_pattern": "018_codex_queue_rerun_after_remediation",
+      "reason": "Depends on 017 closure file. Will be enqueued by the next planner cycle after 07_REMEDIATION_GO_NO_GO.md resolves to ...READY_FOR_CODEX_RERUN."
+    },
+    {
+      "task_id_pattern": "016_codex_review_v2_scaffold_queue retry",
+      "reason": "Underlying outputs already exist on disk. retry_scheduled is a stale supervisor precheck (PLANNER_DECISION.md section 3.4). Reissuing would have Codex BLOCKED-review the same unfixed queue."
+    }
+  ],
+  "summary": "Single safe task: Claude L1 remediation of the 8 Codex blockers on the V2 scaffold queue. No V2 implementation, no live mutation, no legacy mutation, no Redis writes. Cycle 3 reconfirms cycle 2 selection."
+}
+END_FILE: claude_worklog/agent_supervisor/planner/NEXT_TASKS.json

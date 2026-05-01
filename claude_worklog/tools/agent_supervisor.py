@@ -40,12 +40,23 @@ STATE_TASKS_DIR = STATE_DIR / "tasks"
 RUNS_DIR = BASE_DIR / "runs"
 STATUS_DIR = BASE_DIR / "status"
 LOGS_DIR = BASE_DIR / "logs"
+PLANNER_DIR = BASE_DIR / "planner"
 EVENTS_FILE = BASE_DIR / "events.jsonl"
 CURRENT_STATUS_FILE = STATUS_DIR / "current_status.json"
 QUEUE_STATUS_FILE = STATUS_DIR / "queue_status.json"
 AGENT_HEALTH_FILE = STATUS_DIR / "agent_health.json"
+PLANNER_STATUS_FILE = STATUS_DIR / "planner_status.json"
 HEARTBEAT_FILE = STATUS_DIR / "supervisor_heartbeat.json"
 LOCK_FILE = BASE_DIR / "supervisor.lock"
+NEXT_PHASE_FILE = BASE_DIR / "state/NEXT_PHASE.md"
+
+AUTONOMOUS_CONTROL_PLANE_DIR = pathlib.Path("claude_worklog/autonomous_control_plane")
+PLANNER_INPUT_PACKET_FILE = PLANNER_DIR / "PLANNER_INPUT_PACKET.md"
+PLANNER_DECISION_FILE = PLANNER_DIR / "PLANNER_DECISION.md"
+PLANNER_NEXT_TASKS_FILE = PLANNER_DIR / "NEXT_TASKS.json"
+PLANNER_HUMAN_ACTION_FILE = PLANNER_DIR / "HUMAN_ACTION_REQUIRED.md"
+PLANNER_GO_NO_GO_FILE = PLANNER_DIR / "PLANNER_GO_NO_GO.md"
+PLANNER_OUTPUT_PREFIX = "claude_worklog/agent_supervisor/planner/"
 
 WORKSPACE_ROOT = pathlib.Path(os.path.expanduser("~/Desktop/AI BOT REBUILD")).resolve()
 FORBIDDEN_ROOT = pathlib.Path("/home/wali/Desktop/AI BOT").resolve()
@@ -120,7 +131,7 @@ def now_ts() -> float:
 
 
 def ensure_dirs() -> None:
-    for p in [BASE_DIR, TASKS_DIR, STATE_DIR, STATE_TASKS_DIR, RUNS_DIR, STATUS_DIR, LOGS_DIR]:
+    for p in [BASE_DIR, TASKS_DIR, STATE_DIR, STATE_TASKS_DIR, RUNS_DIR, STATUS_DIR, LOGS_DIR, PLANNER_DIR]:
         p.mkdir(parents=True, exist_ok=True)
 
 
@@ -611,6 +622,531 @@ def run_claude_readiness_check() -> bool:
         timeout=40,
     )
     return rc == 0 and "CLAUDE_READY_FOR_SMALL_TASK" in (out + "\n" + err)
+
+
+# ---------------------------------------------------------------------------
+# Autonomous planner mode
+# ---------------------------------------------------------------------------
+
+
+def git_status_short() -> str:
+    rc, out, err = command_quick(["git", "status", "--short"], timeout=20)
+    if rc != 0:
+        return (out + "\n" + err).strip() or "git_status_unavailable"
+    return out.strip() or "CLEAN"
+
+
+def tail_events(n: int = 20) -> List[str]:
+    p = WORKSPACE_ROOT / EVENTS_FILE
+    if not p.exists():
+        return []
+    try:
+        lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()
+        return lines[-n:]
+    except Exception:
+        return []
+
+
+def latest_go_no_go_files(limit: int = 12) -> List[pathlib.Path]:
+    root = WORKSPACE_ROOT / "claude_worklog"
+    if not root.exists():
+        return []
+    files: List[pathlib.Path] = []
+    for pat in ["**/*GO_NO_GO*.md", "**/*go_no_go*.md"]:
+        files.extend(root.glob(pat))
+    uniq: Dict[str, pathlib.Path] = {}
+    for p in files:
+        uniq[str(p.resolve())] = p
+    ranked: List[Tuple[float, pathlib.Path]] = []
+    for p in uniq.values():
+        try:
+            ranked.append((p.stat().st_mtime, p))
+        except Exception:
+            continue
+    ranked.sort(key=lambda x: x[0], reverse=True)
+    return [x[1] for x in ranked[:max(1, limit)]]
+
+
+def read_next_phase_marker() -> str:
+    txt = read_text(WORKSPACE_ROOT / NEXT_PHASE_FILE)
+    lines = [ln.strip() for ln in txt.splitlines() if ln.strip()]
+    return lines[-1] if lines else "NEXT_PHASE_UNKNOWN"
+
+
+def build_planner_input_packet() -> pathlib.Path:
+    PLANNER_DIR.mkdir(parents=True, exist_ok=True)
+
+    control_files = [
+        WORKSPACE_ROOT / AUTONOMOUS_CONTROL_PLANE_DIR / "00_MASTER_OBJECTIVE.md",
+        WORKSPACE_ROOT / AUTONOMOUS_CONTROL_PLANE_DIR / "01_AGENT_ROLES.md",
+        WORKSPACE_ROOT / AUTONOMOUS_CONTROL_PLANE_DIR / "02_AUTONOMOUS_DECISION_POLICY.md",
+        WORKSPACE_ROOT / AUTONOMOUS_CONTROL_PLANE_DIR / "03_PLANNER_LOOP_SPEC.md",
+        WORKSPACE_ROOT / AUTONOMOUS_CONTROL_PLANE_DIR / "04_STATUS_AND_DASHBOARD_REQUIREMENTS.md",
+        WORKSPACE_ROOT / AUTONOMOUS_CONTROL_PLANE_DIR / "05_GO_NO_GO.md",
+    ]
+
+    current_status = read_text(WORKSPACE_ROOT / CURRENT_STATUS_FILE)
+    queue_status = read_text(WORKSPACE_ROOT / QUEUE_STATUS_FILE)
+    next_phase = read_text(WORKSPACE_ROOT / NEXT_PHASE_FILE)
+    git_short = git_status_short()
+
+    monitor_candidates = [
+        WORKSPACE_ROOT / "claude_worklog/monitoring_summary.md",
+        WORKSPACE_ROOT / "claude_worklog/continuous_monitoring/monitoring_summary.md",
+        WORKSPACE_ROOT / "claude_worklog/evidence_packets/README.md",
+    ]
+    monitor_text = ""
+    for mc in monitor_candidates:
+        if mc.exists():
+            monitor_text = read_text(mc)
+            if monitor_text:
+                break
+
+    gate_lines: List[str] = []
+    for gf in latest_go_no_go_files(limit=12):
+        rel = gf.relative_to(WORKSPACE_ROOT)
+        first_line = ""
+        txt = read_text(gf)
+        for ln in txt.splitlines():
+            if ln.strip():
+                first_line = ln.strip()
+                break
+        gate_lines.append(f"- {rel}: {first_line or 'EMPTY'}")
+
+    sections: List[str] = []
+    sections.append("# Planner Input Packet")
+    sections.append("")
+    sections.append(f"Generated at: {now_iso()}")
+    sections.append(f"Workspace: {WORKSPACE_ROOT}")
+    sections.append("")
+    sections.append("## Git Status --short")
+    sections.append("")
+    sections.append("```text")
+    sections.append(git_short)
+    sections.append("```")
+    sections.append("")
+    sections.append("## Next Phase Marker")
+    sections.append("")
+    sections.append(next_phase or "NEXT_PHASE_MISSING")
+    sections.append("")
+    sections.append("## current_status.json")
+    sections.append("")
+    sections.append("```json")
+    sections.append(current_status or "{}")
+    sections.append("```")
+    sections.append("")
+    sections.append("## queue_status.json")
+    sections.append("")
+    sections.append("```json")
+    sections.append(queue_status or "{}")
+    sections.append("```")
+    sections.append("")
+    sections.append("## Latest GO/NO-GO Markers")
+    sections.append("")
+    sections.extend(gate_lines or ["- none found"])
+    sections.append("")
+    sections.append("## Monitoring / Evidence Summary (truncated)")
+    sections.append("")
+    sections.append((monitor_text[:3000] if monitor_text else "none found"))
+    sections.append("")
+    sections.append("## Recent Supervisor Events (tail)")
+    sections.append("")
+    sections.extend(tail_events(20) or ["none"])
+
+    for cf in control_files:
+        rel = cf.relative_to(WORKSPACE_ROOT)
+        sections.append("")
+        sections.append(f"## {rel}")
+        sections.append("")
+        txt = read_text(cf)
+        sections.append((txt[:3500] if txt else "MISSING"))
+
+    PLANNER_INPUT_PACKET_FILE.write_text("\n".join(sections).strip() + "\n", encoding="utf-8")
+    return PLANNER_INPUT_PACKET_FILE
+
+
+def parse_planner_next_tasks() -> List[str]:
+    if not PLANNER_NEXT_TASKS_FILE.exists():
+        return []
+    raw = read_text(PLANNER_NEXT_TASKS_FILE)
+    data: Any = None
+    try:
+        data = json.loads(raw)
+    except Exception:
+        # Accept markdown-wrapped JSON by slicing first/last braces.
+        start_obj = raw.find("{")
+        end_obj = raw.rfind("}")
+        start_arr = raw.find("[")
+        end_arr = raw.rfind("]")
+        candidate = ""
+        if start_obj != -1 and end_obj != -1 and end_obj > start_obj:
+            candidate = raw[start_obj:end_obj + 1]
+        elif start_arr != -1 and end_arr != -1 and end_arr > start_arr:
+            candidate = raw[start_arr:end_arr + 1]
+        if not candidate:
+            return []
+        try:
+            data = json.loads(candidate)
+        except Exception:
+            return []
+
+    items: List[Any] = []
+    if isinstance(data, list):
+        items = data
+    elif isinstance(data, dict):
+        for key in ["next_tasks", "next_planned_tasks", "tasks", "task_ids", "items"]:
+            val = data.get(key)
+            if isinstance(val, list):
+                items = val
+                break
+
+    task_ids: List[str] = []
+    for item in items:
+        if isinstance(item, str):
+            tid = item.strip()
+        elif isinstance(item, dict):
+            tid = str(item.get("task_id", "")).strip()
+        else:
+            tid = ""
+        if tid:
+            task_ids.append(tid)
+    return list(dict.fromkeys(task_ids))
+
+
+def planner_go_no_go_value() -> str:
+    txt = read_text(PLANNER_GO_NO_GO_FILE)
+    allowed = {
+        "PLANNER_NEXT_TASKS_READY",
+        "PLANNER_HUMAN_ACTION_REQUIRED",
+        "PLANNER_BLOCKED",
+    }
+    for ln in txt.splitlines():
+        s = ln.strip().strip("`")
+        if s in allowed:
+            return s
+    return "PLANNER_BLOCKED"
+
+
+def planner_human_action_required() -> bool:
+    marker = planner_go_no_go_value().strip().upper()
+    if marker == "PLANNER_HUMAN_ACTION_REQUIRED":
+        return True
+    if marker == "PLANNER_NEXT_TASKS_READY":
+        return False
+    txt = read_text(PLANNER_HUMAN_ACTION_FILE).lower()
+    if "no human action required" in txt:
+        return False
+    return "human action required: yes" in txt or "human approval" in txt
+
+
+def codex_gate_failed() -> bool:
+    gate_files = [
+        WORKSPACE_ROOT / "claude_worklog/v2_architecture_codex_review/16_ACTUAL_CODEX_RERUN_GO_NO_GO.md",
+        WORKSPACE_ROOT / "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_GO_NO_GO.md",
+    ]
+    for gf in gate_files:
+        if not gf.exists():
+            continue
+        first = ""
+        for ln in read_text(gf).splitlines():
+            if ln.strip():
+                first = ln.strip().upper()
+                break
+        if "FAIL" in first or "BLOCKED" in first:
+            return True
+    return False
+
+
+def planner_task_autorun_allowed(task_path: pathlib.Path, human_required: bool) -> Tuple[bool, str]:
+    if human_required:
+        return False, "human action required"
+    if codex_gate_failed():
+        return False, "codex gate failed/blocked"
+
+    task = load_task(task_path)
+    risk = str(task.get("risk_level", "L0")).upper()
+    if risk not in ALLOWED_AUTORUN:
+        return False, f"risk level {risk} not auto-runnable"
+
+    validation_error = validate_task(task)
+    if validation_error:
+        return False, validation_error
+
+    approved, reason = task_approved_v2(task)
+    if not approved:
+        return False, reason
+
+    status_map = {str(t.get("task_id", "")): str(t.get("status", "pending")) for _, t in list_tasks()}
+    blockers = dependency_blockers(task, status_map)
+    if blockers:
+        return False, f"waiting on dependencies: {', '.join(blockers)}"
+
+    status = str(task.get("status", "pending"))
+    if status in {"completed", "running", "cancelled", "failed", "blocked_auth", "blocked_approval", "human_attention_required"}:
+        return False, f"task status {status} not runnable"
+
+    return True, "allowed"
+
+
+def write_planner_fallback_files(
+    go_no_go: str,
+    decision: str,
+    human_action_required: bool,
+    next_tasks: Optional[List[str]] = None,
+) -> None:
+    PLANNER_DIR.mkdir(parents=True, exist_ok=True)
+    PLANNER_DECISION_FILE.write_text(decision.strip() + "\n", encoding="utf-8")
+    payload = {
+        "next_tasks": [{"task_id": tid} for tid in (next_tasks or [])],
+        "human_action_required": human_action_required,
+        "generated_at": now_iso(),
+    }
+    write_json(PLANNER_NEXT_TASKS_FILE, payload)
+    human_text = [
+        "# Human Action Required",
+        "",
+        f"human action required: {'yes' if human_action_required else 'no'}",
+        "",
+        decision.strip(),
+    ]
+    PLANNER_HUMAN_ACTION_FILE.write_text("\n".join(human_text).strip() + "\n", encoding="utf-8")
+    PLANNER_GO_NO_GO_FILE.write_text(go_no_go.strip() + "\n", encoding="utf-8")
+
+
+def run_ollama_local_summary(packet_path: pathlib.Path) -> str:
+    models = ollama_models()
+    if not models:
+        return "Ollama fallback unavailable: no local model detected"
+    model = models[0]
+    prompt = (
+        "Summarize this planner packet in <=12 bullets with safe next steps only. "
+        "Do not propose live trading or Redis mutation.\n\n"
+        + read_text(packet_path)[:12000]
+    )
+    rc, out, err = command_quick(["ollama", "run", model, prompt], timeout=180)
+    if rc == 0 and out.strip():
+        return out.strip()
+    return (out + "\n" + err).strip() or "Ollama fallback failed"
+
+
+def write_planner_status(payload: Dict[str, Any]) -> None:
+    write_json(PLANNER_STATUS_FILE, payload)
+
+
+def run_planner_once(no_execute_planned_tasks: bool = False, autonomous_mode_active: bool = False) -> Dict[str, Any]:
+    ensure_dirs()
+    packet_path = build_planner_input_packet()
+    start = now_iso()
+
+    running_payload = {
+        "generated_at": start,
+        "planner_status": "running",
+        "autonomous_mode_active": autonomous_mode_active,
+        "no_execute_planned_tasks": bool(no_execute_planned_tasks),
+        "planner_go_no_go": "PLANNER_BLOCKED",
+        "human_action_required": False,
+        "next_planned_task": None,
+        "next_planned_tasks": [],
+        "will_execute_automatically": False,
+        "executed_tasks": [],
+        "decision_summary": "planner cycle started",
+    }
+    write_planner_status(running_payload)
+
+    run_dir = RUNS_DIR / "planner_once"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    stdout_path = run_dir / "stdout.txt"
+    stderr_path = run_dir / "stderr.txt"
+
+    planner_status = "blocked"
+    decision_summary = "planner blocked"
+    blocked_reason = ""
+
+    planner_prompt = (
+        "You are Claude planner for AI BOT REBUILD. "
+        "Read claude_worklog/agent_supervisor/planner/PLANNER_INPUT_PACKET.md and decide the next safe task only. "
+        "Hard constraints: do not touch /home/wali/Desktop/AI BOT, do not write Redis, do not delete Redis keys, "
+        "do not restart live services, do not place/cancel orders, do not change leverage/margin, "
+        "do not enable live trading, do not start V2 implementation scaffold yet. "
+        "Output BEGIN_FILE blocks only under claude_worklog/agent_supervisor/planner/ for these files exactly: "
+        "PLANNER_DECISION.md, NEXT_TASKS.json, HUMAN_ACTION_REQUIRED.md, PLANNER_GO_NO_GO.md. "
+        "PLANNER_GO_NO_GO.md must be exactly one line: PLANNER_NEXT_TASKS_READY or "
+        "PLANNER_HUMAN_ACTION_REQUIRED or PLANNER_BLOCKED. "
+        "NEXT_TASKS.json must include task_id entries and dependency/gate context."
+    )
+
+    rc = 1
+    timed_out = False
+    if not claude_ready():
+        planner_status = "blocked_auth"
+        blocked_reason = "claude not ready marker missing"
+        decision_summary = blocked_reason
+        write_planner_fallback_files(
+            "PLANNER_BLOCKED",
+            "# Planner Decision\n\nPlanner blocked: Claude readiness marker missing.",
+            human_action_required=True,
+            next_tasks=[],
+        )
+    else:
+        rc, _pid, timed_out = run_cmd_with_pid(
+            ["claude", "--print", planner_prompt, "--output-format", "text"],
+            WORKSPACE_ROOT,
+            stdout_path,
+            stderr_path,
+            timeout_seconds=1200,
+            on_start=None,
+        )
+        if rc == 0:
+            mat = materialize_emit_files(stdout_path, [PLANNER_OUTPUT_PREFIX])
+            missing: List[str] = []
+            for p in [
+                PLANNER_DECISION_FILE,
+                PLANNER_NEXT_TASKS_FILE,
+                PLANNER_HUMAN_ACTION_FILE,
+                PLANNER_GO_NO_GO_FILE,
+            ]:
+                if p.exists():
+                    continue
+                if p.is_absolute():
+                    try:
+                        missing.append(str(p.relative_to(WORKSPACE_ROOT)))
+                    except Exception:
+                        missing.append(str(p))
+                else:
+                    missing.append(str(p))
+            errors = [str(x) for x in mat.get("errors", [])]
+            if missing or errors:
+                planner_status = "blocked"
+                blocked_reason = "; ".join(errors + ([f"missing planner outputs: {', '.join(missing)}"] if missing else []))
+                decision_summary = blocked_reason
+                write_planner_fallback_files(
+                    "PLANNER_BLOCKED",
+                    "# Planner Decision\n\nPlanner blocked due to malformed Claude planner output.",
+                    human_action_required=True,
+                    next_tasks=[],
+                )
+            else:
+                planner_status = "ready"
+                decision_summary = "planner decision materialized"
+        else:
+            classified, _reset_iso = classify_agent_block("claude", stdout_path, stderr_path)
+            if timed_out:
+                classified = classified or "blocked"
+                blocked_reason = "planner subprocess timeout"
+            if classified == "blocked_quota":
+                planner_status = "blocked_quota"
+                blocked_reason = "claude quota blocked"
+                ollama_summary = run_ollama_local_summary(packet_path)
+                write_planner_fallback_files(
+                    "PLANNER_BLOCKED",
+                    "# Planner Decision\n\nClaude quota blocked. Ollama fallback summary:\n\n" + ollama_summary,
+                    human_action_required=True,
+                    next_tasks=[],
+                )
+            elif classified == "blocked_auth":
+                planner_status = "blocked_auth"
+                blocked_reason = "claude auth blocked"
+                write_planner_fallback_files(
+                    "PLANNER_BLOCKED",
+                    "# Planner Decision\n\nPlanner blocked: Claude auth/login issue detected.",
+                    human_action_required=True,
+                    next_tasks=[],
+                )
+            else:
+                planner_status = "blocked"
+                blocked_reason = "claude planner invocation failed"
+                write_planner_fallback_files(
+                    "PLANNER_BLOCKED",
+                    "# Planner Decision\n\nPlanner blocked: Claude execution failed.",
+                    human_action_required=True,
+                    next_tasks=[],
+                )
+            decision_summary = blocked_reason
+
+    go_no_go = planner_go_no_go_value()
+    human_required = planner_human_action_required() or (go_no_go == "PLANNER_HUMAN_ACTION_REQUIRED")
+    next_tasks = parse_planner_next_tasks()
+
+    decision_text = read_text(PLANNER_DECISION_FILE)
+    for ln in decision_text.splitlines():
+        stripped = ln.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("#") or stripped.startswith("```"):
+            continue
+        if stripped.startswith("BEGIN_FILE") or stripped.startswith("END_FILE"):
+            continue
+        if stripped.startswith("---"):
+            continue
+        if stripped:
+            decision_summary = ln.strip()
+            break
+
+    executed_tasks: List[Dict[str, Any]] = []
+    will_execute_automatically = (
+        go_no_go == "PLANNER_NEXT_TASKS_READY"
+        and (not human_required)
+        and (not no_execute_planned_tasks)
+        and (planner_status == "ready")
+    )
+
+    if will_execute_automatically:
+        for tid in next_tasks:
+            tf = get_task_file_by_id(tid)
+            if not tf:
+                executed_tasks.append({"task_id": tid, "status": "skipped", "reason": "task file not found"})
+                continue
+            ok, reason = planner_task_autorun_allowed(tf, human_required)
+            if not ok:
+                executed_tasks.append({"task_id": tid, "status": "skipped", "reason": reason})
+                continue
+            result = run_task(tf, dry_run=False)
+            executed_tasks.append({
+                "task_id": tid,
+                "status": result.get("status"),
+                "summary": result.get("summary"),
+            })
+
+    end = now_iso()
+    final_status = planner_status
+    if planner_status == "ready":
+        if go_no_go == "PLANNER_HUMAN_ACTION_REQUIRED":
+            final_status = "human_action_required"
+        elif go_no_go == "PLANNER_BLOCKED":
+            final_status = "blocked"
+
+    payload = {
+        "generated_at": end,
+        "start_time": start,
+        "end_time": end,
+        "planner_status": final_status,
+        "planner_go_no_go": go_no_go,
+        "human_action_required": bool(human_required),
+        "autonomous_mode_active": autonomous_mode_active,
+        "no_execute_planned_tasks": bool(no_execute_planned_tasks),
+        "next_planned_task": next_tasks[0] if next_tasks else None,
+        "next_planned_tasks": next_tasks,
+        "will_execute_automatically": bool(will_execute_automatically),
+        "executed_tasks": executed_tasks,
+        "decision_summary": decision_summary,
+        "blocked_reason": blocked_reason,
+        "input_packet_path": str(PLANNER_INPUT_PACKET_FILE),
+        "planner_decision_path": str(PLANNER_DECISION_FILE),
+        "planner_next_tasks_path": str(PLANNER_NEXT_TASKS_FILE),
+        "planner_human_action_path": str(PLANNER_HUMAN_ACTION_FILE),
+        "planner_go_no_go_path": str(PLANNER_GO_NO_GO_FILE),
+    }
+    write_planner_status(payload)
+    append_event({
+        "event": "planner_decision",
+        "planner_status": final_status,
+        "planner_go_no_go": go_no_go,
+        "human_action_required": bool(human_required),
+        "next_planned_task": payload.get("next_planned_task"),
+        "will_execute_automatically": bool(will_execute_automatically),
+        "executed_task_count": len(executed_tasks),
+    })
+    return payload
 
 
 # ---------------------------------------------------------------------------
@@ -1687,6 +2223,59 @@ def daemon_loop(poll_seconds: int, max_run_hours: Optional[float], stop_after_id
         release_lock()
 
 
+def autonomous_daemon_loop(
+    poll_seconds: int,
+    max_run_hours: Optional[float],
+    stop_after_idle_minutes: Optional[float],
+    no_execute_planned_tasks: bool,
+) -> int:
+    ok, message = acquire_lock()
+    if not ok:
+        sys.stderr.write(f"[agent_supervisor] {message}\n")
+        append_event({"event": "duplicate_daemon_blocked", "message": message})
+        return 2
+
+    started = dt.datetime.now(dt.timezone.utc)
+    started_iso = started.isoformat()
+    idle_started = started
+    loop_count = 0
+    last_event_ts = started_iso
+
+    write_heartbeat(loop_count, "planner", started_iso, last_event_ts)
+    migrate_legacy_task_files()
+    reconcile_stale_running_tasks()
+
+    try:
+        while True:
+            loop_count += 1
+            now = dt.datetime.now(dt.timezone.utc)
+            write_heartbeat(loop_count, "planner", started_iso, last_event_ts)
+
+            if max_run_hours is not None and (now - started).total_seconds() >= max_run_hours * 3600:
+                append_event({
+                    "event": "autonomous_daemon_cancelled",
+                    "reason": "max_run_hours_reached",
+                })
+                return 0
+
+            planner_payload = run_planner_once(
+                no_execute_planned_tasks=no_execute_planned_tasks,
+                autonomous_mode_active=True,
+            )
+            last_event_ts = now_iso()
+
+            next_tasks = planner_payload.get("next_planned_tasks") or []
+            if not next_tasks:
+                if stop_after_idle_minutes is not None and (now - idle_started).total_seconds() >= stop_after_idle_minutes * 60:
+                    return 0
+            else:
+                idle_started = now
+
+            time.sleep(max(5, poll_seconds))
+    finally:
+        release_lock()
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -1696,6 +2285,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Agent Supervisor (reliability-hardened)")
     parser.add_argument("--task-id", help="Run a specific task_id from tasks directory")
     parser.add_argument("--daemon", action="store_true", help="Run autonomous queue manager loop")
+    parser.add_argument("--planner-once", action="store_true", help="Run one autonomous planner cycle")
+    parser.add_argument("--autonomous-daemon", action="store_true", help="Run autonomous planner daemon loop")
+    parser.add_argument("--no-execute-planned-tasks", action="store_true", help="Plan only; do not auto-run planned tasks")
     parser.add_argument("--poll-seconds", type=int, default=30)
     parser.add_argument("--max-run-hours", type=float)
     parser.add_argument("--stop-after-idle-minutes", type=float)
@@ -1715,6 +2307,22 @@ def main() -> int:
         n = reconcile_stale_running_tasks()
         print(json.dumps({"reconciled": n}))
         return 0
+
+    if args.planner_once:
+        payload = run_planner_once(
+            no_execute_planned_tasks=bool(args.no_execute_planned_tasks),
+            autonomous_mode_active=False,
+        )
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+
+    if args.autonomous_daemon:
+        return autonomous_daemon_loop(
+            poll_seconds=max(5, args.poll_seconds),
+            max_run_hours=args.max_run_hours,
+            stop_after_idle_minutes=args.stop_after_idle_minutes,
+            no_execute_planned_tasks=bool(args.no_execute_planned_tasks),
+        )
 
     if args.dry_run and not args.task_id and not args.daemon:
         payload = dry_run_queue()

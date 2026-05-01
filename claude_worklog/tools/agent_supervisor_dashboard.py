@@ -23,9 +23,14 @@ EVENTS = BASE / "events.jsonl"
 STATUS = BASE / "status/current_status.json"
 QUEUE_STATUS = BASE / "status/queue_status.json"
 AGENT_HEALTH = BASE / "status/agent_health.json"
+PLANNER_STATUS = BASE / "status/planner_status.json"
 HEARTBEAT = BASE / "status/supervisor_heartbeat.json"
 LOCK_FILE = BASE / "supervisor.lock"
 RUNS = BASE / "runs"
+PLANNER_DECISION = BASE / "planner/PLANNER_DECISION.md"
+PLANNER_HUMAN_ACTION = BASE / "planner/HUMAN_ACTION_REQUIRED.md"
+PLANNER_GO_NO_GO = BASE / "planner/PLANNER_GO_NO_GO.md"
+NEXT_PHASE = BASE / "state/NEXT_PHASE.md"
 WORKSPACE = pathlib.Path(os.path.expanduser("~/Desktop/AI BOT REBUILD"))
 
 HEARTBEAT_STALE_S = 600
@@ -53,6 +58,11 @@ def cmd_out(cmd: List[str]) -> str:
         return out.strip()
     except Exception:
         return ""
+
+
+def git_cleanliness() -> str:
+    out = cmd_out(["git", "-C", str(WORKSPACE), "status", "--short"])
+    return "clean" if not out.strip() else "dirty"
 
 
 def which(name: str) -> Optional[str]:
@@ -142,6 +152,37 @@ def live_mutation_gate_status() -> str:
     return "LIVE_MUTATION_BLOCKED_BY_DEFAULT"
 
 
+def first_content_line(text: str) -> str:
+    for ln in (text or "").splitlines():
+        if ln.strip() and not ln.strip().startswith("#"):
+            return ln.strip()
+    return "-"
+
+
+def autonomous_phase(planner: Dict[str, Any], queue: Dict[str, Any]) -> str:
+    planner_status = str(planner.get("planner_status", "")).lower()
+    if planner_status == "running":
+        return "AUTONOMOUS_PLANNER_RUNNING"
+    if bool(planner.get("human_action_required", False)):
+        return "HUMAN_ACTION_REQUIRED"
+
+    next_phase_marker = read_text(WORKSPACE / NEXT_PHASE)
+    marker_upper = next_phase_marker.upper()
+    next_planned = str(planner.get("next_planned_task") or "").lower()
+
+    if "NEXT_PHASE_V2_SCAFFOLD_QUEUE_CREATION" in marker_upper:
+        return "READY_FOR_V2_SCAFFOLD_QUEUE_CREATION"
+    if next_planned.startswith("015") or "scaffold_queue" in next_planned:
+        return "V2_SCAFFOLD_QUEUE_PLANNING"
+
+    blocked_impl = int((queue.get("counts") or {}).get("blocked", 0) or 0)
+    next_pending = str(queue.get("next_pending_task") or "")
+    if blocked_impl > 0 and (next_pending.startswith("015") or next_planned.startswith("015")):
+        return "V2_SCAFFOLD_IMPLEMENTATION_BLOCKED_APPROVAL"
+
+    return "AUTONOMOUS_PLANNER_IDLE"
+
+
 def render_alert_lines(queue: Dict[str, Any]) -> List[str]:
     lines: List[str] = []
     counts = {
@@ -187,6 +228,7 @@ def print_dashboard(refresh_seconds: int) -> None:
         current = read_json(WORKSPACE / STATUS)
         queue = read_json(WORKSPACE / QUEUE_STATUS)
         health = read_json(WORKSPACE / AGENT_HEALTH)
+        planner = read_json(WORKSPACE / PLANNER_STATUS)
         heartbeat = read_json(WORKSPACE / HEARTBEAT)
         lockfile = read_json(WORKSPACE / LOCK_FILE)
 
@@ -208,6 +250,28 @@ def print_dashboard(refresh_seconds: int) -> None:
         codex_state = ((health.get("codex") or {}).get("ready_marker")) if isinstance(health, dict) else None
         ollama_models = ((health.get("ollama") or {}).get("models")) if isinstance(health, dict) else []
         last_auto_commit_hash = health.get("last_auto_commit_hash") if isinstance(health, dict) else None
+        planner_status = planner.get("planner_status", "idle") if isinstance(planner, dict) else "idle"
+        planner_decision_summary = planner.get("decision_summary") if isinstance(planner, dict) else "-"
+        autonomous_mode_active = bool(planner.get("autonomous_mode_active")) if isinstance(planner, dict) else False
+        human_action_required = bool(planner.get("human_action_required")) if isinstance(planner, dict) else False
+        next_planned_task = planner.get("next_planned_task") if isinstance(planner, dict) else None
+        will_execute_automatically = bool(planner.get("will_execute_automatically")) if isinstance(planner, dict) else False
+        planner_go_no_go = read_text(WORKSPACE / PLANNER_GO_NO_GO) or str(planner.get("planner_go_no_go", "-"))
+        human_action_text = read_text(WORKSPACE / PLANNER_HUMAN_ACTION)
+        planner_decision_line = first_content_line(read_text(WORKSPACE / PLANNER_DECISION))
+        auto_phase = autonomous_phase(planner if isinstance(planner, dict) else {}, queue if isinstance(queue, dict) else {})
+
+        current_time = dt.datetime.now(dt.timezone.utc)
+        last_event_lines = last_events(1)
+        last_event_age = "-"
+        if last_event_lines:
+            try:
+                evt = json.loads(last_event_lines[-1])
+                ts = parse_iso_utc(evt.get("ts"))
+                if ts is not None:
+                    last_event_age = str(int((current_time - ts).total_seconds()))
+            except Exception:
+                last_event_age = "-"
 
         hb_age = heartbeat_age_seconds(heartbeat)
         hb_alive = heartbeat_pid_alive(heartbeat)
@@ -259,6 +323,7 @@ def print_dashboard(refresh_seconds: int) -> None:
 
         print("\n[QUEUE STATUS]")
         print(f"current gate: {gate}")
+        print(f"autonomous phase: {auto_phase}")
         print(f"next pending task: {next_pending}")
         print(f"current running task: {running_task}")
         if blocked_quota:
@@ -285,10 +350,26 @@ def print_dashboard(refresh_seconds: int) -> None:
         print(f"latest Ollama run summary: {latest_agent_summary('ollama')}")
         print(f"last auto-commit hash: {last_auto_commit_hash or '-'}")
 
+        print("\n[AUTONOMOUS PLANNER]")
+        print(f"planner status: {planner_status}")
+        print(f"planner GO/NO-GO: {planner_go_no_go}")
+        print(f"planner last decision: {planner_decision_line}")
+        print(f"planner decision summary: {planner_decision_summary or '-'}")
+        print(f"autonomous mode active: {'yes' if autonomous_mode_active else 'no'}")
+        print(f"human action required: {'yes' if human_action_required else 'no'}")
+        print(f"next planned task: {next_planned_task or '-'}")
+        print(f"why next task was selected: {planner_decision_summary or '-'}")
+        print(f"task will execute automatically: {'yes' if will_execute_automatically else 'no'}")
+        if human_action_text:
+            print(f"human action note: {first_content_line(human_action_text)}")
+
         print("\n[SAFETY & GATES]")
         print(f"continuous monitor status: {continuous_monitor_status()}")
         print(f"V2 build gate status: {v2_build_gate_status()}")
         print(f"live mutation gate status: {live_mutation_gate_status()}")
+        print(f"git cleanliness: {git_cleanliness()}")
+        print(f"last event age seconds: {last_event_age}")
+        print(f"daemon heartbeat age seconds: {int(hb_age) if hb_age is not None else '-'}")
 
         print("\n[LAST 10 EVENTS]")
         for ln in last_events(10):
