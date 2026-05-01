@@ -1,0 +1,15 @@
+{
+  "task_id": "012do_summarize_trainer_liveness_context",
+  "agent": "ollama",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/agent_supervisor/ollama_context/"
+  ],
+  "required_output_files": [
+    "claude_worklog/agent_supervisor/ollama_context/012d_trainer_liveness_context.md"
+  ],
+  "prompt": "You are local Ollama operating in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Create a concise pre-brief for task 012d_trainer_liveness_validation_evidence. Inputs: claude_worklog/v2_architecture/14_CONTINUOUS_MONITORING_AND_EVIDENCE_PACKET_ARCHITECTURE.md, claude_worklog/continuous_monitoring_impl/TRAINER_LIVENESS_MONITOR_FALSE_POSITIVE_FIX_REPORT.md, claude_worklog/continuous_monitoring_impl/TRAINER_LIVENESS_POST_FIX_10MIN_VALIDATION.md, claude_worklog/continuous_monitoring_impl/TRAINER_PREDICTION_WORKER_ROOT_CAUSE_AUDIT.md, claude_worklog/agent_supervisor/ollama_context/011o_codex_blockers_summary.md. Output exactly one BEGIN_FILE block at claude_worklog/agent_supervisor/ollama_context/012d_trainer_liveness_context.md. Keep under 120 lines. Include: timezone correction points, XLEN vs stream-ID growth caveat, required validation evidence, and dashboard gate metrics checklist. If any file is missing, list it under Missing Inputs."
+}
