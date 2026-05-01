@@ -2,7 +2,7 @@
   "task_id": "012d_trainer_liveness_validation_evidence",
   "agent": "claude",
   "risk_level": "L1",
-  "status": "blocked_dependency",
+  "status": "completed",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "allowed_output_prefixes": [
@@ -27,5 +27,10 @@
     "012e_milestone_go_no_go_integration"
   ],
   "next_tasks_on_failure": [],
-  "last_summary": "waiting on dependencies: 012c_feature_explainability_completeness"
+  "last_summary": "normalized stale-running 012D: required output files exist",
+  "last_run": {
+    "start": null,
+    "end": "2026-05-01T13:59:45.018931+00:00",
+    "status": "completed"
+  }
 }

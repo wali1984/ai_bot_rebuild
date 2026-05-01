@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 import urllib.request
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 try:
     from zoneinfo import ZoneInfo
@@ -153,9 +153,25 @@ def validate_task(task: Dict[str, Any]) -> Optional[str]:
 
 
 def run_cmd(cmd: List[str], cwd: pathlib.Path, stdout_path: pathlib.Path, stderr_path: pathlib.Path) -> int:
+    return run_cmd_with_pid(cmd, cwd, stdout_path, stderr_path)[0]
+
+
+def run_cmd_with_pid(
+    cmd: List[str],
+    cwd: pathlib.Path,
+    stdout_path: pathlib.Path,
+    stderr_path: pathlib.Path,
+    on_start: Optional[Callable[[int], None]] = None,
+) -> Tuple[int, Optional[int]]:
     with stdout_path.open("w", encoding="utf-8") as out, stderr_path.open("w", encoding="utf-8") as err:
-        proc = subprocess.run(cmd, cwd=str(cwd), stdout=out, stderr=err, text=True)
-        return proc.returncode
+        proc = subprocess.Popen(cmd, cwd=str(cwd), stdout=out, stderr=err, text=True)
+        if on_start is not None:
+            try:
+                on_start(proc.pid)
+            except Exception:
+                pass
+        rc = proc.wait()
+        return rc, proc.pid
 
 
 def file_contains(path: pathlib.Path, needle: str) -> bool:
@@ -166,6 +182,15 @@ def file_contains(path: pathlib.Path, needle: str) -> bool:
         return needle in txt
     except Exception:
         return False
+
+
+def read_text(path: pathlib.Path) -> str:
+    if not path.exists() or not path.is_file():
+        return ""
+    try:
+        return path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return ""
 
 
 def normalize_relpath(path_str: str) -> str:
@@ -413,6 +438,211 @@ def check_required_outputs(task: Dict[str, Any]) -> List[str]:
     return missing
 
 
+def default_task_timeout_seconds(task: Dict[str, Any]) -> int:
+    risk = str(task.get("risk_level", "L0")).upper()
+    if risk in {"L0", "L1", "L2"}:
+        return 1800
+    approval_file = str(task.get("approval_file", "")).strip()
+    preapproved = bool(task.get("preapproved", False))
+    if preapproved or approval_file:
+        return 1800
+    return 900
+
+
+def task_timeout_seconds(task: Dict[str, Any]) -> int:
+    try:
+        val = int(task.get("task_timeout_seconds", 0))
+        if val > 0:
+            return val
+    except Exception:
+        pass
+    return default_task_timeout_seconds(task)
+
+
+def process_alive(pid: Optional[int]) -> bool:
+    if not pid or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except Exception:
+        return False
+
+
+def has_active_process_for_task(task_id: str) -> bool:
+    if not task_id:
+        return False
+    try:
+        proc = subprocess.run(
+            ["pgrep", "-af", task_id],
+            cwd=str(WORKSPACE_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=5,
+        )
+        if proc.returncode != 0:
+            return False
+        lines = [ln.strip() for ln in (proc.stdout or "").splitlines() if ln.strip()]
+        for ln in lines:
+            if "pgrep -af" in ln:
+                continue
+            return True
+        return False
+    except Exception:
+        return False
+
+
+def detect_quota_block(agent: str, stdout_path: pathlib.Path, stderr_path: pathlib.Path) -> Tuple[bool, Optional[str]]:
+    raw = (read_text(stdout_path) + "\n" + read_text(stderr_path)).lower()
+    if agent == "claude":
+        if any(k in raw for k in ["usage limit", "hit your limit", "resets", "quota", "rate limit"]):
+            return True, parse_claude_reset_to_utc(read_text(stdout_path) + "\n" + read_text(stderr_path))
+    if agent == "codex":
+        if any(k in raw for k in ["rate limit", "quota", "usage limit", "too many requests"]):
+            return True, None
+    return False, None
+
+
+def task_last_activity_ts(summary_path: pathlib.Path, stdout_path: pathlib.Path, stderr_path: pathlib.Path) -> Optional[float]:
+    ts: List[float] = []
+    for p in [summary_path, stdout_path, stderr_path]:
+        if p.exists():
+            try:
+                ts.append(p.stat().st_mtime)
+            except Exception:
+                continue
+    if not ts:
+        return None
+    return max(ts)
+
+
+def stale_running_now(task: Dict[str, Any], task_id: str) -> bool:
+    if str(task.get("status", "")) != "running":
+        return False
+    run_dir = RUNS_DIR / task_id
+    summary_path = run_dir / "summary.json"
+    stdout_path = run_dir / "stdout.txt"
+    stderr_path = run_dir / "stderr.txt"
+
+    active = process_alive(task.get("run_pid")) or has_active_process_for_task(task_id)
+    if active:
+        return False
+    if not check_required_outputs(task):
+        return False
+
+    timeout_s = task_timeout_seconds(task)
+    last_ts = task_last_activity_ts(summary_path, stdout_path, stderr_path)
+    if last_ts is None:
+        return True
+    return (time.time() - last_ts) > float(timeout_s)
+
+
+def reconcile_stale_running_tasks() -> int:
+    now = dt.datetime.now(dt.timezone.utc)
+    reconciled = 0
+
+    for task_path, task in list_tasks():
+        if str(task.get("status", "pending")) != "running":
+            continue
+
+        task_id = str(task.get("task_id", task_path.stem))
+        agent = str(task.get("agent", ""))
+        risk = str(task.get("risk_level", "L0")).upper()
+
+        run_dir = RUNS_DIR / task_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        stdout_path = run_dir / "stdout.txt"
+        stderr_path = run_dir / "stderr.txt"
+        summary_path = run_dir / "summary.json"
+
+        required_missing = check_required_outputs(task)
+        active = process_alive(task.get("run_pid")) or has_active_process_for_task(task_id)
+        timeout_s = task_timeout_seconds(task)
+        last_ts = task_last_activity_ts(summary_path, stdout_path, stderr_path)
+        idle_seconds = (time.time() - last_ts) if last_ts is not None else float(timeout_s) + 1.0
+
+        quota_blocked, reset_iso = detect_quota_block(agent, stdout_path, stderr_path)
+        status: Optional[str] = None
+        summary = ""
+        reason = ""
+        materialized: List[str] = []
+
+        if not required_missing and not active:
+            status = "completed"
+            summary = "normalized stale-running task: required output files exist"
+            reason = "required_outputs_present_no_active_process"
+            materialized = [str(x) for x in task.get("required_output_files", []) if str(x).strip()]
+        elif quota_blocked:
+            status = "blocked_quota"
+            summary = f"{agent} blocked_quota detected during stale-running reconciliation"
+            reason = "quota_detected"
+            resume = parse_iso_utc(reset_iso)
+            if resume is None:
+                resume = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=30)
+            task["resume_after_utc"] = resume.isoformat()
+        elif (not active) and idle_seconds > float(timeout_s):
+            max_attempts = int(task.get("max_attempts", 3))
+            retry_count = int(task.get("retry_count", 0))
+            if retry_count < max_attempts:
+                task["retry_count"] = retry_count + 1
+                task["resume_after_utc"] = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5)).isoformat()
+                status = "retry_scheduled"
+                summary = f"stale-running timeout recovered; retry {retry_count + 1}/{max_attempts} scheduled"
+                reason = "timeout_retry_scheduled"
+            else:
+                status = "failed"
+                summary = "stale-running timeout recovered as failed: no active process and no output growth"
+                reason = "timeout_failed"
+
+        if not status:
+            continue
+
+        start_time = None
+        if isinstance(task.get("last_run"), dict):
+            start_time = task.get("last_run", {}).get("start")
+
+        end_time = now.isoformat()
+        task["status"] = status
+        task["run_pid"] = None
+        task["last_run"] = {
+            "start": start_time,
+            "end": end_time,
+            "status": status,
+        }
+        task["last_summary"] = summary
+        write_json(task_path, task)
+
+        run_summary = {
+            "task_id": task_id,
+            "agent": agent,
+            "risk_level": risk,
+            "start_time": start_time,
+            "end_time": end_time,
+            "status": status,
+            "stdout_path": str(stdout_path),
+            "stderr_path": str(stderr_path),
+            "summary": summary,
+            "next_recommended_action": "continue queue if completed; retry later if blocked_quota/retry_scheduled; inspect output if failed",
+            "materialized_files": materialized,
+            "run_pid": None,
+        }
+        write_json(summary_path, run_summary)
+        write_json(CURRENT_STATUS_FILE, run_summary)
+        append_event({
+            "event": "stale_running_reconciled",
+            **run_summary,
+            "reason": reason,
+            "timeout_seconds": timeout_s,
+            "idle_seconds": int(idle_seconds),
+            "active_process": active,
+        })
+        set_next_tasks(task, success=status == "completed")
+        reconciled += 1
+
+    return reconciled
+
+
 def task_approved_v2(task: Dict[str, Any]) -> Tuple[bool, str]:
     risk = str(task.get("risk_level", "L0")).upper()
     approval_file = str(task.get("approval_file", "")).strip()
@@ -553,6 +783,7 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
     write_json(CURRENT_STATUS_FILE, current)
 
     tasks = list_tasks()
+    status_map = {str(t.get("task_id", "")): str(t.get("status", "pending")) for _, t in tasks}
     counts = {
         "pending": 0,
         "running": 0,
@@ -566,6 +797,8 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
     next_pending = None
     running = None
     blocked_quota = None
+    runnable_candidates: List[Tuple[int, str]] = []
+    stale_running_count = 0
 
     for _, t in tasks:
         tid = str(t.get("task_id", ""))
@@ -578,6 +811,8 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
             counts["running"] += 1
             if running is None:
                 running = tid
+            if stale_running_now(t, tid):
+                stale_running_count += 1
         elif st == "completed":
             counts["completed"] += 1
         elif st in {"failed", "blocked_auth", "blocked_approval", "blocked_dependency", "blocked_quota"}:
@@ -598,11 +833,25 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
         elif st == "cancelled":
             counts["cancelled"] += 1
 
+        if st in {"completed", "running", "cancelled", "failed", "blocked_auth", "blocked_approval"}:
+            continue
+        if should_defer_resume(t):
+            continue
+        blockers = dependency_blockers(t, status_map)
+        if blockers:
+            continue
+        runnable_candidates.append((-task_priority(t), tid))
+
+    if runnable_candidates:
+        runnable_candidates.sort()
+        next_pending = runnable_candidates[0][1]
+
     queue_payload = {
         "generated_at": now_iso(),
         "next_pending_task": next_pending,
         "current_running_task": running,
         "blocked_quota": blocked_quota,
+        "stale_running_count": stale_running_count,
         "counts": counts,
         "gate": derive_gate(tasks),
     }
@@ -733,20 +982,52 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                     result["summary"] = "dry-run: task not executed"
                 else:
                     task["status"] = "running"
+                    task["last_run"] = {
+                        "start": start,
+                        "end": None,
+                        "status": "running",
+                    }
+                    task["run_pid"] = None
                     write_json(task_path, task)
+                    running_status = {
+                        "task_id": task_id,
+                        "agent": agent,
+                        "risk_level": risk,
+                        "start_time": start,
+                        "end_time": None,
+                        "status": "running",
+                        "stdout_path": str(stdout_path),
+                        "stderr_path": str(stderr_path),
+                        "summary": "task execution in progress",
+                        "next_recommended_action": "wait for completion",
+                        "materialized_files": [],
+                        "run_pid": None,
+                    }
+                    write_json(summary_path, running_status)
+                    write_health_and_queue(running_status)
+                    append_event({"event": "task_running", **running_status})
 
                     cwd = pathlib.Path(task.get("cwd", str(WORKSPACE_ROOT))).expanduser()
                     if not cwd.is_absolute():
                         cwd = WORKSPACE_ROOT / cwd
 
                     rc = 1
+                    run_pid: Optional[int] = None
+
+                    def _mark_run_pid(pid: int) -> None:
+                        task["run_pid"] = pid
+                        write_json(task_path, task)
+                        running_status["run_pid"] = pid
+                        write_json(summary_path, running_status)
+                        write_health_and_queue(running_status)
+
                     if agent == "claude":
                         if not claude_ready():
                             result["status"] = "blocked_auth"
                             result["summary"] = "claude not ready"
                         else:
                             prompt = str(task.get("prompt", ""))
-                            rc = run_cmd(["claude", "--print", prompt, "--output-format", "text"], cwd, stdout_path, stderr_path)
+                            rc, run_pid = run_cmd_with_pid(["claude", "--print", prompt, "--output-format", "text"], cwd, stdout_path, stderr_path, on_start=_mark_run_pid)
                             result["status"] = "completed" if rc == 0 else "failed"
                     elif agent == "codex":
                         if not codex_ready():
@@ -754,7 +1035,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                             result["summary"] = "codex not ready"
                         else:
                             prompt = str(task.get("prompt", ""))
-                            rc = run_cmd(["codex", "exec", prompt], cwd, stdout_path, stderr_path)
+                            rc, run_pid = run_cmd_with_pid(["codex", "exec", prompt], cwd, stdout_path, stderr_path, on_start=_mark_run_pid)
                             result["status"] = "completed" if rc == 0 else "failed"
                     elif agent == "ollama":
                         model = str(task.get("model", "llama3"))
@@ -763,7 +1044,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                             result["summary"] = f"ollama model missing: {model}"
                         else:
                             prompt = str(task.get("prompt", ""))
-                            rc = run_cmd(["ollama", "run", model, prompt], cwd, stdout_path, stderr_path)
+                            rc, run_pid = run_cmd_with_pid(["ollama", "run", model, prompt], cwd, stdout_path, stderr_path, on_start=_mark_run_pid)
                             result["status"] = "completed" if rc == 0 else "failed"
                     elif agent == "system_check":
                         cmd = task.get("command")
@@ -772,8 +1053,10 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                             stderr_path.write_text("missing command\n", encoding="utf-8")
                             result["status"] = "failed"
                         else:
-                            rc = run_cmd(["bash", "-lc", str(cmd)], cwd, stdout_path, stderr_path)
+                            rc, run_pid = run_cmd_with_pid(["bash", "-lc", str(cmd)], cwd, stdout_path, stderr_path, on_start=_mark_run_pid)
                             result["status"] = "completed" if rc == 0 else "failed"
+
+                    result["run_pid"] = run_pid
 
                     if result["status"] == "failed":
                         classified_status, reset_iso = classify_agent_block(agent, stdout_path, stderr_path)
@@ -847,6 +1130,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
     result["end_time"] = now_iso()
 
     task["status"] = result["status"]
+    task["run_pid"] = None
     task.setdefault("retry_count", int(task.get("retry_count", 0)))
     task["last_run"] = {
         "start": result["start_time"],
@@ -901,6 +1185,7 @@ def dry_run_queue() -> Dict[str, Any]:
 def daemon_loop(poll_seconds: int, max_run_hours: Optional[float], stop_after_idle_minutes: Optional[float], dry_run: bool) -> int:
     started = dt.datetime.now(dt.timezone.utc)
     idle_started = started
+    reconcile_stale_running_tasks()
     while True:
         now = dt.datetime.now(dt.timezone.utc)
         if max_run_hours is not None and (now - started).total_seconds() >= max_run_hours * 3600:
@@ -916,6 +1201,8 @@ def daemon_loop(poll_seconds: int, max_run_hours: Optional[float], stop_after_id
             write_health_and_queue(status)
             append_event(status)
             return 0
+
+        reconcile_stale_running_tasks()
 
         task_file = select_next_task_file()
         if not task_file:
