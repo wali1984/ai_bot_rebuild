@@ -127,6 +127,15 @@ def process_list() -> List[Dict[str, Any]]:
     return rows
 
 
+def planner_processes(procs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for p in procs:
+        cmd = p.get("cmd", "")
+        if "claude --print" in cmd and "You are Claude planner for AI BOT REBUILD" in cmd:
+            out.append(p)
+    return out
+
+
 def daemon_running(procs: List[Dict[str, Any]]) -> bool:
     return any("agent_supervisor.py --autonomous-daemon" in p["cmd"] for p in procs)
 
@@ -479,9 +488,8 @@ def planner_stuck(snapshot: Dict[str, Any]) -> bool:
     planner = snapshot.get("planner_status", {})
     if planner.get("planner_status") != "running":
         return False
-    for p in snapshot.get("processes", []):
-        cmd = p.get("cmd", "")
-        if "claude --print" in cmd and p.get("etimes", 0) > PLANNER_TIMEOUT_SECONDS:
+    for p in planner_processes(snapshot.get("processes", [])):
+        if p.get("etimes", 0) > PLANNER_TIMEOUT_SECONDS:
             return True
     return False
 
@@ -519,6 +527,10 @@ def no_output_growth(snapshot: Dict[str, Any]) -> bool:
         return True
     last = max(mtimes)
     return (now_ts - last) > NO_GROWTH_TIMEOUT_SECONDS
+
+
+def has_active_task_017_process(snapshot: Dict[str, Any]) -> bool:
+    return any(TASK_017 in str(p.get("cmd", "")) for p in snapshot.get("processes", []))
 
 
 def task_running_without_process(snapshot: Dict[str, Any]) -> bool:
@@ -663,7 +675,8 @@ def poll_loop() -> int:
                 return 6
 
         # planner stuck recovery
-        if planner_stuck(snapshot) and t017.get("status") != "running":
+        task_running = (t017.get("status") == "running") or bool(snapshot.get("queue_status", {}).get("current_running_task"))
+        if planner_stuck(snapshot) and (not task_running):
             stop_daemon()
             ok3, msg3 = start_daemon()
             append_event({"event": "phase_017_recovered", "reason": "planner_stuck_restart", "restart_ok": ok3, "detail": msg3})
@@ -673,7 +686,7 @@ def poll_loop() -> int:
 
         # no events timeout
         eage = snapshot.get("event_age_seconds")
-        if isinstance(eage, int) and eage > NO_EVENT_TIMEOUT_SECONDS:
+        if isinstance(eage, int) and eage > NO_EVENT_TIMEOUT_SECONDS and (not task_running):
             stop_daemon()
             ok4, msg4 = start_daemon()
             append_event({"event": "phase_017_recovered", "reason": "no_events_timeout_restart", "restart_ok": ok4, "detail": msg4})
@@ -719,9 +732,26 @@ def poll_loop() -> int:
                 normalize_task_state(TASK_017, "completed", "process missing but outputs present; normalized", mat.get("materialized_files", []))
                 append_event({"event": "phase_017_recovered", "reason": "running_without_process_with_outputs"})
             else:
-                stop_daemon()
-                normalize_task_state(TASK_017, "human_attention_required", "017 marked running but no process and no required outputs")
-                return 11
+                # Grace period: queue/state can lag process startup/teardown by one poll.
+                append_event({
+                    "event": "phase_017_recovered",
+                    "reason": "running_without_process_watch",
+                    "action": "waiting_for_next_poll",
+                })
+                time.sleep(POLL_SECONDS)
+                snapshot2 = collect_snapshot(started)
+                t017_2 = snapshot2.get("task_017_state", {})
+                req_ok_2, _missing2 = required_outputs_exist(task_def)
+                if task_running_without_process(snapshot2):
+                    if req_ok_2:
+                        mat = materialize_begin_file_blocks(TASK_017_RUN_DIR / "stdout.txt", ALLOWED_PREFIXES)
+                        normalize_task_state(TASK_017, "completed", "process missing but outputs present; normalized", mat.get("materialized_files", []))
+                    else:
+                        stop_daemon()
+                        normalize_task_state(TASK_017, "human_attention_required", "017 marked running but no process and no required outputs")
+                        return 11
+                else:
+                    t017 = t017_2
 
         # completion path
         t017 = load_json(TASK_017_STATE, {})

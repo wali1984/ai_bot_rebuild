@@ -75,6 +75,25 @@ def process_lines(pattern: str) -> List[str]:
     return [ln for ln in out.splitlines() if ln.strip()]
 
 
+def process_running_for_task(task_id: str) -> bool:
+    if not task_id:
+        return False
+    out = cmd_out(["bash", "-lc", f"pgrep -af {task_id!r} || true"])
+    for ln in out.splitlines():
+        ln = ln.strip()
+        if not ln or "pgrep -af" in ln:
+            continue
+        return True
+    return False
+
+
+def task_state(task_id: str) -> Dict[str, Any]:
+    if not task_id:
+        return {}
+    p = WORKSPACE / f"claude_worklog/agent_supervisor/state/tasks/{task_id}.json"
+    return read_json(p)
+
+
 def last_events(n: int = 10) -> List[str]:
     if not EVENTS.exists():
         return []
@@ -142,10 +161,19 @@ def continuous_monitor_status() -> str:
 
 
 def v2_build_gate_status() -> str:
-    codex_gate = WORKSPACE / "claude_worklog/v2_architecture_codex_review/11_CODEX_ARCHITECTURE_GO_NO_GO.md"
-    if codex_gate.exists():
-        return read_text(codex_gate) or "unknown"
-    return "unknown"
+    candidates = [
+        WORKSPACE / "claude_worklog/v2_architecture_codex_review/16_ACTUAL_CODEX_RERUN_GO_NO_GO.md",
+        WORKSPACE / "claude_worklog/v2_scaffold_planning/08_SCAFFOLD_PLANNING_GO_NO_GO.md",
+        WORKSPACE / "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_GO_NO_GO.md",
+        WORKSPACE / "claude_worklog/v2_scaffold_queue/07_REMEDIATION_GO_NO_GO.md",
+    ]
+    lines = []
+    for p in candidates:
+        if p.exists():
+            marker = read_text(p).splitlines()
+            first = next((ln.strip() for ln in marker if ln.strip()), "unknown")
+            lines.append(f"{p.name}:{first}")
+    return " | ".join(lines) if lines else "unknown"
 
 
 def live_mutation_gate_status() -> str:
@@ -229,6 +257,16 @@ def print_dashboard(refresh_seconds: int) -> None:
         queue = read_json(WORKSPACE / QUEUE_STATUS)
         health = read_json(WORKSPACE / AGENT_HEALTH)
         planner = read_json(WORKSPACE / PLANNER_STATUS)
+        current_task_id = str(current.get("task_id") or "") if isinstance(current, dict) else ""
+        current_task_status = str(current.get("status") or "") if isinstance(current, dict) else ""
+        current_task_state = task_state(current_task_id)
+        current_state_status = str(current_task_state.get("status") or "")
+        current_task_proc = process_running_for_task(current_task_id)
+        running_state_stale = (
+            current_task_status == "running"
+            and current_state_status not in {"running", "completed"}
+            and (not current_task_proc)
+        )
         heartbeat = read_json(WORKSPACE / HEARTBEAT)
         lockfile = read_json(WORKSPACE / LOCK_FILE)
 
@@ -345,6 +383,12 @@ def print_dashboard(refresh_seconds: int) -> None:
         print(f"latest task id: {current.get('task_id', '-')}")
         print(f"latest task agent: {current.get('agent', '-')}")
         print(f"latest task status: {current.get('status', '-')}")
+        if current_task_id:
+            print(
+                f"latest task runtime-state: {current_state_status or '-'} "
+                f"| process_alive: {'yes' if current_task_proc else 'no'} "
+                f"| stale_status_view: {'yes' if running_state_stale else 'no'}"
+            )
         print(f"latest Claude run summary: {latest_agent_summary('claude')}")
         print(f"latest Codex run summary: {latest_agent_summary('codex')}")
         print(f"latest Ollama run summary: {latest_agent_summary('ollama')}")
