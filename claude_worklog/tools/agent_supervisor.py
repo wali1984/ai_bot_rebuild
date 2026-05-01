@@ -664,17 +664,47 @@ def command_quick(cmd: List[str], timeout: int = 30) -> Tuple[int, str, str]:
         return 1, "", str(ex)
 
 
+PROMPT_PERMISSION_MODEL_PATTERNS = [
+    "permission denials",
+    "approve writes",
+    "grant permission",
+    "permission denied",
+    "i need you to approve writes",
+    "could you grant permission",
+]
+
+AUTH_FAILURE_PATTERNS = [
+    "not authenticated",
+    "login required",
+    "invalid api key",
+    "auth token expired",
+    "unauthorized",
+    "401",
+    "403",
+]
+
+
+def is_prompt_permission_model_error(raw: str) -> bool:
+    return any(k in raw for k in PROMPT_PERMISSION_MODEL_PATTERNS)
+
+
+def is_auth_failure(raw: str) -> bool:
+    return any(k in raw for k in AUTH_FAILURE_PATTERNS)
+
+
 def classify_agent_block(agent: str, stdout_path: pathlib.Path, stderr_path: pathlib.Path) -> Tuple[Optional[str], Optional[str]]:
     raw = (read_text(stdout_path) + "\n" + read_text(stderr_path)).lower()
+    if is_prompt_permission_model_error(raw):
+        return "failed", "prompt_permission_model_error"
     if agent == "claude":
         if any(k in raw for k in ["usage limit", "hit your limit", "resets", "quota"]):
             return "blocked_quota", parse_claude_reset_to_utc(read_text(stdout_path) + "\n" + read_text(stderr_path))
-        if any(k in raw for k in ["unauthorized", "not authenticated", "auth", "forbidden", "login"]):
+        if is_auth_failure(raw):
             return "blocked_auth", None
     if agent == "codex":
         if any(k in raw for k in ["rate limit", "quota", "usage limit", "too many requests"]):
             return "blocked_quota", None
-        if any(k in raw for k in ["unauthorized", "not authenticated", "auth", "forbidden", "login"]):
+        if is_auth_failure(raw):
             return "blocked_auth", None
     return None, None
 
@@ -2103,12 +2133,21 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                         result["last_retry_reason"] = "subprocess_timeout"
 
                     if result["status"] == "failed":
-                        classified_status, reset_iso = classify_agent_block(agent, stdout_path, stderr_path)
+                        classified_status, classifier_detail = classify_agent_block(agent, stdout_path, stderr_path)
                         if classified_status:
                             result["status"] = classified_status
                             result["summary"] = f"{agent} {classified_status} detected"
+                            if classifier_detail == "prompt_permission_model_error":
+                                result["summary"] = "task prompt permission-model error: headless task attempted direct writes"
+                                result["last_retry_reason"] = "prompt_permission_model_error"
+                                result["attention_reason"] = "task_prompt_must_use_begin_file_emit_mode"
+                                append_event({
+                                    "event": "task_prompt_permission_model_error",
+                                    "task_id": task_id,
+                                    "agent": agent,
+                                })
                             if classified_status == "blocked_quota":
-                                resume = parse_iso_utc(reset_iso)
+                                resume = parse_iso_utc(classifier_detail)
                                 if resume is None:
                                     resume = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=30)
                                 update_task_state(task_id, resume_after_utc=resume.isoformat())
@@ -2157,7 +2196,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
 
                     max_attempts = int(task.get("max_attempts", 3))
                     retry_count = int(task.get("retry_count", 0))
-                    if result["status"] == "failed":
+                    if result["status"] == "failed" and result.get("last_retry_reason") != "prompt_permission_model_error":
                         if retry_count + 1 < max_attempts:
                             new_retry = retry_count + 1
                             update_task_state(

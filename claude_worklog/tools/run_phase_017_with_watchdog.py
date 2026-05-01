@@ -41,6 +41,7 @@ ALLOWED_PREFIXES = [
     "claude_worklog/v2_scaffold_queue/",
     "claude_worklog/agent_supervisor/tasks/",
     "claude_worklog/v2_scaffold_queue_review/",
+    "claude_worklog/v2_scaffold_queue_remediation/",
     "claude_worklog/agent_supervisor/runtime/planner/",
     "claude_worklog/approvals/",
 ]
@@ -63,7 +64,23 @@ NO_EVENT_TIMEOUT_SECONDS = 10 * 60
 NO_GROWTH_TIMEOUT_SECONDS = 15 * 60
 
 QUOTA_PATTERNS = ["usage limit", "rate limit", "quota", "too many requests", "resets"]
-AUTH_PATTERNS = ["unauthorized", "not authenticated", "forbidden", "auth", "login"]
+PROMPT_PERMISSION_MODEL_PATTERNS = [
+    "permission denials",
+    "approve writes",
+    "grant permission",
+    "permission denied",
+    "i need you to approve writes",
+    "could you grant permission",
+]
+AUTH_PATTERNS = [
+    "not authenticated",
+    "login required",
+    "invalid api key",
+    "auth token expired",
+    "unauthorized",
+    "401",
+    "403",
+]
 
 
 # -----------------------------
@@ -312,6 +329,9 @@ def normalize_task_state(task_id: str, status: str, summary: str, materialized_f
         d["last_retry_reason"] = "quota_detected_by_watchdog"
     elif status == "blocked_auth":
         d["last_retry_reason"] = "auth_detected_by_watchdog"
+    elif summary == "prompt_permission_model_error":
+        d["last_retry_reason"] = "prompt_permission_model_error"
+        d["attention_reason"] = "task_prompt_must_use_begin_file_emit_mode"
     elif status == "human_attention_required":
         d["attention_reason"] = summary
     p.write_text(json.dumps(d, indent=2) + "\n", encoding="utf-8")
@@ -336,11 +356,12 @@ def normalize_task_state(task_id: str, status: str, summary: str, materialized_f
     })
 
 
-def detect_quota_or_auth(stdout: str, stderr: str) -> Tuple[bool, bool]:
+def detect_quota_auth_or_prompt_permission(stdout: str, stderr: str) -> Tuple[bool, bool, bool]:
     text = (stdout + "\n" + stderr).lower()
     quota = any(x in text for x in QUOTA_PATTERNS)
+    prompt_permission = any(x in text for x in PROMPT_PERMISSION_MODEL_PATTERNS)
     auth = any(x in text for x in AUTH_PATTERNS)
-    return quota, auth
+    return quota, auth, prompt_permission
 
 
 def secret_scan_files(files: List[str]) -> Tuple[bool, List[str]]:
@@ -670,7 +691,13 @@ def poll_loop() -> int:
 
         # quota/auth detection
         stdout, stderr = read_task_logs()
-        quota, auth = detect_quota_or_auth(stdout, stderr)
+        quota, auth, prompt_permission = detect_quota_auth_or_prompt_permission(stdout, stderr)
+        if prompt_permission:
+            stop_daemon()
+            normalize_task_state(TASK_017, "failed", "prompt_permission_model_error")
+            append_event({"event": "task_prompt_permission_model_error", "task_id": TASK_017})
+            append_event({"event": "phase_017_prompt_permission_model_error", "task_id": TASK_017})
+            return 5
         if quota:
             stop_daemon()
             normalize_task_state(TASK_017, "blocked_quota", "quota detected in 017 logs")
