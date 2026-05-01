@@ -154,6 +154,41 @@ def is_relpath_allowed(rel_path: str, allowed_output_prefixes: List[str]) -> boo
     return False
 
 
+def extract_emit_file_blocks(text: str) -> List[Dict[str, str]]:
+    """
+    Extract emit-file blocks from agent output.
+
+    Supports both:
+    A) Strict blocks:
+       BEGIN_FILE: path
+       ...content...
+       END_FILE
+
+    B) Fallback blocks:
+       BEGIN_FILE: path
+       ...content until next BEGIN_FILE or EOF
+    """
+    begin_pattern = re.compile(r"(?m)^BEGIN_FILE:\s*(.+?)\s*$")
+    markers = list(begin_pattern.finditer(text))
+    blocks: List[Dict[str, str]] = []
+
+    for idx, marker in enumerate(markers):
+        rel_path = normalize_relpath(marker.group(1))
+        start = marker.end()
+        end = markers[idx + 1].start() if idx + 1 < len(markers) else len(text)
+
+        content = text[start:end]
+        if content.startswith("\n"):
+            content = content[1:]
+
+        # Strip optional strict terminator when present.
+        content = re.sub(r"\n?END_FILE\s*$", "", content.rstrip(), flags=re.MULTILINE)
+
+        blocks.append({"path": rel_path, "content": content})
+
+    return blocks
+
+
 def materialize_emit_files(
     stdout_path: pathlib.Path,
     allowed_output_prefixes: List[str],
@@ -169,13 +204,12 @@ def materialize_emit_files(
         return result
 
     text = stdout_path.read_text(encoding="utf-8", errors="ignore")
-    pattern = re.compile(r"BEGIN_FILE:\s*(.+?)\n(.*?)\nEND_FILE", re.DOTALL)
-    matches = list(pattern.finditer(text))
-    result["blocks_found"] = len(matches)
+    blocks = extract_emit_file_blocks(text)
+    result["blocks_found"] = len(blocks)
 
-    for match in matches:
-        rel_path = normalize_relpath(match.group(1))
-        content = match.group(2)
+    for block in blocks:
+        rel_path = normalize_relpath(block.get("path", ""))
+        content = str(block.get("content", ""))
 
         if not rel_path:
             result["errors"].append("empty emit-file path")
