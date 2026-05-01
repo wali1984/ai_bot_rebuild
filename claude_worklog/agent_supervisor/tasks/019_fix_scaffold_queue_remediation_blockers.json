@@ -1,0 +1,19 @@
+{
+  "task_id": "019_fix_scaffold_queue_remediation_blockers",
+  "agent": "claude",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/v2_scaffold_queue/",
+    "claude_worklog/v2_scaffold_queue_remediation/",
+    "claude_worklog/agent_supervisor/tasks/"
+  ],
+  "required_output_files": [
+    "claude_worklog/v2_scaffold_queue_remediation/019_BLOCKER_FIX_REPORT.md",
+    "claude_worklog/v2_scaffold_queue_remediation/019_GO_NO_GO.md"
+  ],
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Headless mode. Do not use tools. Do not write files directly. Do not ask for write permission. Print BEGIN_FILE / END_FILE blocks only. Do not include text outside file blocks. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not run or unblock 015A-015F. Do not build V2 implementation. Read the blocked remediation finding in claude_worklog/v2_scaffold_queue_remediation/017_REMEDIATION_REPORT.md and fix the scaffold queue planning artifacts only. Update queue docs/task JSONs only as needed under allowed prefixes. 015A-015F must remain blocked_approval. Produce a blocker-fix report and GO/NO-GO. The GO/NO-GO file must contain exactly one line: SCAFFOLD_QUEUE_REMEDIATION_READY_FOR_CODEX_REVIEW or SCAFFOLD_QUEUE_REMEDIATION_BLOCKED.",
+  "next_recommended_action": "If GO, run Codex scaffold queue re-review. If blocked, inspect remaining blockers."
+}
