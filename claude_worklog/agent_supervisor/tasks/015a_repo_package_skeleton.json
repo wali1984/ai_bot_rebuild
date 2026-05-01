@@ -1,0 +1,135 @@
+{
+  "task_id": "015a_repo_package_skeleton",
+  "status": "blocked_approval",
+  "agent": "claude",
+  "risk_level": "L2",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "v2/",
+    "claude_worklog/v2_build/",
+    "claude_worklog/agent_supervisor/tasks/"
+  ],
+  "required_output_files": [
+    "v2/pyproject.toml",
+    "v2/package.json",
+    "v2/tsconfig.json",
+    "v2/alembic.ini",
+    "v2/README.md",
+    "v2/backend/app/__init__.py",
+    "v2/backend/app/main.py",
+    "v2/backend/app/settings.py",
+    "v2/backend/app/logging.py",
+    "v2/backend/app/api/__init__.py",
+    "v2/backend/app/api/v1/__init__.py",
+    "v2/backend/app/api/middleware/__init__.py",
+    "v2/backend/app/api/errors/__init__.py",
+    "v2/backend/app/api/schemas/__init__.py",
+    "v2/backend/app/domain/__init__.py",
+    "v2/backend/app/adapters/__init__.py",
+    "v2/backend/app/adapters/trainer/__init__.py",
+    "v2/backend/app/services/__init__.py",
+    "v2/backend/app/jobs/__init__.py",
+    "v2/backend/app/cli/__init__.py",
+    "v2/backend/migrations/env.py",
+    "v2/backend/tests/__init__.py",
+    "claude_worklog/v2_build/B_SCAFFOLD_VALIDATION.md"
+  ],
+  "depends_on": [],
+  "next_tasks_on_success": [],
+  "next_tasks_on_failure": [],
+  "max_attempts": 1,
+  "priority": 0,
+  "auto_commit": false,
+  "commit_message": "Materialize V2 repo/package skeleton (milestone B)",
+  "gate_evidence_ref": [
+    "claude_worklog/v2_architecture_remediation/12A_DATABASE_LINEAGE_CLOSURE.md",
+    "claude_worklog/v2_architecture_remediation/12B_API_LINEAGE_ENFORCEMENT_CLOSURE.md",
+    "claude_worklog/v2_architecture_remediation/12C_FEATURE_EXPLAINABILITY_CLOSURE.md",
+    "claude_worklog/v2_architecture_remediation/12D_TRAINER_LIVENESS_EVIDENCE_CLOSURE.md",
+    "claude_worklog/v2_architecture_codex_review/16_ACTUAL_CODEX_RERUN_GO_NO_GO.md",
+    "claude_worklog/v2_scaffold_planning/08_SCAFFOLD_PLANNING_GO_NO_GO.md",
+    "claude_worklog/agent_supervisor_reliability/04_GO_NO_GO.md",
+    "claude_worklog/v2_scaffold_queue/05_SCAFFOLD_QUEUE_GO_NO_GO.md",
+    "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_GO_NO_GO.md"
+  ],
+  "safety_boundary": {
+    "forbidden_writes": [
+      "legacy_reference/**",
+      "../AI BOT/**",
+      "**/.env",
+      "**/secrets/**",
+      "v2/ops/ci/**",
+      "v2/backend/app/api/v1/**handlers/**",
+      "v2/frontend/src/pages/**/index.tsx (non-empty handler bodies)"
+    ],
+    "forbidden_reads": [],
+    "forbidden_runtime_actions": [
+      "place_or_cancel_orders",
+      "change_leverage_or_margin",
+      "write_legacy_redis",
+      "restart_legacy_services",
+      "enable_live_trading",
+      "import_legacy_trainer_modules_into_fastapi_process",
+      "pip_install_into_trainer_venv"
+    ],
+    "live_trading_default": "BLOCKED",
+    "trainer_runtime_boundary": "subprocess_only_via_v2/backend/app/adapters/trainer"
+  },
+  "observability": {
+    "events_emitted": [
+      "task.start",
+      "task.adapter_call",
+      "task.complete"
+    ],
+    "metrics_emitted": [
+      "v2.scaffold.modules_created_count",
+      "v2.scaffold.lint_warnings_count",
+      "v2.scaffold.type_errors_count",
+      "v2.scaffold.import_cycle_count"
+    ],
+    "logs_written": [
+      "claude_worklog/agent_supervisor/runs/015a_repo_package_skeleton/<ts>/stdout.log",
+      "claude_worklog/agent_supervisor/runs/015a_repo_package_skeleton/<ts>/stderr.log"
+    ],
+    "dashboard_surfaces": [
+      "Build/Validation Status page (v2/frontend/src/pages/build_validation_status, surfaced after 015D)",
+      "agent supervisor dashboard 'STALE-STATE ALERTS' panel"
+    ]
+  },
+  "tests": {
+    "unit": [],
+    "integration": [],
+    "contract": [],
+    "e2e": [],
+    "static": [
+      "ruff check v2/backend (zero warnings)",
+      "mypy v2/backend --strict (zero errors)",
+      "tsc --noEmit over v2/frontend (zero errors)",
+      "ops/ci/import_cycle_check.py (no cycles, no forbidden edges per 02_PACKAGE_AND_MODULE_MAP.md §3)"
+    ]
+  },
+  "rollback": {
+    "procedure": [
+      "remove every file materialized under v2/** by this task (ls v2/ | xargs rm -rf only on exact paths in materialized_files[])",
+      "delete claude_worklog/v2_build/B_SCAFFOLD_VALIDATION.md",
+      "leave claude_worklog/agent_supervisor/runs/015a_repo_package_skeleton/<ts>/ logs in place for forensic record"
+    ],
+    "verification": [
+      "git status shows no orphan files under v2/",
+      "ops/ci/import_cycle_check.py is absent (will be created in 015E)"
+    ]
+  },
+  "audit_evidence": {
+    "audit_events_required": [
+      "governance.task_dispatched (with gate_evidence_ref[] resolved)",
+      "governance.task_validated (with materialized_files[] and validation_artifact_path)",
+      "governance.scaffold_module_created (one per __init__.py / config file created)"
+    ],
+    "hash_chain_link": "prior_event_hash + this_event_payload -> event_hash; chain head verified at task start; chain break freezes the queue"
+  },
+  "go_no_go_marker": "B_SCAFFOLD_VALIDATION_READY",
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not place/cancel orders. Do not import legacy trainer modules into the FastAPI process; subprocess boundary only. Do not pip install into the trainer venv. Materialize the V2 repo/package skeleton EXACTLY as specified by claude_worklog/v2_scaffold_planning/02_PACKAGE_AND_MODULE_MAP.md. Create empty packages with __init__.py for every path listed there. Create pyproject.toml, package.json, tsconfig.json, alembic.ini at v2/. NO runtime behavior: app/main.py registers routers but performs no I/O at import; settings.py reads env via pydantic-settings only; no router has handler bodies. Frontend: package.json + tsconfig.json + vite.config.ts only; no pages yet. Migrations harness only; no Alembic versions. Produce claude_worklog/v2_build/B_SCAFFOLD_VALIDATION.md ending in exactly the line B_SCAFFOLD_VALIDATION_READY or B_SCAFFOLD_VALIDATION_BLOCKED. Output BEGIN_FILE blocks only.",
+  "next_recommended_action": "After Codex queue review PASS and human L2 approval, flip status from blocked_approval to pending. After completion, run 015e_test_ci_skeleton (parallel) and 015b_database_migration_skeleton (sequential).",
+  "normalized_from_artifact": false
+}

@@ -1,0 +1,154 @@
+{
+  "task_id": "015f_agent_dashboard_integration",
+  "status": "blocked_approval",
+  "agent": "claude",
+  "risk_level": "L2",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "v2/backend/app/api/v1/_meta/",
+    "v2/backend/app/services/",
+    "v2/backend/tests/",
+    "v2/frontend/src/components/dashboard/",
+    "v2/frontend/src/api/hooks/",
+    "v2/frontend/src/tests/",
+    "claude_worklog/v2_build/"
+  ],
+  "required_output_files": [
+    "v2/backend/app/api/v1/_meta/agent_health.py",
+    "v2/backend/app/api/v1/_meta/queue_status.py",
+    "v2/backend/app/api/v1/_meta/build_status.py",
+    "v2/backend/app/api/v1/_meta/audit_chain.py",
+    "v2/backend/app/services/agent_health_reader.py",
+    "v2/backend/app/services/queue_status_reader.py",
+    "v2/backend/app/services/build_status_reader.py",
+    "v2/backend/app/services/audit_chain_reader.py",
+    "v2/frontend/src/api/hooks/agent_health.ts",
+    "v2/frontend/src/api/hooks/queue_status.ts",
+    "v2/frontend/src/api/hooks/build_status.ts",
+    "v2/frontend/src/components/dashboard/AgentHealthPanel.tsx",
+    "v2/frontend/src/components/dashboard/QueueStatusPanel.tsx",
+    "v2/frontend/src/components/dashboard/StaleStateAlertsPanel.tsx",
+    "v2/frontend/src/components/dashboard/BuildValidationPanel.tsx",
+    "v2/backend/tests/integration/test_agent_health_endpoint.py",
+    "v2/backend/tests/integration/test_queue_status_endpoint.py",
+    "v2/frontend/src/tests/e2e/dashboard_stale_state.spec.ts",
+    "claude_worklog/v2_build/B_AGENT_DASHBOARD_INTEGRATION_VALIDATION.md"
+  ],
+  "depends_on": [
+    "015a_repo_package_skeleton",
+    "015b_database_migration_skeleton",
+    "015c_api_route_skeleton",
+    "015d_enterprise_frontend_shell",
+    "015e_test_ci_skeleton"
+  ],
+  "next_tasks_on_success": [],
+  "next_tasks_on_failure": [],
+  "max_attempts": 1,
+  "priority": 0,
+  "auto_commit": false,
+  "commit_message": "Wire agent supervisor + dashboard integration into V2 shell",
+  "gate_evidence_ref": [
+    "claude_worklog/v2_scaffold_planning/06_AGENT_SUPERVISED_BUILD_SEQUENCE.md",
+    "claude_worklog/v2_scaffold_planning/09_ENTERPRISE_IMPLEMENTATION_GUARDRAILS.md",
+    "claude_worklog/agent_supervisor_reliability/02_IMPLEMENTATION_REPORT.md",
+    "claude_worklog/agent_supervisor_reliability/03_VALIDATION_REPORT.md",
+    "claude_worklog/agent_supervisor_reliability/04_GO_NO_GO.md",
+    "claude_worklog/v2_build/B_SCAFFOLD_VALIDATION.md",
+    "claude_worklog/v2_build/C_DATABASE_SKELETON_VALIDATION.md",
+    "claude_worklog/v2_build/D_API_SKELETON_VALIDATION.md",
+    "claude_worklog/v2_build/E_GUI_SHELL_VALIDATION.md",
+    "claude_worklog/v2_build/B_TEST_CI_VALIDATION.md",
+    "claude_worklog/v2_scaffold_queue/05_SCAFFOLD_QUEUE_GO_NO_GO.md",
+    "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_GO_NO_GO.md"
+  ],
+  "safety_boundary": {
+    "forbidden_writes": [
+      "legacy_reference/**",
+      "../AI BOT/**",
+      "**/.env",
+      "**/secrets/**",
+      "v2/backend/migrations/**",
+      "claude_worklog/agent_supervisor/state/**",
+      "claude_worklog/agent_supervisor/status/**",
+      "claude_worklog/agent_supervisor/runs/**"
+    ],
+    "forbidden_reads": [],
+    "forbidden_runtime_actions": [
+      "mutate_supervisor_state_files",
+      "mutate_supervisor_status_files",
+      "dispatch_supervisor_tasks_from_v2_backend",
+      "place_or_cancel_orders",
+      "enable_live_trading",
+      "write_legacy_redis",
+      "restart_legacy_services"
+    ],
+    "live_trading_default": "BLOCKED",
+    "supervisor_state_access_constraint": "READ_ONLY: v2 backend reads claude_worklog/agent_supervisor/status/queue_status.json, status/agent_health.json, runs/*/summary.json; v2 NEVER writes those paths"
+  },
+  "observability": {
+    "events_emitted": [
+      "task.start",
+      "task.adapter_call",
+      "task.complete",
+      "dashboard.endpoint_registered",
+      "dashboard.stale_state_alert_rendered"
+    ],
+    "metrics_emitted": [
+      "v2.dashboard.agent_health_endpoint_pass_count",
+      "v2.dashboard.queue_status_endpoint_pass_count",
+      "v2.dashboard.stale_state_alert_visible_count",
+      "v2.dashboard.human_attention_required_visible_count"
+    ],
+    "logs_written": [
+      "claude_worklog/agent_supervisor/runs/015f_agent_dashboard_integration/<ts>/stdout.log"
+    ],
+    "dashboard_surfaces": [
+      "Mission Control (AgentHealthPanel)",
+      "Build/Validation Status (BuildValidationPanel)",
+      "Claude Admin AI (StaleStateAlertsPanel)",
+      "System Health (QueueStatusPanel)"
+    ]
+  },
+  "tests": {
+    "unit": [],
+    "integration": [
+      "test_agent_health_endpoint.py — boots app, mocks the supervisor's agent_health.json on disk, asserts /api/v1/_meta/agent-health returns the expected shape (terminal_operator, active_agents[], supervisor_version)",
+      "test_queue_status_endpoint.py — mocks queue_status.json with stale_running/no_event/human_attention_required entries; asserts the endpoint surfaces them"
+    ],
+    "contract": [],
+    "e2e": [
+      "dashboard_stale_state.spec.ts — Playwright: with a fixture queue_status.json containing human_attention_required tasks, the StaleStateAlertsPanel renders the task ids and the system_health page shows the count"
+    ],
+    "static": [
+      "ruff + mypy on the new backend files",
+      "tsc + eslint on the new frontend files",
+      "import-cycle: services/* must not import api/v1/* (per 02_PACKAGE_AND_MODULE_MAP.md §2)"
+    ]
+  },
+  "rollback": {
+    "procedure": [
+      "remove every file materialized under v2/backend/app/api/v1/_meta/, v2/backend/app/services/, v2/backend/tests/integration/test_agent_health_endpoint.py, v2/backend/tests/integration/test_queue_status_endpoint.py, v2/frontend/src/components/dashboard/, v2/frontend/src/api/hooks/, v2/frontend/src/tests/e2e/dashboard_stale_state.spec.ts",
+      "delete claude_worklog/v2_build/B_AGENT_DASHBOARD_INTEGRATION_VALIDATION.md",
+      "leave logs in place"
+    ],
+    "verification": [
+      "import-cycle check still passes against the residual skeleton",
+      "git status shows no orphan files under the dashboard prefixes"
+    ]
+  },
+  "audit_evidence": {
+    "audit_events_required": [
+      "governance.task_dispatched",
+      "governance.task_validated",
+      "dashboard.endpoint_registered (one per _meta endpoint)",
+      "dashboard.stale_state_alert_rendered",
+      "dashboard.agent_health_visible"
+    ],
+    "hash_chain_link": "prior_event_hash + this_event_payload -> event_hash"
+  },
+  "go_no_go_marker": "B_AGENT_DASHBOARD_INTEGRATION_VALIDATION_READY",
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not place/cancel orders. Do not write supervisor state/status/runs paths; v2 backend READS those files only. Materialize the agent supervisor + dashboard integration: backend services that read claude_worklog/agent_supervisor/status/queue_status.json, status/agent_health.json, runs/*/summary.json (READ ONLY); /api/v1/_meta/agent-health, /queue-status, /build-status, /audit-chain endpoints; React components AgentHealthPanel, QueueStatusPanel, StaleStateAlertsPanel, BuildValidationPanel; React Query hooks; integration tests for backend; Playwright e2e for stale-state surfacing per claude_worklog/agent_supervisor_reliability/02_IMPLEMENTATION_REPORT.md §1.10. The StaleStateAlertsPanel MUST surface stale_running, no_event, no_output_growth, blocked_quota, human_attention_required with task ids. Produce claude_worklog/v2_build/B_AGENT_DASHBOARD_INTEGRATION_VALIDATION.md ending in exactly B_AGENT_DASHBOARD_INTEGRATION_VALIDATION_READY or B_AGENT_DASHBOARD_INTEGRATION_VALIDATION_BLOCKED. Output BEGIN_FILE blocks only.",
+  "next_recommended_action": "After completion, the milestone-B scaffold queue is closed. Hand off to milestone C proper (DB schema materialization) under a new task series.",
+  "normalized_from_artifact": false
+}
