@@ -57,7 +57,8 @@ IMPLEMENTATION_TASKS = [
 MAX_DURATION_SECONDS = 4 * 60 * 60
 POLL_SECONDS = 60
 PLANNER_TIMEOUT_SECONDS = 12 * 60
-TASK_CHILD_TIMEOUT_SECONDS = 45 * 60
+PHASE_017_CHILD_TIMEOUT_SECONDS = 2700
+TASK_CHILD_TIMEOUT_SECONDS = PHASE_017_CHILD_TIMEOUT_SECONDS
 NO_EVENT_TIMEOUT_SECONDS = 10 * 60
 NO_GROWTH_TIMEOUT_SECONDS = 15 * 60
 
@@ -507,22 +508,26 @@ def planner_stuck(snapshot: Dict[str, Any]) -> bool:
 
 
 def task_child_timed_out(snapshot: Dict[str, Any]) -> bool:
-    for p in snapshot.get("processes", []):
-        cmd = p.get("cmd", "")
-        if TASK_017 in cmd and p.get("etimes", 0) > TASK_CHILD_TIMEOUT_SECONDS:
-            return True
-    return False
+    return any(int(p.get("etimes", 0) or 0) > TASK_CHILD_TIMEOUT_SECONDS for p in task_017_processes(snapshot))
 
 
 def task_017_child_age_seconds(snapshot: Dict[str, Any]) -> Optional[int]:
-    ages: List[int] = []
-    for p in snapshot.get("processes", []):
-        cmd = p.get("cmd", "")
-        if TASK_017 in cmd:
-            ages.append(int(p.get("etimes", 0) or 0))
+    ages = [int(p.get("etimes", 0) or 0) for p in task_017_processes(snapshot)]
     if not ages:
         return None
     return max(ages)
+
+
+def task_017_processes(snapshot: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Return active Claude/Codex child processes for task 017, excluding daemons."""
+    out: List[Dict[str, Any]] = []
+    for p in snapshot.get("processes", []):
+        cmd = p.get("cmd", "")
+        if TASK_017 not in cmd:
+            continue
+        if "claude --print" in cmd or "codex exec" in cmd:
+            out.append(p)
+    return out
 
 
 def no_output_growth(snapshot: Dict[str, Any]) -> bool:
@@ -715,28 +720,67 @@ def poll_loop() -> int:
             append_event({"event": "phase_017_recovered", "reason": "required_outputs_present_normalized_completed"})
             t017 = load_json(TASK_017_STATE, {})
 
+        active_children = task_017_processes(snapshot)
+        child_age = task_017_child_age_seconds(snapshot)
+
         if task_child_timed_out(snapshot):
             stop_daemon()
+            append_event({
+                "event": "phase_017_child_timeout",
+                "task_id": TASK_017,
+                "task_child_age_seconds": child_age,
+                "timeout_seconds": TASK_CHILD_TIMEOUT_SECONDS,
+            })
             normalize_task_state(TASK_017, "human_attention_required", "task child exceeded timeout")
             return 9
 
         if no_output_growth(snapshot):
-            child_age = task_017_child_age_seconds(snapshot)
             if req_ok:
                 mat = materialize_begin_file_blocks(TASK_017_RUN_DIR / "stdout.txt", ALLOWED_PREFIXES)
                 normalize_task_state(TASK_017, "completed", "no growth but required outputs present; normalized", mat.get("materialized_files", []))
                 append_event({"event": "phase_017_recovered", "reason": "no_output_growth_with_outputs"})
-            elif child_age is not None and child_age <= TASK_CHILD_TIMEOUT_SECONDS:
+            elif active_children:
                 append_event({
-                    "event": "phase_017_recovered",
-                    "reason": "no_output_growth_watch",
+                    "event": "phase_017_no_output_growth_ignored_child_alive",
+                    "task_id": TASK_017,
                     "task_child_age_seconds": child_age,
-                    "action": "waiting_until_child_timeout",
+                    "timeout_seconds": TASK_CHILD_TIMEOUT_SECONDS,
                 })
+                append_event({
+                    "event": "phase_017_child_alive_wait",
+                    "task_id": TASK_017,
+                    "active_child_pids": [p.get("pid") for p in active_children],
+                    "task_child_age_seconds": child_age,
+                    "reason": "claude_codex_cli_output_may_be_buffered",
+                })
+                time.sleep(POLL_SECONDS)
+                continue
             else:
-                stop_daemon()
-                normalize_task_state(TASK_017, "human_attention_required", "017 stuck running with no output growth")
-                return 10
+                last_run = t017.get("last_run") if isinstance(t017.get("last_run"), dict) else {}
+                start_raw = last_run.get("start")
+                start_age: Optional[float] = None
+                if start_raw:
+                    try:
+                        parsed = dt.datetime.fromisoformat(str(start_raw))
+                        if parsed.tzinfo is None:
+                            parsed = parsed.replace(tzinfo=dt.timezone.utc)
+                        start_age = (dt.datetime.now(dt.timezone.utc) - parsed.astimezone(dt.timezone.utc)).total_seconds()
+                    except Exception:
+                        start_age = None
+                run_dir_exists = TASK_017_RUN_DIR.exists()
+                exceeded_timeout = start_age is not None and start_age > TASK_CHILD_TIMEOUT_SECONDS
+                if run_dir_exists and exceeded_timeout:
+                    stop_daemon()
+                    normalize_task_state(TASK_017, "human_attention_required", "017 stuck running with no output growth and no active child")
+                    return 10
+                append_event({
+                    "event": "phase_017_child_alive_wait",
+                    "task_id": TASK_017,
+                    "active_child_pids": [],
+                    "task_child_age_seconds": child_age,
+                    "last_run_age_seconds": int(start_age) if start_age is not None else None,
+                    "reason": "no_active_child_but_waiting_for_child_timeout_window",
+                })
 
         if task_running_without_process(snapshot):
             if req_ok:
