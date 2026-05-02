@@ -490,7 +490,8 @@ def ensure_task_completed(task_id: str) -> None:
 
 
 def ensure_review_task(task_id: str, review_id: str) -> None:
-    if (WORKSPACE / task_path(review_id)).exists():
+    direct = WORKSPACE / TASKS / f"{review_id}.json"
+    if direct.exists():
         return
     if review_id.startswith("024"):
         prompt = (
