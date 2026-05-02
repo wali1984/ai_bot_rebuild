@@ -363,6 +363,8 @@ def listed_files(root: str, suffixes: Optional[Tuple[str, ...]] = None) -> List[
     if base.is_file():
         return [root]
     for p in base.rglob("*"):
+        if "__pycache__" in p.parts or p.suffix == ".pyc":
+            continue
         if p.is_file() and (suffixes is None or p.suffix in suffixes):
             out.append(rel(p))
     return out
@@ -400,7 +402,12 @@ def high_conf_secret_scan(paths: Iterable[str], out_file: str) -> None:
 
 
 def commit_and_push(paths: Sequence[str], message: str) -> Optional[str]:
-    existing = [p for p in paths if (WORKSPACE / p).exists()]
+    existing = [
+        p for p in paths
+        if (WORKSPACE / p).exists()
+        and "__pycache__" not in pathlib.Path(p).parts
+        and pathlib.Path(p).suffix != ".pyc"
+    ]
     if not existing:
         return None
     run(["git", "add", *existing], timeout=120)
