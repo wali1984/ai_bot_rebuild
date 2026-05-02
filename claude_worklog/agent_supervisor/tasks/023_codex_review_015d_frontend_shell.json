@@ -1,0 +1,17 @@
+{
+  "task_id": "023_codex_review_015d_frontend_shell",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/v2_scaffold_reviews/"
+  ],
+  "required_output_files": [
+    "claude_worklog/v2_scaffold_reviews/023_CODEX_REVIEW_015D.md",
+    "claude_worklog/v2_scaffold_reviews/023_CODEX_GO_NO_GO_015D.md"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not create implementation beyond review artifacts. Review completed 015D enterprise frontend shell. Inputs: v2/frontend, claude_worklog/v2_build/E_GUI_SHELL_VALIDATION.md, claude_worklog/v2_architecture, claude_worklog/v2_requirements. Verify: website shell is enterprise-oriented, admin/public route separation exists, RBAC metadata exists, live-block banners/default deny protections exist, no live/Redis/legacy side effects, no secrets, PWA/mobile readiness scaffold exists, and 015E-015F remain blocked. Output exactly two BEGIN_FILE blocks. The GO/NO-GO file must contain exactly one line: 015D_CODEX_REVIEW_PASS or 015D_CODEX_REVIEW_FAIL.",
+  "next_recommended_action": "If Codex passes, sequence may advance to 015E. If fail, create remediation task."
+}
