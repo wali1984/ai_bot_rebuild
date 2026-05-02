@@ -34,4 +34,17 @@ Preserve existing ingestors as production-learned components. Do not rewrite or 
 - technical/realtime price feeds
 - future ingestors discovered in legacy inventory
 
+## Phase 2 Ingestor Adapter Gate
+
+Before building any V2 ingestor adapter:
+- `live_coinank.py` must be copied as-is with matching original and copied SHA256 hashes.
+- All known live ingestors in `05_INGESTOR_AND_FEATURE_PIPELINE_PRESERVATION_MATRIX.md` must be inventoried and hash-recorded.
+- `feature_pipeline.py` must be treated as parity-critical.
+- No ingestor enhancement may happen before parity tests exist.
+
+Phase 2 V2 design policy:
+- CoinAnk path: exact preserved copy plus wrapper.
+- Other ingestors: preserved behavior plus wrapper first, enhancement later.
+- Feature pipeline: preserve plus attribution wrapper first, then improve after replay evidence.
+
 LEGACY_INGESTOR_PRESERVATION_READY
