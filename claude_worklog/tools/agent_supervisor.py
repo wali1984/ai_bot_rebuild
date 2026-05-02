@@ -63,6 +63,10 @@ PLANNER_OUTPUT_PREFIX = "claude_worklog/agent_supervisor/runtime/planner/"
 
 WORKSPACE_ROOT = pathlib.Path(os.path.expanduser("~/Desktop/AI BOT REBUILD")).resolve()
 FORBIDDEN_ROOT = pathlib.Path("/home/wali/Desktop/AI BOT").resolve()
+STANDING_NON_LIVE_APPROVAL_FILE = pathlib.Path(
+    "claude_worklog/approvals/STANDING_APPROVAL_NON_LIVE_V2_REBUILD_UNTIL_LIVE_GATE.md"
+)
+STANDING_NON_LIVE_APPROVAL_MARKER = "STANDING_APPROVAL_NON_LIVE_V2_REBUILD_UNTIL_LIVE_GATE"
 
 SUPPORTED_AGENTS = {"claude", "codex", "ollama", "system_check"}
 ALLOWED_AUTORUN = {"L0", "L1", "L2"}
@@ -124,6 +128,48 @@ BANNED_PATTERNS = [
     "pip install",
     "npm install",
 ]
+
+LIVE_FORBIDDEN_PATTERNS = [
+    "redis-cli",
+    "xadd",
+    "xdel",
+    "flushdb",
+    "flushall",
+    "redis write",
+    "redis writes",
+    "write redis",
+    "delete redis",
+    "delete redis keys",
+    "restart live",
+    "restart legacy",
+    "systemctl restart",
+    "pkill",
+    "kill ",
+    "place order",
+    "cancel order",
+    "place/cancel orders",
+    "set leverage",
+    "set margin",
+    "enable live trading",
+    "live trading",
+    "exchange order",
+    "deploy",
+    "deployment",
+    "production migration",
+    "production database migration",
+    "production db migration",
+    "print secret",
+    "commit secret",
+    "send secret",
+    "secret value",
+    "secret values",
+    "mutate legacy",
+    "modify /home/wali/desktop/ai bot",
+    "change /home/wali/desktop/ai bot",
+    "write /home/wali/desktop/ai bot",
+]
+
+SAFETY_NEGATIONS = {"do not", "don't", "dont", "never", "no ", "without", "must not", "read-only", "read only"}
 
 
 def now_iso() -> str:
@@ -351,6 +397,50 @@ def migrate_legacy_task_files() -> int:
 # ---------------------------------------------------------------------------
 
 
+def line_is_negated(line: str) -> bool:
+    return any(tok in line for tok in SAFETY_NEGATIONS)
+
+
+def has_standing_non_live_v2_rebuild_approval() -> bool:
+    approval_path = WORKSPACE_ROOT / STANDING_NON_LIVE_APPROVAL_FILE
+    ok = approval_path.exists() and STANDING_NON_LIVE_APPROVAL_MARKER in read_text(approval_path)
+    if ok:
+        append_event({
+            "event": "standing_non_live_v2_approval_detected",
+            "approval_file": str(STANDING_NON_LIVE_APPROVAL_FILE),
+        })
+    return ok
+
+
+def non_live_v2_task_safety_block(task: Dict[str, Any]) -> Optional[str]:
+    risk = str(task.get("risk_level", "L0")).upper()
+    if risk in {"L4", "L5"}:
+        return f"risk level {risk} requires explicit live/final approval"
+
+    task_cwd = pathlib.Path(task.get("cwd", str(WORKSPACE_ROOT))).expanduser()
+    if not task_cwd.is_absolute():
+        task_cwd = WORKSPACE_ROOT / task_cwd
+    if not in_workspace(task_cwd):
+        return "task cwd outside AI BOT REBUILD"
+
+    prompt = str(task.get("prompt", ""))
+    command = str(task.get("command", ""))
+    combined = f"{prompt}\n{command}".lower()
+    lines = [ln.strip() for ln in combined.splitlines()]
+
+    forbidden_root_lower = str(FORBIDDEN_ROOT).lower()
+    root_lines = [ln for ln in lines if forbidden_root_lower in ln]
+    if any(not line_is_negated(ln) and "read" not in ln for ln in root_lines):
+        return "task mutates forbidden legacy root /home/wali/Desktop/AI BOT"
+
+    for banned in LIVE_FORBIDDEN_PATTERNS:
+        lines_with_banned = [ln for ln in lines if banned in ln]
+        if any(not line_is_negated(ln) for ln in lines_with_banned):
+            return f"non-live V2 standing approval blocked by safety pattern: {banned}"
+
+    return None
+
+
 def validate_task(task: Dict[str, Any]) -> Optional[str]:
     agent = task.get("agent")
     if agent not in SUPPORTED_AGENTS:
@@ -366,14 +456,15 @@ def validate_task(task: Dict[str, Any]) -> Optional[str]:
     command = str(task.get("command", "")).lower()
     combined = f"{prompt}\n{command}"
 
-    if str(FORBIDDEN_ROOT) in combined:
-        return "task references forbidden root /home/wali/Desktop/AI BOT"
+    forbidden_root_lower = str(FORBIDDEN_ROOT).lower()
+    root_lines = [ln.strip() for ln in combined.splitlines() if forbidden_root_lower in ln]
+    if any(not line_is_negated(ln) and "read" not in ln for ln in root_lines):
+        return "task mutates forbidden root /home/wali/Desktop/AI BOT"
 
     for banned in BANNED_PATTERNS:
         if banned in combined:
             lines_with_banned = [ln.strip() for ln in combined.splitlines() if banned in ln]
-            allowed_negation = {"do not", "don't", "dont", "never", "no "}
-            if any(not any(tok in ln for tok in allowed_negation) for ln in lines_with_banned):
+            if any(not line_is_negated(ln) for ln in lines_with_banned):
                 return f"blocked by safety pattern: {banned}"
 
     return None
@@ -383,6 +474,25 @@ def task_approved_v2(task: Dict[str, Any]) -> Tuple[bool, str]:
     risk = str(task.get("risk_level", "L0")).upper()
     approval_file = str(task.get("approval_file", "")).strip()
     preapproved = bool(task.get("preapproved", False))
+    task_id = str(task.get("task_id", ""))
+
+    if risk in {"L1", "L2", "L3"} and has_standing_non_live_v2_rebuild_approval():
+        safety_block = non_live_v2_task_safety_block(task)
+        if safety_block:
+            append_event({
+                "event": "non_live_v2_task_blocked_by_safety",
+                "task_id": task_id,
+                "risk_level": risk,
+                "reason": safety_block,
+            })
+            return False, safety_block
+        append_event({
+            "event": "non_live_v2_task_auto_unblocked",
+            "task_id": task_id,
+            "risk_level": risk,
+            "approval_file": str(STANDING_NON_LIVE_APPROVAL_FILE),
+        })
+        return True, ""
 
     if risk in {"L0", "L1"}:
         return True, ""
@@ -996,8 +1106,20 @@ def planner_task_autorun_allowed(task_path: pathlib.Path, human_required: bool) 
         return False, gate_reason
 
     risk = str(task.get("risk_level", "L0")).upper()
-    if risk not in ALLOWED_AUTORUN:
+    standing_allows_l3 = risk == "L3" and has_standing_non_live_v2_rebuild_approval()
+    if risk not in ALLOWED_AUTORUN and not standing_allows_l3:
         return False, f"risk level {risk} not auto-runnable"
+
+    if standing_allows_l3:
+        safety_block = non_live_v2_task_safety_block(task)
+        if safety_block:
+            append_event({
+                "event": "non_live_v2_task_blocked_by_safety",
+                "task_id": str(task.get("task_id", "")),
+                "risk_level": risk,
+                "reason": safety_block,
+            })
+            return False, safety_block
 
     validation_error = validate_task(task)
     if validation_error:

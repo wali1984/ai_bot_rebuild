@@ -1,0 +1,2481 @@
+{
+  "generated_by": "claude_worklog/tools/build_legacy_ingestor_inventory.py",
+  "legacy_reference_root": "/home/wali/Desktop/AI BOT REBUILD/legacy_reference",
+  "live_legacy_root": "/home/wali/Desktop/AI BOT",
+  "rules": {
+    "read_only": true,
+    "no_runtime_calls": true,
+    "secret_values_included": false,
+    "live_files_hashed": false
+  },
+  "counts": {
+    "legacy_reference_candidates": 155,
+    "live_path_candidates": 197
+  },
+  "items": [
+    {
+      "path": "legacy_reference/.data/liquidation_history.json",
+      "size_bytes": 354,
+      "sha256": "73525f598c5c8ed44b2f3fd200561eac2f1fe92180d421c746153ca1ab14591c",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/.logs/binance_order_history_24h.json",
+      "size_bytes": 2959139,
+      "sha256": "889f78153136ed03dbf2d8c40fd30625842aa9ff4a2c45a2ab871a789a20512f",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/.logs/ingestor_quality.json",
+      "size_bytes": 68276,
+      "sha256": "ee7e3957bc050cdc8cb5ce852580f0100408f76c732fd7bcf37e8a2a4753fdb2",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/BINANCE_AI_COINS_INTEGRATION.md",
+      "size_bytes": 10062,
+      "sha256": "5e2af3ae34e33bb110eec56c2d1eea8b4b556a2c2f973f466edf4dc50c8d0026",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/BINANCE_API_AUDIT_FIXES.md",
+      "size_bytes": 8073,
+      "sha256": "adf3fd442aa8cd3a441c1ed1fb95d27aa1abeea6b15583c77c469c6fd5ca8cc7",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/BINANCE_API_COMPLIANCE_SUMMARY.md",
+      "size_bytes": 6512,
+      "sha256": "92f4eada701e2bc13ba1b1e0a152371d59e7df08f8e74c9d6d9f4aa0c90559de",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/BINANCE_API_FIXES_COMPLETE.md",
+      "size_bytes": 6342,
+      "sha256": "7309184c74bfa6ab7d3913d70976edf63876fc192c3126021640e369109e105a",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/BINANCE_API_FIX_COMPLETE.md",
+      "size_bytes": 15539,
+      "sha256": "100d118ed043636e3b81477520c70cb74354fa27fc2261fc7eb43fea04211f6c",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/BINANCE_FUTURES_API_AUDIT_COMPLETE.md",
+      "size_bytes": 16660,
+      "sha256": "ad60959da71657f78b70338606112f4c56d367ebf7debce3c2fd9171394db7b8",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md",
+      "size_bytes": 4756,
+      "sha256": "36e41b8be5fc6ce95d890aa2ad486a5a4c2a8fcef48f05230b452c4e7bbdfa5b",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/BINANCE_IMPORT_FIX.md",
+      "size_bytes": 4506,
+      "sha256": "8997e3aea9c1c49c1537a75e9279ea7cca539e40f4969dc8cf3b83403d5e489e",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/BINANCE_TESTNET_ORDER_TEST_SUCCESS.md",
+      "size_bytes": 4417,
+      "sha256": "ed230ed4d4d1ea8ecc100bf3a9d04f05c6b6c3665a4aea9e03eb295e7545fd37",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/BINANCE_WEBSOCKET_API_AUDIT.md",
+      "size_bytes": 17553,
+      "sha256": "b00fcedafb06e1aa874d9939fa63a0989e18731ef137ae3f3f581d8ee788fd64",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/COINANK_AUDIT_REPORT.md",
+      "size_bytes": 5482,
+      "sha256": "0062aa9245034e27ea89899a6c7998c8277de97f4a4a655ae740b7ad3fcefb73",
+      "category": "coinank",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/COINANK_DATA_FLOW_AUDIT.md",
+      "size_bytes": 24642,
+      "sha256": "560b07bc201eab5710804d37bd9a9c62680e6b24117b8e23efeb69ea83ffe874",
+      "category": "coinank",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/COINANK_FIX_COMPLETE.md",
+      "size_bytes": 12974,
+      "sha256": "8fa15c10142a8dbc932a1f10dcc6684e4b116c66c7e7911ffc1c4d6ad61d34e5",
+      "category": "coinank",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/COINAPI_INTEGRATION.md",
+      "size_bytes": 10747,
+      "sha256": "d6a68ba21d9ecd8d9a3fdb0379e8a0192f27066b666d50bf2dc3d2bbae23c607",
+      "category": "coinapi",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/data_ingestors_audit_20251228_230845.md",
+      "size_bytes": 2019,
+      "sha256": "b0ac6d5eed7f1805b541a0ac15a6c4d7003ed47a7f9a62301adca03683a8aecb",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/data_ingestors_audit_20251229_175413.md",
+      "size_bytes": 2062,
+      "sha256": "4c5d94fc037932e371201bc951419e7b78ae53026b7d1fc4ea443d0786b319d1",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/data_ingestors_audit_20251231_192322.md",
+      "size_bytes": 2041,
+      "sha256": "feef0b702ba2354e8eb76922b28e720371e287e79bebd3b2484f9b2f720b3731",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/data_ingestors_audit_20251231_192805.md",
+      "size_bytes": 2012,
+      "sha256": "7580788cb7983400e9d4f7ae386549343ee7c2b4ae124fde698a007bafd6b1b5",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/data_ingestors_audit_20251231_192909.md",
+      "size_bytes": 2058,
+      "sha256": "d6c81bba4d9b0f0dd2bd59915fa052cea75b772a83ceeb98835cec6805f7a296",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/data_ingestors_audit_20251231_230934.md",
+      "size_bytes": 2006,
+      "sha256": "f746c65cd8392cc658664624bde80c78790b6e4195957b89555eb56f39647f92",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/data_ingestors_audit_20260101_003041.md",
+      "size_bytes": 1961,
+      "sha256": "583cf60d37df6c92592e690f3d18a6d7741340689c38889c6358c1d18ce2fee6",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/data_ingestors_audit_20260101_004325.md",
+      "size_bytes": 1963,
+      "sha256": "5f88c97107265532fcd63007496623aa60dfeafcbf1dd29a86801d919721fe7d",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/data_ingestors_audit_20260101_005028.md",
+      "size_bytes": 1963,
+      "sha256": "40458058f8f7ae69fa9a6343e033d6601ba4e2772b16a7994ebc16206f92ec37",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/data_ingestors_audit_20260101_005051.md",
+      "size_bytes": 1964,
+      "sha256": "847e6094c7710de6f3aabe22e161fc09cc1dd3f1a3860439e301963983510b0f",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/data_ingestors_audit_20260102_014745.md",
+      "size_bytes": 1962,
+      "sha256": "524671c2dd3785b90703e307dd05aa898e491b2a41b1ef7f67d7f9df37ca39a3",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/data_ingestors_audit_20260102_020432.md",
+      "size_bytes": 1965,
+      "sha256": "27aaf7df547af15aed0a4745efa235ff3997b103d36331b476571c11658358c4",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/data_ingestors_audit_20260105_180754.md",
+      "size_bytes": 1970,
+      "sha256": "ee24a0f346395514779db293b0bca29f34e713c9e661ab1085b57933e96e47b2",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/data_ingestors_audit_20260105_185418.md",
+      "size_bytes": 1971,
+      "sha256": "156599ace80905c3764858da65af6759eb9645121d712cd78587d5aa92e7c67d",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/data_ingestors_audit_20260105_185749.md",
+      "size_bytes": 1998,
+      "sha256": "3689ee88e837aa1771d84aabf0d3c5174a19c47f643085922db39b1ee1187eb8",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/liquidation-aware_profit_taker_audit_20251228_230845.md",
+      "size_bytes": 1679,
+      "sha256": "1dd9785b1078c9d12d1e7c70c8632bb8367d7482d0866626d2350ae42f92b1e2",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/liquidation-aware_profit_taker_audit_20251229_175413.md",
+      "size_bytes": 1679,
+      "sha256": "4481746078df1475a0a0dbe18608cca6dfe33db492c71aaccb47cabcb3a04780",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/liquidation-aware_profit_taker_audit_20251231_192321.md",
+      "size_bytes": 1680,
+      "sha256": "1d197e98dc0ce3466dc095abe8550e989329c6b5c36f9f8326c45f6649b582ac",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/liquidation-aware_profit_taker_audit_20251231_192804.md",
+      "size_bytes": 1679,
+      "sha256": "f030942bc12e5163b1821ebd9f3a61d4b5a62b0ee22716b363181279e7e22c42",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/liquidation-aware_profit_taker_audit_20251231_192908.md",
+      "size_bytes": 1680,
+      "sha256": "36054c3591456b443daea325495f7913f93ed94ab6e4c40b9dfa51afa413a3f2",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/liquidation-aware_profit_taker_audit_20251231_230934.md",
+      "size_bytes": 1679,
+      "sha256": "3716a19b4ec9c785b859b51a967a4c7d65b497ce88fc45053e3194e8a131c16c",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/liquidation-aware_profit_taker_audit_20260101_003041.md",
+      "size_bytes": 1680,
+      "sha256": "ac592505e58600caf6402f6de9516d4388c9ebd46475f829e3355170a2fac7b6",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/liquidation-aware_profit_taker_audit_20260101_004325.md",
+      "size_bytes": 1680,
+      "sha256": "ee8d6f73b2b585cb8e25b41345642ffaa4c8c3b5d501649d532a48db2212242a",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/liquidation-aware_profit_taker_audit_20260101_005027.md",
+      "size_bytes": 1680,
+      "sha256": "27d4567cc37e376318cfb86528becefeec5642f4660e5c8370a6839131710a6d",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/liquidation-aware_profit_taker_audit_20260101_005051.md",
+      "size_bytes": 1680,
+      "sha256": "e2ad24f9ecbf1d4a0a2267c3fc4d4808c6edd0df077bf0b9f49e3b5784b1e61d",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/liquidation-aware_profit_taker_audit_20260102_014744.md",
+      "size_bytes": 1679,
+      "sha256": "f132ea47c1713efb4a31be1d277fb947382691dfe511d85f4c03bdfdf1d46e92",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/liquidation-aware_profit_taker_audit_20260102_020431.md",
+      "size_bytes": 1679,
+      "sha256": "6106ced811767fc3b78238a11fdc2b991bde3606b4f74dbc8ff205c739d4a436",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/liquidation-aware_profit_taker_audit_20260105_180754.md",
+      "size_bytes": 1680,
+      "sha256": "86e82392b925ef87286f1311d337286b2d20d0f434cebc46fce1b4f569df6729",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/liquidation-aware_profit_taker_audit_20260105_185417.md",
+      "size_bytes": 1680,
+      "sha256": "00915aef3e7c096391f8b1d8756623da42818be5062ac515c549ceb9778da147",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/Audits/liquidation-aware_profit_taker_audit_20260105_185749.md",
+      "size_bytes": 1680,
+      "sha256": "2a5bea7f8f2e3fac34b70cd5810230ac0e524a5c21d7b1fc74a44cf2f6581b7e",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/BINANCE_CONNECTIONS_AUDIT.md",
+      "size_bytes": 16283,
+      "sha256": "5a2b82aa1fd66a0ce7bded0b2546d8c12e370395b681d9f7441b75f15885be43",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/INGESTOR_MEMORY_FINAL_REPORT.md",
+      "size_bytes": 10654,
+      "sha256": "e089968272da46be713583281b045ca6b1098c783b844847dc012901b66a266a",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/INGESTOR_MEMORY_LEAK_FIX.md",
+      "size_bytes": 6341,
+      "sha256": "26507db2f4b40c3a0bd9ed637ced0964d8feae00773aa0404ae95f04e2210c71",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/INGESTOR_MEMORY_RESOLUTION.md",
+      "size_bytes": 7682,
+      "sha256": "84ad938cf7dc48ca72d13825d4a20f2f7f28e662e9a6b74c39d1116f3478ee3e",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/LIQUIDATION_SYSTEM_VALIDATION.md",
+      "size_bytes": 9716,
+      "sha256": "fb56b2dabdf85d236c5733697edfd5b24025d4e92db48fb5392f039ae8811b1e",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Documentation/liquidationlevels.md",
+      "size_bytes": 9936,
+      "sha256": "d513ceb6650bd855ed63ddbbe13d496a59a9a5db33b3ed5c14e1a6491d350d32",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/FEATURE_PIPELINE_OHLCV_FAILOVER_FIX.md",
+      "size_bytes": 8041,
+      "sha256": "5eb0170e0a003132016c0ba72ab59bcbf34ff1c9e9646d28c67521eda4978a13",
+      "category": "ohlcv",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/LIQUIDATION_RCA_2026-02-10_EST.md",
+      "size_bytes": 10325,
+      "sha256": "31c549849287f386a1cdb566723d31f22d5a03806f44bda8fc07ab2b90c29b6c",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/LIQUIDATION_SR_INTEGRATION.md",
+      "size_bytes": 23841,
+      "sha256": "7f5d7d38c513ac3af3f4e4eaa4bb800ff417504a1abe126877c5611c25c26490",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/MULTI_TF_OHLCV_FIX_COMPLETE.md",
+      "size_bytes": 7579,
+      "sha256": "fce62432867d085027d57af0a597c1c76510960d15e9ce8ae57321a1bf874f25",
+      "category": "ohlcv",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/OHLCV_FRESHNESS_WAITING_FOR_CANDLE.md",
+      "size_bytes": 6140,
+      "sha256": "c238a75cff4ae161590290b448e794935acfcfb8c8e3025f9a56cca8e2cb6d74",
+      "category": "ohlcv",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/PATCH_PLAN_LIQUIDATION_GUARDS_v1.md",
+      "size_bytes": 6223,
+      "sha256": "0339c8a930443f4916a9210c313575a2a334f8267203cd4a3f05386bab8d37cb",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/PHASE_5_INGESTOR_NORMALIZATION_COMPLETE.md",
+      "size_bytes": 11061,
+      "sha256": "6649ec7ef436a35d7a928961ac71e57880693380eb0eeb7e6d8e92c6c0ea1d88",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/PHASE_5_INGESTOR_NORMALIZATION_ISSUE.md",
+      "size_bytes": 6657,
+      "sha256": "b43776dd6c99d46bb085e9fdca6af773af287c0e986f259fc047f002312a1c31",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Public Dashboard/audits/data_ingestors_audit_20251228_230845.md",
+      "size_bytes": 2019,
+      "sha256": "b0ac6d5eed7f1805b541a0ac15a6c4d7003ed47a7f9a62301adca03683a8aecb",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/Public Dashboard/audits/liquidation-aware_profit_taker_audit_20251228_230845.md",
+      "size_bytes": 1679,
+      "sha256": "1dd9785b1078c9d12d1e7c70c8632bb8367d7482d0866626d2350ae42f92b1e2",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/RCA_ASJAD_LIQUIDATION_96H_READ_ONLY.md",
+      "size_bytes": 8001,
+      "sha256": "46e3409af22d69720d7494369c01c3cfbd25f6b80c7fbcdd054add653e867c73",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/RCA_LIQUIDATION_PRIMARY_2026-02-10_v2.md",
+      "size_bytes": 8157,
+      "sha256": "79f5ca61860529a7a626a19fdd092986edb3fef79edf1c09fdc4a2e67d8fc3fd",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/RCA_PRIMARY_LIQUIDATION_72H_READ_ONLY.md",
+      "size_bytes": 11309,
+      "sha256": "089b74f6f1198ba4816f4079d9265acac5a60be5512cd2543cb947dfd69ddbf3",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/SUGGESTIONS_PREVENT_FULL_LIQUIDATION.md",
+      "size_bytes": 11124,
+      "sha256": "d29a9ac01bb3343699e95b61f70ab94e655006c4b624ed91abf657391659d146",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/audit_binance_last_30d_raw.json",
+      "size_bytes": 17850,
+      "sha256": "31b9a2a285b1b0593e2f356f5a61d4ad089c75b488b01f657f240b4383483fd0",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/audit_binance_last_30d_report.md",
+      "size_bytes": 4509,
+      "sha256": "9bfb561730aed970e8ffa160d20e7bec30c23d97b1bd80c4e0a5b3f77c318732",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/audit_binance_last_48h.py",
+      "size_bytes": 21656,
+      "sha256": "9ae11271b1393394d6fbc28bf206e35bb28be00bfb27242c3fec8f0b3d6d31ad",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/audit_binance_last_48h_raw.20260131T174613Z.bak.json",
+      "size_bytes": 3216141,
+      "sha256": "2dc181b91494b33add29730d78d9238c1db46dc8593145445ed02c373659d554",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/audit_binance_last_48h_raw.json",
+      "size_bytes": 839477,
+      "sha256": "a569560e0c252004921b8a32fadc13a389ce99a9a7ddc75fb3ea920a25e3a984",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/audit_binance_last_48h_raw_v2.json",
+      "size_bytes": 839477,
+      "sha256": "a569560e0c252004921b8a32fadc13a389ce99a9a7ddc75fb3ea920a25e3a984",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/audit_binance_last_48h_report.20260131T174613Z.bak.md",
+      "size_bytes": 4399,
+      "sha256": "636625a525d522ddd1778bbb5b2f437753eb613ae0106599d7386ad40d6dc8a3",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/audit_binance_last_48h_report.md",
+      "size_bytes": 3665,
+      "sha256": "4fa15555f28d97d58365f90ae659a3b2688b9e6f7437aaa00771beaeb13e35ba",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/audit_binance_last_48h_report_v2.md",
+      "size_bytes": 3665,
+      "sha256": "4fa15555f28d97d58365f90ae659a3b2688b9e6f7437aaa00771beaeb13e35ba",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/binance_websocket.py",
+      "size_bytes": 21698,
+      "sha256": "aef4e1d6ac7b994cb96f2521b8bcc9810cd9f75a19f11ba4ed85f690133deb26",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/check_coinank_data.py",
+      "size_bytes": 5803,
+      "sha256": "5e2995cad664465a85260d1a41615bcb99e044b9ba5599b6c45acc565583cc45",
+      "category": "coinank",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/cleanup_coinank_keys.py",
+      "size_bytes": 5342,
+      "sha256": "76ff4ef00ef43c6809322aec94a8267ee1fdf6f6985fca989957f3c60714e927",
+      "category": "coinank",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/coinank_audti.md",
+      "size_bytes": 24135,
+      "sha256": "edae66d9a4fbfccec69d89207fbb452b36c9a6ec616f10d499939eeb67c9da7f",
+      "category": "coinank",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/debug_binance_step_by_step.py",
+      "size_bytes": 4128,
+      "sha256": "d16cccd6bd8aad210b150371f60942d2dd463f08b540d5fa909bd748cb00887d",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/debug_feature_pipeline_ohlcv.py",
+      "size_bytes": 2750,
+      "sha256": "fd79fe878f4c2dbe364bdf02aa21570b36d2c858b6ee22f04db96745e3c553b6",
+      "category": "ohlcv",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/diagnose_trainer_binance.py",
+      "size_bytes": 5193,
+      "sha256": "680ba4a36a9fc53108b7412422ec5fd608ff65f590bef026507b69b971fc7679",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/docs/INGESTOR_MEMORY_FINAL_REPORT.md",
+      "size_bytes": 10654,
+      "sha256": "e089968272da46be713583281b045ca6b1098c783b844847dc012901b66a266a",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/docs/INGESTOR_MEMORY_LEAK_FIX.md",
+      "size_bytes": 6341,
+      "sha256": "26507db2f4b40c3a0bd9ed637ced0964d8feae00773aa0404ae95f04e2210c71",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/docs/INGESTOR_MEMORY_RESOLUTION.md",
+      "size_bytes": 7682,
+      "sha256": "84ad938cf7dc48ca72d13825d4a20f2f7f28e662e9a6b74c39d1116f3478ee3e",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/docs/OLD/TM_COINANK_IMPROVEMENT_REPORT.md",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "category": "coinank",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/docs/_autogen/runbooks/RUNBOOK_INGEST.md",
+      "size_bytes": 5329,
+      "sha256": "38cc8322f8d7d67dc2f265a73c312a5bd78045ab3b812052af780a3ab28594a8",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/docs/liquidationlevels.md",
+      "size_bytes": 9936,
+      "sha256": "d513ceb6650bd855ed63ddbbe13d496a59a9a5db33b3ed5c14e1a6491d350d32",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/alphavantage_client.py",
+      "size_bytes": 199,
+      "sha256": "3a6c102534bb95a7342cd857a7829a561cb1c017f34ff18ba47518c4fbfc8652",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/alphavantage_normalizer.py",
+      "size_bytes": 287,
+      "sha256": "25a6c270b3fec6e1940aa18703ee3774232e864d742b6608a24c8d5b0f112085",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/base_ingestor.py",
+      "size_bytes": 3162,
+      "sha256": "e010046e3f81745ad78f3bb3242afeb28c43fdb5d4d57896657539d03393c4f1",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/ccxt_backfill.py",
+      "size_bytes": 9917,
+      "sha256": "d1a12ca9bfe0a159a2e52429661c28b2d3da9684bed65d65def97b1e3f946aa5",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/ccxt_historical.py",
+      "size_bytes": 48458,
+      "sha256": "7d021ca95e57f10b5ac458753d921f77c2349569125e2e968772143c4baec1e3",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/cdd_enhanced_slow.py",
+      "size_bytes": 9403,
+      "sha256": "f874791578115fc7d685c3a8f00bdb7961af4be2d8087aec900cc5072e46bd3a",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/cdd_historical.py",
+      "size_bytes": 35617,
+      "sha256": "56d8a2c82013b97ddf4d943969df8f0bf90e7be1262e86c3c4c52c884c6b9684",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/cdd_to_jsonl.py",
+      "size_bytes": 11810,
+      "sha256": "203cd5b01d01ba751c450b3b884bae694b2963c53908ca63ee7a9cfa27829db8",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/clients/tokenmetrics_client.py",
+      "size_bytes": 2998,
+      "sha256": "bcd56ce09e97860aa46000f22efd19968345f68f31e7402f4b112d86d477e43f",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/coinank_symbols_map.md",
+      "size_bytes": 111119,
+      "sha256": "5db79b5e2c8b08f39f0944837135b744b04efba072cba4b39bc1cd2814b1c600",
+      "category": "ingestor,coinank",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/liquidation_bridge.py",
+      "size_bytes": 6327,
+      "sha256": "5d70e395938228b61162b531310cd751403ddfeebb8920429e73cdcdbe35d48a",
+      "category": "ingestor,liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/liquidation_levels_engine.py",
+      "size_bytes": 18539,
+      "sha256": "fed3c90b5193c27d24dc183089730bda49ff69a1758b597e23a154397f839df7",
+      "category": "ingestor,liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/live_alphavantage_news.py",
+      "size_bytes": 8800,
+      "sha256": "a69fca63f0bbe3e0cd694e040ff82443bc71906ef167c0fa627dcd281e3e478d",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/live_binance.py",
+      "size_bytes": 125730,
+      "sha256": "6c1eb771a3842e2d94b797eedd55aa624075c51c6d50aec701397f81dbace798",
+      "category": "ingestor,binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/live_binance_liquidations.py",
+      "size_bytes": 46088,
+      "sha256": "19711590a3d194fd05ae3be85ef7bd6dec397f6394d02f7e91008c44c310131b",
+      "category": "ingestor,binance_futures,liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/live_ccxt.py",
+      "size_bytes": 16413,
+      "sha256": "c5a358664567e010aaa2bf2b7900218010982b484a99e4cc2f4826d32510120a",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/live_coinank.py",
+      "size_bytes": 113571,
+      "sha256": "7842fc2995c5d802d272dbaa45866a4e6f0fbc22cfabc4b84d58fc0ef37abfef",
+      "category": "ingestor,coinank",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/live_coinank_global_aggregator.py",
+      "size_bytes": 13959,
+      "sha256": "046d5fd84bbf79fcf477155374997409b5482125c08d86a7c151c257f7a14d62",
+      "category": "ingestor,coinank",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/live_coinapi_rest.py",
+      "size_bytes": 18409,
+      "sha256": "9000eb37fbd1d25fa719175c703fff4eaba678edcb67e3208cbfedbdc12639d0",
+      "category": "ingestor,coinapi",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/live_coinapi_v1.py",
+      "size_bytes": 26100,
+      "sha256": "939093f21defcf1ede921d55fac9f05a4635d509c367e847396ce6c042932502",
+      "category": "ingestor,coinapi",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/live_coinapi_wsds.py",
+      "size_bytes": 77253,
+      "sha256": "a6973d887d1c52a4bb48f3b6f222b04e97d92e500ab889e94d6026cf504471b6",
+      "category": "ingestor,coinapi",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/live_kucoin.py",
+      "size_bytes": 36382,
+      "sha256": "73b852db1bf69062d4028091cf17c126f5cb666e94bf784cdb2bb9b47328a976",
+      "category": "ingestor,kucoin",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/live_technical_analysis.py",
+      "size_bytes": 6103,
+      "sha256": "5cdd4ea1d43271d0199e1ca92ecad3a8b76308838898a611df6ef4602f7388ac",
+      "category": "ingestor,technical_analysis",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/live_tokenmetrics.py",
+      "size_bytes": 44485,
+      "sha256": "1378d8961a961a8ac101392e444de23a4de8029a4ad81baf24490e01fd68ec20",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/load_historical.py",
+      "size_bytes": 10557,
+      "sha256": "6d5357cf9c40aad237bc1e699f7cb6a00c89ca0c354558d220aeb556114bb7bb",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/realtime_price_provider.py",
+      "size_bytes": 45009,
+      "sha256": "dfdc2568368c134b9afcc4fa0faff312cc93a6ecc501ecaac747e7c20d7344ba",
+      "category": "ingestor,realtime_price",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/technical_analysis.py",
+      "size_bytes": 34191,
+      "sha256": "909437e7e77bcf6a03371c546b074a20e7a216bcd72b13ba783dcd78154dbee0",
+      "category": "ingestor,technical_analysis",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/tm_ids.py",
+      "size_bytes": 1221,
+      "sha256": "3c145fac5094e65baea6d5dfae65030db0a24390dd83747196bf0da8b55abcfb",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/tm_spec.py",
+      "size_bytes": 10338,
+      "sha256": "8fd36e94140fad1db63c1d2686874cbb8ef6fef955ce39c6367182270af79b17",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ingest/tokenmetrics_normalizer.py",
+      "size_bytes": 210,
+      "sha256": "b0ec90591dd494efad164dde7aa6798759d46748988c9059f565aedebcd0d4ac",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/monitor_ingestor_memory.sh",
+      "size_bytes": 3333,
+      "sha256": "19d731958d46a71f990f9088c8f04c474080d2a98328250935e371e94f99fe74",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/monitor_ohlcv_freshness.py",
+      "size_bytes": 2285,
+      "sha256": "7b3ac12604e978eb96f237747b44e0cbb783e3a352428c7a067350132daed613",
+      "category": "ohlcv",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/ohlcv_resampler_hotfix.py",
+      "size_bytes": 8795,
+      "sha256": "b83edf60a7d0db51556752cdcf9d713ee9d7175d05b26a6ce6c2235d214f4239",
+      "category": "ohlcv",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/quick_check_binance_normalized.py",
+      "size_bytes": 1991,
+      "sha256": "cf863d8ccd5581812fd56b5e8bb5758db8fe83e6ac888126a846a97ae2f02a42",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/rl/coinapi_symbol_map.py",
+      "size_bytes": 14322,
+      "sha256": "12d7e247e20f63c8b9c963ea965b3fa4c7419ed697fd3ecf86e30c2c4d25e99d",
+      "category": "coinapi",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/rl/ingestor_quality_router.py",
+      "size_bytes": 20836,
+      "sha256": "05b98e8f6c01ca7a62ad1500935bb11f299842ca6fa79b5a198219aebc1222a1",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/rl/liquidation_prevention.py",
+      "size_bytes": 32510,
+      "sha256": "d1ec2a58101bd640c5af1907cd7c3de5c4c2e713be57d765a4ee702da95b0f1e",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/scripts/analyze_binance_performance.py",
+      "size_bytes": 24352,
+      "sha256": "19147a08c331a0619bd65618996d4aa841816d6c475004732dc4918e7d64c1e1",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/scripts/audit_binance_leverage_config.py",
+      "size_bytes": 8400,
+      "sha256": "c79ee9eb5e4b4b63e99e4d6a431347533bfa2ddaa541db87048a04e28ab17bd1",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/scripts/audit_ingestor_streams.py",
+      "size_bytes": 32998,
+      "sha256": "49972db78d353f2e41a59e826c60ccf556738da2227cfd81fa3bf2691322a8df",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/scripts/check_coinapi_microstructure_contract.py",
+      "size_bytes": 10045,
+      "sha256": "34dc6e9fc97b634d25bc2798c10147748d8acb239355769c2f1dee78bb7f37ca",
+      "category": "coinapi",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/scripts/coinapi_health_check.py",
+      "size_bytes": 9413,
+      "sha256": "010edd20da21e7b3249de5118e780e9b567f9c817bdf7ad4ac85878f5ad5143c",
+      "category": "coinapi",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/scripts/ingestor_probe_new_symbols.py",
+      "size_bytes": 8091,
+      "sha256": "c69a142e7eead127a59580cb8ab89f2405f8f1ffdb72f4c524d4ee239bebe005",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/scripts/ingestors_watchdog.py",
+      "size_bytes": 14435,
+      "sha256": "eebf37263a0c1ae843033616337daf3c902af45e1e3c8c2fd3c9374f1610c488",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/scripts/stop_ingestors.sh",
+      "size_bytes": 7350,
+      "sha256": "83d6eb161b23b3bd748870be4440b8c6d1dfd0ae339b41a087eac2e0575fc50b",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/services/liquidation_intelligence.py",
+      "size_bytes": 6421,
+      "sha256": "5a4773312ae0d0da58c2838d06b952946531083f53803b338f8b9590b6ea1f2c",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/start_system_with_binance.sh",
+      "size_bytes": 9164,
+      "sha256": "090f2380ba3e04fe622e2d1c6fbd2cb8bf6c0536e8ca25175586e88235d26d2f",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/technical_analysis.py",
+      "size_bytes": 26306,
+      "sha256": "82e2a81da389890b48ea017b09a0a648495765dfbf90e472df77a8851a09bb42",
+      "category": "technical_analysis",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/test_binance_connection.py",
+      "size_bytes": 4357,
+      "sha256": "a456d1a0720cd13815e94420fb3219ab67cea5de855a2cf5d036179ed74f7837",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/test_binance_connections.py",
+      "size_bytes": 7433,
+      "sha256": "5111907d6d70cb72351ecd3679c0110b621db7f16768a714d02847884e15018f",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/test_binance_direct.py",
+      "size_bytes": 6652,
+      "sha256": "404471cc0802e67225add57ce836bdbd816e1684467740974483e8d77d6e2c1f",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/test_binance_hedge_mode.py",
+      "size_bytes": 12431,
+      "sha256": "75a30e9144a82e4ba94ea4106a4fe1ded931fdbcdcacdfeb537698ae9ec768ce",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/test_binance_imports.py",
+      "size_bytes": 642,
+      "sha256": "f5f1ad348add74e39268fe257a3161ebfdc1b3fe83b9169270ed46ceb612fc1d",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/test_binance_live.py",
+      "size_bytes": 1068,
+      "sha256": "54c2665cd5d8919e06c309755b103405f23faccf62af92bc7617ac88f4cb6c9e",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/test_binance_testnet_connection.py",
+      "size_bytes": 3261,
+      "sha256": "e4a44f6fd0553861ead1a8cb12aecfd13d388fcf50e5e29b24548cd9c2f46f30",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/test_binance_testnet_orders.py",
+      "size_bytes": 15984,
+      "sha256": "2eccde714bcfad92dd591e19f0d53024884e8d81678d41910345630efb0146c8",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/test_comprehensive_coinank.py",
+      "size_bytes": 3618,
+      "sha256": "afee0fc771629d5ceabd0b0ddeac25571dfe5292880590d1968914c9bcf4c9a6",
+      "category": "coinank",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/test_ohlcv_access.py",
+      "size_bytes": 3610,
+      "sha256": "66d0d53692a83fdaa7f2f818a5ff94a2291c4cb6ac8f49b700b35035138c5f93",
+      "category": "ohlcv",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/test_ohlcv_parsing.py",
+      "size_bytes": 3244,
+      "sha256": "fc9d4989fe8d833f50bdf75758afef24218862add7ae26ac434f655779269398",
+      "category": "ohlcv",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/tests/test_coinapi_integration.py",
+      "size_bytes": 18023,
+      "sha256": "e40149d57c204beebbbeb874cefa40f738dccec5c9286090e73c0505e27e4bb2",
+      "category": "coinapi",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/tests/test_ingestor_and_overlay.py",
+      "size_bytes": 24285,
+      "sha256": "969dddf01ca762fb444f781f9d3eb503799a9f5f5cb53783d1fe4dc0bfb6be30",
+      "category": "ingestor",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/tools/liquidation_levels_from_stream.py",
+      "size_bytes": 7605,
+      "sha256": "835c2788aeab1b4967531143b36cc0bd3bd4d0e80beff3b527f568b64f397fd3",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/tools/liquidation_levels_report.py",
+      "size_bytes": 7564,
+      "sha256": "eba1a750407a7adaf61655b88fe50755128d535b06166b152efd216b21d63b47",
+      "category": "liquidation",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/trading/coinank_signal_adapter.py",
+      "size_bytes": 8409,
+      "sha256": "80af567877f88d974a6668ba9ab0242910b5b8ef80fae07f6cb9b7a73acebe4c",
+      "category": "coinank",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/utils/binance_rate_limiter.py",
+      "size_bytes": 9712,
+      "sha256": "b5cd60cba9593dda159d6a72af35eeae9496282eeeb2898c16d8f9297f0447a5",
+      "category": "binance_futures",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "legacy_reference/validate_coinank.py",
+      "size_bytes": 6244,
+      "sha256": "db6a2b7c4fac50690de9a0670037580adf3936f90ab8d9e3ea5ee1e46ca748e8",
+      "category": "coinank",
+      "source_type": "legacy_reference_snapshot"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/.data/liquidation_history.json",
+      "size_bytes": 354,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/.logs/binance_order_history_24h.json",
+      "size_bytes": 2959139,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/.logs/ingestor_quality.json",
+      "size_bytes": 68276,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/BINANCE_AI_COINS_INTEGRATION.md",
+      "size_bytes": 10062,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/BINANCE_API_AUDIT_FIXES.md",
+      "size_bytes": 8073,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/BINANCE_API_COMPLIANCE_SUMMARY.md",
+      "size_bytes": 6512,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/BINANCE_API_FIXES_COMPLETE.md",
+      "size_bytes": 6342,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/BINANCE_API_FIX_COMPLETE.md",
+      "size_bytes": 15539,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/BINANCE_FUTURES_API_AUDIT_COMPLETE.md",
+      "size_bytes": 16660,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/BINANCE_IMPLEMENTATION_COMPLETE.md",
+      "size_bytes": 4756,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/BINANCE_IMPORT_FIX.md",
+      "size_bytes": 4506,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/BINANCE_TESTNET_ORDER_TEST_SUCCESS.md",
+      "size_bytes": 4417,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/BINANCE_WEBSOCKET_API_AUDIT.md",
+      "size_bytes": 17553,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/COINANK_AUDIT_REPORT.md",
+      "size_bytes": 5482,
+      "sha256": null,
+      "category": "coinank",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/COINANK_DATA_FLOW_AUDIT.md",
+      "size_bytes": 24642,
+      "sha256": null,
+      "category": "coinank",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/COINANK_FIX_COMPLETE.md",
+      "size_bytes": 12974,
+      "sha256": null,
+      "category": "coinank",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/COINAPI_INTEGRATION.md",
+      "size_bytes": 10747,
+      "sha256": null,
+      "category": "coinapi",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/data_ingestors_audit_20251228_230845.md",
+      "size_bytes": 2019,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/data_ingestors_audit_20251229_175413.md",
+      "size_bytes": 2062,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/data_ingestors_audit_20251231_192322.md",
+      "size_bytes": 2041,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/data_ingestors_audit_20251231_192805.md",
+      "size_bytes": 2012,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/data_ingestors_audit_20251231_192909.md",
+      "size_bytes": 2058,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/data_ingestors_audit_20251231_230934.md",
+      "size_bytes": 2006,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/data_ingestors_audit_20260101_003041.md",
+      "size_bytes": 1961,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/data_ingestors_audit_20260101_004325.md",
+      "size_bytes": 1963,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/data_ingestors_audit_20260101_005028.md",
+      "size_bytes": 1963,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/data_ingestors_audit_20260101_005051.md",
+      "size_bytes": 1964,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/data_ingestors_audit_20260102_014745.md",
+      "size_bytes": 1962,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/data_ingestors_audit_20260102_020432.md",
+      "size_bytes": 1965,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/data_ingestors_audit_20260105_180754.md",
+      "size_bytes": 1970,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/data_ingestors_audit_20260105_185418.md",
+      "size_bytes": 1971,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/data_ingestors_audit_20260105_185749.md",
+      "size_bytes": 1998,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/liquidation-aware_profit_taker_audit_20251228_230845.md",
+      "size_bytes": 1679,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/liquidation-aware_profit_taker_audit_20251229_175413.md",
+      "size_bytes": 1679,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/liquidation-aware_profit_taker_audit_20251231_192321.md",
+      "size_bytes": 1680,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/liquidation-aware_profit_taker_audit_20251231_192804.md",
+      "size_bytes": 1679,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/liquidation-aware_profit_taker_audit_20251231_192908.md",
+      "size_bytes": 1680,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/liquidation-aware_profit_taker_audit_20251231_230934.md",
+      "size_bytes": 1679,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/liquidation-aware_profit_taker_audit_20260101_003041.md",
+      "size_bytes": 1680,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/liquidation-aware_profit_taker_audit_20260101_004325.md",
+      "size_bytes": 1680,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/liquidation-aware_profit_taker_audit_20260101_005027.md",
+      "size_bytes": 1680,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/liquidation-aware_profit_taker_audit_20260101_005051.md",
+      "size_bytes": 1680,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/liquidation-aware_profit_taker_audit_20260102_014744.md",
+      "size_bytes": 1679,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/liquidation-aware_profit_taker_audit_20260102_020431.md",
+      "size_bytes": 1679,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/liquidation-aware_profit_taker_audit_20260105_180754.md",
+      "size_bytes": 1680,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/liquidation-aware_profit_taker_audit_20260105_185417.md",
+      "size_bytes": 1680,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/Audits/liquidation-aware_profit_taker_audit_20260105_185749.md",
+      "size_bytes": 1680,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/BINANCE_CONNECTIONS_AUDIT.md",
+      "size_bytes": 16283,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/INGESTOR_MEMORY_FINAL_REPORT.md",
+      "size_bytes": 10654,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/INGESTOR_MEMORY_LEAK_FIX.md",
+      "size_bytes": 6341,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/INGESTOR_MEMORY_RESOLUTION.md",
+      "size_bytes": 7682,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/LIQUIDATION_SYSTEM_VALIDATION.md",
+      "size_bytes": 9716,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Documentation/liquidationlevels.md",
+      "size_bytes": 9936,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/FEATURE_PIPELINE_OHLCV_FAILOVER_FIX.md",
+      "size_bytes": 8041,
+      "sha256": null,
+      "category": "ohlcv",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/LIQUIDATION_RCA_2026-02-10_EST.md",
+      "size_bytes": 10325,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/LIQUIDATION_SR_INTEGRATION.md",
+      "size_bytes": 23841,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/MULTI_TF_OHLCV_FIX_COMPLETE.md",
+      "size_bytes": 7579,
+      "sha256": null,
+      "category": "ohlcv",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/OHLCV_FRESHNESS_WAITING_FOR_CANDLE.md",
+      "size_bytes": 6140,
+      "sha256": null,
+      "category": "ohlcv",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/PATCH_PLAN_LIQUIDATION_GUARDS_v1.md",
+      "size_bytes": 6223,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/PHASE_5_INGESTOR_NORMALIZATION_COMPLETE.md",
+      "size_bytes": 11061,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/PHASE_5_INGESTOR_NORMALIZATION_ISSUE.md",
+      "size_bytes": 6657,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Public Dashboard/audits/data_ingestors_audit_20251228_230845.md",
+      "size_bytes": 2019,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/Public Dashboard/audits/liquidation-aware_profit_taker_audit_20251228_230845.md",
+      "size_bytes": 1679,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/RCA_ASJAD_LIQUIDATION_96H_READ_ONLY.md",
+      "size_bytes": 8001,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/RCA_LIQUIDATION_PRIMARY_2026-02-10_v2.md",
+      "size_bytes": 8157,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/RCA_PRIMARY_LIQUIDATION_72H_READ_ONLY.md",
+      "size_bytes": 11309,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/SUGGESTIONS_PREVENT_FULL_LIQUIDATION.md",
+      "size_bytes": 11124,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/audit_binance_last_30d_raw.json",
+      "size_bytes": 17850,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/audit_binance_last_30d_report.md",
+      "size_bytes": 4509,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/audit_binance_last_48h.py",
+      "size_bytes": 21656,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/audit_binance_last_48h_raw.20260131T174613Z.bak.json",
+      "size_bytes": 3216141,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/audit_binance_last_48h_raw.json",
+      "size_bytes": 839477,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/audit_binance_last_48h_raw_v2.json",
+      "size_bytes": 839477,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/audit_binance_last_48h_report.20260131T174613Z.bak.md",
+      "size_bytes": 4399,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/audit_binance_last_48h_report.md",
+      "size_bytes": 3665,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/audit_binance_last_48h_report_v2.md",
+      "size_bytes": 3665,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/binance_websocket.py",
+      "size_bytes": 21698,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/check_coinank_data.py",
+      "size_bytes": 5803,
+      "sha256": null,
+      "category": "coinank",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/cleanup_coinank_keys.py",
+      "size_bytes": 5342,
+      "sha256": null,
+      "category": "coinank",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/coinank_audti.md",
+      "size_bytes": 24135,
+      "sha256": null,
+      "category": "coinank",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/debug_binance_step_by_step.py",
+      "size_bytes": 4128,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/debug_feature_pipeline_ohlcv.py",
+      "size_bytes": 2750,
+      "sha256": null,
+      "category": "ohlcv",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/diagnose_trainer_binance.py",
+      "size_bytes": 5193,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/docs/INGESTOR_MEMORY_FINAL_REPORT.md",
+      "size_bytes": 10654,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/docs/INGESTOR_MEMORY_LEAK_FIX.md",
+      "size_bytes": 6341,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/docs/INGESTOR_MEMORY_RESOLUTION.md",
+      "size_bytes": 7682,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/docs/OLD/TM_COINANK_IMPROVEMENT_REPORT.md",
+      "size_bytes": 0,
+      "sha256": null,
+      "category": "coinank",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/docs/_autogen/runbooks/RUNBOOK_INGEST.md",
+      "size_bytes": 5329,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/docs/liquidationlevels.md",
+      "size_bytes": 9936,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/alphavantage_client.py",
+      "size_bytes": 199,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/alphavantage_normalizer.py",
+      "size_bytes": 287,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/base_ingestor.py",
+      "size_bytes": 3162,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/ccxt_backfill.py",
+      "size_bytes": 9917,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/ccxt_historical.py",
+      "size_bytes": 48458,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/cdd_enhanced_slow.py",
+      "size_bytes": 9403,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/cdd_historical.py",
+      "size_bytes": 35617,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/cdd_to_jsonl.py",
+      "size_bytes": 11810,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/clients/tokenmetrics_client.py",
+      "size_bytes": 2998,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/coinank_symbols_map.md",
+      "size_bytes": 111119,
+      "sha256": null,
+      "category": "ingestor,coinank",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/liquidation_bridge.py",
+      "size_bytes": 6327,
+      "sha256": null,
+      "category": "ingestor,liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/liquidation_levels_engine.py",
+      "size_bytes": 18539,
+      "sha256": null,
+      "category": "ingestor,liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/live_alphavantage_news.py",
+      "size_bytes": 8800,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/live_binance.py",
+      "size_bytes": 125730,
+      "sha256": null,
+      "category": "ingestor,binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/live_binance_liquidations.py",
+      "size_bytes": 46088,
+      "sha256": null,
+      "category": "ingestor,binance_futures,liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/live_ccxt.py",
+      "size_bytes": 16413,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/live_coinank.py",
+      "size_bytes": 113571,
+      "sha256": null,
+      "category": "ingestor,coinank",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/live_coinank_global_aggregator.py",
+      "size_bytes": 13959,
+      "sha256": null,
+      "category": "ingestor,coinank",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/live_coinapi_rest.py",
+      "size_bytes": 18409,
+      "sha256": null,
+      "category": "ingestor,coinapi",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/live_coinapi_v1.py",
+      "size_bytes": 28497,
+      "sha256": null,
+      "category": "ingestor,coinapi",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/live_coinapi_wsds.py",
+      "size_bytes": 77253,
+      "sha256": null,
+      "category": "ingestor,coinapi",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/live_kucoin.py",
+      "size_bytes": 36382,
+      "sha256": null,
+      "category": "ingestor,kucoin",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/live_technical_analysis.py",
+      "size_bytes": 6103,
+      "sha256": null,
+      "category": "ingestor,technical_analysis",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/live_tokenmetrics.py",
+      "size_bytes": 44485,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/load_historical.py",
+      "size_bytes": 10557,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/realtime_price_provider.py",
+      "size_bytes": 45009,
+      "sha256": null,
+      "category": "ingestor,realtime_price",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/technical_analysis.py",
+      "size_bytes": 34191,
+      "sha256": null,
+      "category": "ingestor,technical_analysis",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/tm_ids.py",
+      "size_bytes": 1221,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/tm_spec.py",
+      "size_bytes": 10338,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ingest/tokenmetrics_normalizer.py",
+      "size_bytes": 210,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/monitor_ingestor_memory.sh",
+      "size_bytes": 3333,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/monitor_ohlcv_freshness.py",
+      "size_bytes": 2285,
+      "sha256": null,
+      "category": "ohlcv",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/ohlcv_resampler_hotfix.py",
+      "size_bytes": 8795,
+      "sha256": null,
+      "category": "ohlcv",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/quick_check_binance_normalized.py",
+      "size_bytes": 1991,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/rl/coinapi_symbol_map.py",
+      "size_bytes": 14322,
+      "sha256": null,
+      "category": "coinapi",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/rl/ingestor_quality_router.py",
+      "size_bytes": 20836,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/rl/liquidation_prevention.py",
+      "size_bytes": 32510,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/scripts/analyze_binance_performance.py",
+      "size_bytes": 24352,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/scripts/audit_binance_leverage_config.py",
+      "size_bytes": 8400,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/scripts/audit_ingestor_streams.py",
+      "size_bytes": 32998,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/scripts/check_coinapi_microstructure_contract.py",
+      "size_bytes": 10045,
+      "sha256": null,
+      "category": "coinapi",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/scripts/coinapi_health_check.py",
+      "size_bytes": 9413,
+      "sha256": null,
+      "category": "coinapi",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/scripts/ingestor_probe_new_symbols.py",
+      "size_bytes": 8091,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/scripts/ingestors_watchdog.py",
+      "size_bytes": 14435,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/scripts/stop_ingestors.sh",
+      "size_bytes": 7350,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/services/liquidation_intelligence.py",
+      "size_bytes": 6421,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/start_system_with_binance.sh",
+      "size_bytes": 9164,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/technical_analysis.py",
+      "size_bytes": 26306,
+      "sha256": null,
+      "category": "technical_analysis",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/test_binance_connection.py",
+      "size_bytes": 4357,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/test_binance_connections.py",
+      "size_bytes": 7433,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/test_binance_direct.py",
+      "size_bytes": 6652,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/test_binance_hedge_mode.py",
+      "size_bytes": 12431,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/test_binance_imports.py",
+      "size_bytes": 642,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/test_binance_live.py",
+      "size_bytes": 1068,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/test_binance_testnet_connection.py",
+      "size_bytes": 3261,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/test_binance_testnet_orders.py",
+      "size_bytes": 15984,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/test_comprehensive_coinank.py",
+      "size_bytes": 3618,
+      "sha256": null,
+      "category": "coinank",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/test_ohlcv_access.py",
+      "size_bytes": 3610,
+      "sha256": null,
+      "category": "ohlcv",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/test_ohlcv_parsing.py",
+      "size_bytes": 3244,
+      "sha256": null,
+      "category": "ohlcv",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/tests/test_coinapi_integration.py",
+      "size_bytes": 18023,
+      "sha256": null,
+      "category": "coinapi",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/tests/test_ingestor_and_overlay.py",
+      "size_bytes": 24285,
+      "sha256": null,
+      "category": "ingestor",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/tools/liquidation_levels_from_stream.py",
+      "size_bytes": 7605,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/tools/liquidation_levels_report.py",
+      "size_bytes": 7564,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/trading/coinank_signal_adapter.py",
+      "size_bytes": 8409,
+      "sha256": null,
+      "category": "coinank",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/utils/binance_rate_limiter.py",
+      "size_bytes": 9712,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/validate_coinank.py",
+      "size_bytes": 6244,
+      "sha256": null,
+      "category": "coinank",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/binance/__init__.py",
+      "size_bytes": 813,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/binance/async_client.py",
+      "size_bytes": 263299,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/binance/base_client.py",
+      "size_bytes": 20850,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/binance/client.py",
+      "size_bytes": 676220,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/binance/enums.py",
+      "size_bytes": 2537,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/binance/exceptions.py",
+      "size_bytes": 3358,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/binance/helpers.py",
+      "size_bytes": 3016,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/binance/ws/__init__.py",
+      "size_bytes": 0,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/binance/ws/constants.py",
+      "size_bytes": 214,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/binance/ws/depthcache.py",
+      "size_bytes": 15288,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/binance/ws/keepalive_websocket.py",
+      "size_bytes": 5755,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/binance/ws/reconnecting_websocket.py",
+      "size_bytes": 11016,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/binance/ws/streams.py",
+      "size_bytes": 59710,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/binance/ws/threaded_stream.py",
+      "size_bytes": 4529,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/binance/ws/websocket_api.py",
+      "size_bytes": 5866,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/abstract/binance.py",
+      "size_bytes": 102592,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/abstract/binancecoinm.py",
+      "size_bytes": 102592,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/abstract/binanceus.py",
+      "size_bytes": 109254,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/abstract/binanceusdm.py",
+      "size_bytes": 102592,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/abstract/kucoin.py",
+      "size_bytes": 35796,
+      "sha256": null,
+      "category": "kucoin",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/abstract/kucoinfutures.py",
+      "size_bytes": 39878,
+      "sha256": null,
+      "category": "kucoin",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/async_support/binance.py",
+      "size_bytes": 698793,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/async_support/binancecoinm.py",
+      "size_bytes": 1855,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/async_support/binanceus.py",
+      "size_bytes": 10942,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/async_support/binanceusdm.py",
+      "size_bytes": 2739,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/async_support/kucoin.py",
+      "size_bytes": 266174,
+      "sha256": null,
+      "category": "kucoin",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/async_support/kucoinfutures.py",
+      "size_bytes": 149621,
+      "sha256": null,
+      "category": "kucoin",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/binance.py",
+      "size_bytes": 695814,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/binancecoinm.py",
+      "size_bytes": 1817,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/binanceus.py",
+      "size_bytes": 10928,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/binanceusdm.py",
+      "size_bytes": 2701,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/kucoin.py",
+      "size_bytes": 264887,
+      "sha256": null,
+      "category": "kucoin",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/kucoinfutures.py",
+      "size_bytes": 148815,
+      "sha256": null,
+      "category": "kucoin",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/pro/binance.py",
+      "size_bytes": 217912,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/pro/binancecoinm.py",
+      "size_bytes": 1125,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/pro/binanceus.py",
+      "size_bytes": 2928,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/pro/binanceusdm.py",
+      "size_bytes": 1601,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/pro/kucoin.py",
+      "size_bytes": 63956,
+      "sha256": null,
+      "category": "kucoin",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/pro/kucoinfutures.py",
+      "size_bytes": 56168,
+      "sha256": null,
+      "category": "kucoin",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/static_dependencies/dydx_v4_client/dydxprotocol/clob/liquidations_config_pb2.py",
+      "size_bytes": 2945,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/ccxt/static_dependencies/dydx_v4_client/dydxprotocol/clob/liquidations_pb2.py",
+      "size_bytes": 2909,
+      "sha256": null,
+      "category": "liquidation",
+      "source_type": "live_legacy_path_reference"
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT/venv/lib/python3.12/site-packages/python_binance-1.0.34.dist-info/top_level.txt",
+      "size_bytes": 8,
+      "sha256": null,
+      "category": "binance_futures",
+      "source_type": "live_legacy_path_reference"
+    }
+  ]
+}

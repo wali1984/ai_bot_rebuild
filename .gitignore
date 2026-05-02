@@ -19,3 +19,11 @@ claude_worklog/agent_supervisor/status/phase_017_watchdog.json
 claude_worklog/agent_supervisor/state/tasks/*.json
 .vscode/
 .local_scratch/
+
+# Local secret material copied from legacy sources. Never commit these.
+.local_secrets/
+v2/.env.local
+v2/secrets/
+*.local.env
+*.secret.local
+*.secrets.local
