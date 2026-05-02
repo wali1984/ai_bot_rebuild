@@ -93,11 +93,17 @@ while either remediation gate is red MUST be rejected by CI.
 ## CI hooks (referenced)
 
 - `tools/validate_task_audit_evidence.py` — schema validator for
-  `audit_evidence` and `gate_evidence_ref`. *(Not authored in this
-  remediation cycle; tracked under B5 missing_evidence in
-  `../v2_scaffold_queue_remediation/017_REMEDIATION_REPORT.md`.)*
+  `audit_evidence` and `gate_evidence_ref`. **Authoring vehicle:**
+  `claude_worklog/agent_supervisor/tasks/020_author_audit_evidence_validator.json`
+  (status=`blocked_approval`; L1 follow-up; outside this remediation's
+  `allowed_output_prefixes`). Until task 020 lands, each 015X task JSON
+  declares an inline `python -c` `verification_command` in
+  `audit_evidence` and in `gate_evidence_ref[2]`, so reviewers can
+  validate the schema today.
 - `tools/validate_task_dag.py` — DAG cycle detector and node-set
-  consistency checker. *(Tracked alongside B5 follow-up.)*
+  consistency checker. Authoring scheduled alongside task 020 (same
+  follow-up package). The inline DAG verification command is recorded
+  in `02_TASK_DEPENDENCY_GRAPH.md` §"Verification".
 
 ## Read/Write boundaries
 

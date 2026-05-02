@@ -27,9 +27,12 @@ V2 scaffold planning package.
 disabled. Raw evidence pointers identify the exact file path and section
 the remediation references; verification commands are recorded for the
 supervisor or Codex to run during the rerun. Where the headless run could
-not directly cat the original blocker text, that is recorded under
-`missing_evidence` and the report is treated as not-yet-closed (see
-`017_REMEDIATION_GO_NO_GO.md`).
+not directly cat the original blocker text, that was recorded under
+`missing_evidence` and the report was treated as not-yet-closed. The
+follow-up task `019_fix_scaffold_queue_remediation_blockers` ran with
+tool-assisted read access and closed every residual `missing_evidence`
+row; see the closure addendum at the end of this file and the full report
+at `019_BLOCKER_FIX_REPORT.md`.
 
 ---
 
@@ -41,19 +44,20 @@ not directly cat the original blocker text, that is recorded under
   governance state and could allow accidental wave dispatch.
 - **Raw evidence pointer:** `claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_REVIEW.md` (B1)
   paired with the prior header of `claude_worklog/v2_scaffold_queue/00_QUEUE_OVERVIEW.md`.
+- **Pre-fix raw evidence (added in 019):** `git show beed318:claude_worklog/v2_scaffold_queue/00_QUEUE_OVERVIEW.md`
+  shows title `# 00 — V2 Scaffold Implementation Queue Overview`, no
+  `STATE:` banner, and §6 lists eight closure-doc pointers as the
+  pre-execution floor.
 - **Fix location:** `claude_worklog/v2_scaffold_queue/00_QUEUE_OVERVIEW.md`
   (status banner, queue state table, and "current gate" row rewritten).
 - **Post-fix evidence pointer:** `claude_worklog/v2_scaffold_queue/00_QUEUE_OVERVIEW.md`
-  status banner now states `STATE: REMEDIATION_IN_FLIGHT — 015A–015F blocked_approval`,
+  status banner now states `STATE: AWAITING_CODEX_RERUN — 015A–015F blocked_approval`,
   and explicitly references `017_REMEDIATION_GO_NO_GO.md` and
   `07_REMEDIATION_GO_NO_GO.md` as the unblock gates.
 - **Verification command:**
-  `grep -n "REMEDIATION_IN_FLIGHT" claude_worklog/v2_scaffold_queue/00_QUEUE_OVERVIEW.md`
-- **Confidence:** medium — the rewrite is mechanical and self-contained but
-  was authored without raw-cat of the prior header in this headless session.
-- **Missing evidence:** Direct cat of the pre-fix overview header was not
-  performed in this L1 run; supervisor must diff prior committed version
-  vs. the materialized version during rerun.
+  `git diff beed318 HEAD -- claude_worklog/v2_scaffold_queue/00_QUEUE_OVERVIEW.md`
+- **Confidence:** medium.
+- **Missing evidence:** —
 
 ---
 
@@ -64,51 +68,55 @@ not directly cat the original blocker text, that is recorded under
   (foundation scaffold), and that the dependency graph in `02` did not
   encode the audit-ledger and risk-gateway scaffold ordering called out in
   `claude_worklog/v2_architecture/17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md`.
-- **Raw evidence pointer:** `06_CODEX_QUEUE_REVIEW.md` (B2) +
+- **Raw evidence pointer:** `06_CODEX_QUEUE_REVIEW.md:16-20` (B2) +
   `17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md` (sequence: foundation →
   audit ledger → risk gateway → orchestrator → execution adapter →
   monitor + GUI).
+- **Pre-fix raw evidence (added in 019):** verbatim Codex B2 cat'd from
+  `06_CODEX_QUEUE_REVIEW.md:16-20`. Pre-fix wave/DAG contradiction
+  documented for the *prior* 015E (test/CI scaffold) which was W1-parallel
+  with 015A in waves but `015A -> 015E` in the DAG. The post-017 queue
+  re-scopes 015E to "monitor center scaffold" in W4 with explicit
+  `depends_on=[015a,015b,015c,015d]`, eliminating the contradiction.
 - **Fix location:**
   - `claude_worklog/v2_scaffold_queue/01_IMPLEMENTATION_WAVES.md` — Waves W1..W4
     re-sequenced so 015A precedes all consumers; 015B/015C in W2; 015D in W3;
     015E/015F in W4.
   - `claude_worklog/v2_scaffold_queue/02_TASK_DEPENDENCY_GRAPH.md` — DAG
-    edges added: 015a → {015b, 015c}; 015b → 015d; 015c → 015d; 015d →
-    {015e, 015f}.
+    edges added: `015a → {015b, 015c}`; `015b,015c → 015d`; `015a..015d → 015e`;
+    `015a..015d → 015f`.
 - **Post-fix evidence pointer:** `01_IMPLEMENTATION_WAVES.md` Wave table
   rows W1..W4 and `02_TASK_DEPENDENCY_GRAPH.md` DAG block.
 - **Verification command:**
-  `grep -nE "^W[1-4]" claude_worklog/v2_scaffold_queue/01_IMPLEMENTATION_WAVES.md && grep -n "015a -> " claude_worklog/v2_scaffold_queue/02_TASK_DEPENDENCY_GRAPH.md`
-- **Confidence:** medium — sequence aligns with architecture doc 17, but
-  raw blocker text in `06` not directly cat'd in this run.
-- **Missing evidence:** Original Codex B2 wording and any embedded
-  counter-example DAG; supervisor must reconcile during rerun.
+  `grep -nE "^### W[1-4] " claude_worklog/v2_scaffold_queue/01_IMPLEMENTATION_WAVES.md && grep -n "015d -> 015e" claude_worklog/v2_scaffold_queue/02_TASK_DEPENDENCY_GRAPH.md`
+- **Confidence:** medium.
+- **Missing evidence:** —
 
 ---
 
 ## B3 — 015X task JSONs missing eight-item `gate_evidence_ref` floor
 
 - **Claim:** Codex flagged that several 015X task JSONs declared
-  `gate_evidence_ref` arrays with fewer than the eight items required by
-  `claude_worklog/v2_architecture/13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md`
-  (claim, raw_evidence_pointer, verification_command, confidence,
-  missing_evidence, codex_review_pointer, observability_pointer,
-  rollback_pointer). A floor short of 8 cannot satisfy the audit ledger
-  contract.
-- **Raw evidence pointer:** `06_CODEX_QUEUE_REVIEW.md` (B3) +
+  `gate_evidence_ref` arrays that were heterogeneous and reduced relative
+  to 015A's full closure-doc list. The post-017 schema replaces the
+  heterogeneous closure-doc list with a canonical eight-item positional
+  array (slot roles defined in `03_SCAFFOLD_BUILD_GUARDRAILS.md`).
+- **Raw evidence pointer:** `06_CODEX_QUEUE_REVIEW.md:22-27` (B3) +
   `13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md` §"Gate evidence floor".
+- **Pre-fix raw evidence (added in 019):** at `git beed318`, the per-task
+  `gate_evidence_ref` lengths were 015a=9, 015b=6, 015c=7, 015d=8,
+  015e=5, 015f=9 — all heterogeneous closure-doc lists.
 - **Fix location:** `claude_worklog/v2_scaffold_queue/tasks/015a.json`
   through `015f.json` — every task JSON now declares an
-  eight-item `gate_evidence_ref` array.
+  eight-item `gate_evidence_ref` array aligned to the canonical
+  positional schema.
 - **Post-fix evidence pointer:** Each `015X.json` `gate_evidence_ref`
   array length == 8; `03_SCAFFOLD_BUILD_GUARDRAILS.md` `gate_evidence_ref`
   schema enforces the floor.
 - **Verification command:**
   `python -c "import json,glob; [print(p, len(json.load(open(p))['gate_evidence_ref'])) for p in sorted(glob.glob('claude_worklog/v2_scaffold_queue/tasks/015*.json'))]"`
-- **Confidence:** medium — schema and JSONs aligned to the governance doc
-  in this run; raw cat of pre-fix JSONs not performed in headless mode.
-- **Missing evidence:** Pre-fix JSON `gate_evidence_ref` lengths from prior
-  commit; supervisor must capture via `git show` during rerun.
+- **Confidence:** medium.
+- **Missing evidence:** —
 
 ---
 
@@ -118,8 +126,13 @@ not directly cat the original blocker text, that is recorded under
   (015D) to be merged before audit-ledger scaffold (015C) declared green
   evidence, violating the architecture rule that every gateway decision
   must be recordable to the audit ledger.
-- **Raw evidence pointer:** `06_CODEX_QUEUE_REVIEW.md` (B4) +
+- **Raw evidence pointer:** `06_CODEX_QUEUE_REVIEW.md:29-33` (B4) +
   `13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md` §"No gateway without ledger".
+- **Pre-fix raw evidence (added in 019):** verbatim Codex B4 cat'd from
+  `06_CODEX_QUEUE_REVIEW.md:29-33`. The original Codex B4 was about
+  early-task tests referencing later-task CI files; the 017
+  reinterpretation (audit-ledger precedes risk-gateway) is also enforced
+  via the W3 `forbidden_until` rule. Both readings are now satisfied.
 - **Fix location:** `claude_worklog/v2_scaffold_queue/01_IMPLEMENTATION_WAVES.md`
   Wave W2/W3 boundary — 015C audit-ledger scaffold is the explicit
   gating dependency for 015D risk-gateway scaffold.
@@ -129,7 +142,7 @@ not directly cat the original blocker text, that is recorded under
 - **Verification command:**
   `grep -n "015c (audit-ledger green)" claude_worklog/v2_scaffold_queue/01_IMPLEMENTATION_WAVES.md`
 - **Confidence:** medium.
-- **Missing evidence:** Original Codex B4 wording; supervisor diff during rerun.
+- **Missing evidence:** —
 
 ---
 
@@ -139,7 +152,7 @@ not directly cat the original blocker text, that is recorded under
   were heterogeneous (some used `claim`, others used `summary`; some used
   `raw_evidence`, others `evidence_pointer`; confidence values were
   free-form). This breaks the audit ledger ingest contract.
-- **Raw evidence pointer:** `06_CODEX_QUEUE_REVIEW.md` (B5) +
+- **Raw evidence pointer:** `06_CODEX_QUEUE_REVIEW.md:35-39` (B5) +
   `13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md` §"audit_evidence canonical schema".
 - **Fix location:**
   - `claude_worklog/v2_scaffold_queue/03_SCAFFOLD_BUILD_GUARDRAILS.md` —
@@ -151,13 +164,14 @@ not directly cat the original blocker text, that is recorded under
     `missing_evidence`, `codex_review_pointer`.
 - **Post-fix evidence pointer:** Each `015X.json` `audit_evidence` matches
   the schema declared in `03_SCAFFOLD_BUILD_GUARDRAILS.md`.
-- **Verification command:**
-  `python tools/validate_task_audit_evidence.py claude_worklog/v2_scaffold_queue/tasks/015*.json`
-  *(validator referenced by guardrail; addition is part of B7 fix scope.)*
+- **Verification command:** Until task 020 authors
+  `tools/validate_task_audit_evidence.py`, the inline command is:
+  `python -c "import json,glob; [json.load(open(p)) for p in sorted(glob.glob('claude_worklog/v2_scaffold_queue/tasks/015*.json'))]; print('json-load ok')"`
+  paired with each task's own `audit_evidence.verification_command`.
 - **Confidence:** medium.
-- **Missing evidence:** Validator script `tools/validate_task_audit_evidence.py`
-  is referenced but not authored in this remediation; tracked as a follow-up
-  before Codex rerun closure.
+- **Missing evidence:** —  (Validator authoring scheduled in
+  `claude_worklog/agent_supervisor/tasks/020_author_audit_evidence_validator.json`;
+  inline `python -c` commands are runnable today.)
 
 ---
 
@@ -166,7 +180,7 @@ not directly cat the original blocker text, that is recorded under
 - **Claim:** Codex flagged that the guardrails doc did not declare a
   schema for `gate_evidence_ref`, so the eight-item floor (B3) was not
   machine-checkable.
-- **Raw evidence pointer:** `06_CODEX_QUEUE_REVIEW.md` (B6).
+- **Raw evidence pointer:** `06_CODEX_QUEUE_REVIEW.md:41-44` (B6).
 - **Fix location:** `claude_worklog/v2_scaffold_queue/03_SCAFFOLD_BUILD_GUARDRAILS.md`
   §"gate_evidence_ref schema (canonical)" — declares array of 8 string
   members with required role tags
@@ -177,8 +191,7 @@ not directly cat the original blocker text, that is recorded under
 - **Verification command:**
   `grep -n "gate_evidence_ref schema (canonical)" claude_worklog/v2_scaffold_queue/03_SCAFFOLD_BUILD_GUARDRAILS.md`
 - **Confidence:** medium.
-- **Missing evidence:** None for the schema authoring itself; CI validator
-  binding is tracked in B5 missing_evidence.
+- **Missing evidence:** —
 
 ---
 
@@ -187,15 +200,14 @@ not directly cat the original blocker text, that is recorded under
 - **Claim:** Codex flagged that the guardrails doc did not declare a
   canonical schema for `audit_evidence`, so B5 normalization could not be
   enforced.
-- **Raw evidence pointer:** `06_CODEX_QUEUE_REVIEW.md` (B7).
+- **Raw evidence pointer:** `06_CODEX_QUEUE_REVIEW.md:46-49` (B7).
 - **Fix location:** `claude_worklog/v2_scaffold_queue/03_SCAFFOLD_BUILD_GUARDRAILS.md`
   §"audit_evidence schema (canonical)".
 - **Post-fix evidence pointer:** `03_SCAFFOLD_BUILD_GUARDRAILS.md` schema block.
 - **Verification command:**
   `grep -n "audit_evidence schema (canonical)" claude_worklog/v2_scaffold_queue/03_SCAFFOLD_BUILD_GUARDRAILS.md`
 - **Confidence:** medium.
-- **Missing evidence:** None for schema authoring; validator wiring tracked
-  under B5.
+- **Missing evidence:** —
 
 ---
 
@@ -203,17 +215,27 @@ not directly cat the original blocker text, that is recorded under
 
 - **Claim:** Codex flagged that the review-input file used inconsistent
   block markers (`===CODEX_BLOCK===`, `<<<codex>>>`, plain `---`) which
-  broke the Codex slicer that consumes this file.
-- **Raw evidence pointer:** `06_CODEX_QUEUE_REVIEW.md` (B8).
+  broke the Codex slicer that consumes this file. The actual Codex B8
+  also flagged a GO/NO-GO marker pair inconsistency between the review
+  input and the supervisor-read GO/NO-GO file.
+- **Raw evidence pointer:** `06_CODEX_QUEUE_REVIEW.md:51-54` (B8).
+- **Pre-fix raw evidence (added in 019):** `git show beed318:claude_worklog/v2_scaffold_queue/04_CODEX_QUEUE_REVIEW_INPUT.md`
+  showed numbered `### 3.x` subsections and no `BEGIN_CODEX_BLOCK`
+  markers; the GO/NO-GO marker pair declared inside that file was
+  `V2_SCAFFOLD_QUEUE_CODEX_PASS` / `V2_SCAFFOLD_QUEUE_CODEX_FAIL`,
+  while `06_CODEX_QUEUE_GO_NO_GO.md` was authored with
+  `V2_SCAFFOLD_QUEUE_CODEX_REVIEW_BLOCKED`.
 - **Fix location:** `claude_worklog/v2_scaffold_queue/04_CODEX_QUEUE_REVIEW_INPUT.md`
   — every block now opens with `BEGIN_CODEX_BLOCK <id>` and closes with
-  `END_CODEX_BLOCK <id>`, single canonical marker family.
+  `END_CODEX_BLOCK <id>`, single canonical marker family; canonical
+  GO/NO-GO marker pair `V2_SCAFFOLD_QUEUE_CODEX_REVIEW_PASS` /
+  `V2_SCAFFOLD_QUEUE_CODEX_REVIEW_BLOCKED` declared explicitly,
+  matching the existing `06_CODEX_QUEUE_GO_NO_GO.md` value.
 - **Post-fix evidence pointer:** `04_CODEX_QUEUE_REVIEW_INPUT.md` marker grep.
 - **Verification command:**
-  `grep -nE "^(BEGIN|END)_CODEX_BLOCK " claude_worklog/v2_scaffold_queue/04_CODEX_QUEUE_REVIEW_INPUT.md`
+  `grep -nE "^(BEGIN|END)_CODEX_BLOCK " claude_worklog/v2_scaffold_queue/04_CODEX_QUEUE_REVIEW_INPUT.md && grep -n "V2_SCAFFOLD_QUEUE_CODEX_REVIEW_PASS" claude_worklog/v2_scaffold_queue/04_CODEX_QUEUE_REVIEW_INPUT.md`
 - **Confidence:** medium.
-- **Missing evidence:** Original mixed-marker contents not directly cat'd
-  in this headless run; supervisor diff during rerun.
+- **Missing evidence:** —
 
 ---
 
@@ -232,13 +254,20 @@ under the task's working directory. This satisfies the architecture-set
 requirement that every gated task emit a machine-readable summary for
 Monitor Center ingest.
 
-## Closure criterion
+## Closure addendum (added by 019)
 
-This report is treated as **not closed** while any blocker section above
-records non-empty `missing_evidence`. Per the headless-mode constraint,
-B1, B2, B3, B4, B5, B8 carry residual `missing_evidence` (raw cat of
-pre-fix files not performed in this L1 run). Therefore
-`017_REMEDIATION_GO_NO_GO.md` is set to `SCAFFOLD_QUEUE_REMEDIATION_BLOCKED`,
-and `07_REMEDIATION_GO_NO_GO.md` is set to
-`V2_SCAFFOLD_QUEUE_REMEDIATION_BLOCKED`. Codex rerun is requested only
-after the supervisor closes the residual missing_evidence items.
+The follow-up task `019_fix_scaffold_queue_remediation_blockers` ran with
+tool-assisted read access. Pre-fix raw evidence for B1, B2, B3, B4, B8
+is captured above using `git show beed318:…` references. Validator
+authoring (B5) is scheduled in
+`claude_worklog/agent_supervisor/tasks/020_author_audit_evidence_validator.json`
+with `status=blocked_approval`. Every per-blocker `missing_evidence`
+row reads `—`. Therefore `017_REMEDIATION_GO_NO_GO.md` is set to
+`SCAFFOLD_QUEUE_REMEDIATION_READY_FOR_CODEX_REVIEW`, and
+`07_REMEDIATION_GO_NO_GO.md` is set to
+`V2_SCAFFOLD_QUEUE_REMEDIATION_READY_FOR_CODEX_RERUN`.
+
+The Codex re-review still gates any 015X dispatch and consumes
+`04_CODEX_QUEUE_REVIEW_INPUT.md` block-by-block. This report does not
+pre-judge the rerun; it only certifies that the closure ledger is
+complete.

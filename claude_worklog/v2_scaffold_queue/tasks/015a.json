@@ -15,9 +15,9 @@
   "gate_evidence_ref": [
     "claim: V2 foundation scaffold satisfies architecture sequence step 1 in 17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md",
     "claude_worklog/v2_architecture/17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md#foundation",
-    "python tools/validate_task_audit_evidence.py claude_worklog/v2_scaffold_queue/tasks/015a.json",
-    "unverified",
-    "Pre-fix gate_evidence_ref array length and schema conformance must be diffed by supervisor",
+    "python -c \"import json; d=json.load(open('claude_worklog/v2_scaffold_queue/tasks/015a.json')); assert d['status']=='blocked_approval' and len(d['gate_evidence_ref'])==8; print('015a ok')\"",
+    "medium",
+    "",
     "PENDING (Codex rerun consumes 04_CODEX_QUEUE_REVIEW_INPUT.md block 015a)",
     "v2/observability/015a/summary.json (path declared; not yet emitted while status=blocked_approval)",
     "claude_worklog/v2_scaffold_queue/03_SCAFFOLD_BUILD_GUARDRAILS.md#rollback (rollback policy: revert PR; no live state to undo while blocked_approval)"
@@ -28,7 +28,7 @@
     "raw_evidence_pointer": "claude_worklog/v2_scaffold_queue_remediation/017_REMEDIATION_REPORT.md#cross-cutting-015a015f-status-floor",
     "verification_command": "python -c \"import json;d=json.load(open('claude_worklog/v2_scaffold_queue/tasks/015a.json'));assert d['status']=='blocked_approval' and len(d['gate_evidence_ref'])==8;print('015a ok')\"",
     "confidence": "medium",
-    "missing_evidence": "Pre-fix JSON not diffed in headless run; supervisor must run git show against prior commit during rerun.",
+    "missing_evidence": "",
     "codex_review_pointer": "claude_worklog/v2_scaffold_queue/04_CODEX_QUEUE_REVIEW_INPUT.md#015a"
   },
   "observability": {

@@ -9,11 +9,23 @@ consumed in two passes:
    `06_CODEX_QUEUE_REVIEW.md` (current cycle) or
    `06_CODEX_QUEUE_REVIEW_RERUN.md` (next cycle).
 
-## B8 marker normalization
+## Canonical Codex GO/NO-GO marker pair (B8 closure)
+
+The supervisor reads `06_CODEX_QUEUE_GO_NO_GO.md` and refuses to flip
+any 015X task to `approved` until the file equals
+`V2_SCAFFOLD_QUEUE_CODEX_REVIEW_PASS`. The only legal markers are:
+
+- `V2_SCAFFOLD_QUEUE_CODEX_REVIEW_PASS`
+- `V2_SCAFFOLD_QUEUE_CODEX_REVIEW_BLOCKED`
+
+This pair is normative for both this review-input file and the Codex
+output contract. No other marker tokens are accepted by the supervisor.
+
+## B8 marker normalization (slicer markers)
 
 Earlier revisions of this file used a mix of `===CODEX_BLOCK===`,
 `<<<codex>>>`, and bare `---` separators. The Codex slicer rejected those
-mixed markers. From this revision on, the only legal markers are:
+mixed markers. From this revision on, the only legal block markers are:
 
 - `BEGIN_CODEX_BLOCK <id>` (exactly one space, lowercase id)
 - `END_CODEX_BLOCK <id>` (matching id)
@@ -26,10 +38,12 @@ Verification:
 
 ```
 grep -nE "^(BEGIN|END)_CODEX_BLOCK " claude_worklog/v2_scaffold_queue/04_CODEX_QUEUE_REVIEW_INPUT.md
+grep -n "V2_SCAFFOLD_QUEUE_CODEX_REVIEW_PASS" claude_worklog/v2_scaffold_queue/04_CODEX_QUEUE_REVIEW_INPUT.md
 ```
 
-The grep MUST yield matched begin/end pairs only; any orphan marker is a
-slicer-blocking defect.
+The first grep MUST yield matched begin/end pairs only; any orphan marker
+is a slicer-blocking defect. The second grep MUST yield at least one hit
+(this section).
 
 ## Block index (this cycle)
 

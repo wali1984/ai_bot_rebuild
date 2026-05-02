@@ -1,0 +1,56 @@
+{
+  "task_id": "020_author_audit_evidence_validator",
+  "agent": "claude",
+  "risk_level": "L1",
+  "status": "blocked_approval",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "tools/",
+    "claude_worklog/v2_scaffold_queue/",
+    "claude_worklog/agent_supervisor/tasks/"
+  ],
+  "required_output_files": [
+    "tools/validate_task_audit_evidence.py",
+    "tools/validate_task_dag.py"
+  ],
+  "depends_on": [],
+  "approval_required": true,
+  "scope": "Author the two CI hooks referenced from claude_worklog/v2_scaffold_queue/03_SCAFFOLD_BUILD_GUARDRAILS.md: tools/validate_task_audit_evidence.py (validates audit_evidence and gate_evidence_ref against the canonical schemas) and tools/validate_task_dag.py (cycle detector + node-set check over claude_worklog/v2_scaffold_queue/tasks/015*.json). Read-only over the queue artifacts; pure-python (stdlib only). No v2/** writes. No live trading. No legacy bot mutation. Status remains blocked_approval until an authorized human approver flips it to approved.",
+  "non_goals": [
+    "No edits under v2/**.",
+    "No edits to CLAUDE.md, the V2 architecture set, or the V2 scaffold planning package.",
+    "No 015X task status changes.",
+    "No legacy Redis writes; no service restarts."
+  ],
+  "gate_evidence_ref": [
+    "claim: tools/validate_task_audit_evidence.py and tools/validate_task_dag.py implement the canonical schemas declared in 03_SCAFFOLD_BUILD_GUARDRAILS.md",
+    "claude_worklog/v2_scaffold_queue/03_SCAFFOLD_BUILD_GUARDRAILS.md#ci-hooks-referenced",
+    "python tools/validate_task_audit_evidence.py claude_worklog/v2_scaffold_queue/tasks/015a.json (and 015b..015f)",
+    "unverified",
+    "",
+    "PENDING (Codex review of authored validators in a follow-up cycle)",
+    "claude_worklog/v2_scaffold_queue_remediation/019_BLOCKER_FIX_REPORT.md#017-b5",
+    "claude_worklog/v2_scaffold_queue/03_SCAFFOLD_BUILD_GUARDRAILS.md#rollback"
+  ],
+  "audit_evidence": {
+    "schema_version": "v1",
+    "claim": "Task 020 is the authoring vehicle for the deferred validator scripts named in 03_SCAFFOLD_BUILD_GUARDRAILS.md. Status remains blocked_approval; this task does not run as part of the 019 remediation closure.",
+    "raw_evidence_pointer": "claude_worklog/v2_scaffold_queue_remediation/019_BLOCKER_FIX_REPORT.md#017-b5-toolsvalidate_task_audit_evidencepy-validator",
+    "verification_command": "python -c \"import json; d=json.load(open('claude_worklog/agent_supervisor/tasks/020_author_audit_evidence_validator.json')); assert d['status']=='blocked_approval' and 'tools/validate_task_audit_evidence.py' in d['required_output_files']; print('020 ok')\"",
+    "confidence": "medium",
+    "missing_evidence": "",
+    "codex_review_pointer": "PENDING"
+  },
+  "observability": {
+    "summary_json_required": true,
+    "summary_json_path": "claude_worklog/agent_supervisor/runs/020_author_audit_evidence_validator/summary.json"
+  },
+  "rollback": {
+    "policy": "revert_pr",
+    "runbook": "claude_worklog/v2_scaffold_queue/03_SCAFFOLD_BUILD_GUARDRAILS.md#rollback",
+    "live_state_to_undo": "none_while_blocked_approval"
+  },
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Author tools/validate_task_audit_evidence.py and tools/validate_task_dag.py per the canonical schemas in claude_worklog/v2_scaffold_queue/03_SCAFFOLD_BUILD_GUARDRAILS.md. Stdlib only; pure-python; non-zero exit on schema violation. Read-only over claude_worklog/v2_scaffold_queue/**. No v2/** writes. No legacy bot, legacy Redis, trainer venv, or service is touched. Output BEGIN_FILE / END_FILE blocks only.",
+  "next_recommended_action": "After this task completes, wire both validators into agent_supervisor pre-dispatch checks for any 015X task."
+}

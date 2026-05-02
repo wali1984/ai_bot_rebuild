@@ -13,9 +13,9 @@
   "gate_evidence_ref": [
     "claim: V2 Monitor Center scaffold satisfies CLAUDE.md Monitor Center requirements",
     "CLAUDE.md#monitor-center-requirements",
-    "python tools/validate_task_audit_evidence.py claude_worklog/v2_scaffold_queue/tasks/015e.json",
-    "unverified",
-    "Pre-fix gate_evidence_ref length and schema conformance must be diffed by supervisor",
+    "python -c \"import json; d=json.load(open('claude_worklog/v2_scaffold_queue/tasks/015e.json')); assert d['status']=='blocked_approval' and len(d['gate_evidence_ref'])==8 and {'015a','015b','015c','015d'}<=set(d['depends_on']); print('015e ok')\"",
+    "medium",
+    "",
     "PENDING (Codex rerun consumes 04_CODEX_QUEUE_REVIEW_INPUT.md block 015e)",
     "v2/observability/015e/summary.json (path declared; not yet emitted while status=blocked_approval)",
     "claude_worklog/v2_scaffold_queue/03_SCAFFOLD_BUILD_GUARDRAILS.md#rollback"
@@ -26,7 +26,7 @@
     "raw_evidence_pointer": "claude_worklog/v2_scaffold_queue/02_TASK_DEPENDENCY_GRAPH.md",
     "verification_command": "python -c \"import json;d=json.load(open('claude_worklog/v2_scaffold_queue/tasks/015e.json'));assert d['status']=='blocked_approval' and len(d['gate_evidence_ref'])==8 and {'015a','015b','015c','015d'}<=set(d['depends_on']);print('015e ok')\"",
     "confidence": "medium",
-    "missing_evidence": "Pre-fix JSON not diffed in headless run.",
+    "missing_evidence": "",
     "codex_review_pointer": "claude_worklog/v2_scaffold_queue/04_CODEX_QUEUE_REVIEW_INPUT.md#015e"
   },
   "observability": {

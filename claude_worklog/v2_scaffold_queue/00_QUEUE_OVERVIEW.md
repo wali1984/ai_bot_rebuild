@@ -1,24 +1,30 @@
 # 00 — V2 Scaffold Queue Overview
 
-**STATE:** `REMEDIATION_IN_FLIGHT`
+**STATE:** `AWAITING_CODEX_RERUN`
 
 **Banner:** 015A–015F are `status=blocked_approval`. The queue is **not**
 cleared for wave dispatch. Codex flagged 8 blockers in
 `06_CODEX_QUEUE_REVIEW.md`; remediation is recorded in
-`07_REMEDIATION_CLOSURE.md` and
-`../v2_scaffold_queue_remediation/017_REMEDIATION_REPORT.md`.
+`07_REMEDIATION_CLOSURE.md`,
+`../v2_scaffold_queue_remediation/017_REMEDIATION_REPORT.md`, and
+`../v2_scaffold_queue_remediation/019_BLOCKER_FIX_REPORT.md`. The Codex
+rerun on `04_CODEX_QUEUE_REVIEW_INPUT.md` is the sole remaining gate.
 
 ## Current gate
 
 | Gate | File | Required value | Current value |
 | --- | --- | --- | --- |
-| Codex queue review | `06_CODEX_QUEUE_REVIEW.md` | green | red — 8 blockers |
-| Remediation closure | `07_REMEDIATION_GO_NO_GO.md` | `V2_SCAFFOLD_QUEUE_REMEDIATION_READY_FOR_CODEX_RERUN` | `V2_SCAFFOLD_QUEUE_REMEDIATION_BLOCKED` |
-| Remediation report | `../v2_scaffold_queue_remediation/017_REMEDIATION_GO_NO_GO.md` | `SCAFFOLD_QUEUE_REMEDIATION_READY_FOR_CODEX_REVIEW` | `SCAFFOLD_QUEUE_REMEDIATION_BLOCKED` |
+| Codex queue review (rerun) | `06_CODEX_QUEUE_REVIEW_RERUN.md` | green (no blockers) | not yet run |
+| Codex queue GO/NO-GO | `06_CODEX_QUEUE_GO_NO_GO.md` | `V2_SCAFFOLD_QUEUE_CODEX_REVIEW_PASS` | `V2_SCAFFOLD_QUEUE_CODEX_REVIEW_BLOCKED` |
+| Remediation closure | `07_REMEDIATION_GO_NO_GO.md` | `V2_SCAFFOLD_QUEUE_REMEDIATION_READY_FOR_CODEX_RERUN` | `V2_SCAFFOLD_QUEUE_REMEDIATION_READY_FOR_CODEX_RERUN` |
+| Remediation report | `../v2_scaffold_queue_remediation/017_REMEDIATION_GO_NO_GO.md` | `SCAFFOLD_QUEUE_REMEDIATION_READY_FOR_CODEX_REVIEW` | `SCAFFOLD_QUEUE_REMEDIATION_READY_FOR_CODEX_REVIEW` |
+| Blocker fix report | `../v2_scaffold_queue_remediation/019_GO_NO_GO.md` | `SCAFFOLD_QUEUE_REMEDIATION_READY_FOR_CODEX_REVIEW` | `SCAFFOLD_QUEUE_REMEDIATION_READY_FOR_CODEX_REVIEW` |
 
-The queue cannot advance until **both** `07_REMEDIATION_GO_NO_GO.md` reads
-`V2_SCAFFOLD_QUEUE_REMEDIATION_READY_FOR_CODEX_RERUN` **and** the Codex
-rerun on `04_CODEX_QUEUE_REVIEW_INPUT.md` returns no blockers.
+The queue cannot advance until the Codex rerun on
+`04_CODEX_QUEUE_REVIEW_INPUT.md` returns
+`V2_SCAFFOLD_QUEUE_CODEX_REVIEW_PASS` **and** an authorized human
+approver flips each 015X task `status` from `blocked_approval` to
+`approved`.
 
 ## Queue state table
 
@@ -44,12 +50,15 @@ file in `v2/**` may be authored from this remediation cycle.
 
 - Codex blockers: `06_CODEX_QUEUE_REVIEW.md`
 - Remediation report: `../v2_scaffold_queue_remediation/017_REMEDIATION_REPORT.md`
+- Blocker-fix report: `../v2_scaffold_queue_remediation/019_BLOCKER_FIX_REPORT.md`
 - Remediation gate: `../v2_scaffold_queue_remediation/017_REMEDIATION_GO_NO_GO.md`
 - Closure ledger: `07_REMEDIATION_CLOSURE.md`
 - Codex rerun gate: `07_REMEDIATION_GO_NO_GO.md`
 - Codex rerun input: `04_CODEX_QUEUE_REVIEW_INPUT.md`
+- Codex rerun output (next cycle): `06_CODEX_QUEUE_REVIEW_RERUN.md` (Codex authors)
 - Waves: `01_IMPLEMENTATION_WAVES.md`
 - DAG: `02_TASK_DEPENDENCY_GRAPH.md`
 - Guardrails / canonical schemas: `03_SCAFFOLD_BUILD_GUARDRAILS.md`
 - Architecture sequence: `../v2_architecture/17_IMPLEMENTATION_SEQUENCE_AND_MILESTONES.md`
 - Audit ledger contract: `../v2_architecture/13_AUDIT_LEDGER_AND_AI_CHANGE_GOVERNANCE.md`
+- Validator authoring (deferred): `../agent_supervisor/tasks/020_author_audit_evidence_validator.json`
