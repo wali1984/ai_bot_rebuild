@@ -5,10 +5,13 @@
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "allowed_output_prefixes": [
-    "v2/backend/migrations/",
+    "claude_worklog/security/",
+    "claude_worklog/v2_build/",
+    "claude_worklog/v2_scaffold_reviews/",
     "v2/backend/app/adapters/db/",
+    "v2/backend/migrations/",
     "v2/backend/tests/integration/",
-    "claude_worklog/v2_build/"
+    "v2/pyproject.toml"
   ],
   "required_output_files": [
     "v2/backend/migrations/env.py",
@@ -115,7 +118,7 @@
   },
   "go_no_go_marker": "C_DATABASE_SKELETON_VALIDATION_READY",
   "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not run alembic against any legacy or production DB; only an ephemeral postgres for the round-trip test. Materialize the Alembic + SQLAlchemy harness ONLY (no migration versions). Create v2/backend/migrations/env.py, script.py.mako, README.md, the db engine/session/base modules, and one integration test that boots ephemeral postgres and asserts alembic upgrade head + downgrade base round-trip exits 0. Do NOT author any migration version files; those belong to milestone C proper. Produce claude_worklog/v2_build/C_DATABASE_SKELETON_VALIDATION.md ending in exactly C_DATABASE_SKELETON_VALIDATION_READY or C_DATABASE_SKELETON_VALIDATION_BLOCKED. Output BEGIN_FILE blocks only.",
-  "next_recommended_action": "Do not run automatically. Wait for Codex queue pass and explicit human approval.",
+  "next_recommended_action": "Recover 015B by materializing safe DB skeleton outputs only; then run Codex review for 015B. Do not run 015C.",
   "normalized_from_artifact": false,
   "status": "blocked_approval",
   "approval_required": true,

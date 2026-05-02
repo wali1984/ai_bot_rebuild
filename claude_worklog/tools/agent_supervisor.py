@@ -647,6 +647,32 @@ def extract_emit_file_blocks(text: str) -> List[Dict[str, str]]:
     return blocks
 
 
+FENCE_LINE_RE = re.compile(r"^```(?:python|toml|json|bash)?\s*$", re.IGNORECASE)
+
+
+def sanitize_emitted_file_content(rel_path: str, content: str) -> Tuple[str, bool]:
+    """Remove wrapper markdown fences accidentally included in emitted files."""
+    lines = content.splitlines()
+    removed = False
+
+    if lines and FENCE_LINE_RE.match(lines[0].strip()):
+        lines = lines[1:]
+        removed = True
+
+    while lines and not lines[-1].strip():
+        lines = lines[:-1]
+    while lines and FENCE_LINE_RE.match(lines[-1].strip()):
+        lines = lines[:-1]
+        removed = True
+        while lines and not lines[-1].strip():
+            lines = lines[:-1]
+
+    sanitized = "\n".join(lines).rstrip()
+    if content.endswith("\n") or sanitized:
+        sanitized += "\n"
+    return sanitized, removed
+
+
 def materialize_emit_files(
     stdout_path: pathlib.Path,
     allowed_output_prefixes: List[str],
@@ -692,6 +718,13 @@ def materialize_emit_files(
             continue
 
         target.parent.mkdir(parents=True, exist_ok=True)
+        content, sanitized = sanitize_emitted_file_content(rel_path, content)
+        if sanitized:
+            append_event({
+                "event": "materialized_content_sanitized",
+                "path": rel_path,
+                "reason": "removed_outer_markdown_fence",
+            })
         target.write_text(content, encoding="utf-8")
         result["materialized_files"].append(rel_path)
 

@@ -265,6 +265,32 @@ def safe_relpath(path_text: str, allowed_prefixes: List[str]) -> Optional[pathli
     return full
 
 
+FENCE_LINE_RE = re.compile(r"^```(?:python|toml|json|bash)?\s*$", re.IGNORECASE)
+
+
+def sanitize_emitted_file_content(rel_path: str, content: str) -> Tuple[str, bool]:
+    """Remove wrapper markdown fences accidentally included in emitted files."""
+    lines = content.splitlines()
+    removed = False
+
+    if lines and FENCE_LINE_RE.match(lines[0].strip()):
+        lines = lines[1:]
+        removed = True
+
+    while lines and not lines[-1].strip():
+        lines = lines[:-1]
+    while lines and FENCE_LINE_RE.match(lines[-1].strip()):
+        lines = lines[:-1]
+        removed = True
+        while lines and not lines[-1].strip():
+            lines = lines[:-1]
+
+    sanitized = "\n".join(lines).rstrip()
+    if content.endswith("\n") or sanitized:
+        sanitized += "\n"
+    return sanitized, removed
+
+
 def materialize_begin_file_blocks(stdout_path: pathlib.Path, allowed_prefixes: List[str]) -> Dict[str, Any]:
     res: Dict[str, Any] = {"materialized_files": [], "errors": []}
     if not stdout_path.exists():
@@ -287,7 +313,14 @@ def materialize_begin_file_blocks(stdout_path: pathlib.Path, allowed_prefixes: L
             res["errors"].append(f"unsafe_path:{rel}")
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content + "\n", encoding="utf-8")
+        content, sanitized = sanitize_emitted_file_content(rel, content)
+        if sanitized:
+            append_event({
+                "event": "materialized_content_sanitized",
+                "path": rel,
+                "reason": "removed_outer_markdown_fence",
+            })
+        target.write_text(content, encoding="utf-8")
         res["materialized_files"].append(str(target.relative_to(WORKSPACE)))
     return res
 
