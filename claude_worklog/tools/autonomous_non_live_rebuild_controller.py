@@ -510,13 +510,21 @@ def ensure_task_completed(task_id: str) -> None:
     if state.get("status") == "completed":
         append_event("milestone_detected", task_id=task_id, status="completed")
         return
+    validator = globals()[IMPLEMENTATION[task_id]["validation"]]
+    try:
+        validator()
+        set_state(task_id, "completed", "existing outputs validated by non-live controller")
+        append_event("milestone_detected", task_id=task_id, status="existing_outputs_validated")
+        return
+    except ControllerStop as exc:
+        if "missing required outputs" not in exc.reason:
+            raise
     set_state(task_id, "pending", "controller scheduled non-live milestone")
     result = run_supervisor_task(task_id)
     status = result.get("status")
     if status == "completed":
         return
     recover_allowed_path_stop(task_id)
-    validator = globals()[IMPLEMENTATION[task_id]["validation"]]
     validator()
     set_state(task_id, "completed", "completed after controller recovery and validation")
 
@@ -602,6 +610,20 @@ def ensure_codex_review(task_id: str) -> str:
                     encoding="utf-8",
                 )
                 append_event("milestone_recovered", task_id=review_id, reason="codex_go_no_go_filename_normalized", source=rel(candidate))
+                break
+    expected_review = WORKSPACE / str(meta["review_files"][0])
+    if not expected_review.exists() or not expected_review.read_text(encoding="utf-8", errors="ignore").strip():
+        review_token = str(meta["review_marker"]).split("_CODEX_", 1)[0]
+        candidates = sorted((WORKSPACE / "claude_worklog/v2_scaffold_reviews").glob("*CODEX_REVIEW*"))
+        for candidate in candidates:
+            name = candidate.name
+            if "GO_NO_GO" in name or "GO-NO-GO" in name or candidate == expected_review:
+                continue
+            text = candidate.read_text(encoding="utf-8", errors="ignore").strip()
+            if text and (review_token in name or review_token in text or review_id.split("_", 1)[0] in name):
+                expected_review.parent.mkdir(parents=True, exist_ok=True)
+                expected_review.write_text(text + "\n", encoding="utf-8")
+                append_event("milestone_recovered", task_id=review_id, reason="codex_review_filename_normalized", source=rel(candidate))
                 break
     # Strip accidental END_FILE marker variants from review files.
     for f in meta["review_files"]:
