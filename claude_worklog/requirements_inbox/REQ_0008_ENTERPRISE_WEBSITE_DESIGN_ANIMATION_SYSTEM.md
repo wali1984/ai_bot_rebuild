@@ -1,39 +1,34 @@
 # Requirement 0008 — Enterprise Website Design and Animation System
 
-Improve the V2 enterprise website into a polished, animated mission-control interface.
+Improve the V2 enterprise website into a polished animated mission-control interface.
 
-## Objective
+Objective:
+The website must become the operating center for AI BOT REBUILD, not a basic dashboard.
 
-The website must become the operating center for the AI BOT rebuild, not a basic dashboard.
-
-## Design goals
-
-- modern enterprise control-plane UI
-- dark-mode-first visual identity
+Design goals:
+- modern dark-mode-first enterprise UI
 - animated but not distracting
 - live safety state always visible
 - lineage from data → features → trainer → signal → risk → trader
-- system health visible at a glance
+- system health at a glance
 - mobile/iPhone-ready layout
 - public/admin separation
-- clear approval center
-- clear live-blocked state
-- Claude/Codex/Ollama activity visible
-- symbol universe heatmap / ranking
+- approval center
+- live-blocked state
+- Claude/Codex/Ollama activity
+- symbol universe heatmap/ranking
 - trainer GPU and prediction worker health
 - ingestor freshness map
 - risk gateway decisions
 - paper/shadow/live-readiness progression
 
-## Allowed scope
-
-Allowed:
+Allowed scope:
 - v2/frontend/
 - v2/backend API stubs needed for frontend contracts
 - frontend tests
 - docs under claude_worklog/phase2_core_rebuild/frontend_design/
 - non-live mock data
-- local-only animations and UI state
+- local-only animation/UI state
 
 Forbidden:
 - live trading
@@ -42,8 +37,7 @@ Forbidden:
 - deployment
 - production secrets
 
-## Required pages/components
-
+Required pages/components:
 - Mission Control
 - Live Readiness
 - Symbol Universe
@@ -63,9 +57,7 @@ Forbidden:
 - Public Status
 - Login / step-up auth flow
 
-## Animation requirements
-
-Use safe local frontend animation:
+Animation requirements:
 - page transitions
 - status pulse indicators
 - data-flow graph animations
@@ -76,8 +68,7 @@ Use safe local frontend animation:
 
 Animations must not block usability or hide critical risk warnings.
 
-## Validation
-
+Validation:
 - frontend static/compile checks
 - component smoke tests
 - route smoke tests
@@ -86,15 +77,13 @@ Animations must not block usability or hide critical risk warnings.
 - no live API dependency
 - no deployment
 
-## Codex review
-
 Codex must verify:
 - no live behavior
 - public/admin separation
 - safety banners
 - live-blocked state
 - mobile readiness
-- all critical operational pages represented
+- critical operational pages represented
 - animations are non-blocking
 
 REQ_ENTERPRISE_WEBSITE_DESIGN_ANIMATION_SYSTEM_READY
