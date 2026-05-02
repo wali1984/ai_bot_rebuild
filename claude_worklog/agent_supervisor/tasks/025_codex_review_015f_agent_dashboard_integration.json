@@ -1,0 +1,17 @@
+{
+  "task_id": "025_codex_review_015f_agent_dashboard_integration",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/v2_scaffold_reviews/"
+  ],
+  "required_output_files": [
+    "claude_worklog/v2_scaffold_reviews/025_CODEX_REVIEW_015F.md",
+    "claude_worklog/v2_scaffold_reviews/025_CODEX_GO_NO_GO_015F.md"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Review completed 015F agent/dashboard integration only. Inputs: v2/backend/app/api/v1/_meta, v2/backend/app/services, v2/backend/tests, v2/frontend/src/components/dashboard, v2/frontend/src/hooks, v2/frontend/src/pages/mission-control, v2/frontend/tests, claude_worklog/v2_build/B_AGENT_DASHBOARD_INTEGRATION_VALIDATION.md. Verify read-only supervisor status integration, no state mutation, no live/legacy/Redis/exchange/deploy side effects, no secrets. Output exactly two BEGIN_FILE blocks. GO/NO-GO exactly: 015F_CODEX_REVIEW_PASS or 015F_CODEX_REVIEW_FAIL.",
+  "next_recommended_action": "Controller will advance only on PASS."
+}
