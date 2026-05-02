@@ -291,8 +291,10 @@ def materialize_stdout(task_id: str, prefixes: Sequence[str]) -> List[str]:
     written: List[str] = []
     for idx, marker in enumerate(markers):
         path = marker.group(1).strip()
-        if task_id.startswith(("024_", "025_", "026_")) and "/" not in path:
-            path = "claude_worklog/v2_scaffold_reviews/" + path
+        if task_id.startswith(("024_", "025_", "026_")):
+            name = Path(path).name
+            if "CODEX_REVIEW" in name or "GO_NO_GO" in name:
+                path = "claude_worklog/v2_scaffold_reviews/" + name
         start = marker.end() + 1
         end = markers[idx + 1].start() if idx + 1 < len(markers) else len(txt)
         content = txt[start:end].rstrip()
@@ -559,7 +561,7 @@ def ensure_codex_review(task_id: str) -> str:
             raise ControllerStop(f"Codex review {review_id} did not complete: {result.get('summary')}")
     expected_go = WORKSPACE / marker_file
     if not expected_go.exists():
-        candidates = sorted((WORKSPACE / "claude_worklog/v2_scaffold_reviews").glob(f"{review_id.split('_')[0]}*GO_NO_GO*"))
+        candidates = sorted((WORKSPACE / "claude_worklog/v2_scaffold_reviews").glob("*GO_NO_GO*"))
         for candidate in candidates:
             text = candidate.read_text(encoding="utf-8", errors="ignore")
             if str(meta["review_marker"]) in text or str(meta["review_fail"]) in text:
