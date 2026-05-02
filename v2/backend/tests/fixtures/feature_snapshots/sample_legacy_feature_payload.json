@@ -1,0 +1,67 @@
+{
+  "canonical_symbol_id": "BINANCE-USDM-BTC-USDT-PERP",
+  "legacy_symbol": "BTCUSDT",
+  "timeframe": "1m",
+  "generated_ts": "2026-05-02T06:00:00+00:00",
+  "source_snapshot_ids": [
+    "binance_price_snapshot_001",
+    "coinank_liq_snapshot_001"
+  ],
+  "source_key_refs": [
+    "legacy:price:BTCUSDT",
+    "legacy:coinank:BTCUSDT"
+  ],
+  "source_ingestor_refs": [
+    "live_binance.py",
+    "live_coinank.py",
+    "feature_pipeline.py"
+  ],
+  "feature_values": {
+    "close": 64000.0,
+    "return_1m": 0.001,
+    "return_5m": 0.004,
+    "spread_bps": 1.2,
+    "orderbook_depth_usd": 2500000.0,
+    "liq_long_usd": 120000.0,
+    "liq_short_usd": 90000.0,
+    "rsi_14": 55.0
+  },
+  "feature_to_source": {
+    "close": "binance_price",
+    "return_1m": "feature_pipeline",
+    "return_5m": "feature_pipeline",
+    "spread_bps": "binance_price",
+    "orderbook_depth_usd": "binance_price",
+    "liq_long_usd": "coinank",
+    "liq_short_usd": "coinank",
+    "rsi_14": "technical_analysis"
+  },
+  "sources": {
+    "binance_price": {
+      "source_ts": "2026-05-02T05:59:59+00:00",
+      "max_age_ms": 5000
+    },
+    "feature_pipeline": {
+      "source_ts": "2026-05-02T05:59:58+00:00",
+      "max_age_ms": 5000
+    },
+    "coinank": {
+      "source_ts": "2026-05-02T05:59:57+00:00",
+      "max_age_ms": 10000
+    },
+    "technical_analysis": {
+      "source_ts": "2026-05-02T05:59:56+00:00",
+      "max_age_ms": 10000
+    }
+  },
+  "used_features": [
+    "close",
+    "return_1m",
+    "return_5m",
+    "spread_bps",
+    "orderbook_depth_usd",
+    "liq_long_usd",
+    "liq_short_usd",
+    "rsi_14"
+  ]
+}
