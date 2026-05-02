@@ -1,0 +1,316 @@
+{
+  "generated_at": "2026-05-02T05:54:00.816306+00:00",
+  "workspace": "/home/wali/Desktop/AI BOT REBUILD",
+  "legacy_live_root": "/home/wali/Desktop/AI BOT",
+  "legacy_reference_root": "legacy_reference",
+  "policy": "preserve_first_wrap_then_parity_test",
+  "components": [
+    {
+      "component": "live_binance.py",
+      "relative_path": "ingest/live_binance.py",
+      "source_found": true,
+      "source_type": "live",
+      "source": {
+        "path": "/home/wali/Desktop/AI BOT/ingest/live_binance.py",
+        "size_bytes": 125730,
+        "sha256": "6c1eb771a3842e2d94b797eedd55aa624075c51c6d50aec701397f81dbace798"
+      },
+      "process_observed": true,
+      "process_evidence": [
+        {
+          "pid": 2434190,
+          "etimes": 177717,
+          "matched_component": "live_binance.py",
+          "command_redacted": "live_binance.py"
+        }
+      ],
+      "preservation_rule": "preserve_behavior_first",
+      "enhancement_gate": "parity_tests_and_codex_review_required"
+    },
+    {
+      "component": "live_kucoin.py",
+      "relative_path": "ingest/live_kucoin.py",
+      "source_found": true,
+      "source_type": "live",
+      "source": {
+        "path": "/home/wali/Desktop/AI BOT/ingest/live_kucoin.py",
+        "size_bytes": 36382,
+        "sha256": "73b852db1bf69062d4028091cf17c126f5cb666e94bf784cdb2bb9b47328a976"
+      },
+      "process_observed": true,
+      "process_evidence": [
+        {
+          "pid": 2434257,
+          "etimes": 177715,
+          "matched_component": "live_kucoin.py",
+          "command_redacted": "live_kucoin.py"
+        }
+      ],
+      "preservation_rule": "preserve_behavior_first",
+      "enhancement_gate": "parity_tests_and_codex_review_required"
+    },
+    {
+      "component": "live_coinank.py",
+      "relative_path": "ingest/live_coinank.py",
+      "source_found": true,
+      "source_type": "live",
+      "source": {
+        "path": "/home/wali/Desktop/AI BOT/ingest/live_coinank.py",
+        "size_bytes": 113571,
+        "sha256": "7842fc2995c5d802d272dbaa45866a4e6f0fbc22cfabc4b84d58fc0ef37abfef"
+      },
+      "process_observed": true,
+      "process_evidence": [
+        {
+          "pid": 2434262,
+          "etimes": 177715,
+          "matched_component": "live_coinank.py",
+          "command_redacted": "live_coinank.py"
+        }
+      ],
+      "preservation_rule": "copy_as_is",
+      "enhancement_gate": "parity_tests_and_codex_review_required"
+    },
+    {
+      "component": "live_binance_liquidations.py",
+      "relative_path": "ingest/live_binance_liquidations.py",
+      "source_found": true,
+      "source_type": "live",
+      "source": {
+        "path": "/home/wali/Desktop/AI BOT/ingest/live_binance_liquidations.py",
+        "size_bytes": 46088,
+        "sha256": "19711590a3d194fd05ae3be85ef7bd6dec397f6394d02f7e91008c44c310131b"
+      },
+      "process_observed": true,
+      "process_evidence": [
+        {
+          "pid": 2434267,
+          "etimes": 177715,
+          "matched_component": "live_binance_liquidations.py",
+          "command_redacted": "live_binance_liquidations.py"
+        }
+      ],
+      "preservation_rule": "preserve_behavior_first",
+      "enhancement_gate": "parity_tests_and_codex_review_required"
+    },
+    {
+      "component": "liquidation_bridge.py",
+      "relative_path": "ingest/liquidation_bridge.py",
+      "source_found": true,
+      "source_type": "live",
+      "source": {
+        "path": "/home/wali/Desktop/AI BOT/ingest/liquidation_bridge.py",
+        "size_bytes": 6327,
+        "sha256": "5d70e395938228b61162b531310cd751403ddfeebb8920429e73cdcdbe35d48a"
+      },
+      "process_observed": true,
+      "process_evidence": [
+        {
+          "pid": 2434272,
+          "etimes": 177715,
+          "matched_component": "liquidation_bridge.py",
+          "command_redacted": "liquidation_bridge.py"
+        }
+      ],
+      "preservation_rule": "preserve_behavior_first",
+      "enhancement_gate": "parity_tests_and_codex_review_required"
+    },
+    {
+      "component": "liquidation_levels_engine.py",
+      "relative_path": "ingest/liquidation_levels_engine.py",
+      "source_found": true,
+      "source_type": "live",
+      "source": {
+        "path": "/home/wali/Desktop/AI BOT/ingest/liquidation_levels_engine.py",
+        "size_bytes": 18539,
+        "sha256": "fed3c90b5193c27d24dc183089730bda49ff69a1758b597e23a154397f839df7"
+      },
+      "process_observed": true,
+      "process_evidence": [
+        {
+          "pid": 2434277,
+          "etimes": 177715,
+          "matched_component": "liquidation_levels_engine.py",
+          "command_redacted": "liquidation_levels_engine.py"
+        }
+      ],
+      "preservation_rule": "preserve_behavior_first",
+      "enhancement_gate": "parity_tests_and_codex_review_required"
+    },
+    {
+      "component": "realtime_price_provider.py",
+      "relative_path": "ingest/realtime_price_provider.py",
+      "source_found": true,
+      "source_type": "live",
+      "source": {
+        "path": "/home/wali/Desktop/AI BOT/ingest/realtime_price_provider.py",
+        "size_bytes": 45009,
+        "sha256": "dfdc2568368c134b9afcc4fa0faff312cc93a6ecc501ecaac747e7c20d7344ba"
+      },
+      "process_observed": true,
+      "process_evidence": [
+        {
+          "pid": 2434282,
+          "etimes": 177715,
+          "matched_component": "realtime_price_provider.py",
+          "command_redacted": "realtime_price_provider.py"
+        }
+      ],
+      "preservation_rule": "preserve_behavior_first",
+      "enhancement_gate": "parity_tests_and_codex_review_required"
+    },
+    {
+      "component": "live_coinank_global_aggregator.py",
+      "relative_path": "ingest/live_coinank_global_aggregator.py",
+      "source_found": true,
+      "source_type": "live",
+      "source": {
+        "path": "/home/wali/Desktop/AI BOT/ingest/live_coinank_global_aggregator.py",
+        "size_bytes": 13959,
+        "sha256": "046d5fd84bbf79fcf477155374997409b5482125c08d86a7c151c257f7a14d62"
+      },
+      "process_observed": true,
+      "process_evidence": [
+        {
+          "pid": 2435742,
+          "etimes": 177656,
+          "matched_component": "live_coinank_global_aggregator.py",
+          "command_redacted": "live_coinank_global_aggregator.py"
+        }
+      ],
+      "preservation_rule": "preserve_behavior_first",
+      "enhancement_gate": "parity_tests_and_codex_review_required"
+    },
+    {
+      "component": "ingest.live_coinapi_wsds",
+      "relative_path": "ingest/live_coinapi_wsds.py",
+      "source_found": true,
+      "source_type": "live",
+      "source": {
+        "path": "/home/wali/Desktop/AI BOT/ingest/live_coinapi_wsds.py",
+        "size_bytes": 77253,
+        "sha256": "a6973d887d1c52a4bb48f3b6f222b04e97d92e500ab889e94d6026cf504471b6"
+      },
+      "process_observed": true,
+      "process_evidence": [
+        {
+          "pid": 2435747,
+          "etimes": 177656,
+          "matched_component": "ingest.live_coinapi_wsds",
+          "command_redacted": "ingest.live_coinapi_wsds"
+        }
+      ],
+      "preservation_rule": "preserve_behavior_first",
+      "enhancement_gate": "parity_tests_and_codex_review_required"
+    },
+    {
+      "component": "ingest.live_coinapi_v1",
+      "relative_path": "ingest/live_coinapi_v1.py",
+      "source_found": true,
+      "source_type": "live",
+      "source": {
+        "path": "/home/wali/Desktop/AI BOT/ingest/live_coinapi_v1.py",
+        "size_bytes": 28497,
+        "sha256": "c8ca17d21b972510b92c4e84c477cd3440b3cfd1e2ec8e7411624a7454cee280"
+      },
+      "process_observed": true,
+      "process_evidence": [
+        {
+          "pid": 3451261,
+          "etimes": 119134,
+          "matched_component": "ingest.live_coinapi_v1",
+          "command_redacted": "ingest.live_coinapi_v1"
+        },
+        {
+          "pid": 3451263,
+          "etimes": 119134,
+          "matched_component": "ingest.live_coinapi_v1",
+          "command_redacted": "ingest.live_coinapi_v1"
+        }
+      ],
+      "preservation_rule": "preserve_behavior_first",
+      "enhancement_gate": "parity_tests_and_codex_review_required"
+    },
+    {
+      "component": "ohlcv_resampler_hotfix.py",
+      "relative_path": "ohlcv_resampler_hotfix.py",
+      "source_found": true,
+      "source_type": "live",
+      "source": {
+        "path": "/home/wali/Desktop/AI BOT/ohlcv_resampler_hotfix.py",
+        "size_bytes": 8795,
+        "sha256": "b83edf60a7d0db51556752cdcf9d713ee9d7175d05b26a6ce6c2235d214f4239"
+      },
+      "process_observed": true,
+      "process_evidence": [
+        {
+          "pid": 2434939,
+          "etimes": 177682,
+          "matched_component": "ohlcv_resampler_hotfix.py",
+          "command_redacted": "ohlcv_resampler_hotfix.py"
+        }
+      ],
+      "preservation_rule": "preserve_behavior_first",
+      "enhancement_gate": "parity_tests_and_codex_review_required"
+    },
+    {
+      "component": "feature_pipeline.py",
+      "relative_path": "feature_pipeline.py",
+      "source_found": true,
+      "source_type": "live",
+      "source": {
+        "path": "/home/wali/Desktop/AI BOT/feature_pipeline.py",
+        "size_bytes": 69156,
+        "sha256": "143938e735342179105155a12c50d7c495bdd1c16d570586cb369d03d7d4b2e8"
+      },
+      "process_observed": true,
+      "process_evidence": [
+        {
+          "pid": 2435072,
+          "etimes": 177680,
+          "matched_component": "feature_pipeline.py",
+          "command_redacted": "feature_pipeline.py"
+        }
+      ],
+      "preservation_rule": "preserve_behavior_first",
+      "enhancement_gate": "parity_tests_and_codex_review_required"
+    },
+    {
+      "component": "live_technical_analysis.py",
+      "relative_path": "ingest/live_technical_analysis.py",
+      "source_found": true,
+      "source_type": "live",
+      "source": {
+        "path": "/home/wali/Desktop/AI BOT/ingest/live_technical_analysis.py",
+        "size_bytes": 6103,
+        "sha256": "5cdd4ea1d43271d0199e1ca92ecad3a8b76308838898a611df6ef4602f7388ac"
+      },
+      "process_observed": true,
+      "process_evidence": [
+        {
+          "pid": 2435730,
+          "etimes": 177656,
+          "matched_component": "live_technical_analysis.py",
+          "command_redacted": "live_technical_analysis.py"
+        }
+      ],
+      "preservation_rule": "preserve_behavior_first",
+      "enhancement_gate": "parity_tests_and_codex_review_required"
+    }
+  ],
+  "live_coinank_copy": {
+    "source_type": "live",
+    "source": {
+      "path": "/home/wali/Desktop/AI BOT/ingest/live_coinank.py",
+      "size_bytes": 113571,
+      "sha256": "7842fc2995c5d802d272dbaa45866a4e6f0fbc22cfabc4b84d58fc0ef37abfef"
+    },
+    "copied": {
+      "path": "v2/legacy_preserved/ingestors/live_coinank.py",
+      "size_bytes": 113571,
+      "sha256": "7842fc2995c5d802d272dbaa45866a4e6f0fbc22cfabc4b84d58fc0ef37abfef"
+    },
+    "hash_match": true,
+    "copy_mode": "as_is_no_behavior_change"
+  }
+}

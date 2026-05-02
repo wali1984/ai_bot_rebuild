@@ -1,0 +1,56 @@
+{
+  "task_id": "030_legacy_ingestor_copy_and_hash_inventory",
+  "agent": "system_check",
+  "risk_level": "L2",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": false,
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/ingestors/",
+    "v2/legacy_preserved/ingestors/"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/ingestors/00_SCOPE.md",
+    "claude_worklog/phase2_core_rebuild/ingestors/01_INGESTOR_COPY_HASH_INVENTORY.json",
+    "claude_worklog/phase2_core_rebuild/ingestors/02_LIVE_COINANK_COPY_VERIFICATION.md",
+    "claude_worklog/phase2_core_rebuild/ingestors/03_CONFIG_SYMBOL_SOURCE_MAP.md",
+    "claude_worklog/phase2_core_rebuild/ingestors/04_GO_NO_GO.md",
+    "v2/legacy_preserved/ingestors/live_coinank.py"
+  ],
+  "depends_on": [],
+  "max_attempts": 1,
+  "priority": 0,
+  "auto_commit": false,
+  "command": "python3 claude_worklog/tools/phase2_ingestor_copy_hash_inventory.py",
+  "safety_boundary": {
+    "forbidden_writes": [
+      "../AI BOT/**",
+      "/home/wali/Desktop/AI BOT/**",
+      "**/.env",
+      "**/secrets/**",
+      "claude_worklog/agent_supervisor/state/**",
+      "claude_worklog/agent_supervisor/status/**",
+      "claude_worklog/agent_supervisor/runs/**"
+    ],
+    "forbidden_runtime_actions": [
+      "run_legacy_ingestors",
+      "write_legacy_redis",
+      "delete_redis_keys",
+      "restart_legacy_services",
+      "place_or_cancel_orders",
+      "enable_live_trading",
+      "deploy",
+      "production_migration"
+    ],
+    "live_trading_default": "BLOCKED",
+    "legacy_bot_access": "READ_ONLY"
+  },
+  "phase2_requirements": [
+    "live_coinank.py copied as-is with matching hash",
+    "all listed ingestors inventoried and hash-recorded",
+    "feature_pipeline.py treated as parity-critical",
+    "no ingestor enhancement before parity tests"
+  ],
+  "go_no_go_marker": "PHASE2_INGESTOR_PRESERVATION_READY",
+  "next_recommended_action": "If GO, run Codex review for Phase 2A ingestor preservation before building adapters."
+}
