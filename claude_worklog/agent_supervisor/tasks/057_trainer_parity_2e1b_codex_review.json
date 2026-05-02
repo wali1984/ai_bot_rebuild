@@ -1,0 +1,35 @@
+{
+  "task_id": "057_trainer_parity_2e1b_codex_review",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending_predecessor",
+  "predecessor_task_ids": [
+    "056_trainer_parity_2e1b_implementation",
+    "058_trainer_parity_2e1b_local_validation"
+  ],
+  "predecessor_required_markers": [
+    {
+      "task_id": "056_trainer_parity_2e1b_implementation",
+      "marker": "PHASE2E1B_TRAINER_PARITY_IMPL_READY_FOR_CODEX_REVIEW",
+      "marker_file": "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/32_2E1B_GO_NO_GO.md"
+    },
+    {
+      "task_id": "058_trainer_parity_2e1b_local_validation",
+      "marker": "PHASE2E1B_LOCAL_VALIDATION_PASSED",
+      "marker_file": "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/38_2E1B_VALIDATION_GO_NO_GO.md"
+    }
+  ],
+  "predecessor_required_marker": "PHASE2E1B_LOCAL_VALIDATION_PASSED",
+  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/38_2E1B_VALIDATION_GO_NO_GO.md",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/33_2E1B_CODEX_REVIEW.md",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/34_2E1B_CODEX_GO_NO_GO.md"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD reviewing the Phase 2E1.B trainer parity domain implementation. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart any service. Do not enable live trading. Do not run the live trainer. Do not modify any source file under v2/.\n\nReview surface:\n- v2/backend/app/domain/trainer_parity/ (eight files)\n- v2/backend/tests/unit/domain/trainer_parity/ (eleven files)\n- claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/30_2E1B_IMPLEMENTATION_REPORT.md\n- claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/31_2E1B_TEST_INVOCATION_LOG.md (operator run result must be present and PASSED)\n- claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/37_2E1B_VALIDATION_RUN_LOG.md\n- claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/38_2E1B_VALIDATION_GO_NO_GO.md (must read PHASE2E1B_LOCAL_VALIDATION_PASSED)\n\nBinding specs (revised — read the revised versions only):\n- 26_PHASE_2E1B_DOMAIN_RECORD_SPEC.md (revised)\n- 27_PHASE_2E1B_TEST_PLAN.md (revised)\n- 28_PHASE_2E1B_SAFETY_BOUNDARIES.md\n- 35_PLANNER_PHASE_2E1B_SPEC_REVISION_NOTE.md (revision rationale)\n\nPredecessor confirmation (perform first):\n- Confirm 32_2E1B_GO_NO_GO.md contains PHASE2E1B_TRAINER_PARITY_IMPL_READY_FOR_CODEX_REVIEW.\n- Confirm 38_2E1B_VALIDATION_GO_NO_GO.md contains PHASE2E1B_LOCAL_VALIDATION_PASSED.\n- Confirm 31_2E1B_TEST_INVOCATION_LOG.md '## Operator Run Result' section records a passing pytest summary line and PHASE2E1B_LOCAL_VALIDATION_PASSED.\nIf any predecessor confirmation fails, write PHASE2E1B_TRAINER_PARITY_IMPL_CODEX_FAIL with reason 'predecessor markers not satisfied' and stop.\n\nRequired checks (each must explicitly pass or fail):\n1. Field set, type, and ordering of StageATrainerRecord match the revised spec exactly, including the `freshness_metadata: FreshnessMetadata` field positioned between `feature_status_flags` and `feature_freshness_envelope`, and the retained `symbol: str` field at position 3.\n2. Field set, type, and ordering of StageBTrainerRecord match the spec exactly.\n3. ConfidenceExplainability fields match the spec exactly. ConfidenceExplainability is NOT re-exported from the package __init__.\n4. FeatureStatusFlags, FeatureFreshnessEnvelope, and FreshnessMetadata shape and invariants match the spec. Specifically, FreshnessMetadata uses the closed status set {\"fresh\", \"warning\", \"stale\", \"missing\"} held in a private _ALLOWED_FRESHNESS_STATUSES constant; the three per-feature tuples cover the same feature-name set; all_three_empty is rejected.\n5. All dataclasses are frozen=True, slots=True.\n6. validate_stage_a_lineage and validate_stage_b_lineage signatures and edge checks match the spec, including the four reason strings for the four stage_b lineage edges.\n7. validate_stage_a_explainability checks match the spec.\n8. TrainerParityLineageError(ValueError) signature matches spec.\n9. __init__.py exports exactly the nine named symbols, no more, no fewer: StageATrainerRecord, StageBTrainerRecord, FeatureStatusFlags, FeatureFreshnessEnvelope, FreshnessMetadata, validate_stage_a_lineage, validate_stage_b_lineage, validate_stage_a_explainability, TrainerParityLineageError. ConfidenceExplainability is intentionally NOT re-exported.\n10. Forbidden-import audit: grep each module and each test for: redis, aioredis, subprocess, socket, urllib, requests, httpx, aiohttp, torch, tensorflow, legacy_reference, v2.backend.app.adapters.trainer, os.environ, time.time, datetime.now, datetime.utcnow. Report each grep result. Independently re-run the grep — do not rely solely on the validation log.\n11. The implementation log records the pytest summary line and shows zero failures, zero errors, zero warnings. The operator run result in 31_2E1B_TEST_INVOCATION_LOG.md and the validation run log 37_2E1B_VALIDATION_RUN_LOG.md must be internally consistent.\n12. No file outside the allowed write prefixes was created or modified.\n13. No legacy file was modified.\n14. Public surface test exists and exercises the full nine-name export.\n15. No code path performs file, network, subprocess, or environment access.\n16. The new freshness_metadata.py module is per-feature (not per-source) and is not collapsed into FeatureFreshnessEnvelope; the two value objects coexist on Stage A.\n\nOutput exactly two BEGIN_FILE blocks:\n- 33_2E1B_CODEX_REVIEW.md — the structured review with each numbered check, raw grep results, predecessor confirmation results, and a confidence statement.\n- 34_2E1B_CODEX_GO_NO_GO.md — exactly one line: PHASE2E1B_TRAINER_PARITY_IMPL_CODEX_PASS or PHASE2E1B_TRAINER_PARITY_IMPL_CODEX_FAIL.",
+  "next_recommended_action": "If PASS, mark Phase 2E1.B complete and dispatch master planner for Phase 2E1.C selection. If FAIL, dispatch a remediation task in the Phase 2E1.B family within REQ_0007 autofix scope before re-review."
+}

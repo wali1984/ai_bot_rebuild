@@ -1,0 +1,39 @@
+{
+  "task_id": "056_trainer_parity_2e1b_implementation",
+  "agent": "claude",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "v2/backend/app/domain/trainer_parity/",
+    "v2/backend/tests/unit/domain/trainer_parity/",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/"
+  ],
+  "required_output_files": [
+    "v2/backend/app/domain/trainer_parity/__init__.py",
+    "v2/backend/app/domain/trainer_parity/errors.py",
+    "v2/backend/app/domain/trainer_parity/feature_status_flags.py",
+    "v2/backend/app/domain/trainer_parity/freshness_metadata.py",
+    "v2/backend/app/domain/trainer_parity/stage_a_record.py",
+    "v2/backend/app/domain/trainer_parity/stage_b_record.py",
+    "v2/backend/app/domain/trainer_parity/lineage_validator.py",
+    "v2/backend/app/domain/trainer_parity/explainability_validator.py",
+    "v2/backend/tests/unit/domain/trainer_parity/__init__.py",
+    "v2/backend/tests/unit/domain/trainer_parity/conftest.py",
+    "v2/backend/tests/unit/domain/trainer_parity/test_stage_a_record_invariants.py",
+    "v2/backend/tests/unit/domain/trainer_parity/test_stage_b_record_invariants.py",
+    "v2/backend/tests/unit/domain/trainer_parity/test_feature_status_flags.py",
+    "v2/backend/tests/unit/domain/trainer_parity/test_feature_freshness_envelope.py",
+    "v2/backend/tests/unit/domain/trainer_parity/test_freshness_metadata.py",
+    "v2/backend/tests/unit/domain/trainer_parity/test_lineage_validator_stage_a.py",
+    "v2/backend/tests/unit/domain/trainer_parity/test_lineage_validator_stage_b.py",
+    "v2/backend/tests/unit/domain/trainer_parity/test_explainability_validator.py",
+    "v2/backend/tests/unit/domain/trainer_parity/test_public_surface.py",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/30_2E1B_IMPLEMENTATION_REPORT.md",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/31_2E1B_TEST_INVOCATION_LOG.md",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/32_2E1B_GO_NO_GO.md"
+  ],
+  "prompt": "You are local Claude in /home/wali/Desktop/AI BOT REBUILD acting as the Phase 2E1.B implementer for REQ_0006 (V2 trainer GPU parity service). Do not touch /home/wali/Desktop/AI BOT. Do not import or run legacy modules. Do not write Redis. Do not start any subprocess. Do not perform any I/O from the new domain modules. Do not enable live trading. Do not deploy. Do not expose secrets.\n\nRead exactly these spec files first and follow them as authoritative. The spec was revised by the planner; the revised versions are the only binding versions:\n- claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/26_PHASE_2E1B_DOMAIN_RECORD_SPEC.md (revised)\n- claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/27_PHASE_2E1B_TEST_PLAN.md (revised)\n- claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/28_PHASE_2E1B_SAFETY_BOUNDARIES.md\n- claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/35_PLANNER_PHASE_2E1B_SPEC_REVISION_NOTE.md\n- claude_worklog/phase2_core_rebuild/trainer_gpu_parity/06_TRAINER_OUTPUT_CONTRACT_AND_LINEAGE_IDS.md\n- claude_worklog/phase2_core_rebuild/trainer_gpu_parity/04_REWARD_AND_CONFIDENCE_PARITY_MAP.md\n- claude_worklog/v2_requirements/02_FEATURE_SNAPSHOT_SCHEMA.md\n- claude_worklog/v2_requirements/03_PREDICTION_SIGNAL_DECISION_ID_CHAIN.md\n\nImplement the following exact module set under v2/backend/app/domain/trainer_parity/:\n  __init__.py, errors.py, feature_status_flags.py, freshness_metadata.py, stage_a_record.py, stage_b_record.py, lineage_validator.py, explainability_validator.py\n\nAuthor the matching unit tests under v2/backend/tests/unit/domain/trainer_parity/ exactly as enumerated in the test plan, including test_freshness_metadata.py.\n\nMechanical constraints:\n- All dataclasses must be @dataclass(frozen=True, slots=True).\n- No subprocess, redis, socket, torch, tensorflow, requests, httpx, aiohttp, urllib, or os.environ imports anywhere in the new modules or new tests.\n- No reads of time.time(), datetime.now(), or datetime.utcnow() inside the new modules.\n- No imports of legacy_reference.*, no path injection to /home/wali/Desktop/AI BOT, and no import of v2.backend.app.adapters.trainer.*.\n- __init__.py exports exactly these nine names: StageATrainerRecord, StageBTrainerRecord, FeatureStatusFlags, FeatureFreshnessEnvelope, FreshnessMetadata, validate_stage_a_lineage, validate_stage_b_lineage, validate_stage_a_explainability, TrainerParityLineageError. No others. ConfidenceExplainability is NOT re-exported from __init__.\n- FreshnessMetadata closed status set is exactly {\"fresh\", \"warning\", \"stale\", \"missing\"} and is held in a private module constant _ALLOWED_FRESHNESS_STATUSES.\n- Stage A field order matches the revised spec: prediction_id, feature_snapshot_id, symbol, model_version, checkpoint_id, prediction_ts_ms, confidence_raw, confidence_calibrated, confidence_explainability, top_positive_features, top_negative_features, source_key_references, feature_status_flags, freshness_metadata, feature_freshness_envelope, worker_id, worker_health_status.\n\nThen run: pytest v2/backend/tests/unit/domain/trainer_parity/ -q\n\nProduce:\n1. The eight module files and eleven test files as listed.\n2. 30_2E1B_IMPLEMENTATION_REPORT.md — written list of files created, summary of validators implemented, restate of forbidden-import audit findings (grep results showing zero hits for each forbidden import token), and explicit confirmation that the public surface contains exactly the nine names.\n3. 31_2E1B_TEST_INVOCATION_LOG.md — exact pytest command, exact summary line, must record zero failures, zero errors, zero warnings.\n4. 32_2E1B_GO_NO_GO.md — exactly one line: PHASE2E1B_TRAINER_PARITY_IMPL_READY_FOR_CODEX_REVIEW or PHASE2E1B_TRAINER_PARITY_IMPL_BLOCKED.\n\nIf any test fails, any forbidden import is present, the public surface size is not nine, or any safety boundary is violated, write PHASE2E1B_TRAINER_PARITY_IMPL_BLOCKED and explain in the implementation report which boundary failed. Do not proceed past a violation.\n\nOutput format: BEGIN_FILE / END_FILE blocks only.",
+  "next_recommended_action": "Dispatch task 057 (Codex review of 2E1.B) only after 32_2E1B_GO_NO_GO.md contains PHASE2E1B_TRAINER_PARITY_IMPL_READY_FOR_CODEX_REVIEW."
+}
