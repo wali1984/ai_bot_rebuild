@@ -1,0 +1,17 @@
+{
+  "task_id": "031_codex_review_phase2_symbol_universe",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/symbol_universe/"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/symbol_universe/07_CODEX_REVIEW.md",
+    "claude_worklog/phase2_core_rebuild/symbol_universe/08_CODEX_GO_NO_GO.md"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Review Phase 2B dynamic futures symbol universe foundation only. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not place/cancel orders. Do not enable live trading. Do not create implementation beyond review artifacts. Inputs: v2/backend/app/domain/symbols, v2/backend/app/services/symbol_universe, v2/backend/app/adapters/symbol_sources, v2/backend/tests/unit/symbol_universe, v2/backend/tests/fixtures/symbol_universe, claude_worklog/phase2_core_rebuild/symbol_universe. Verify: all Binance COIN-M futures discovery is represented through /dapi/v1/exchangeInfo parsing, tests use fixture data only, legacy config 25 symbols are treated as active subset not full universe, canonical symbol identity and alias resolver exist, CoinAnk/KuCoin/CoinAPI alias adapters exist, state machine and manual overrides exist, hot reload contract exists, live trading remains blocked, no legacy bot mutation, no Redis writes, no secrets. Output exactly two BEGIN_FILE blocks. The GO/NO-GO file must contain exactly one line: PHASE2_SYMBOL_UNIVERSE_CODEX_REVIEW_PASS or PHASE2_SYMBOL_UNIVERSE_CODEX_REVIEW_FAIL.",
+  "next_recommended_action": "If pass, proceed to Phase 2C feature snapshot / attribution pipeline. If fail, remediate and re-review."
+}
