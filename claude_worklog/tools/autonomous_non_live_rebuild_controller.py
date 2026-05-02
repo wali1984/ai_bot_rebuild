@@ -550,7 +550,26 @@ def ensure_codex_review(task_id: str) -> str:
     append_event("codex_review_started", task_id=review_id)
     result = run_supervisor_task(review_id)
     if result.get("status") != "completed":
-        raise ControllerStop(f"Codex review {review_id} did not complete: {result.get('summary')}")
+        materialized = materialize_stdout(review_id, ["claude_worklog/v2_scaffold_reviews/"])
+        if materialized:
+            append_event("milestone_recovered", task_id=review_id, reason="codex_stdout_materialized", files=materialized)
+        else:
+            raise ControllerStop(f"Codex review {review_id} did not complete: {result.get('summary')}")
+    expected_go = WORKSPACE / marker_file
+    if not expected_go.exists():
+        candidates = sorted((WORKSPACE / "claude_worklog/v2_scaffold_reviews").glob(f"{review_id.split('_')[0]}*GO_NO_GO*"))
+        for candidate in candidates:
+            text = candidate.read_text(encoding="utf-8", errors="ignore")
+            if str(meta["review_marker"]) in text or str(meta["review_fail"]) in text:
+                expected_go.write_text(
+                    "\n".join(
+                        ln.strip() for ln in text.splitlines()
+                        if ln.strip() in {str(meta["review_marker"]), str(meta["review_fail"])}
+                    ).strip() + "\n",
+                    encoding="utf-8",
+                )
+                append_event("milestone_recovered", task_id=review_id, reason="codex_go_no_go_filename_normalized", source=rel(candidate))
+                break
     # Strip accidental END_FILE marker variants from review files.
     for f in meta["review_files"]:
         p = WORKSPACE / str(f)
