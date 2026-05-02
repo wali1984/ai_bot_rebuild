@@ -143,6 +143,15 @@ Local validation invocation is recorded in
 failures, zero errors, zero warnings under
 `pytest v2/backend/tests/unit/domain/trainer_parity/ -q`.
 
+The local operator validation run completed with the exact pytest
+summary:
+
+```text
+83 passed in 0.05s
+```
+
+The run completed with zero failures, zero errors, and zero warnings.
+
 ## Safety result
 
 No live trainer was started, no Redis client was constructed, no legacy

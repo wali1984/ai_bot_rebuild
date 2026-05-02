@@ -3,15 +3,11 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 from typing import Callable
 
 import pytest
 
-for parent in Path(__file__).resolve().parents:
-    if (parent / "v2").is_dir():
-        sys.path.insert(0, str(parent))
-        break
+sys.path.insert(0, "")
 
 from v2.backend.app.domain.trainer_parity.feature_status_flags import (
     FeatureFreshnessEnvelope,
