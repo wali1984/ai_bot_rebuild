@@ -4,10 +4,8 @@ import hashlib
 
 import pytest
 
-from v2.backend.app.adapters.trainer import (
-    SubprocessRunResult,
-    TrainerSubprocessMode,
-)
+from v2.backend.app.adapters.trainer import TrainerSubprocessMode
+from v2.backend.app.adapters.trainer.subprocess_adapter import SubprocessRunResult
 
 
 def test_invoke_emits_exactly_one_audit_event_on_success(
@@ -40,8 +38,16 @@ def test_invoke_audit_event_carries_start_and_end_ts_from_clock_ms(
         end_ts_ms=222,
     )
     adapter.invoke(task_id="task1", mode=TrainerSubprocessMode.STATUS)
+    # The conftest clock_ms fixture iterates [1000, 2000, 3000, ...].
+    # The adapter must call clock_ms once before the runner returns
+    # (start_ts_ms == 1000) and once after the runner returns
+    # (end_ts_ms == 2000). The runner-supplied end_ts_ms (222) must
+    # NOT leak into the audit event; this guards the Phase 2E1.A
+    # spec rule that audit timing is adapter-clock-sourced on every
+    # path including success.
     assert audit_capture[0].start_ts_ms == 1000
-    assert audit_capture[0].end_ts_ms == 222
+    assert audit_capture[0].end_ts_ms == 2000
+    assert audit_capture[0].end_ts_ms != 222
 
 
 def test_invoke_audit_event_carries_stdout_and_stderr_digests(

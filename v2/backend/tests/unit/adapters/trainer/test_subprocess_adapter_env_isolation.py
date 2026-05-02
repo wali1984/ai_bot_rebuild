@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from v2.backend.app.adapters.trainer import TrainerSubprocessMode, to_dict
+from v2.backend.app.adapters.trainer import TrainerSubprocessMode
+from v2.backend.app.adapters.trainer.audit_emitter import to_dict
 
 
 def test_invoke_does_not_pass_through_os_environ(

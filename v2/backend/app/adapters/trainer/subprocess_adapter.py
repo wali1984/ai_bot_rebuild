@@ -154,12 +154,13 @@ class SubprocessTrainerAdapter:
             )
             raise
 
+        end_ts_ms = int(self._clock_ms())
         self._emit_audit(
             task_id=task_id,
             mode=mode,
             pid=result.pid,
             start_ts_ms=start_ts_ms,
-            end_ts_ms=result.end_ts_ms,
+            end_ts_ms=end_ts_ms,
             returncode=result.returncode,
             stdout=result.stdout,
             stderr=result.stderr,

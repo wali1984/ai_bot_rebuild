@@ -1,4 +1,5 @@
-from v2.backend.app.adapters.trainer import ALLOWED_MODES, TrainerSubprocessMode
+from v2.backend.app.adapters.trainer import TrainerSubprocessMode
+from v2.backend.app.adapters.trainer.modes import ALLOWED_MODES
 
 
 def test_modes_enum_membership_is_exactly_three():

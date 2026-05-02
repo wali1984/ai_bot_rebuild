@@ -15,10 +15,10 @@ for parent in Path(__file__).resolve().parents:
         break
 
 from v2.backend.app.adapters.trainer import (
-    SubprocessRunResult,
     SubprocessTrainerAdapter,
     TrainerSubprocessAuditEvent,
 )
+from v2.backend.app.adapters.trainer.subprocess_adapter import SubprocessRunResult
 
 
 @dataclass
