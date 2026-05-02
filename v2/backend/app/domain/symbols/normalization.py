@@ -151,9 +151,15 @@ def resolve_symbol_alias(source_symbol: str, source: str, identities: Iterable[S
 def match_cross_source_symbol(identity_a: SymbolIdentity, identity_b: SymbolIdentity) -> str:
     if identity_a.canonical_symbol_id == identity_b.canonical_symbol_id:
         return NormalizationConfidence.HIGH.value
+    same_base_quote = identity_a.base_asset == identity_b.base_asset and identity_a.quote_asset == identity_b.quote_asset
+    if same_base_quote and (
+        identity_a.contract_type != identity_b.contract_type
+        or identity_a.contract_family != identity_b.contract_family
+        or identity_a.settlement_asset != identity_b.settlement_asset
+    ):
+        return "none"
     same_contract = (
-        identity_a.base_asset == identity_b.base_asset
-        and identity_a.quote_asset == identity_b.quote_asset
+        same_base_quote
         and identity_a.settlement_asset == identity_b.settlement_asset
         and identity_a.contract_type == identity_b.contract_type
         and identity_a.contract_family == identity_b.contract_family
@@ -167,6 +173,6 @@ def match_cross_source_symbol(identity_a: SymbolIdentity, identity_b: SymbolIden
     )
     if same_market:
         return NormalizationConfidence.MEDIUM.value
-    if set(identity_a.alias_set) & set(identity_b.alias_set):
+    if identity_a.contract_type == identity_b.contract_type and identity_a.contract_family == identity_b.contract_family and set(identity_a.alias_set) & set(identity_b.alias_set):
         return NormalizationConfidence.LOW.value
     return "none"
