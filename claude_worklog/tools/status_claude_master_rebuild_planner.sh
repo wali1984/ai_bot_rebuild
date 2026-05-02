@@ -30,10 +30,14 @@ import json
 from pathlib import Path
 
 root = Path("claude_worklog/requirements_inbox")
+status_path = Path("claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json")
 processed_path = Path("claude_worklog/agent_supervisor/runtime/master_planner/processed_requirements.json")
-processed = {}
+processed = set()
+if status_path.exists():
+    status = json.loads(status_path.read_text())
+    processed.update(status.get("processed_requirements") or [])
 if processed_path.exists():
-    processed = (json.loads(processed_path.read_text()).get("processed") or {})
+    processed.update((json.loads(processed_path.read_text()).get("processed") or {}).keys())
 
 for p in sorted(root.glob("REQ_*.md")):
     if p.name not in processed:
