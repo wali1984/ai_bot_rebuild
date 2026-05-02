@@ -128,16 +128,20 @@
     "hash_chain_link": "prior_event_hash + this_event_payload -> event_hash; chain head verified at task start; chain break freezes the queue"
   },
   "go_no_go_marker": "B_SCAFFOLD_VALIDATION_READY",
-  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not place/cancel orders. Do not import legacy trainer modules into the FastAPI process; subprocess boundary only. Do not pip install into the trainer venv. Materialize the V2 repo/package skeleton EXACTLY as specified by claude_worklog/v2_scaffold_planning/02_PACKAGE_AND_MODULE_MAP.md. Create empty packages with __init__.py for every path listed there. Create pyproject.toml, package.json, tsconfig.json, alembic.ini at v2/. NO runtime behavior: app/main.py registers routers but performs no I/O at import; settings.py reads env via pydantic-settings only; no router has handler bodies. Frontend: package.json + tsconfig.json + vite.config.ts only; no pages yet. Migrations harness only; no Alembic versions. Produce claude_worklog/v2_build/B_SCAFFOLD_VALIDATION.md ending in exactly the line B_SCAFFOLD_VALIDATION_READY or B_SCAFFOLD_VALIDATION_BLOCKED. Output BEGIN_FILE blocks only.",
-  "next_recommended_action": "Do not run automatically. Wait for Codex queue pass and explicit human approval.",
+  "prompt": "You are running in headless/non-interactive Claude Code mode. Do not use tools. Do not write files directly. Do not ask for write permission. Print BEGIN_FILE / END_FILE blocks only. Do not include text outside file blocks. You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not place/cancel orders. Do not import legacy trainer modules into the FastAPI process; subprocess boundary only. Do not pip install into the trainer venv. Materialize the V2 repo/package skeleton EXACTLY as specified by claude_worklog/v2_scaffold_planning/02_PACKAGE_AND_MODULE_MAP.md. Create empty packages with __init__.py for every path listed there. Create pyproject.toml, package.json, tsconfig.json, alembic.ini at v2/. NO runtime behavior: app/main.py registers routers but performs no I/O at import; settings.py reads env via pydantic-settings only; no router has handler bodies. Frontend: package.json + tsconfig.json + vite.config.ts only; no pages yet. Migrations harness only; no Alembic versions. Produce claude_worklog/v2_build/B_SCAFFOLD_VALIDATION.md ending in exactly the line B_SCAFFOLD_VALIDATION_READY or B_SCAFFOLD_VALIDATION_BLOCKED. Output BEGIN_FILE blocks only.",
+  "next_recommended_action": "Run 015A only through agent_supervisor. Do not run 015B-015F.",
   "normalized_from_artifact": false,
-  "status": "blocked_approval",
+  "status": "pending",
   "approval_required": true,
   "requires_human_approval": true,
   "do_not_autorun": true,
-  "blocked_reason": "Implementation scaffold task remains blocked until scaffold queue Codex review passes and user explicitly approves unblocking this individual task.",
+  "blocked_reason": null,
   "gates_required": [
     "V2_SCAFFOLD_QUEUE_CODEX_PASS",
     "HUMAN_APPROVAL_FOR_THIS_TASK"
-  ]
+  ],
+  "approval_file": "claude_worklog/approvals/APPROVE_UNBLOCK_015A_ONLY.md",
+  "approved_by_human": true,
+  "approval_marker": "APPROVED_UNBLOCK_015A_ONLY",
+  "unblocked_scope": "015A only; 015B-015F remain blocked_approval"
 }
