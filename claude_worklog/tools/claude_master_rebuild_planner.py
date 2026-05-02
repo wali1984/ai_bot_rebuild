@@ -1,44 +1,179 @@
 #!/usr/bin/env python3
-"""Claude Master Rebuild Planner entrypoint.
+"""Claude Master Rebuild Planner.
 
-This script prepares a bounded prompt for Claude to choose the next non-live
-rebuild milestone from repo evidence. It does not grant live permissions.
+Scans the requirements inbox, builds a bounded Claude planning prompt from repo
+evidence, and optionally runs one Claude planning cycle. The daemon mode keeps
+the requirement intake/status loop alive; it does not grant live permissions.
 """
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import pathlib
 import subprocess
-from typing import Dict
+import time
+from typing import Any, Dict, List
 
 
 WORKSPACE = pathlib.Path("/home/wali/Desktop/AI BOT REBUILD").resolve()
-STATUS = WORKSPACE / "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_status.json"
+INBOX = WORKSPACE / "claude_worklog/requirements_inbox"
+PROCESSED = WORKSPACE / "claude_worklog/agent_supervisor/runtime/master_planner/processed_requirements.json"
+STATUS = WORKSPACE / "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json"
 PROMPT_OUT = WORKSPACE / "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt"
 
 EVIDENCE_ROOTS = [
-    "legacy_reference",
-    "v2",
+    "claude_worklog/requirements_inbox",
     "claude_worklog/v2_requirements",
     "claude_worklog/v2_architecture",
     "claude_worklog/legacy_preservation",
     "claude_worklog/phase2_core_rebuild",
     "claude_worklog/legacy_runtime_audit",
+    "claude_worklog/secret_migration",
+    "v2",
+    "legacy_reference",
 ]
 
 
+def now_iso() -> str:
+    return dt.datetime.now(dt.timezone.utc).isoformat()
+
+
+def read_text(path: pathlib.Path, limit: int = 20000) -> str:
+    try:
+        return path.read_text(encoding="utf-8", errors="ignore")[:limit]
+    except Exception:
+        return ""
+
+
+def read_json(path: pathlib.Path) -> Dict[str, Any]:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def write_json(path: pathlib.Path, payload: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def git_last_commit() -> str:
+    cp = subprocess.run(["git", "log", "--oneline", "-1"], cwd=str(WORKSPACE), text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False)
+    return cp.stdout.strip()
+
+
+def git_status_short() -> str:
+    cp = subprocess.run(["git", "status", "--short"], cwd=str(WORKSPACE), text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False)
+    return cp.stdout.strip()
+
+
+def inbox_requirements() -> List[Dict[str, str]]:
+    INBOX.mkdir(parents=True, exist_ok=True)
+    reqs: List[Dict[str, str]] = []
+    for path in sorted(INBOX.glob("*.md")):
+        if path.name == "README.md":
+            continue
+        reqs.append({"name": path.name, "path": str(path.relative_to(WORKSPACE)), "text": read_text(path)})
+    return reqs
+
+
+def processed_requirements() -> Dict[str, Any]:
+    return read_json(PROCESSED) or {"processed": {}}
+
+
+def evidence_satisfied_requirements() -> Dict[str, str]:
+    satisfied: Dict[str, str] = {}
+
+    usdm_codex = read_text(WORKSPACE / "claude_worklog/phase2_core_rebuild/symbol_universe/12_CODEX_GO_NO_GO_USDM_CORRECTION.md", 2000)
+    if "PHASE2_SYMBOL_UNIVERSE_USDM_CORRECTION_CODEX_PASS" in usdm_codex:
+        satisfied["REQ_0001_BINANCE_USDM_PRIMARY.md"] = "phase2_usdm_correction_codex_pass"
+
+    coinank_policy = read_text(WORKSPACE / "claude_worklog/legacy_preservation/05_INGESTOR_AND_FEATURE_PIPELINE_PRESERVATION_MATRIX.md", 20000)
+    ingestor_go = read_text(WORKSPACE / "claude_worklog/phase2_core_rebuild/ingestors/04_GO_NO_GO.md", 2000)
+    if "INGESTOR_AND_FEATURE_PIPELINE_PRESERVATION_MATRIX_READY" in coinank_policy and "PHASE2_INGESTOR_PRESERVATION_READY" in ingestor_go:
+        satisfied["REQ_0003_LIVE_COINANK_COPY_AS_IS.md"] = "phase2_ingestor_preservation_ready"
+
+    service_map_codex = read_text(WORKSPACE / "claude_worklog/phase2_core_rebuild/legacy_service_map/13_CODEX_GO_NO_GO.md", 2000)
+    if "PHASE2_LEGACY_SERVICE_MAP_CODEX_PASS" in service_map_codex:
+        satisfied["REQ_0005_STARTUP_SCRIPT_RUNTIME_MAP_SOURCE_OF_TRUTH.md"] = "legacy_service_map_codex_pass"
+
+    return satisfied
+
+
+def effective_processed_requirements() -> Dict[str, Any]:
+    processed = dict(processed_requirements().get("processed") or {})
+    for name, reason in evidence_satisfied_requirements().items():
+        processed.setdefault(name, {"source": "existing_evidence", "reason": reason})
+    return processed
+
+
+def unprocessed_requirements() -> List[Dict[str, str]]:
+    processed = effective_processed_requirements()
+    return [req for req in inbox_requirements() if req["name"] not in processed]
+
+
+def context_summary() -> str:
+    markers = [
+        "claude_worklog/phase2_core_rebuild/symbol_universe/12_CODEX_GO_NO_GO_USDM_CORRECTION.md",
+        "claude_worklog/phase2_core_rebuild/feature_snapshots/07_CODEX_GO_NO_GO.md",
+        "claude_worklog/phase2_core_rebuild/legacy_service_map/13_CODEX_GO_NO_GO.md",
+        "claude_worklog/phase2_core_rebuild/ingestors/04_GO_NO_GO.md",
+        "claude_worklog/final_readiness/04_GO_NO_GO.md",
+    ]
+    lines = []
+    for rel in markers:
+        marker = read_text(WORKSPACE / rel, 1000).strip().splitlines()
+        if marker:
+            lines.append(f"- {rel}: {marker[0]}")
+    return "\n".join(lines)
+
+
+def choose_active_requirement(reqs: List[Dict[str, str]]) -> Dict[str, str] | None:
+    return reqs[0] if reqs else None
+
+
+def planned_task_for_requirement(requirement_name: str | None) -> str | None:
+    if requirement_name == "REQ_0002_COINANK_UPLOADED_SYMBOL_LIST.md":
+        return "042_coinank_uploaded_symbol_alias_fixture"
+    if requirement_name == "REQ_0004_TRAINER_GPU_PARITY.md":
+        return "050_trainer_gpu_parity_rebuild_plan"
+    return None
+
+
 def build_prompt() -> str:
-    return """You are Claude Code running as the Master Non-Live V2 Rebuild Planner.
+    reqs = unprocessed_requirements()
+    active = choose_active_requirement(reqs)
+    req_block = "\n\n".join(f"## {req['name']}\n{req['text']}" for req in reqs) or "No unprocessed requirements."
+    return f"""You are Claude Code running as the Master Non-Live V2 Rebuild Planner.
 
 Read the repo evidence roots:
-{roots}
+{chr(10).join(f"- {root}" for root in EVIDENCE_ROOTS)}
+
+Current gate markers:
+{context_summary() or "- none"}
+
+Unprocessed requirements inbox:
+{req_block}
+
+Active requirement:
+{active['name'] if active else '-'}
 
 Objective:
-- Determine the next safest non-live rebuild milestone.
-- Create task definitions, implementation outputs, validation reports, and Codex review tasks.
-- Remediate Codex findings automatically when safe.
-- Continue until final live gate.
+- Map requirements against legacy_reference, service map, preservation policies, V2 code, and current Phase 2 artifacts.
+- Decide the next safest non-live rebuild milestone yourself.
+- Generate task definitions, implementation outputs, validation reports, Codex review tasks, and remediation tasks as needed.
+- Execute through agent_supervisor where appropriate.
+- Validate, commit, push, request Codex review, remediate safe findings, and continue until a real safety gate.
+
+Required planner knowledge:
+- Binance USD-M is primary; `/fapi/v1/exchangeInfo`; BTCUSDT-style symbols are primary.
+- COIN-M is optional/future adapter support only and must not collapse with USD-M.
+- Uploaded CoinAnk symbol list is discovery/alias evidence, not directly tradable universe.
+- `live_coinank.py` is copy-as-is and must not be changed.
+- `feature_pipeline.py` is parity-critical.
+- Trainer/GPU behavior must be parity-rebuilt, not replaced with a basic trainer.
+- Legacy config.py 25 symbols are active subset only, not full universe.
 
 Hard stops:
 - Do not modify /home/wali/Desktop/AI BOT.
@@ -48,24 +183,79 @@ Hard stops:
 - Do not change leverage/margin.
 - Do not enable live trading.
 - Do not deploy.
+- Do not run production migrations.
 - Do not expose or commit secrets.
 - Stop on L4/L5, live/legacy/Redis/exchange/deploy/secrets, or Codex hard fail with no safe remediation.
 
-Preservation rules:
-- live_coinank.py remains copied as-is; do not alter behavior.
-- Other ingestors and feature_pipeline preserve behavior first; wrap/adapt before enhancement.
-- Trainer rebuild must preserve GPU/hybrid tuned behavior, checkpoint behavior, proposal/confidence/reward logic, and worker liveness assumptions.
-- Legacy config.py 25 symbols are active subset, not full V2 universe.
-
 Output policy:
-- Produce BEGIN_FILE blocks only when invoked through Claude.
+- Print BEGIN_FILE / END_FILE blocks only.
 - Keep every output inside AI BOT REBUILD.
-""".format(roots="\n".join(f"- {root}" for root in EVIDENCE_ROOTS))
+- Do not print secret values.
+"""
 
 
-def write_status(payload: Dict[str, object]) -> None:
-    STATUS.parent.mkdir(parents=True, exist_ok=True)
-    STATUS.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+def status_payload(mode: str, blocked_reason: str | None = None) -> Dict[str, Any]:
+    reqs = unprocessed_requirements()
+    active = choose_active_requirement(reqs)
+    payload = {
+        "generated_at": now_iso(),
+        "mode": mode,
+        "active_requirement": active["name"] if active else None,
+        "unprocessed_requirements": [req["name"] for req in reqs],
+        "processed_requirements": sorted(effective_processed_requirements().keys()),
+        "evidence_satisfied_requirements": sorted(evidence_satisfied_requirements().keys()),
+        "active_milestone": "master_planner_requirement_intake" if active else "idle",
+        "active_task": planned_task_for_requirement(active["name"] if active else None),
+        "current_phase": "phase2_core_rebuild",
+        "codex_gate": "required_after_each_milestone",
+        "last_commit": git_last_commit(),
+        "blocked_reason": blocked_reason,
+        "human_attention_required": bool(blocked_reason),
+        "next_action": "run Claude planner for active requirement" if active else "wait for requirements",
+        "final_live_gate_status": "blocked_human_only",
+        "git_status": git_status_short(),
+    }
+    write_json(STATUS, payload)
+    return payload
+
+
+def run_once(dry_run: bool = False) -> Dict[str, Any]:
+    prompt = build_prompt()
+    PROMPT_OUT.parent.mkdir(parents=True, exist_ok=True)
+    PROMPT_OUT.write_text(prompt, encoding="utf-8")
+    payload = status_payload("dry-run" if dry_run else "run-once")
+    payload["prompt_path"] = str(PROMPT_OUT.relative_to(WORKSPACE))
+    if dry_run or not payload["active_requirement"]:
+        write_json(STATUS, payload)
+        return payload
+    cp = subprocess.run(
+        ["claude", "--print", prompt, "--output-format", "text"],
+        cwd=str(WORKSPACE),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+        timeout=3600,
+    )
+    out_dir = WORKSPACE / "claude_worklog/agent_supervisor/runtime/master_planner"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "last_stdout.txt").write_text(cp.stdout, encoding="utf-8")
+    (out_dir / "last_stderr.txt").write_text(cp.stderr, encoding="utf-8")
+    payload.update({"returncode": cp.returncode, "stdout_chars": len(cp.stdout), "stderr_chars": len(cp.stderr)})
+    if cp.returncode != 0:
+        payload["blocked_reason"] = "claude_master_planner_invocation_failed"
+        payload["human_attention_required"] = True
+    write_json(STATUS, payload)
+    return payload
+
+
+def daemon(poll_seconds: int) -> int:
+    while True:
+        try:
+            run_once(dry_run=False)
+        except Exception as exc:
+            write_json(STATUS, status_payload("daemon", blocked_reason=f"planner_exception:{exc}"))
+        time.sleep(max(30, poll_seconds))
 
 
 def main() -> int:
@@ -73,34 +263,20 @@ def main() -> int:
     parser.add_argument("--status", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--run-once", action="store_true")
+    parser.add_argument("--daemon", action="store_true")
+    parser.add_argument("--poll-seconds", type=int, default=120)
     args = parser.parse_args()
 
-    prompt = build_prompt()
-    PROMPT_OUT.parent.mkdir(parents=True, exist_ok=True)
-    PROMPT_OUT.write_text(prompt, encoding="utf-8")
-    payload: Dict[str, object] = {
-        "status": "ready",
-        "mode": "status" if args.status else "dry-run" if args.dry_run else "run-once" if args.run_once else "status",
-        "prompt_path": str(PROMPT_OUT.relative_to(WORKSPACE)),
-        "evidence_roots": EVIDENCE_ROOTS,
-        "live_gate": "blocked",
-    }
+    if args.daemon:
+        return daemon(args.poll_seconds)
     if args.run_once:
-        cp = subprocess.run(
-            ["claude", "--print", prompt, "--output-format", "text"],
-            cwd=str(WORKSPACE),
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
-            timeout=3600,
-        )
-        payload.update({"returncode": cp.returncode, "stdout_chars": len(cp.stdout), "stderr_chars": len(cp.stderr)})
-        if cp.returncode != 0:
-            payload["status"] = "human_attention_required"
-    write_status(payload)
+        payload = run_once(dry_run=False)
+    elif args.dry_run:
+        payload = run_once(dry_run=True)
+    else:
+        payload = status_payload("status")
     print(json.dumps(payload, indent=2))
-    return 0 if payload["status"] != "human_attention_required" else 2
+    return 2 if payload.get("human_attention_required") else 0
 
 
 if __name__ == "__main__":

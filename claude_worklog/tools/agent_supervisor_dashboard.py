@@ -34,6 +34,9 @@ PLANNER_HUMAN_ACTION = RUNTIME_PLANNER / "HUMAN_ACTION_REQUIRED.md"
 PLANNER_GO_NO_GO = RUNTIME_PLANNER / "PLANNER_GO_NO_GO.md"
 NEXT_PHASE = BASE / "state/NEXT_PHASE.md"
 WORKSPACE = pathlib.Path(os.path.expanduser("~/Desktop/AI BOT REBUILD"))
+REQUIREMENTS_INBOX = WORKSPACE / "claude_worklog/requirements_inbox"
+MASTER_PLANNER_STATUS = WORKSPACE / "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json"
+MASTER_PLANNER_SESSION = "ai_bot_claude_master_rebuild_planner"
 
 HEARTBEAT_STALE_S = 600
 
@@ -105,6 +108,25 @@ def which(name: str) -> Optional[str]:
 def process_lines(pattern: str) -> List[str]:
     out = cmd_out(["bash", "-lc", f"pgrep -af {pattern!r} || true"])
     return [ln for ln in out.splitlines() if ln.strip()]
+
+
+def tmux_session_running(name: str) -> bool:
+    try:
+        p = subprocess.run(["tmux", "has-session", "-t", name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        return p.returncode == 0
+    except Exception:
+        return False
+
+
+def requirements_inbox_summary(master_status: Dict[str, Any]) -> Dict[str, Any]:
+    files = sorted(p.name for p in REQUIREMENTS_INBOX.glob("REQ_*.md")) if REQUIREMENTS_INBOX.exists() else []
+    processed = set(str(x) for x in (master_status.get("processed_requirements") or []))
+    unprocessed = [name for name in files if name not in processed]
+    return {
+        "total": len(files),
+        "processed": len(processed),
+        "unprocessed": unprocessed,
+    }
 
 
 def process_running_for_task(task_id: str) -> bool:
@@ -304,6 +326,9 @@ def print_dashboard(refresh_seconds: int) -> None:
         queue = read_json(WORKSPACE / QUEUE_STATUS)
         health = read_json(WORKSPACE / AGENT_HEALTH)
         planner = read_json(WORKSPACE / PLANNER_STATUS)
+        master_planner = read_json(MASTER_PLANNER_STATUS)
+        req_summary = requirements_inbox_summary(master_planner if isinstance(master_planner, dict) else {})
+        master_planner_daemon = tmux_session_running(MASTER_PLANNER_SESSION)
         current_task_id = str(current.get("task_id") or "") if isinstance(current, dict) else ""
         current_task_status = str(current.get("status") or "") if isinstance(current, dict) else ""
         current_task_state = task_state(current_task_id)
@@ -370,7 +395,7 @@ def print_dashboard(refresh_seconds: int) -> None:
         print(f"Timestamp: {now} | Refresh: {refresh_seconds}s")
         print("=" * 96)
         print("VS Code/Copilot is terminal operator only.")
-        print("Active agents: Claude/Codex/Ollama")
+        print("Claude is planner/builder | Codex is reviewer | Copilot is shell/status assistant")
 
         print("\n[SUPERVISOR HEARTBEAT]")
         if heartbeat:
@@ -408,6 +433,25 @@ def print_dashboard(refresh_seconds: int) -> None:
         print(f"codex processes: {len(codex_ps)}")
         print(f"ollama processes: {len(ollama_ps)}")
         print(f"agent supervisor running: {'yes' if supervisor_ps else 'no'}")
+
+        print("\n[CLAUDE FULL AUTOMATION]")
+        print(f"requirements inbox count: {req_summary.get('total', 0)}")
+        print(f"requirements processed: {req_summary.get('processed', 0)}")
+        unprocessed_req = req_summary.get("unprocessed") or []
+        print(f"requirements unprocessed: {', '.join(unprocessed_req[:8]) if unprocessed_req else '-'}")
+        print(f"master planner daemon: {'running' if master_planner_daemon else 'stopped'}")
+        print(f"active requirement: {master_planner.get('active_requirement') or '-'}")
+        print(f"active milestone: {master_planner.get('active_milestone') or '-'}")
+        print(f"active task: {master_planner.get('active_task') or '-'}")
+        print(f"current phase: {master_planner.get('current_phase') or '-'}")
+        print(f"active Codex gate: {master_planner.get('codex_gate') or '-'}")
+        print(f"final live gate status: {master_planner.get('final_live_gate_status') or 'blocked_human_only'}")
+        print(f"master planner blocked reason: {master_planner.get('blocked_reason') or '-'}")
+        if unprocessed_req and not master_planner_daemon:
+            print("warning: master planner daemon is stopped with unprocessed requirements")
+        if unprocessed_req and not master_planner.get("active_requirement"):
+            print("warning: requirements exist but planner has not selected an active requirement")
+        print("manual task-design warning: use requirements_inbox; Claude should generate non-live tasks and Codex reviews")
 
         print("\n[QUEUE STATUS]")
         print(f"current gate: {gate}")
