@@ -120,6 +120,14 @@ def evidence_satisfied_requirements() -> Dict[str, str]:
     if "PHASE2_SYMBOL_UNIVERSE_USDM_CORRECTION_CODEX_PASS" in usdm_codex:
         satisfied["REQ_0001_BINANCE_USDM_PRIMARY.md"] = "phase2_usdm_correction_codex_pass"
 
+    # REQ_0002 is satisfied by the post-pass21 CoinAnk discovery-list Codex re-review marker.
+    coinank_post_pass21 = read_text(
+        WORKSPACE / "claude_worklog/phase2_core_rebuild/coinank_discovery_list/26_CODEX_REREVIEW_GO_NO_GO_AFTER_PASS21.md",
+        2000,
+    )
+    if "PHASE2_COINANK_DISCOVERY_LIST_CODEX_PASS" in coinank_post_pass21:
+        satisfied["REQ_0002_COINANK_UPLOADED_SYMBOL_LIST.md"] = "phase2_coinank_discovery_list_codex_pass_post_pass21"
+
     coinank_policy = read_text(WORKSPACE / "claude_worklog/legacy_preservation/05_INGESTOR_AND_FEATURE_PIPELINE_PRESERVATION_MATRIX.md", 20000)
     ingestor_go = read_text(WORKSPACE / "claude_worklog/phase2_core_rebuild/ingestors/04_GO_NO_GO.md", 2000)
     if "INGESTOR_AND_FEATURE_PIPELINE_PRESERVATION_MATRIX_READY" in coinank_policy and "PHASE2_INGESTOR_PRESERVATION_READY" in ingestor_go:
