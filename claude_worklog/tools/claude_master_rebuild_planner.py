@@ -137,6 +137,14 @@ def evidence_satisfied_requirements() -> Dict[str, str]:
     if "PHASE2_LEGACY_SERVICE_MAP_CODEX_PASS" in service_map_codex:
         satisfied["REQ_0005_STARTUP_SCRIPT_RUNTIME_MAP_SOURCE_OF_TRUTH.md"] = "legacy_service_map_codex_pass"
 
+    # REQ_0004 is satisfied by the trainer GPU parity plan's second Codex rerun PASS marker.
+    trainer_gpu_codex = read_text(
+        WORKSPACE / "claude_worklog/phase2_core_rebuild/trainer_gpu_parity/19_CODEX_GO_NO_GO_RERUN2.md",
+        2000,
+    )
+    if "PHASE2_TRAINER_GPU_PARITY_PLAN_CODEX_RERUN2_PASS" in trainer_gpu_codex:
+        satisfied["REQ_0004_TRAINER_GPU_PARITY.md"] = "phase2_trainer_gpu_parity_plan_codex_rerun2_pass"
+
     return satisfied
 
 

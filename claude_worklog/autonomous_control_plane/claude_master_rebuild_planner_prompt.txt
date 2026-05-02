@@ -19,28 +19,10 @@ Current gate markers:
 - claude_worklog/final_readiness/04_GO_NO_GO.md: FINAL_NON_LIVE_REBUILD_READY_FOR_LIVE_GATE_REVIEW
 
 Unprocessed requirements inbox:
-## REQ_0004_TRAINER_GPU_PARITY.md
-# Requirement 0004 - Trainer GPU Parity
-
-The V2 trainer must be rebuilt from current legacy trainer behavior and GPU assumptions, not as a basic trainer.
-
-Rules:
-- Preserve GPU utilization assumptions.
-- Preserve batching behavior.
-- Preserve checkpoint behavior.
-- Preserve model-loading behavior.
-- Preserve hybrid trainer architecture lessons.
-- Preserve confidence/reward behavior where useful.
-- Fix prediction-worker liveness.
-- Fix process-alive/worker-dead blind spot.
-- Add feature_snapshot_id, prediction_id, confidence attribution, freshness flags, and worker health telemetry.
-- Trainer changes require Codex review and non-live validation.
-
-REQ_TRAINER_GPU_PARITY_READY
-
+No unprocessed requirements.
 
 Active requirement:
-REQ_0004_TRAINER_GPU_PARITY.md
+-
 
 Objective:
 - Map requirements against legacy_reference, service map, preservation policies, V2 code, and current Phase 2 artifacts.
