@@ -641,7 +641,7 @@ def extract_emit_file_blocks(text: str) -> List[Dict[str, str]]:
         if content.startswith("\n"):
             content = content[1:]
 
-        content = re.sub(r"\n?END_FILE\s*$", "", content.rstrip(), flags=re.MULTILINE)
+        content = re.sub(r"\n?END_FILE(?::.*)?\s*$", "", content.rstrip(), flags=re.MULTILINE)
         blocks.append({"path": rel_path, "content": content})
 
     return blocks

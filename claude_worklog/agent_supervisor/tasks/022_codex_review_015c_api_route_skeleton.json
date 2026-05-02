@@ -1,0 +1,17 @@
+{
+  "task_id": "022_codex_review_015c_api_route_skeleton",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/v2_scaffold_reviews/"
+  ],
+  "required_output_files": [
+    "claude_worklog/v2_scaffold_reviews/022_CODEX_REVIEW_015C.md",
+    "claude_worklog/v2_scaffold_reviews/022_CODEX_GO_NO_GO_015C.md"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not create implementation beyond review artifacts. Review completed 015C API route skeleton. Inputs: v2/backend/app/main.py, v2/backend/app/api, v2/backend/tests/contract, claude_worklog/v2_build/D_API_SKELETON_VALIDATION.md, claude_worklog/v2_architecture, claude_worklog/v2_requirements. Verify: scaffold-only FastAPI routes and middleware, no handler performs DB/Redis/exchange I/O, no live trading enablement, live block guard default-denies live routes, middleware order and taxonomy contracts are present, no secrets, no legacy bot mutation, and 015D-015F remain blocked. Output exactly two BEGIN_FILE blocks. The GO/NO-GO file must contain exactly one line: 015C_CODEX_REVIEW_PASS or 015C_CODEX_REVIEW_FAIL.",
+  "next_recommended_action": "If Codex passes, sequence may advance to 015D. If fail, create remediation task."
+}

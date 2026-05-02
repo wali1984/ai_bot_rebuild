@@ -304,7 +304,7 @@ def materialize_begin_file_blocks(stdout_path: pathlib.Path, allowed_prefixes: L
         start = m.end()
         end = markers[idx + 1].start() if idx + 1 < len(markers) else len(text)
         content = text[start:end]
-        content = re.sub(r"\n?END_FILE\s*$", "", content.rstrip(), flags=re.MULTILINE)
+        content = re.sub(r"\n?END_FILE(?::.*)?\s*$", "", content.rstrip(), flags=re.MULTILINE)
         if content.startswith("\n"):
             content = content[1:]
 
