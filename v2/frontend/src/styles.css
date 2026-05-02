@@ -1,0 +1,76 @@
+:root {
+  --color-bg: #0b0f14;
+  --color-fg: #e6edf3;
+  --color-muted: #8b949e;
+  --color-red: #b31b1b;
+  --color-amber: #b8860b;
+  --color-green: #1f7a3a;
+  --color-border: #2b3138;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--color-bg); color: var(--color-fg); }
+a { color: inherit; }
+
+.live-block-banner {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  padding: 8px 12px;
+  font-weight: 600;
+  color: #fff;
+  text-align: center;
+}
+.live-block-banner--red { background: var(--color-red); }
+.live-block-banner--amber { background: var(--color-amber); }
+.live-block-banner--green { background: var(--color-green); }
+.live-block-banner__hint { font-weight: 400; opacity: 0.85; margin-left: 6px; }
+
+.admin-shell__body { display: grid; grid-template-columns: 240px 1fr; gap: 16px; }
+.admin-shell__main, .public-shell__main { padding: 16px; }
+
+.nav { padding: 12px; border-right: 1px solid var(--color-border); }
+.nav ul { list-style: none; padding: 0; margin: 0; }
+.nav li { padding: 4px 0; }
+
+.page-shell__header h1 { margin: 0 0 4px 0; }
+.page-shell__description { color: var(--color-muted); margin-top: 0; }
+
+.dangerous-control-panel {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 12px;
+  margin: 16px 0;
+}
+.dangerous-control-button[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.badge {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-fg);
+  cursor: pointer;
+}
+.badge--l4 { border-color: var(--color-amber); color: var(--color-amber); }
+.badge--l5 { border-color: var(--color-red); color: var(--color-red); }
+
+.approval-modal {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px dashed var(--color-border);
+  background: rgba(255,255,255,0.03);
+}
+
+.lineage-block dl { display: grid; grid-template-columns: 200px 1fr; gap: 4px 12px; }
+
+.api-error {
+  border: 1px solid var(--color-red);
+  padding: 10px;
+  border-radius: 4px;
+  margin: 12px 0;
+}
