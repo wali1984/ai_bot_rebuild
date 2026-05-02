@@ -1,0 +1,17 @@
+{
+  "task_id": "021_codex_review_015b_database_skeleton",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/v2_scaffold_reviews/"
+  ],
+  "required_output_files": [
+    "claude_worklog/v2_scaffold_reviews/021_CODEX_REVIEW_015B.md",
+    "claude_worklog/v2_scaffold_reviews/021_CODEX_GO_NO_GO_015B.md"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not create implementation beyond review artifacts. Review completed 015B database migration skeleton. Inputs: v2/pyproject.toml, v2/backend/migrations, v2/backend/app/adapters/db, v2/backend/tests/integration/test_alembic_round_trip.py, claude_worklog/v2_build/C_DATABASE_SKELETON_VALIDATION.md, claude_worklog/v2_architecture, claude_worklog/v2_requirements. Verify: offline-only migration skeleton, no production DB connection, no Redis writes, no secrets, no legacy bot mutation, lineage/schema direction is consistent with architecture, tests are safe local scaffold tests, and 015C-015F remain blocked. Output exactly two BEGIN_FILE blocks. The GO/NO-GO file must contain exactly one line: 015B_CODEX_REVIEW_PASS or 015B_CODEX_REVIEW_FAIL.",
+  "next_recommended_action": "If Codex passes, sequence may advance to 015C. If fail, create remediation task."
+}
