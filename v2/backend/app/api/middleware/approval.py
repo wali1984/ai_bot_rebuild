@@ -1,0 +1,1 @@
+"""Approval middleware placeholder. No behavior in scaffold."""

@@ -1,0 +1,1 @@
+"""Lineage-validator middleware placeholder. No behavior in scaffold."""

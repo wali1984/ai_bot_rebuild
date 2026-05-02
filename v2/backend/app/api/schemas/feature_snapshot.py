@@ -1,0 +1,1 @@
+"""Feature-snapshot schema placeholder. No behavior in scaffold."""

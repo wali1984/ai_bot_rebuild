@@ -1,0 +1,1 @@
+"""Request/response envelope schema placeholder. No behavior in scaffold."""

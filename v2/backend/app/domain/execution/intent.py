@@ -1,0 +1,1 @@
+"""Execution intent domain placeholder. Pure module."""

@@ -1,0 +1,1 @@
+"""Feature-snapshots repository placeholder. No behavior in scaffold."""

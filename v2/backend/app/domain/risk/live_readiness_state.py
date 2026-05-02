@@ -1,0 +1,1 @@
+"""Live-readiness state machine placeholder. Pure module."""

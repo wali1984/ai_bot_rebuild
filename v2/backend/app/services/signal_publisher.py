@@ -1,0 +1,1 @@
+"""Signal publisher service placeholder. No behavior in scaffold."""

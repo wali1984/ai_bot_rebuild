@@ -1,0 +1,1 @@
+"""RBAC middleware placeholder. No behavior in scaffold."""

@@ -1,0 +1,1 @@
+"""Signal schema placeholder. No behavior in scaffold."""

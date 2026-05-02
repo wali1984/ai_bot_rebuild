@@ -1,0 +1,1 @@
+"""Ollama client placeholder. No behavior in scaffold."""

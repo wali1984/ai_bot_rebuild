@@ -1,0 +1,1 @@
+"""Execution intents repository placeholder. No behavior in scaffold."""

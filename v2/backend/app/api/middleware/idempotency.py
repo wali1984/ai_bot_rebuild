@@ -1,0 +1,1 @@
+"""Idempotency middleware placeholder. No behavior in scaffold."""

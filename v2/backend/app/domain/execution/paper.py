@@ -1,0 +1,1 @@
+"""Paper-execution domain placeholder. Pure module."""

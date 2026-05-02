@@ -1,0 +1,1 @@
+"""Monitor dimensions placeholder. Pure module."""

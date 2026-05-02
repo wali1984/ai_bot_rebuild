@@ -1,0 +1,1 @@
+"""Universe members domain placeholder. Pure module."""

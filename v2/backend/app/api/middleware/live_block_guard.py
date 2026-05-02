@@ -1,0 +1,1 @@
+"""Live-block guard middleware placeholder. Default-deny in milestone O."""

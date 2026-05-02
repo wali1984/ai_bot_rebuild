@@ -1,0 +1,1 @@
+"""Source-grounding domain placeholder. Pure module."""

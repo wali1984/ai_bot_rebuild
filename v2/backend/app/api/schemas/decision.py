@@ -1,0 +1,1 @@
+"""Decision schema placeholder. No behavior in scaffold."""

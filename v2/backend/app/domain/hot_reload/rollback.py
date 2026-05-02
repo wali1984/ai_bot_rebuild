@@ -1,0 +1,1 @@
+"""Hot-reload rollback domain placeholder. Pure module."""

@@ -1,0 +1,1 @@
+"""Audit writer service placeholder. No behavior in scaffold."""

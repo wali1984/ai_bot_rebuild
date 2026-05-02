@@ -1,0 +1,1 @@
+"""Feature completeness domain placeholder. Pure module."""

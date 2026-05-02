@@ -1,0 +1,1 @@
+"""Paper loop service placeholder. No behavior in scaffold."""

@@ -1,0 +1,1 @@
+"""Request-ID middleware placeholder. No behavior in scaffold."""

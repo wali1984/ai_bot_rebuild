@@ -1,0 +1,1 @@
+"""Monitor rejection domain placeholder. Pure module."""

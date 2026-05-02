@@ -1,0 +1,1 @@
+"""Error envelope placeholder. No behavior in scaffold."""

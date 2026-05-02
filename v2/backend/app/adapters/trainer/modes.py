@@ -1,0 +1,1 @@
+"""Trainer subprocess modes placeholder. Pure constants module."""

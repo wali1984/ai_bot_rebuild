@@ -1,0 +1,1 @@
+"""Audit-chain domain placeholder. Pure module."""

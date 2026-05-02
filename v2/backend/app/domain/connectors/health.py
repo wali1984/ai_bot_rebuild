@@ -1,0 +1,1 @@
+"""Connector health domain placeholder. Pure module."""

@@ -1,0 +1,1 @@
+"""Execution-intent schema placeholder. No behavior in scaffold."""

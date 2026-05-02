@@ -1,0 +1,1 @@
+"""Risk policy bundle domain placeholder. Pure module."""

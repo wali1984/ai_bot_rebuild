@@ -1,0 +1,1 @@
+"""Audit events repository placeholder. No behavior in scaffold."""

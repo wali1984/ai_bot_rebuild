@@ -1,0 +1,1 @@
+"""Canonical lineage chain definition placeholder."""

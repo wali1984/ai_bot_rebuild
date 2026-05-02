@@ -1,0 +1,1 @@
+"""Prediction ingest service placeholder. No behavior in scaffold."""

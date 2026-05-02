@@ -1,0 +1,1 @@
+"""Rate-limit middleware placeholder. No behavior in scaffold."""

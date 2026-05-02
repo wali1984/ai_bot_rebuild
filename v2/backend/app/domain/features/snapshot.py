@@ -1,0 +1,1 @@
+"""Feature snapshot domain placeholder. Pure module."""

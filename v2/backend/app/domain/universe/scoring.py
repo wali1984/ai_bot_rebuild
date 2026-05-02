@@ -1,0 +1,1 @@
+"""Universe scoring domain placeholder. Pure module."""

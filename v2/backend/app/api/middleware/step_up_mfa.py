@@ -1,0 +1,1 @@
+"""Step-up MFA middleware placeholder. No behavior in scaffold."""

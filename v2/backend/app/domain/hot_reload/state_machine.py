@@ -1,0 +1,1 @@
+"""Hot-reload state machine placeholder. Pure module."""

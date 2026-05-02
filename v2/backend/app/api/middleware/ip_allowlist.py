@@ -1,0 +1,1 @@
+"""IP allowlist middleware placeholder. No behavior in scaffold."""

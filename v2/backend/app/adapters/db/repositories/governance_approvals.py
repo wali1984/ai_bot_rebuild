@@ -1,0 +1,1 @@
+"""Governance approvals repository placeholder. No behavior in scaffold."""

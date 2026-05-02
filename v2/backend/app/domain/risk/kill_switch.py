@@ -1,0 +1,1 @@
+"""Kill-switch domain placeholder. Pure module."""

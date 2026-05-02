@@ -1,0 +1,1 @@
+"""Hot-reload orchestrator service placeholder. No behavior in scaffold."""

@@ -1,0 +1,1 @@
+"""Risk-decision schema placeholder. No behavior in scaffold."""

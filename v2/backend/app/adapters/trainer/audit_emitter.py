@@ -1,0 +1,1 @@
+"""Trainer audit emitter placeholder. No behavior in scaffold."""

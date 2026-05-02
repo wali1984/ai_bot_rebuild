@@ -1,0 +1,1 @@
+"""Freshness-check task placeholder. No behavior in scaffold."""

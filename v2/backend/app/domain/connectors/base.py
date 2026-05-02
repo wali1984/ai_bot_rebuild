@@ -1,0 +1,1 @@
+"""Abstract connector base placeholder. No exchange SDK imports here."""

@@ -1,0 +1,1 @@
+"""Lineage validators placeholder. Pure functions; no I/O."""

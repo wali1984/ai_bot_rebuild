@@ -1,0 +1,1 @@
+"""Universe version domain placeholder. Pure module."""

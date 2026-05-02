@@ -1,0 +1,1 @@
+"""Monitor packets placeholder. Pure module."""

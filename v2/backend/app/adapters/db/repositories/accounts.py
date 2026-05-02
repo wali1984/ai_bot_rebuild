@@ -1,0 +1,1 @@
+"""Accounts repository placeholder. No behavior in scaffold."""

@@ -1,0 +1,1 @@
+"""Evidence packet writer placeholder. No behavior in scaffold."""

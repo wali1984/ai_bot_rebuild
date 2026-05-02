@@ -1,0 +1,1 @@
+"""SQLAlchemy engine factory placeholder. Lazy; no I/O at import."""

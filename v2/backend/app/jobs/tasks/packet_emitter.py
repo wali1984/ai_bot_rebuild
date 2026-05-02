@@ -1,0 +1,1 @@
+"""Evidence-packet emitter task placeholder. No behavior in scaffold."""

@@ -1,0 +1,1 @@
+"""Diagnostics CLI placeholder. No live actions."""

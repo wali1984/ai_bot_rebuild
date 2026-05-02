@@ -1,0 +1,1 @@
+"""DB error translator middleware placeholder. No behavior in scaffold."""

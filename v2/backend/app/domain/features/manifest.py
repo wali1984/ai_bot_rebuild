@@ -1,0 +1,1 @@
+"""Feature manifest domain placeholder. Pure module."""

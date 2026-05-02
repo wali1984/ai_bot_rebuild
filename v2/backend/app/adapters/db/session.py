@@ -1,0 +1,1 @@
+"""SQLAlchemy session placeholder. No I/O at import."""

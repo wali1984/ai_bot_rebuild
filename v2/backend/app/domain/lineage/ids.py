@@ -1,0 +1,1 @@
+"""UUIDv7 generators placeholder. Pure module; never imports DB."""

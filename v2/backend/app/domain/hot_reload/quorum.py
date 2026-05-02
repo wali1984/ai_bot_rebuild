@@ -1,0 +1,1 @@
+"""Hot-reload quorum domain placeholder. Pure module."""

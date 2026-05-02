@@ -1,0 +1,1 @@
+"""Governance approvals domain placeholder. Pure module."""

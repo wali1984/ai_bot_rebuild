@@ -1,0 +1,1 @@
+"""Claude Admin client placeholder. No behavior in scaffold."""

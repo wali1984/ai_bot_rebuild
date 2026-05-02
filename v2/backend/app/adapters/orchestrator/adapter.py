@@ -1,0 +1,1 @@
+"""Orchestrator adapter placeholder. Subprocess boundary by default."""

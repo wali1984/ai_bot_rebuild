@@ -1,0 +1,1 @@
+"""Universe versions repository placeholder. No behavior in scaffold."""

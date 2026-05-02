@@ -1,0 +1,1 @@
+"""Risk decisions repository placeholder. No behavior in scaffold."""

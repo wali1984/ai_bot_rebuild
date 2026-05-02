@@ -1,0 +1,1 @@
+"""Paper-trade schema placeholder. No behavior in scaffold."""

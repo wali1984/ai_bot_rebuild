@@ -1,0 +1,1 @@
+"""Risk phases domain placeholder. Pure module."""

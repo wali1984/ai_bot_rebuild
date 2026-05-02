@@ -1,0 +1,1 @@
+"""Ollama prompt loader placeholder. No behavior in scaffold."""

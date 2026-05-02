@@ -1,0 +1,1 @@
+"""Redis V2 retention placeholder. No behavior in scaffold."""

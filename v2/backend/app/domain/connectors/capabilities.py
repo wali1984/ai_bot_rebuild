@@ -1,0 +1,1 @@
+"""Connector capabilities placeholder. Pure module."""

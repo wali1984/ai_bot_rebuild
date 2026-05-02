@@ -1,0 +1,1 @@
+"""Trader domain placeholder. Pure module."""
