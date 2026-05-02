@@ -1,0 +1,17 @@
+{
+  "task_id": "024_codex_review_015e_test_ci_skeleton",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/v2_scaffold_reviews/"
+  ],
+  "required_output_files": [
+    "claude_worklog/v2_scaffold_reviews/024_CODEX_REVIEW_015E.md",
+    "claude_worklog/v2_scaffold_reviews/024_CODEX_GO_NO_GO_015E.md"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Review completed 015E test/CI skeleton only. Inputs: v2/ops/ci, v2/.github/workflows, v2/Makefile, claude_worklog/v2_build/B_TEST_CI_VALIDATION.md. Verify local-only CI, no live/legacy/Redis/exchange/deploy side effects, no secrets, and 015F remains blocked. Output exactly two BEGIN_FILE blocks. GO/NO-GO exactly: 015E_CODEX_REVIEW_PASS or 015E_CODEX_REVIEW_FAIL.",
+  "next_recommended_action": "Controller will advance only on PASS."
+}
