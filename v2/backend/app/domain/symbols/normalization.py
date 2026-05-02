@@ -65,7 +65,9 @@ def normalize_source_symbol(source: str, raw_symbol_payload: Dict[str, Any]) -> 
     if source_key == "binance_coinm":
         return _normalize_binance_coinm(raw_symbol_payload)
     if source_key == "coinank":
-        return _normalize_generic(source_key, raw_symbol_payload, exchange="coinank", family=ContractFamily.UNKNOWN.value)
+        from .coinank_rows import coinank_identity_from_row, coinank_row_from_payload
+        identity = coinank_identity_from_row(coinank_row_from_payload(raw_symbol_payload))
+        return SymbolIdentity(**{**identity.__dict__, "alias_set": build_alias_set(identity)})
     if source_key == "coinapi_ws":
         return _normalize_generic(source_key, raw_symbol_payload, exchange="coinapi", family=ContractFamily.USD_M.value)
     if source_key == "coinapi_rest":

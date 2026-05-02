@@ -1,0 +1,32 @@
+{
+  "task_id": "042_codex_review_phase2_coinank_discovery_list",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/coinank_discovery_list/"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/coinank_discovery_list/07_CODEX_REVIEW.md",
+    "claude_worklog/phase2_core_rebuild/coinank_discovery_list/08_CODEX_GO_NO_GO.md"
+  ],
+  "depends_on": [],
+  "max_attempts": 1,
+  "priority": 0,
+  "auto_commit": false,
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Adversarially review Phase 2D CoinAnk Discovery List Source after the Pass 21 BTCUSD_PERP quote-classification fix and the Pass 22 / Pass 23 / Pass 24 cosmetic and task-input cleanup. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not delete Redis keys. Do not restart live services. Do not place or cancel exchange orders. Do not change leverage or margin mode. Do not enable live trading. Do not modify v2/legacy_preserved/ingestors/live_coinank.py. Do not modify legacy_reference/**. Do not author implementation beyond review artifacts. Inputs to read: claude_worklog/phase2_core_rebuild/coinank_discovery_list/00_SCOPE.md, 01_RAW_ROW_SCHEMA.md, 02_NORMALIZATION_RULES.md, 03_DISCOVERY_ALIAS_POLICY.md, 04_UPLOADED_LIST_SOURCE_INVENTORY.md, 05_TEST_PLAN.md, 06_GO_NO_GO.md, 06b_REMEDIATION_NOTE.md, 09_REMEDIATION_VALIDATION_PLAN.md, 19_REMEDIATION_FINAL_CLOSURE.md, 20_REMEDIATION_FINAL_CLOSURE.md, 21_REMEDIATION_BTCUSD_PERP_QUOTE_FIX.md, 22_PASS22_GO_NO_GO_CLEANUP.md, 23_PASS23_CODEX_REARM.md, 24_PASS24_ARTIFACT_POLLUTION_SWEEP.md, v2/backend/app/domain/symbols/coinank_rows.py, v2/backend/app/domain/symbols/normalization.py, v2/backend/app/adapters/symbol_sources/coinank.py, v2/backend/tests/fixtures/symbol_universe/coinank_uploaded_list_synthetic.json, v2/backend/tests/unit/symbol_universe/test_coinank_uploaded_list.py, claude_worklog/requirements_inbox/REQ_0002_COINANK_UPLOADED_SYMBOL_LIST.md, CLAUDE.md. Verify: 1) raw rows preserved with symbol, baseCoin, exchangeName, expireAt, updateAt; 2) Chinese-name rows preserved raw (UTF-8 round-trip) and marked requires_confirmation; 3) stock/commodity rows blocked from auto-eligibility; 4) ETHBTC not auto-classified as USD-M futures; 5) BTCUSDT confirms to Binance USD-M only when USD-M is present and trading; 6) BTCUSD_PERP is now classified inverse (is_perp_inverse=True, quote_kind=USD, candidate_for_usdm_confirmation=False) and does not collapse with BTCUSDT USD-M; dated contracts and USDC pairs remain separate from USDT perpetuals; 7) tests use fixtures only and do not call live API; 8) no Redis writes anywhere in the reviewed module set; 9) no secrets exposed; 10) live_coinank.py not modified; 11) legacy_reference/** not modified; 12) the four reviewed .py files parse via python -m py_compile cleanly (Pass 20 stripped the cosmetic trailing planner markers; Pass 21 only edits coinank_rows._classify_quote_kind); 13) the two JSON files (042 task and coinank_uploaded_list_synthetic.json) parse via python -m json.tool with no leaked planner sentinel; 14) the test suite v2/backend/tests/unit/symbol_universe/test_coinank_uploaded_list.py runs and reports 11 passed against the synthetic fixture without contacting any live system; 15) Pass 22 stripped the cosmetic trailing planner markers from 06_GO_NO_GO.md so the gate marker file contains exactly one line PHASE2_COINANK_DISCOVERY_LIST_READY_FOR_CODEX_REVIEW; 16) Pass 23 added 22_PASS22_GO_NO_GO_CLEANUP.md and 23_PASS23_CODEX_REARM.md to this task input list and refreshed the prompt to acknowledge all three closure passes; 17) Pass 24 stripped the leaked trailing END_FILE: <path> pollution and stray outer fenced-code wrappers from 00_SCOPE.md, 01_RAW_ROW_SCHEMA.md, 02_NORMALIZATION_RULES.md, 03_DISCOVERY_ALIAS_POLICY.md, 04_UPLOADED_LIST_SOURCE_INVENTORY.md, 05_TEST_PLAN.md, 06b_REMEDIATION_NOTE.md, and 09_REMEDIATION_VALIDATION_PLAN.md so each of the eight files ends with its PHASE2_*_READY semantic sentinel and no trailing planner pollution; 18) 06b_REMEDIATION_NOTE.md and 09_REMEDIATION_VALIDATION_PLAN.md no longer wrap their entire body in a leaked outer markdown fence, so their section headers render as Markdown headings rather than as the body of one large fenced code block. Output exactly two named blocks, one for 07_CODEX_REVIEW.md and one for 08_CODEX_GO_NO_GO.md, using the planner harness file-emission convention. The GO/NO-GO file must contain exactly one line: PHASE2_COINANK_DISCOVERY_LIST_CODEX_PASS or PHASE2_COINANK_DISCOVERY_LIST_CODEX_FAIL.",
+  "next_recommended_action": "If pass, planner advances REQ_0002 to processed and moves to REQ_0004 trainer GPU parity. If fail, planner enqueues remediation under claude_worklog/phase2_core_rebuild/coinank_discovery_list/.",
+  "phase2_requirements": [
+    "raw rows preserved",
+    "no live API calls",
+    "no legacy mutation",
+    "no Redis writes",
+    "discovery only, never auto-tradable",
+    "USDM confirmation gating enforced",
+    "BTCUSD_PERP classified inverse and not collapsed with USDM",
+    "py_compile and pytest pass for reviewed modules"
+  ],
+  "go_no_go_marker": "PHASE2_COINANK_DISCOVERY_LIST_CODEX_PASS"
+}

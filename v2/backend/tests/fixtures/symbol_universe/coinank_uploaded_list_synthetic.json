@@ -1,0 +1,78 @@
+{
+  "source": "coinank_uploaded_list_synthetic",
+  "row_count": 8,
+  "rows": [
+    {
+      "_label": "binance_usdm_candidate_btc_perp",
+      "symbol": "BTCUSDT",
+      "baseCoin": "BTC",
+      "exchangeName": "Binance",
+      "expireAt": 0,
+      "updateAt": 1714000000000,
+      "is_synthetic": true
+    },
+    {
+      "_label": "binance_usdm_candidate_eth_perp",
+      "symbol": "ETHUSDT",
+      "baseCoin": "ETH",
+      "exchangeName": "Binance",
+      "expireAt": 0,
+      "updateAt": 1714000000000,
+      "is_synthetic": true
+    },
+    {
+      "_label": "coinm_inverse_perp_must_not_collapse",
+      "symbol": "BTCUSD_PERP",
+      "baseCoin": "BTC",
+      "exchangeName": "Binance",
+      "expireAt": 0,
+      "updateAt": 1714000000000,
+      "is_synthetic": true
+    },
+    {
+      "_label": "dated_quarterly_must_not_collapse",
+      "symbol": "BTCUSD_260626",
+      "baseCoin": "BTC",
+      "exchangeName": "Binance",
+      "expireAt": 1782778000000,
+      "updateAt": 1714000000000,
+      "is_synthetic": true
+    },
+    {
+      "_label": "usdc_pair_separate_from_usdt",
+      "symbol": "BTCUSDC",
+      "baseCoin": "BTC",
+      "exchangeName": "Binance_USDC",
+      "expireAt": 0,
+      "updateAt": 1714000000000,
+      "is_synthetic": true
+    },
+    {
+      "_label": "ethbtc_must_not_be_usdm",
+      "symbol": "ETHBTC",
+      "baseCoin": "ETH",
+      "exchangeName": "Binance",
+      "expireAt": 0,
+      "updateAt": 1714000000000,
+      "is_synthetic": true
+    },
+    {
+      "_label": "stock_like_must_not_auto_eligible",
+      "symbol": "AAPLUSDT",
+      "baseCoin": "AAPL",
+      "exchangeName": "Bybit",
+      "expireAt": 0,
+      "updateAt": 1714000000000,
+      "is_synthetic": true
+    },
+    {
+      "_label": "chinese_name_preserved_requires_confirmation",
+      "symbol": "\u8305\u53f0USDT",
+      "baseCoin": "\u8305\u53f0",
+      "exchangeName": "OKX",
+      "expireAt": 0,
+      "updateAt": 1714000000000,
+      "is_synthetic": true
+    }
+  ]
+}
