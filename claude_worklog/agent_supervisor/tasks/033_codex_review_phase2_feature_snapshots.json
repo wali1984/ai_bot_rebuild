@@ -1,0 +1,17 @@
+{
+  "task_id": "033_codex_review_phase2_feature_snapshots",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/feature_snapshots/"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/feature_snapshots/06_CODEX_REVIEW.md",
+    "claude_worklog/phase2_core_rebuild/feature_snapshots/07_CODEX_GO_NO_GO.md"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Review Phase 2C feature snapshot / attribution pipeline foundation only. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not place/cancel orders. Do not enable live trading. Do not create implementation beyond review artifacts. Inputs: v2/backend/app/domain/features, v2/backend/app/services/feature_snapshots, v2/backend/app/adapters/feature_pipeline, v2/backend/tests/unit/feature_snapshots, v2/backend/tests/fixtures/feature_snapshots, claude_worklog/phase2_core_rebuild/feature_snapshots, claude_worklog/legacy_preservation, claude_worklog/phase2_core_rebuild/legacy_service_map. Verify: feature_snapshot_id exists, canonical_symbol_id and legacy_symbol are present, source_snapshot_ids/source_key_refs/source_ingestor_refs exist, freshness/stale/missing/unused flags exist, trainer input contract is ready, legacy feature_pipeline.py parity is preserved, no live Redis or ingestor calls, no legacy mutation, no secrets. Output exactly two BEGIN_FILE blocks. The GO/NO-GO file must contain exactly one line: PHASE2_FEATURE_SNAPSHOT_CODEX_REVIEW_PASS or PHASE2_FEATURE_SNAPSHOT_CODEX_REVIEW_FAIL.",
+  "next_recommended_action": "If pass, proceed to Phase 2D trainer parity service. If fail, remediate and re-review."
+}
