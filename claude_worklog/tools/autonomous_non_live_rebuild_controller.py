@@ -299,7 +299,7 @@ def materialize_stdout(task_id: str, prefixes: Sequence[str]) -> List[str]:
     for idx, marker in enumerate(markers):
         path = marker.group(1).strip()
         if task_id.startswith(("024_", "025_", "026_")):
-            name = Path(path).name
+            name = pathlib.Path(path).name
             if "CODEX_REVIEW" in name or "GO_NO_GO" in name:
                 path = "claude_worklog/v2_scaffold_reviews/" + name
         start = marker.end() + 1
