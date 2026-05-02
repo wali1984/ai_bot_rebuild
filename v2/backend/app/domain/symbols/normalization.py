@@ -99,7 +99,7 @@ def _normalize_binance_coinm(payload: Dict[str, Any]) -> SymbolIdentity:
         source="binance_coinm",
         source_symbol=symbol,
         source_pair=pair,
-        legacy_symbol=f"{base}USDT",
+        legacy_symbol=payload.get("legacy_symbol"),
         normalization_confidence=NormalizationConfidence.HIGH.value,
         status=str(payload.get("contractStatus") or payload.get("status") or ""),
         metadata=metadata,

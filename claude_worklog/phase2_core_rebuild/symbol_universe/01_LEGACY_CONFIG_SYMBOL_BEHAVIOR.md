@@ -4,6 +4,10 @@ The current legacy `config.py` symbol list is preserved as the current active le
 
 It is not the complete V2 universe.
 
+The Phase 2B test fixture preserves the current 25-symbol subset as explicit data in
+`v2/backend/tests/fixtures/symbol_universe/legacy_config_active_symbols.json`.
+Discovered Binance COIN-M symbols do not automatically become legacy-active symbols.
+
 V2 distinguishes:
 - `all_discovered_symbols`
 - `observed_symbols`

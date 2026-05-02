@@ -1,0 +1,31 @@
+{
+  "source": "legacy_config.py SYMBOLS",
+  "semantics": "current active legacy ingestion/trading subset, not full V2 universe",
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "XRPUSDT",
+    "1000SHIBUSDT",
+    "DOGEUSDT",
+    "ASTERUSDT",
+    "LINKUSDT",
+    "UNIUSDT",
+    "LTCUSDT",
+    "WIFUSDT",
+    "AVNTUSDT",
+    "PIPPINUSDT",
+    "1000PEPEUSDT",
+    "1000BONKUSDT",
+    "FARTCOINUSDT",
+    "1000FLOKIUSDT",
+    "RIVERUSDT",
+    "RAVEUSDT",
+    "HIGHUSDT",
+    "PENGUUSDT",
+    "BARDUSDT",
+    "BANKUSDT",
+    "AUCTIONUSDT",
+    "ALICEUSDT"
+  ]
+}

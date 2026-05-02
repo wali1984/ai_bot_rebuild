@@ -22,14 +22,15 @@ HOT_RELOAD_COMPONENTS = [
 
 
 class SymbolUniverseService:
-    def __init__(self, identities: Iterable[SymbolIdentity] = ()):
+    def __init__(self, identities: Iterable[SymbolIdentity] = (), legacy_active_symbols: Iterable[str] = ()):
         self.identities = list(identities)
+        self._legacy_active_symbols = sorted({symbol.upper() for symbol in legacy_active_symbols})
 
     def all_discovered_symbols(self) -> List[SymbolIdentity]:
         return list(self.identities)
 
     def legacy_active_symbols(self) -> List[str]:
-        return sorted({i.legacy_symbol for i in self.identities if i.legacy_symbol})
+        return list(self._legacy_active_symbols)
 
     def apply_manual_override(self, record: SymbolStateRecord, override: SymbolOverride) -> SymbolStateRecord:
         return apply_override(record, override)
@@ -60,4 +61,3 @@ class SymbolUniverseService:
             approval_state=approval_state,
             hot_reload_required_components=HOT_RELOAD_COMPONENTS if changed else [],
         )
-

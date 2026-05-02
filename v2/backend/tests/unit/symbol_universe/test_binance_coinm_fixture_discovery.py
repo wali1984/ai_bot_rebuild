@@ -16,7 +16,8 @@ def test_binance_coinm_fixture_discovers_all_contracts_without_network():
     assert btc.contract_family == ContractFamily.COIN_M.value
     assert btc.contract_type == ContractType.PERPETUAL.value
     assert btc.settlement_asset == "BTC"
-    assert "BTCUSDT" in btc.alias_set
+    assert "BTCUSD_PERP" in btc.alias_set
+    assert btc.legacy_symbol is None
     assert btc.is_trading()
 
 
@@ -27,4 +28,3 @@ def test_delivered_contract_is_discovered_but_not_trading():
     assert delivered.source_symbol == "BNBUSD_200925"
     assert delivered.status == "DELIVERED"
     assert not delivered.is_trading()
-

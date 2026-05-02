@@ -1,0 +1,46 @@
+{
+  "binance_coinm_btc_perp": {
+    "symbol": "BTCUSD_PERP",
+    "pair": "BTCUSD",
+    "contractType": "PERPETUAL",
+    "contractStatus": "TRADING",
+    "baseAsset": "BTC",
+    "quoteAsset": "USD",
+    "marginAsset": "BTC"
+  },
+  "binance_coinm_btc_quarter": {
+    "symbol": "BTCUSD_240628",
+    "pair": "BTCUSD",
+    "contractType": "CURRENT_QUARTER",
+    "contractStatus": "TRADING",
+    "baseAsset": "BTC",
+    "quoteAsset": "USD",
+    "marginAsset": "BTC",
+    "deliveryDate": 1719561600000
+  },
+  "binance_coinm_bnb_delivered": {
+    "symbol": "BNBUSD_200925",
+    "pair": "BNBUSD",
+    "contractType": "CURRENT_QUARTER",
+    "contractStatus": "DELIVERED",
+    "baseAsset": "BNB",
+    "quoteAsset": "USD",
+    "marginAsset": "BNB"
+  },
+  "coinapi_ws_btc_perp": {
+    "symbol": "BINANCEFTS_PERP_BTC_USD",
+    "pair": "BTC/USD",
+    "base": "BTC",
+    "quote": "USD",
+    "settlement": "BTC",
+    "contract_type": "PERPETUAL"
+  },
+  "kucoin_btc_perp": {
+    "symbol": "XBTUSDTM",
+    "pair": "BTC-USDT",
+    "base": "BTC",
+    "quote": "USDT",
+    "settlement": "USDT",
+    "contract_type": "PERPETUAL"
+  }
+}
