@@ -11,9 +11,10 @@ import argparse
 import datetime as dt
 import json
 import pathlib
+import re
 import subprocess
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 
 WORKSPACE = pathlib.Path("/home/wali/Desktop/AI BOT REBUILD").resolve()
@@ -33,6 +34,28 @@ EVIDENCE_ROOTS = [
     "v2",
     "legacy_reference",
 ]
+
+ALLOWED_MATERIALIZE_PREFIXES = (
+    "claude_worklog/agent_supervisor/tasks/",
+    "claude_worklog/phase2_core_rebuild/",
+    "claude_worklog/v2_scaffold_reviews/",
+    "claude_worklog/security/",
+    "claude_worklog/autonomous_control_plane/",
+    "v2/",
+)
+
+FORBIDDEN_TEXT = (
+    "redis-cli",
+    "XADD",
+    "XDEL",
+    "FLUSHDB",
+    "FLUSHALL",
+    "create_order",
+    "cancel_order",
+    "change_leverage",
+    "change_margin",
+    "enable_live_trading",
+)
 
 
 def now_iso() -> str:
@@ -56,6 +79,14 @@ def read_json(path: pathlib.Path) -> Dict[str, Any]:
 def write_json(path: pathlib.Path, payload: Dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def append_event(event: str, **payload: Any) -> None:
+    path = WORKSPACE / "claude_worklog/agent_supervisor/events.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = {"event": event, "ts": now_iso(), **payload}
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record, sort_keys=True) + "\n")
 
 
 def git_last_commit() -> str:
@@ -139,6 +170,104 @@ def planned_task_for_requirement(requirement_name: str | None) -> str | None:
     if requirement_name == "REQ_0004_TRAINER_GPU_PARITY.md":
         return "050_trainer_gpu_parity_rebuild_plan"
     return None
+
+
+def parse_begin_file_blocks(text: str) -> List[Tuple[str, str]]:
+    blocks: List[Tuple[str, str]] = []
+    strict = re.findall(r"^BEGIN_FILE:?\s*(.*?)\n(.*?)\nEND_FILE\s*$", text, re.S | re.M)
+    for rel, content in strict:
+        blocks.append((rel.strip(), content.strip()))
+    if blocks:
+        return blocks
+
+    markers = list(re.finditer(r"^BEGIN_FILE:?\s*(.+)$", text, re.M))
+    for i, marker in enumerate(markers):
+        rel = marker.group(1).strip()
+        start = marker.end() + 1
+        end = markers[i + 1].start() if i + 1 < len(markers) else len(text)
+        content = text[start:end].strip()
+        if content.endswith("END_FILE"):
+            content = content[: -len("END_FILE")].strip()
+        blocks.append((rel, content))
+    return blocks
+
+
+def sanitize_emitted_file_content(rel_path: str, content: str) -> Tuple[str, bool]:
+    source_suffixes = (".py", ".toml", ".json", ".yaml", ".yml", ".ts", ".tsx", ".js", ".jsx", ".sh", ".css", ".html")
+    if not rel_path.endswith(source_suffixes):
+        return content.rstrip() + "\n", False
+    lines = content.splitlines()
+    changed = False
+    cleaned: List[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "```" or re.fullmatch(r"```(python|toml|json|bash|sh|typescript|tsx|javascript|jsx|yaml|yml|css|html)?", stripped):
+            changed = True
+            continue
+        cleaned.append(line)
+    return "\n".join(cleaned).rstrip() + "\n", changed
+
+
+def safe_materialize_blocks(stdout: str) -> Tuple[List[str], List[str]]:
+    materialized: List[str] = []
+    refused: List[str] = []
+    for rel, content in parse_begin_file_blocks(stdout):
+        rel = rel.strip()
+        if not rel or rel.startswith("/") or ".." in pathlib.PurePosixPath(rel).parts:
+            refused.append(rel or "<empty>")
+            continue
+        if not any(rel.startswith(prefix) for prefix in ALLOWED_MATERIALIZE_PREFIXES):
+            refused.append(rel)
+            continue
+        if any(forbidden in content for forbidden in FORBIDDEN_TEXT):
+            refused.append(rel)
+            append_event("master_planner_refused_forbidden_content", path=rel)
+            continue
+        clean, changed = sanitize_emitted_file_content(rel, content)
+        target = WORKSPACE / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(clean, encoding="utf-8")
+        materialized.append(rel)
+        append_event("master_planner_materialized_file", path=rel)
+        if changed:
+            append_event("materialized_content_sanitized", path=rel, reason="removed_outer_markdown_fence")
+    return materialized, refused
+
+
+def generated_task_ids(materialized: List[str]) -> List[str]:
+    task_ids: List[str] = []
+    for rel in materialized:
+        if not rel.startswith("claude_worklog/agent_supervisor/tasks/") or not rel.endswith(".json"):
+            continue
+        data = read_json(WORKSPACE / rel)
+        task_id = str(data.get("task_id") or pathlib.Path(rel).stem)
+        risk = str(data.get("risk_level") or "L1").upper()
+        if data.get("status") == "pending" and risk in {"L1", "L2", "L3"}:
+            task_ids.append(task_id)
+    return task_ids
+
+
+def run_generated_tasks(task_ids: List[str]) -> List[Dict[str, Any]]:
+    results: List[Dict[str, Any]] = []
+    for task_id in task_ids[:1]:
+        append_event("master_planner_supervisor_task_started", task_id=task_id)
+        cp = subprocess.run(
+            ["python3", "claude_worklog/tools/agent_supervisor.py", "--task-id", task_id],
+            cwd=str(WORKSPACE),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=7200,
+        )
+        results.append({"task_id": task_id, "returncode": cp.returncode, "stdout_chars": len(cp.stdout), "stderr_chars": len(cp.stderr)})
+        append_event("master_planner_supervisor_task_completed", task_id=task_id, returncode=cp.returncode)
+        out_dir = WORKSPACE / "claude_worklog/agent_supervisor/runtime/master_planner"
+        (out_dir / f"{task_id}_supervisor_stdout.txt").write_text(cp.stdout, encoding="utf-8")
+        (out_dir / f"{task_id}_supervisor_stderr.txt").write_text(cp.stderr, encoding="utf-8")
+        if cp.returncode != 0:
+            break
+    return results
 
 
 def build_prompt() -> str:
@@ -245,6 +374,22 @@ def run_once(dry_run: bool = False) -> Dict[str, Any]:
     if cp.returncode != 0:
         payload["blocked_reason"] = "claude_master_planner_invocation_failed"
         payload["human_attention_required"] = True
+    else:
+        materialized, refused = safe_materialize_blocks(cp.stdout)
+        task_ids = generated_task_ids(materialized)
+        task_results = run_generated_tasks(task_ids)
+        payload.update({
+            "materialized_files": materialized,
+            "refused_files": refused,
+            "generated_task_ids": task_ids,
+            "supervisor_task_results": task_results,
+        })
+        if refused:
+            payload["blocked_reason"] = "master_planner_refused_unsafe_or_unexpected_file"
+            payload["human_attention_required"] = True
+        elif any(result.get("returncode") not in {0, None} for result in task_results):
+            payload["blocked_reason"] = "generated_supervisor_task_failed"
+            payload["human_attention_required"] = True
     write_json(STATUS, payload)
     return payload
 
