@@ -1,5 +1,25 @@
-"""Ingestor manager endpoints. No handler bodies in scaffold."""
+"""`/ingestors/` — connector ingestor surface (residual from module map).
+
+Scaffold-only: `prefix=` is set and an OPTIONS shim returns route metadata.
+"""
+
+from __future__ import annotations
+
+from typing import Any
 
 from fastapi import APIRouter
 
 router = APIRouter(prefix="/ingestors", tags=["ingestors"])
+
+ROUTE_METADATA: dict[str, Any] = {
+    "group": "ingestors",
+    "prefix": "/ingestors",
+    "endpoints": ("/", "/{ingestor_id}"),
+    "rbac": "admin",
+    "milestone_d_status": "skeleton",
+}
+
+
+@router.options("/", include_in_schema=False)
+async def _route_metadata() -> dict[str, Any]:
+    return ROUTE_METADATA

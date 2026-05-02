@@ -1,4 +1,4 @@
-"""`/_meta/` endpoints — health, build info, readiness (per §7).
+"""`/auth/` endpoints — login, logout, MFA, step-up, refresh, revocation (§7).
 
 Scaffold-only: `prefix=` is set and an OPTIONS shim returns route metadata.
 No handler bodies that perform DB/Redis I/O.
@@ -10,12 +10,19 @@ from typing import Any
 
 from fastapi import APIRouter
 
-router = APIRouter(prefix="/_meta", tags=["_meta"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 ROUTE_METADATA: dict[str, Any] = {
-    "group": "_meta",
-    "prefix": "/_meta",
-    "endpoints": ("/health", "/build", "/readiness"),
+    "group": "auth",
+    "prefix": "/auth",
+    "endpoints": (
+        "/login",
+        "/logout",
+        "/mfa",
+        "/step-up",
+        "/session/refresh",
+        "/tokens/revoke",
+    ),
     "rbac": "public",
     "milestone_d_status": "skeleton",
 }

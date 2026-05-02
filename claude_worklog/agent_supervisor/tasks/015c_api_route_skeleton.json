@@ -5,9 +5,11 @@
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "allowed_output_prefixes": [
+    "claude_worklog/security/",
+    "claude_worklog/v2_build/",
     "v2/backend/app/api/",
-    "v2/backend/tests/contract/",
-    "claude_worklog/v2_build/"
+    "v2/backend/app/main.py",
+    "v2/backend/tests/contract/"
   ],
   "required_output_files": [
     "v2/backend/app/api/v1/health.py",
@@ -160,7 +162,7 @@
   },
   "go_no_go_marker": "D_API_SKELETON_VALIDATION_READY",
   "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not place/cancel orders. Do not import legacy trainer modules. Materialize empty FastAPI routers under v2/backend/app/api/v1/ for every endpoint group listed in claude_worklog/v2_scaffold_planning/04_API_ROUTE_SCAFFOLD_PLAN.md \u00a77. Each router file declares prefix= and an OPTIONS shim returning route metadata; NO handler bodies that perform DB/Redis I/O. Materialize middleware shells (request_id, idempotency, rbac, approval, lineage_validator, live_block_guard, db_error_translator, rate_limit, ip_allowlist, step_up_mfa) per \u00a73 in the EXACT order. Materialize app/api/errors/taxonomy.py enumerating the closed set of error classes per \u00a74. Materialize app/api/schemas/* shapes consistent with 12B closure. Add two contract tests: middleware-order assertion and taxonomy enumeration. live_block_guard must default-deny every /api/v1/live/** route. Produce claude_worklog/v2_build/D_API_SKELETON_VALIDATION.md ending in exactly D_API_SKELETON_VALIDATION_READY or D_API_SKELETON_VALIDATION_BLOCKED. Output BEGIN_FILE blocks only.",
-  "next_recommended_action": "Do not run automatically. Wait for Codex queue pass and explicit human approval.",
+  "next_recommended_action": "Recover 015C by materializing safe API skeleton outputs only; then validate and run Codex review for 015C. Do not run 015D.",
   "normalized_from_artifact": false,
   "status": "blocked_approval",
   "approval_required": true,
