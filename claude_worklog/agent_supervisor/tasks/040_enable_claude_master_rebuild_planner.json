@@ -1,0 +1,39 @@
+{
+  "task_id": "040_enable_claude_master_rebuild_planner",
+  "agent": "system_check",
+  "risk_level": "L2",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": false,
+  "allowed_output_prefixes": [
+    "claude_worklog/autonomous_control_plane/"
+  ],
+  "required_output_files": [
+    "claude_worklog/autonomous_control_plane/06_CLAUDE_MASTER_REBUILD_PLANNER.md",
+    "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt"
+  ],
+  "command": "python3 claude_worklog/tools/claude_master_rebuild_planner.py --dry-run",
+  "safety_boundary": {
+    "forbidden_writes": [
+      "../AI BOT/**",
+      "/home/wali/Desktop/AI BOT/**",
+      "**/.env",
+      "**/secrets/**",
+      "claude_worklog/agent_supervisor/state/**",
+      "claude_worklog/agent_supervisor/status/**",
+      "claude_worklog/agent_supervisor/runs/**"
+    ],
+    "forbidden_runtime_actions": [
+      "write_legacy_redis",
+      "delete_redis_keys",
+      "restart_legacy_services",
+      "place_or_cancel_orders",
+      "enable_live_trading",
+      "deploy",
+      "production_migration"
+    ],
+    "live_trading_default": "BLOCKED",
+    "legacy_bot_access": "READ_ONLY"
+  },
+  "next_recommended_action": "Use --run-once only after service-map Codex review passes."
+}
