@@ -1,0 +1,17 @@
+{
+  "task_id": "032_codex_review_symbol_universe_usdm_correction",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/symbol_universe/"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/symbol_universe/11_CODEX_REVIEW_USDM_CORRECTION.md",
+    "claude_worklog/phase2_core_rebuild/symbol_universe/12_CODEX_GO_NO_GO_USDM_CORRECTION.md"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Review the Phase 2B Binance USD-M correction only. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not place/cancel orders. Do not enable live trading. Do not create implementation beyond review artifacts. Inputs: v2/backend/app/domain/symbols, v2/backend/app/adapters/symbol_sources, v2/backend/tests/unit/symbol_universe, v2/backend/tests/fixtures/symbol_universe, claude_worklog/phase2_core_rebuild/symbol_universe. Verify: USD-M is primary, /fapi/v1/exchangeInfo adapter exists, COIN-M is optional only, BTCUSDT legacy active symbols map to USD-M, COIN-M and USD-M aliases cannot collapse, tests use fixtures/no live API calls, no legacy files changed, no Redis writes, no secrets. Output exactly two BEGIN_FILE blocks. The GO/NO-GO file must contain exactly one line: PHASE2_SYMBOL_UNIVERSE_USDM_CORRECTION_CODEX_PASS or PHASE2_SYMBOL_UNIVERSE_USDM_CORRECTION_CODEX_FAIL.",
+  "next_recommended_action": "If pass, proceed to Phase 2C feature snapshot / attribution pipeline. If fail, remediate and re-review."
+}
