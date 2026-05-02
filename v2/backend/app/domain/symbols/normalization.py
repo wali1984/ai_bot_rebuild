@@ -60,17 +60,55 @@ def build_alias_set(identity: SymbolIdentity) -> list[str]:
 
 def normalize_source_symbol(source: str, raw_symbol_payload: Dict[str, Any]) -> SymbolIdentity:
     source_key = source.lower()
+    if source_key == "binance_usdm":
+        return _normalize_binance_usdm(raw_symbol_payload)
     if source_key == "binance_coinm":
         return _normalize_binance_coinm(raw_symbol_payload)
     if source_key == "coinank":
         return _normalize_generic(source_key, raw_symbol_payload, exchange="coinank", family=ContractFamily.UNKNOWN.value)
     if source_key == "coinapi_ws":
-        return _normalize_generic(source_key, raw_symbol_payload, exchange="coinapi", family=ContractFamily.UNKNOWN.value)
+        return _normalize_generic(source_key, raw_symbol_payload, exchange="coinapi", family=ContractFamily.USD_M.value)
     if source_key == "coinapi_rest":
-        return _normalize_generic(source_key, raw_symbol_payload, exchange="coinapi", family=ContractFamily.UNKNOWN.value)
+        return _normalize_generic(source_key, raw_symbol_payload, exchange="coinapi", family=ContractFamily.USD_M.value)
     if source_key == "kucoin":
-        return _normalize_generic(source_key, raw_symbol_payload, exchange="kucoin", family=ContractFamily.LINEAR.value)
+        return _normalize_generic(source_key, raw_symbol_payload, exchange="kucoin", family=ContractFamily.USD_M.value)
     raise ValueError(f"unsupported symbol source: {source}")
+
+
+def _normalize_binance_usdm(payload: Dict[str, Any]) -> SymbolIdentity:
+    symbol = str(payload.get("symbol", ""))
+    pair = str(payload.get("pair", "")) or symbol
+    base = normalize_asset(payload.get("baseAsset") or re.sub(r"(USDT|USDC|USD)$", "", pair))
+    quote = normalize_asset(payload.get("quoteAsset") or ("USDC" if symbol.endswith("USDC") else "USDT"))
+    settlement = normalize_asset(payload.get("marginAsset") or quote)
+    contract_type = normalize_contract_type(payload.get("contractType"), symbol)
+    type_part = "PERP" if contract_type == ContractType.PERPETUAL.value else str(payload.get("deliveryDate") or contract_type).upper()
+    metadata = {
+        "deliveryDate": payload.get("deliveryDate"),
+        "onboardDate": payload.get("onboardDate"),
+        "filters": payload.get("filters", []),
+        "pricePrecision": payload.get("pricePrecision"),
+        "quantityPrecision": payload.get("quantityPrecision"),
+        "linear": True,
+    }
+    identity = SymbolIdentity(
+        canonical_symbol_id=f"BINANCE-USDM-{base}-{quote}-{type_part}",
+        base_asset=base,
+        quote_asset=quote,
+        settlement_asset=settlement,
+        market_type=MarketType.FUTURES.value,
+        contract_family=ContractFamily.USD_M.value,
+        contract_type=contract_type,
+        exchange="binance",
+        source="binance_usdm",
+        source_symbol=symbol,
+        source_pair=pair,
+        legacy_symbol=symbol if quote in {"USDT", "USDC"} else payload.get("legacy_symbol"),
+        normalization_confidence=NormalizationConfidence.HIGH.value,
+        status=str(payload.get("status") or payload.get("contractStatus") or ""),
+        metadata=metadata,
+    )
+    return SymbolIdentity(**{**identity.__dict__, "alias_set": build_alias_set(identity)})
 
 
 def _normalize_binance_coinm(payload: Dict[str, Any]) -> SymbolIdentity:

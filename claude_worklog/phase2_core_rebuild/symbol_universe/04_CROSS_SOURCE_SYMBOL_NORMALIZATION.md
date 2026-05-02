@@ -24,7 +24,9 @@ Canonical fields include:
 Rules:
 - Do not assume one symbol string is universal.
 - Do not collapse perpetual and quarterly/delivery contracts.
-- Do not collapse inverse COIN-M and linear USDT-M contracts.
+- Binance USD-M is the primary Binance futures universe for the current V2 rebuild.
+- Binance COIN-M is optional/future adapter support only.
+- Do not collapse inverse COIN-M and linear USD-M contracts.
 - Preserve CoinAnk aliases while keeping `live_coinank.py` copied as-is.
 - Support KuCoin and CoinAPI aliases through registry adapters.
 

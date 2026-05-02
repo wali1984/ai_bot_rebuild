@@ -3,7 +3,8 @@
 Phase 2B builds the local, non-live symbol universe foundation. It does not limit V2 to the current legacy `config.py` symbols.
 
 Scope:
-- Discover all Binance COIN-M futures symbols from exchange-info payloads.
+- Discover all Binance USD-M futures symbols from exchange-info payloads as the primary Binance futures universe.
+- Retain Binance COIN-M futures as optional/future adapter support only.
 - Represent future USD-M, KuCoin, CoinAnk, CoinAPI WS, and CoinAPI REST sources through adapter interfaces.
 - Preserve the current legacy configured symbols as active/trusted subsets, not as the full universe.
 - Normalize source-specific aliases into canonical symbol identities.

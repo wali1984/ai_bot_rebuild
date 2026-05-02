@@ -1,4 +1,22 @@
 {
+  "binance_usdm_btc_perp": {
+    "symbol": "BTCUSDT",
+    "pair": "BTCUSDT",
+    "contractType": "PERPETUAL",
+    "status": "TRADING",
+    "baseAsset": "BTC",
+    "quoteAsset": "USDT",
+    "marginAsset": "USDT"
+  },
+  "binance_usdm_old_settling": {
+    "symbol": "OLDUSDT",
+    "pair": "OLDUSDT",
+    "contractType": "PERPETUAL",
+    "status": "SETTLING",
+    "baseAsset": "OLD",
+    "quoteAsset": "USDT",
+    "marginAsset": "USDT"
+  },
   "binance_coinm_btc_perp": {
     "symbol": "BTCUSD_PERP",
     "pair": "BTCUSD",
@@ -28,11 +46,11 @@
     "marginAsset": "BNB"
   },
   "coinapi_ws_btc_perp": {
-    "symbol": "BINANCEFTS_PERP_BTC_USD",
-    "pair": "BTC/USD",
+    "symbol": "BINANCE_PERP_BTC_USDT",
+    "pair": "BTC/USDT",
     "base": "BTC",
-    "quote": "USD",
-    "settlement": "BTC",
+    "quote": "USDT",
+    "settlement": "USDT",
     "contract_type": "PERPETUAL"
   },
   "kucoin_btc_perp": {

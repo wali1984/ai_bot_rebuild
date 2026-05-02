@@ -1,9 +1,17 @@
-# Binance COIN-M Discovery Requirement
+# Binance Futures Discovery Requirement
 
-Discovery source:
+Primary discovery source:
 - Base endpoint configurable.
-- Path: `/dapi/v1/exchangeInfo`.
+- Path: `/fapi/v1/exchangeInfo`.
 - Parse the `symbols` array.
+- Primary source key: `binance_usdm`.
+- Symbols use USD-M style names such as `BTCUSDT`, `ETHUSDT`, and `SOLUSDT`.
+- Contract family is `usd_m` and linear by default.
+
+Optional/future discovery source:
+- COIN-M remains supported through `/dapi/v1/exchangeInfo`.
+- Source key: `binance_coinm`.
+- COIN-M is not the primary universe for current legacy 25-symbol mapping.
 
 Fields preserved:
 - `symbol`
@@ -25,4 +33,4 @@ Testing:
 - Fixture contains perpetual, quarterly/delivery, and delivered/non-trading samples.
 - Non-trading symbols remain discovered but cannot move to active states without manual override.
 
-BINANCE_COINM_DISCOVERY_REQUIREMENT_READY
+BINANCE_USDM_DISCOVERY_REQUIREMENT_READY

@@ -13,9 +13,9 @@ def _payload(name):
 
 
 def _identity(status="TRADING"):
-    payload = _payload("binance_coinm_btc_perp")
-    payload["contractStatus"] = status
-    return normalize_source_symbol("binance_coinm", payload)
+    payload = _payload("binance_usdm_btc_perp")
+    payload["status"] = status
+    return normalize_source_symbol("binance_usdm", payload)
 
 
 def test_trading_symbol_can_move_from_discovered_to_observed():

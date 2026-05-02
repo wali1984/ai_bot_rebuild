@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from v2.backend.app.adapters.symbol_sources.binance_coinm import BinanceCoinMFuturesSource
+from v2.backend.app.adapters.symbol_sources.binance_usdm import BinanceUsdMFuturesSource
 from v2.backend.app.services.symbol_universe.service import HOT_RELOAD_COMPONENTS, SymbolUniverseService
 
 
@@ -10,9 +10,9 @@ def _payload(name):
 
 
 def test_config_version_marks_all_runtime_components_for_hot_reload_on_change():
-    source = BinanceCoinMFuturesSource()
+    source = BinanceUsdMFuturesSource()
     previous = []
-    current = source.from_payload({"symbols": [_payload("binance_coinm_btc_perp")]})
+    current = source.from_payload({"symbols": [_payload("binance_usdm_btc_perp")]})
 
     version = SymbolUniverseService().make_universe_version(previous, current, "fixture_discovery")
 
@@ -21,8 +21,8 @@ def test_config_version_marks_all_runtime_components_for_hot_reload_on_change():
 
 
 def test_config_version_with_no_change_requires_no_hot_reload():
-    source = BinanceCoinMFuturesSource()
-    current = source.from_payload({"symbols": [_payload("binance_coinm_btc_perp")]})
+    source = BinanceUsdMFuturesSource()
+    current = source.from_payload({"symbols": [_payload("binance_usdm_btc_perp")]})
 
     version = SymbolUniverseService().make_universe_version(current, current, "no_change")
 

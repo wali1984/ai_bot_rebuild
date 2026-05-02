@@ -1,13 +1,14 @@
 {
   "aliases": [
     {
-      "canonical": "BTC-USD-PERP-COINM-BINANCE",
+      "canonical": "BINANCE-USDM-BTC-USDT-PERP",
+      "binance_usdm": "BTCUSDT",
       "binance_coinm": "BTCUSD_PERP",
       "binance_pair": "BTCUSD",
       "legacy_symbol": "BTCUSDT",
       "coinank": "BTC",
-      "coinapi_ws": "BINANCEFTS_PERP_BTC_USD",
-      "coinapi_rest": "BINANCEFTS_PERP_BTC_USD",
+      "coinapi_ws": "BINANCE_PERP_BTC_USDT",
+      "coinapi_rest": "BINANCE_PERP_BTC_USDT",
       "kucoin": "XBTUSDTM"
     }
   ]
