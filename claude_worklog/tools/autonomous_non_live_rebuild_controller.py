@@ -291,6 +291,8 @@ def materialize_stdout(task_id: str, prefixes: Sequence[str]) -> List[str]:
     written: List[str] = []
     for idx, marker in enumerate(markers):
         path = marker.group(1).strip()
+        if task_id.startswith(("024_", "025_", "026_")) and "/" not in path:
+            path = "claude_worklog/v2_scaffold_reviews/" + path
         start = marker.end() + 1
         end = markers[idx + 1].start() if idx + 1 < len(markers) else len(txt)
         content = txt[start:end].rstrip()
