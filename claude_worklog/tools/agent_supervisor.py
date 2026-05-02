@@ -2024,6 +2024,8 @@ def select_next_task_file() -> Optional[pathlib.Path]:
                     last_summary=f"waiting on dependencies: {', '.join(blockers)}",
                 )
             continue
+        if status == "blocked_dependency" and str(task.get("attention_reason", "")) == "manual_sequence_hold":
+            continue
         if status == "blocked_dependency":
             update_task_state(tid, status="pending")
 
