@@ -19,10 +19,41 @@ Current gate markers:
 - claude_worklog/final_readiness/04_GO_NO_GO.md: FINAL_NON_LIVE_REBUILD_READY_FOR_LIVE_GATE_REVIEW
 
 Unprocessed requirements inbox:
-No unprocessed requirements.
+## REQ_0006_PHASE2_IMPLEMENT_TRAINER_PARITY_SERVICE.md
+# Requirement 0006 - Implement V2 Trainer GPU Parity Service
+
+Implement the non-live V2 trainer parity service based on the approved trainer GPU parity plan.
+
+Inputs:
+- claude_worklog/phase2_core_rebuild/trainer_gpu_parity/
+- legacy_reference trainer files
+- legacy service map
+- feature snapshot foundation
+- trainer/GPU parity requirements
+- local secret/config key manifests, names only
+
+Rules:
+- Do not modify /home/wali/Desktop/AI BOT.
+- Do not run or restart the live trainer.
+- Do not write Redis.
+- Do not send secrets to Claude/Codex/Ollama.
+- Do not enable live trading.
+- Do not build a basic trainer.
+- Preserve GPU utilization assumptions, batching, checkpoint behavior, model-loading behavior, hybrid trainer architecture, confidence/reward lessons, and proposal/prediction flow.
+- Add V2 service boundaries, liveness checks, prediction worker health, feature_snapshot_id, prediction_id, confidence attribution, freshness flags, stale/missing/unused flags, and local non-live tests.
+- Codex review is required before advancing.
+
+Expected result:
+- V2 trainer parity service foundation implemented.
+- Local tests pass.
+- Codex review pass.
+- No live behavior.
+
+REQ_PHASE2_IMPLEMENT_TRAINER_PARITY_SERVICE_READY
+
 
 Active requirement:
--
+REQ_0006_PHASE2_IMPLEMENT_TRAINER_PARITY_SERVICE.md
 
 Objective:
 - Map requirements against legacy_reference, service map, preservation policies, V2 code, and current Phase 2 artifacts.
