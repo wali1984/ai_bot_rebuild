@@ -1,4 +1,6 @@
  M claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt
+ M claude_worklog/cooldown_maintenance/00_STATUS_SNAPSHOT.md
+ M claude_worklog/cooldown_maintenance/01_GIT_DIRTY_FILES.txt
 ?? claude_worklog/agent_supervisor/tasks/064_trainer_parity_2e1c_beta_implementation.json
 ?? claude_worklog/agent_supervisor/tasks/065_trainer_parity_2e1c_beta_local_validation.json
 ?? claude_worklog/agent_supervisor/tasks/066_trainer_parity_2e1c_beta_codex_review.json
@@ -15,7 +17,6 @@
 ?? claude_worklog/autonomous_control_plane/PLANNER_TURN_7_NOOP_2026_05_02.md
 ?? claude_worklog/autonomous_control_plane/PLANNER_TURN_8_NOOP_2026_05_02.md
 ?? claude_worklog/autonomous_control_plane/PLANNER_TURN_9_NOOP_2026_05_02.md
-?? claude_worklog/cooldown_maintenance/
 ?? claude_worklog/phase2_core_rebuild/frontend_design/08_PHASE_2FA1_DESIGN_SPEC_TASK_SPEC.md
 ?? claude_worklog/phase2_core_rebuild/frontend_design/09_PHASE_2FA1_SAFETY_BOUNDARIES.md
 ?? claude_worklog/phase2_core_rebuild/frontend_design/10_PHASE_2FA1_GO_NO_GO_REQUEST.md

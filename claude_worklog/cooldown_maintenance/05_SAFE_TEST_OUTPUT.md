@@ -1,6 +1,6 @@
 # Cooldown Test Output
 
-Generated: 2026-05-02T21:26:59-04:00
+Generated: 2026-05-02T21:27:34-04:00
 
 ## Symbol universe
 
@@ -140,4 +140,4 @@ ERROR v2/backend/tests/unit/feature_snapshots/test_trainer_input_contract.py
 ## Trainer adapter/domain
 ........................................................................ [ 64%]
 ........................................                                 [100%]
-112 passed in 0.07s
+112 passed in 0.06s
