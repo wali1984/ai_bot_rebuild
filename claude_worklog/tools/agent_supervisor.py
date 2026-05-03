@@ -2795,7 +2795,7 @@ def main() -> int:
     return 0 if result.get("status") in {
         "completed", "skipped", "pending",
         "retry_scheduled", "blocked_dependency", "blocked_quota",
-        "blocked_auth", "blocked_approval",
+        "blocked_auth", "blocked_approval", "superseded_by_evidence",
     } else 1
 
 
