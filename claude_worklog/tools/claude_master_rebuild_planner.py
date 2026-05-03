@@ -341,6 +341,41 @@ def generated_task_ids(materialized: List[str]) -> List[str]:
     return task_ids
 
 
+SAFETY_NEGATIONS = (
+    "do not",
+    "don't",
+    "never",
+    "no ",
+    "must not",
+    "without",
+    "blocked",
+    "forbidden",
+    "read-only",
+    "read only",
+)
+
+
+def line_is_negated(line: str) -> bool:
+    return any(token in line for token in SAFETY_NEGATIONS)
+
+
+def line_mentions_live_legacy_root(line: str) -> bool:
+    """Match the live legacy root without matching AI BOT REBUILD."""
+    root = re.escape("/home/wali/desktop/ai bot")
+    return re.search(root + r"(?! rebuild)(?=$|[/'\"\\\s,.;:)\]])", line) is not None
+
+
+def line_requests_live_legacy_root_mutation(line: str) -> bool:
+    if not line_mentions_live_legacy_root(line) or line_is_negated(line):
+        return False
+    root = re.escape("/home/wali/desktop/ai bot")
+    mutation = r"(write|modify|edit|patch|delete|remove|move|copy\s+to|touch|mutate|change)"
+    return (
+        re.search(mutation + r".{0,120}" + root, line) is not None
+        or re.search(root + r".{0,120}" + mutation, line) is not None
+    )
+
+
 def task_requests_forbidden_live_action(task: Dict[str, Any]) -> Tuple[bool, List[str]]:
     """Detect concrete unsafe task requests without blocking safety disclaimers."""
     prompt_text = " ".join(
@@ -363,11 +398,8 @@ def task_requests_forbidden_live_action(task: Dict[str, Any]) -> Tuple[bool, Lis
     for label, pattern in forbidden_patterns.items():
         if re.search(pattern, prompt_text):
             blockers.append(label)
-    legacy_write_patterns = (
-        r"\b(write|modify|edit|patch|delete|remove|move|copy\s+to)\b.{0,120}/home/wali/desktop/ai bot\b",
-        r"/home/wali/desktop/ai bot\b.{0,120}\b(write|modify|edit|patch|delete|remove|move)\b",
-    )
-    if any(re.search(pattern, prompt_text) for pattern in legacy_write_patterns):
+    lines = [line.strip() for line in prompt_text.splitlines()]
+    if any(line_requests_live_legacy_root_mutation(line) for line in lines):
         blockers.append("legacy_mutation")
     return bool(blockers), blockers
 
