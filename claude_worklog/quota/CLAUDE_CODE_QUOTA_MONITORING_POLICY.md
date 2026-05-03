@@ -15,6 +15,18 @@ Check Claude Code readiness every 5 hours during long autonomous rebuild work.
 
 `./claude_worklog/tools/check_claude_code_quota_status.sh`
 
+## Guard Command
+
+Use the quota guard during autonomous rebuild sessions:
+
+`./claude_worklog/tools/start_claude_code_quota_guard.sh`
+
+The guard:
+- records the 5-hour ready-probe cadence
+- stops the Claude Master Rebuild Planner if Claude Code is blocked or limited
+- probes more frequently while blocked
+- restarts the planner only after the probe reports ready and git is clean except runtime prompt/quota files
+
 ## Suggested Cadence
 
 Every 5 hours during active rebuild days.
