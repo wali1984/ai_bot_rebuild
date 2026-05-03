@@ -18,6 +18,14 @@ Evidence = Tuple[str, str, List[str]]
 
 EVIDENCE_MARKERS: List[Evidence] = [
     (
+        "CODEX_064_HUMAN_ATTENTION_RECOVERY_READY",
+        "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/076_CODEX_RECOVERY_064_GO_NO_GO.md",
+        [
+            "064_trainer_parity_2e1c_beta_implementation",
+            "076_codex_recover_064_human_attention",
+        ],
+    ),
+    (
         "CODEX_PARALLEL_TRAINER_LIVENESS_AUTOFIX_PASS",
         "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/74_CODEX_PARALLEL_REREVIEW_TRAINER_LIVENESS_AUTOFIX_GO_NO_GO.md",
         [
