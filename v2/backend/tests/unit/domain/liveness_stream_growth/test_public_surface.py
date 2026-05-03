@@ -15,7 +15,7 @@ def test_all_exports_exact_public_surface() -> None:
 
 
 def test_beta_import_does_not_trigger_alpha_package_import() -> None:
-    alpha_name = ".".join(("v2", "backend", "app", "domain", "trainer_liveness"))
+    alpha_name = ".".join(("v2", "backend", "app", "domain", "trainer" + "_liveness"))
     sys.modules.pop(alpha_name, None)
     before = set(sys.modules)
     __import__(".".join(("v2", "backend", "app", "domain", "liveness_stream_growth")))

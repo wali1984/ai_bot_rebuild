@@ -34,7 +34,7 @@ def _tokens() -> tuple[str, ...]:
         "x" + "len",
         "async" + "io",
         "async " + "def",
-        "from " + ".".join(("v2", "backend", "app", "domain", "trainer_liveness")),
+        "from " + ".".join(("v2", "backend", "app", "domain", "trainer" + "_liveness")),
     )
 
 
