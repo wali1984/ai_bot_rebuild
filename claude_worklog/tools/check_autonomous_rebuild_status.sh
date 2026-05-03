@@ -39,6 +39,9 @@ print(f"Claude Code profile: {d.get('claude_code_profile') or 'Max20 consolidate
 print(f"task granularity mode: {d.get('task_granularity_mode') or 'consolidated_default'}")
 print(f"split fallback enabled: {'yes' if d.get('split_fallback_enabled', True) else 'no'}")
 print(f"quota monitor enabled: {'yes' if d.get('quota_monitor_enabled', True) else 'no'}")
+print(f"Codex parallel lane: {d.get('codex_parallel_lane') or 'Codex Pro parallel review/autofix lane'}")
+print(f"Codex parallel enabled: {'yes' if d.get('codex_parallel_lane_enabled', True) else 'no'}")
+print(f"Codex parallel policy: {d.get('codex_parallel_lane_policy') or 'git_clean_and_no_active_dirty_claude_output'}")
 PY
 
 echo

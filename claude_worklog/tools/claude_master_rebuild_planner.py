@@ -24,6 +24,7 @@ PROCESSED = WORKSPACE / "claude_worklog/agent_supervisor/runtime/master_planner/
 STATUS = WORKSPACE / "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json"
 PROMPT_OUT = WORKSPACE / "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt"
 PLANNER_PROFILE_NAME = "Claude Code Max20 consolidated default"
+CODEX_PARALLEL_LANE_NAME = "Codex Pro parallel review/autofix lane"
 TASK_GRANULARITY_ENV = "AI_BOT_PLANNER_TASK_GRANULARITY"
 TASK_GRANULARITY_ALLOWED = {"consolidated_default", "split_default", "recovery_split_only"}
 DEFAULT_TASK_GRANULARITY = "consolidated_default"
@@ -572,6 +573,16 @@ Claude Code Max 20x profile is active.
 - Continue to use Codex review after every milestone.
 - Never confuse larger task capacity with broader safety authority. All live/legacy/Redis/exchange/deploy restrictions still apply.
 
+Codex Pro parallel lane is active.
+- Role split: Claude Code is planner/architect/primary builder; Codex is adversarial reviewer, concrete blocker fixer, test hardener, safety auditor, regression detector, and re-review authority; Ollama summarizes/compresses evidence; Copilot is terminal/status operator only.
+- Use Codex in parallel with Claude only when the repository is clean and Codex will not touch active dirty Claude output.
+- If a Claude child or supervisor task is active and git is dirty, Codex waits.
+- If Claude is building milestone N, Codex may review committed milestone N-1, fix prior concrete Codex blockers, harden tests, or audit safety/status tooling inside allowed non-live paths.
+- If Claude is idle and git is clean, Codex may review the latest committed milestone or run safe autofix.
+- Codex must not own broad architecture or product strategy; Claude remains the planning/design authority.
+- Codex must not run a milestone's required review before that milestone's local validation marker passes.
+- Codex parallel scope is limited to v2/, claude_worklog/phase2_core_rebuild/, claude_worklog/v2_scaffold_reviews/, claude_worklog/security/, claude_worklog/agent_supervisor/tasks/, and claude_worklog/tools/ only for safety/status/review tooling.
+
 Read the repo evidence roots:
 {chr(10).join(f"- {root}" for root in EVIDENCE_ROOTS)}
 
@@ -604,6 +615,8 @@ Required planner knowledge:
   trainer liveness implementation + tests + docs as one task; trainer prediction worker health as one task; trainer GPU/checkpoint runner as one task; trainer confidence attribution as one task.
 - For REQ_0008 frontend design, use consolidated design-system milestone tasks and do not micro-split page-by-page unless validation fails.
 - Keep recovery and safety mechanisms active: safe path remap, BEGIN_FILE materialization, markdown fence stripping, Codex autofix, quota guard, and dispatch bridge.
+- For REQ_0011, implement a parallel Codex lane that can review committed artifacts, fix concrete Codex blockers, harden tests, detect live/Redis/legacy/exchange/deploy risk, review stale planner/queue/dashboard issues, prepare narrow remediation patches, and re-review its own remediation.
+- Immediate REQ_0006 constraint: do not dispatch 062 Codex review before 061 local validation passes; Codex may review older committed trainer 2E1A/2E1B/2E1C artifacts in parallel only when git is clean and no active dirty Claude output exists.
 
 Hard stops:
 - Do not modify /home/wali/Desktop/AI BOT.
@@ -641,6 +654,9 @@ def status_payload(mode: str, blocked_reason: str | None = None) -> Dict[str, An
         "task_granularity_mode": task_granularity_mode(),
         "split_fallback_enabled": split_fallback_enabled(),
         "quota_monitor_enabled": True,
+        "codex_parallel_lane": CODEX_PARALLEL_LANE_NAME,
+        "codex_parallel_lane_enabled": True,
+        "codex_parallel_lane_policy": "git_clean_and_no_active_dirty_claude_output",
         "codex_gate": "required_after_each_milestone",
         "last_commit": git_last_commit(),
         "blocked_reason": blocked_reason,
