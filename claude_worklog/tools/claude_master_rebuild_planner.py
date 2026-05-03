@@ -568,12 +568,12 @@ def task_has_satisfied_marker_gates(task: Dict[str, Any]) -> bool:
 def marker_ready_supervisor_task_ids() -> List[str]:
     preferred_prefixes = (
         "061_",
-        "069_",
-        "070_",
         "062_",
         "064_",
         "065_",
         "066_",
+        "069_",
+        "070_",
         "067_",
         "068_",
     )
