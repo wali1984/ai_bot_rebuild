@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -57,6 +58,13 @@ FORBIDDEN_TEXT = (
     "enable_live_trading",
 )
 
+READY_TO_FIRE_TASKS = {
+    "060_trainer_parity_2e1c_alpha_implementation": {
+        "decision_file": "claude_worklog/autonomous_control_plane/PLANNER_DISPATCH_DECISION_2026_05_02_TASK_060_2E1C_ALPHA_READY_TO_FIRE.md",
+        "decision_marker": "PLANNER_DISPATCH_DECISION_TASK_060_2E1C_ALPHA_AUTHORIZED",
+    }
+}
+
 
 def now_iso() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat()
@@ -97,6 +105,71 @@ def git_last_commit() -> str:
 def git_status_short() -> str:
     cp = subprocess.run(["git", "status", "--short"], cwd=str(WORKSPACE), text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False)
     return cp.stdout.strip()
+
+
+def substantive_git_dirty() -> List[str]:
+    """Return non-runtime dirty git status rows.
+
+    The planner prompt and supervisor status/runtime files are expected to move
+    while the automation loop is operating. Source, task, review, and worklog
+    artifacts must be clean before bridge dispatch.
+    """
+    rows = [line for line in git_status_short().splitlines() if line.strip()]
+    allowed_fragments = (
+        "claude_worklog/agent_supervisor/status/",
+        "claude_worklog/agent_supervisor/runtime/",
+        "claude_worklog/agent_supervisor/supervisor.lock",
+        "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt",
+    )
+    dirty: List[str] = []
+    for row in rows:
+        path = row[2:].strip()
+        if not any(fragment in path for fragment in allowed_fragments):
+            dirty.append(row)
+    return dirty
+
+
+def active_agent_child_processes() -> str:
+    cp = subprocess.run(
+        [
+            "bash",
+            "-lc",
+            "ps -eo cmd | grep -E 'claude --print|codex exec|ollama run|agent_supervisor.py --task-id' | grep -v grep || true",
+        ],
+        cwd=str(WORKSPACE),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    return cp.stdout.strip()
+
+
+def remove_dead_supervisor_lock() -> Tuple[bool, str]:
+    lock = WORKSPACE / "claude_worklog/agent_supervisor/supervisor.lock"
+    if not lock.exists():
+        return False, "no_lock"
+    raw = read_text(lock, 4000)
+    pid: int | None = None
+    try:
+        loaded = json.loads(raw)
+        value = loaded.get("pid")
+        if isinstance(value, int):
+            pid = value
+    except Exception:
+        for part in raw.replace("=", " ").replace(":", " ").split():
+            if part.isdigit():
+                pid = int(part)
+                break
+    if not pid:
+        return False, "pid_unknown"
+    try:
+        os.kill(pid, 0)
+        return False, f"pid_alive:{pid}"
+    except Exception:
+        lock.unlink()
+        append_event("master_planner_dead_supervisor_lock_removed", pid=pid)
+        return True, f"removed_dead_pid:{pid}"
 
 
 def inbox_requirements() -> List[Dict[str, str]]:
@@ -263,27 +336,142 @@ def generated_task_ids(materialized: List[str]) -> List[str]:
     return task_ids
 
 
+def task_requests_forbidden_live_action(task: Dict[str, Any]) -> Tuple[bool, List[str]]:
+    """Detect concrete unsafe task requests without blocking safety disclaimers."""
+    prompt_text = " ".join(
+        [
+            str(task.get("prompt", "")),
+            str(task.get("next_recommended_action", "")),
+            " ".join(str(x) for x in task.get("allowed_output_prefixes", [])),
+            " ".join(str(x) for x in task.get("required_output_files", [])),
+        ]
+    ).lower()
+    blockers: List[str] = []
+    forbidden_patterns = {
+        "redis_write": r"\b(redis-cli\s+(set|del|xadd|xdel|flushdb|flushall)|xadd\b|xdel\b|flushdb\b|flushall\b)",
+        "exchange_action": r"\b(create_order|cancel_order|change_leverage|change_margin)\b",
+        "service_restart": r"\b(systemctl\s+restart|sudo\s+systemctl|pkill\s+-f|kill\s+-9)\b",
+        "live_enable": r"\b(enable_live_trading\s*[:=]\s*(true|1|yes)|set\s+live[_ -]?trading\s+enabled|turn\s+on\s+live\s+trading)\b",
+        "deployment": r"\b(kubectl\s+apply|terraform\s+apply|deploy(ment)?\s+to\s+prod|production migration)\b",
+        "secret_exposure": r"\b(print|echo|cat)\s+.*\b(secret|api[_-]?key|token)\b",
+    }
+    for label, pattern in forbidden_patterns.items():
+        if re.search(pattern, prompt_text):
+            blockers.append(label)
+    legacy_write_patterns = (
+        r"\b(write|modify|edit|patch|delete|remove|move|copy\s+to)\b.{0,120}/home/wali/desktop/ai bot\b",
+        r"/home/wali/desktop/ai bot\b.{0,120}\b(write|modify|edit|patch|delete|remove|move)\b",
+    )
+    if any(re.search(pattern, prompt_text) for pattern in legacy_write_patterns):
+        blockers.append("legacy_mutation")
+    return bool(blockers), blockers
+
+
+def dispatch_approved_supervisor_task(task_id: str) -> Dict[str, Any]:
+    """Safely dispatch an approved non-live supervisor task."""
+    task_path = WORKSPACE / "claude_worklog/agent_supervisor/tasks" / f"{task_id}.json"
+    result: Dict[str, Any] = {"task_id": task_id, "dispatched": False}
+    if not task_path.exists():
+        result.update({"blocked_reason": "task_file_missing"})
+        append_event("master_planner_dispatch_bridge_blocked", **result)
+        return result
+
+    task = read_json(task_path)
+    risk = str(task.get("risk_level") or "").upper()
+    if risk not in {"L1", "L2", "L3"}:
+        result.update({"blocked_reason": f"risk_not_allowed:{risk}"})
+        append_event("master_planner_dispatch_bridge_blocked", **result)
+        return result
+    if str(task.get("cwd") or "") != str(WORKSPACE):
+        result.update({"blocked_reason": "cwd_not_workspace"})
+        append_event("master_planner_dispatch_bridge_blocked", **result)
+        return result
+    if str(task.get("status") or "").lower() in {"blocked_approval", "blocked_human_only", "cancelled"}:
+        result.update({"blocked_reason": "task_status_blocked"})
+        append_event("master_planner_dispatch_bridge_blocked", **result)
+        return result
+
+    forbidden, hits = task_requests_forbidden_live_action(task)
+    if forbidden:
+        result.update({"blocked_reason": "forbidden_live_action_terms", "hits": hits})
+        append_event("master_planner_dispatch_bridge_blocked", **result)
+        return result
+
+    approval = WORKSPACE / "claude_worklog/approvals/STANDING_APPROVAL_NON_LIVE_V2_REBUILD_UNTIL_LIVE_GATE.md"
+    if not approval.exists():
+        result.update({"blocked_reason": "standing_approval_missing"})
+        append_event("master_planner_dispatch_bridge_blocked", **result)
+        return result
+
+    active = active_agent_child_processes()
+    if active:
+        result.update({"blocked_reason": "active_child_process", "processes": active[:2000]})
+        append_event("master_planner_dispatch_bridge_blocked", **result)
+        return result
+
+    lock_removed, lock_reason = remove_dead_supervisor_lock()
+    if lock_reason.startswith("pid_alive:"):
+        result.update({"blocked_reason": "supervisor_lock_alive", "lock_reason": lock_reason})
+        append_event("master_planner_dispatch_bridge_blocked", **result)
+        return result
+    result["lock_cleanup"] = lock_reason
+    result["lock_removed"] = lock_removed
+
+    dirty = substantive_git_dirty()
+    if dirty:
+        result.update({"blocked_reason": "git_dirty", "dirty": dirty[:20]})
+        append_event("master_planner_dispatch_bridge_blocked", **result)
+        return result
+
+    append_event("master_planner_dispatch_bridge_started", task_id=task_id)
+    cp = subprocess.run(
+        ["python3", "claude_worklog/tools/agent_supervisor.py", "--task-id", task_id],
+        cwd=str(WORKSPACE),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+        timeout=7200,
+    )
+    out_dir = WORKSPACE / "claude_worklog/agent_supervisor/runtime/master_planner"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / f"{task_id}_supervisor_stdout.txt").write_text(cp.stdout, encoding="utf-8")
+    (out_dir / f"{task_id}_supervisor_stderr.txt").write_text(cp.stderr, encoding="utf-8")
+    result.update(
+        {
+            "dispatched": True,
+            "returncode": cp.returncode,
+            "stdout_chars": len(cp.stdout),
+            "stderr_chars": len(cp.stderr),
+        }
+    )
+    append_event("master_planner_dispatch_bridge_completed", **result)
+    return result
+
+
 def run_generated_tasks(task_ids: List[str]) -> List[Dict[str, Any]]:
     results: List[Dict[str, Any]] = []
     for task_id in task_ids[:1]:
-        append_event("master_planner_supervisor_task_started", task_id=task_id)
-        cp = subprocess.run(
-            ["python3", "claude_worklog/tools/agent_supervisor.py", "--task-id", task_id],
-            cwd=str(WORKSPACE),
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
-            timeout=7200,
-        )
-        results.append({"task_id": task_id, "returncode": cp.returncode, "stdout_chars": len(cp.stdout), "stderr_chars": len(cp.stderr)})
-        append_event("master_planner_supervisor_task_completed", task_id=task_id, returncode=cp.returncode)
-        out_dir = WORKSPACE / "claude_worklog/agent_supervisor/runtime/master_planner"
-        (out_dir / f"{task_id}_supervisor_stdout.txt").write_text(cp.stdout, encoding="utf-8")
-        (out_dir / f"{task_id}_supervisor_stderr.txt").write_text(cp.stderr, encoding="utf-8")
-        if cp.returncode != 0:
+        result = dispatch_approved_supervisor_task(task_id)
+        results.append(result)
+        if result.get("returncode") not in {0, None} or result.get("blocked_reason"):
             break
     return results
+
+
+def ready_to_fire_task_ids() -> List[str]:
+    task_ids: List[str] = []
+    for task_id, config in READY_TO_FIRE_TASKS.items():
+        decision = WORKSPACE / str(config["decision_file"])
+        marker = str(config["decision_marker"])
+        if marker not in read_text(decision, 50000):
+            continue
+        state_path = WORKSPACE / "claude_worklog/agent_supervisor/state/tasks" / f"{task_id}.json"
+        state = read_json(state_path)
+        if str(state.get("status") or "").lower() in {"completed", "running"}:
+            continue
+        task_ids.append(task_id)
+    return task_ids
 
 
 def build_prompt() -> str:
@@ -373,6 +561,26 @@ def run_once(dry_run: bool = False) -> Dict[str, Any]:
     if dry_run or not payload["active_requirement"]:
         write_json(STATUS, payload)
         return payload
+
+    ready_tasks = ready_to_fire_task_ids()
+    if ready_tasks:
+        task_results = run_generated_tasks(ready_tasks)
+        payload.update(
+            {
+                "ready_to_fire_task_ids": ready_tasks,
+                "supervisor_task_results": task_results,
+                "next_action": "dispatched ready-to-fire supervisor task",
+            }
+        )
+        if any(result.get("blocked_reason") for result in task_results):
+            payload["blocked_reason"] = "dispatch_bridge_blocked"
+            payload["human_attention_required"] = True
+        elif any(result.get("returncode") not in {0, None} for result in task_results):
+            payload["blocked_reason"] = "generated_supervisor_task_failed"
+            payload["human_attention_required"] = True
+        write_json(STATUS, payload)
+        return payload
+
     cp = subprocess.run(
         ["claude", "--print", prompt, "--output-format", "text"],
         cwd=str(WORKSPACE),
