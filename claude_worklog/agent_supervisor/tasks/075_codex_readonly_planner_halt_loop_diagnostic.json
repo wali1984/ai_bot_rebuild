@@ -1,0 +1,17 @@
+{
+  "task_id": "075_codex_readonly_planner_halt_loop_diagnostic",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/automation_reliability/"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/automation_reliability/075_CODEX_PLANNER_HALT_LOOP_DIAGNOSTIC.md",
+    "claude_worklog/phase2_core_rebuild/automation_reliability/075_CODEX_PLANNER_HALT_LOOP_GO_NO_GO.md"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. READ-ONLY DIAGNOSTIC MODE except for emitting the two requested report files. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not run live trainer. Do not enable live trading. Do not patch source code in this task. Diagnose why the Claude master planner is repeatedly materializing halt/reaffirmation/noop/standby artifacts and not advancing cleanly. Inputs: claude_worklog/tools/claude_master_rebuild_planner.py, claude_worklog/tools/agent_supervisor.py, claude_worklog/tools/reconcile_evidence_status.py, claude_worklog/agent_supervisor/status/*.json, claude_worklog/agent_supervisor/events.jsonl, claude_worklog/autonomous_control_plane/*HALT* *NOOP* *STANDBY* *DISPATCH*, claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl, claude_worklog/agent_supervisor/tasks/060*.json through 075*.json. Determine whether this is: stale evidence wire, missing dispatch bridge hook, superseded task queue noise, git dirty guard, active child guard, quota guard conflict, or planner prompt runtime artifact issue. Output a precise diagnosis and a safe remediation plan. GO/NO-GO file must contain exactly one line: CODEX_PLANNER_HALT_LOOP_DIAGNOSTIC_READY or CODEX_PLANNER_HALT_LOOP_DIAGNOSTIC_BLOCKED.",
+  "next_recommended_action": "If diagnostic is ready and no active Claude child exists, create a separate Codex autofix task for allowed non-live planner/supervisor code only."
+}
