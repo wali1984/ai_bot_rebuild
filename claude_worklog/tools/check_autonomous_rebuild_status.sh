@@ -3,6 +3,10 @@ set -u
 
 cd "$HOME/Desktop/AI BOT REBUILD" || exit 1
 
+echo
+echo "=== EVIDENCE RECONCILIATION ==="
+python3 claude_worklog/tools/reconcile_evidence_status.py 2>/dev/null || true
+
 echo "=== TIME ==="
 date -Is
 

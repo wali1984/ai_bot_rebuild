@@ -36,6 +36,7 @@ NEXT_PHASE = BASE / "state/NEXT_PHASE.md"
 WORKSPACE = pathlib.Path(os.path.expanduser("~/Desktop/AI BOT REBUILD"))
 REQUIREMENTS_INBOX = WORKSPACE / "claude_worklog/requirements_inbox"
 MASTER_PLANNER_STATUS = WORKSPACE / "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json"
+EVIDENCE_RECONCILIATION_STATUS = WORKSPACE / "claude_worklog/agent_supervisor/status/evidence_reconciliation_status.json"
 MASTER_PLANNER_SESSION = "ai_bot_claude_master_rebuild_planner"
 
 HEARTBEAT_STALE_S = 600
@@ -61,6 +62,10 @@ def read_json(path: pathlib.Path) -> Dict[str, Any]:
             return json.load(f)
     except Exception:
         return {}
+
+
+def read_evidence_reconciliation_status() -> Dict[str, Any]:
+    return read_json(EVIDENCE_RECONCILIATION_STATUS)
 
 
 def cmd_out(cmd: List[str]) -> str:
@@ -528,6 +533,17 @@ def print_dashboard(refresh_seconds: int) -> None:
             print("dirty git warning: none")
         print(f"last event age seconds: {last_event_age}")
         print(f"daemon heartbeat age seconds: {int(hb_age) if hb_age is not None else '-'}")
+
+        evidence_status = read_evidence_reconciliation_status()
+        if evidence_status:
+            found = evidence_status.get("found_markers", {})
+            superseded = evidence_status.get("superseded_tasks", {})
+            print("\n[EVIDENCE RECONCILIATION]")
+            print(f"generated_at: {evidence_status.get('generated_at')}")
+            print(f"markers_found: {len(found)}")
+            print(f"superseded_tasks: {len(superseded)}")
+            for task_id, marker in list(superseded.items())[:10]:
+                print(f"  {task_id} => {marker}")
 
         print("\n[LAST 10 EVENTS]")
         for ln in last_events(10):
