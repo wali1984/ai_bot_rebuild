@@ -693,14 +693,75 @@ def sanitize_emitted_file_content(rel_path: str, content: str) -> Tuple[str, boo
     return sanitized, removed
 
 
+TRAINER_LIVENESS_TEST_FILE_REMAP = {
+    "test_signal_snapshot.py": "test_signal_snapshot_invariants.py",
+    "test_signal_invariants.py": "test_signal_snapshot_invariants.py",
+    "test_sla_config.py": "test_sla_config_invariants.py",
+    "test_alert.py": "test_alert_invariants.py",
+    "test_evaluator_zero_growth.py": "test_evaluator_zero_stream_growth.py",
+    "test_evaluator_fatal_log.py": "test_evaluator_fatal_log_signature.py",
+    "test_public_surface_imports.py": "test_public_surface.py",
+    "test_evaluation_no_alert.py": "test_evaluator_no_alert.py",
+    "test_evaluation_age_exceeds_threshold.py": "test_evaluator_age_exceeds.py",
+    "test_evaluation_zero_stream_growth.py": "test_evaluator_zero_stream_growth.py",
+    "test_evaluation_fatal_log_signature.py": "test_evaluator_fatal_log_signature.py",
+    "test_evaluation_multi_reason_alert.py": "test_evaluator_multi_reason.py",
+}
+
+
+def safe_path_remap_candidate(rel_path: str, required_output_files: List[str]) -> Optional[str]:
+    """Return a known-safe canonical emitted path if the task explicitly requires it.
+
+    This intentionally supports only recurring non-live V2 layout mistakes.
+    The canonical target must be present in required_output_files, which keeps
+    the materializer from inventing paths or broadening a task's write scope.
+    """
+    normalized = normalize_relpath(rel_path)
+    required = {normalize_relpath(x) for x in required_output_files if str(x).strip()}
+    candidates: List[str] = []
+
+    prefix_pairs = (
+        ("v2/app/domain/", "v2/backend/app/domain/"),
+        ("v2/tests/symbol_universe/", "v2/backend/tests/unit/symbol_universe/"),
+        ("v2/tests/feature_snapshots/", "v2/backend/tests/unit/feature_snapshots/"),
+    )
+    for wrong, right in prefix_pairs:
+        if normalized.startswith(wrong):
+            candidates.append(right + normalized[len(wrong):])
+
+    trainer_prefixes = (
+        "v2/tests/trainer_liveness/",
+        "v2/backend/tests/trainer_liveness/",
+        "v2/tests/control_plane/trainer_liveness/",
+    )
+    trainer_right = "v2/backend/tests/unit/domain/trainer_liveness/"
+    for wrong in trainer_prefixes:
+        if normalized.startswith(wrong):
+            filename = normalized[len(wrong):]
+            candidates.append(trainer_right + filename)
+            candidates.append(trainer_right + TRAINER_LIVENESS_TEST_FILE_REMAP.get(filename, filename))
+
+    for candidate in candidates:
+        candidate_path = pathlib.Path(candidate)
+        if candidate_path.is_absolute() or ".." in candidate_path.parts:
+            continue
+        target = (WORKSPACE_ROOT / candidate_path).resolve()
+        if candidate in required and in_workspace(target):
+            return candidate
+    return None
+
+
 def materialize_emit_files(
     stdout_path: pathlib.Path,
     allowed_output_prefixes: List[str],
+    required_output_files: Optional[List[str]] = None,
+    task_risk_level: str = "L0",
 ) -> Dict[str, Any]:
     result: Dict[str, Any] = {
         "materialized_files": [],
         "errors": [],
         "blocks_found": 0,
+        "safe_path_remaps": [],
     }
 
     if not stdout_path.exists():
@@ -729,8 +790,22 @@ def materialize_emit_files(
             continue
 
         if not is_relpath_allowed(rel_path, allowed_output_prefixes):
-            result["errors"].append(f"emit-file path not allowed by prefixes: {rel_path}")
-            continue
+            remapped = None
+            if str(task_risk_level).upper() in {"L1", "L2", "L3"}:
+                remapped = safe_path_remap_candidate(rel_path, required_output_files or [])
+            if remapped and is_relpath_allowed(remapped, allowed_output_prefixes):
+                append_event({
+                    "event": "safe_path_remap_materialized",
+                    "source_path": rel_path,
+                    "canonical_path": remapped,
+                    "risk_level": str(task_risk_level).upper(),
+                })
+                result["safe_path_remaps"].append({"source_path": rel_path, "canonical_path": remapped})
+                rel_path = remapped
+                p = pathlib.Path(rel_path)
+            else:
+                result["errors"].append(f"emit-file path not allowed by prefixes: {rel_path}")
+                continue
 
         target = (WORKSPACE_ROOT / p).resolve()
         if not in_workspace(target):
@@ -2337,7 +2412,9 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                             result["status"] = "failed"
                             result["summary"] = "emit_files=true but allowed_output_prefixes missing"
                         else:
-                            mat = materialize_emit_files(stdout_path, allowed_prefixes)
+                            required_outputs = [str(x) for x in task.get("required_output_files", []) if str(x).strip()]
+                            task_risk = str(task.get("risk_level", "L0")).upper()
+                            mat = materialize_emit_files(stdout_path, allowed_prefixes, required_outputs, task_risk)
                             result["materialized_files"] = mat.get("materialized_files", [])
                             errors = mat.get("errors", [])
                             if errors:
@@ -2346,7 +2423,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
 
                             missing_required = check_required_outputs(task)
                             if missing_required:
-                                retry_mat = materialize_emit_files(stdout_path, allowed_prefixes)
+                                retry_mat = materialize_emit_files(stdout_path, allowed_prefixes, required_outputs, task_risk)
                                 result["materialized_files"] = list(
                                     dict.fromkeys(result["materialized_files"] + retry_mat.get("materialized_files", []))
                                 )
