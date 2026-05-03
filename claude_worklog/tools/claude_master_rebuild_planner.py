@@ -65,6 +65,11 @@ READY_TO_FIRE_TASKS = {
     }
 }
 
+SPLIT_060_RECOVERY_MARKER = (
+    WORKSPACE
+    / "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/46_2E1C_ALPHA_PARTIAL_GENERATION_FAILURE.md"
+)
+
 
 def now_iso() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat()
@@ -460,6 +465,29 @@ def run_generated_tasks(task_ids: List[str]) -> List[Dict[str, Any]]:
 
 
 def ready_to_fire_task_ids() -> List[str]:
+    if SPLIT_060_RECOVERY_MARKER.exists():
+        split_tasks = [
+            (
+                "060b_trainer_liveness_unit_tests",
+                "060a_trainer_liveness_domain_source",
+            ),
+            (
+                "060c_trainer_liveness_validation_docs",
+                "060b_trainer_liveness_unit_tests",
+            ),
+        ]
+        for task_id, predecessor_id in split_tasks:
+            predecessor_state = read_json(
+                WORKSPACE / "claude_worklog/agent_supervisor/state/tasks" / f"{predecessor_id}.json"
+            )
+            state = read_json(WORKSPACE / "claude_worklog/agent_supervisor/state/tasks" / f"{task_id}.json")
+            if str(predecessor_state.get("status") or "").lower() != "completed":
+                continue
+            if str(state.get("status") or "").lower() in {"completed", "running"}:
+                continue
+            return [task_id]
+        return []
+
     task_ids: List[str] = []
     for task_id, config in READY_TO_FIRE_TASKS.items():
         decision = WORKSPACE / str(config["decision_file"])
