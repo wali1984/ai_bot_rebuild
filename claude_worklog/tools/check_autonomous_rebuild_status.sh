@@ -28,6 +28,20 @@ echo "=== MASTER PLANNER STATUS ==="
 cat claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json 2>/dev/null || true
 
 echo
+echo "=== CLAUDE CODE PLANNER PROFILE ==="
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+p = Path("claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json")
+d = json.loads(p.read_text()) if p.exists() else {}
+print(f"Claude Code profile: {d.get('claude_code_profile') or 'Max20 consolidated default'}")
+print(f"task granularity mode: {d.get('task_granularity_mode') or 'consolidated_default'}")
+print(f"split fallback enabled: {'yes' if d.get('split_fallback_enabled', True) else 'no'}")
+print(f"quota monitor enabled: {'yes' if d.get('quota_monitor_enabled', True) else 'no'}")
+PY
+
+echo
 echo "=== CURRENT STATUS ==="
 cat claude_worklog/agent_supervisor/status/current_status.json 2>/dev/null || true
 

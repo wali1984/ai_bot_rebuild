@@ -23,6 +23,10 @@ INBOX = WORKSPACE / "claude_worklog/requirements_inbox"
 PROCESSED = WORKSPACE / "claude_worklog/agent_supervisor/runtime/master_planner/processed_requirements.json"
 STATUS = WORKSPACE / "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json"
 PROMPT_OUT = WORKSPACE / "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt"
+PLANNER_PROFILE_NAME = "Claude Code Max20 consolidated default"
+TASK_GRANULARITY_ENV = "AI_BOT_PLANNER_TASK_GRANULARITY"
+TASK_GRANULARITY_ALLOWED = {"consolidated_default", "split_default", "recovery_split_only"}
+DEFAULT_TASK_GRANULARITY = "consolidated_default"
 
 EVIDENCE_ROOTS = [
     "claude_worklog/requirements_inbox",
@@ -100,6 +104,23 @@ def append_event(event: str, **payload: Any) -> None:
     record = {"event": event, "ts": now_iso(), **payload}
     with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, sort_keys=True) + "\n")
+
+
+def task_granularity_mode() -> str:
+    configured = os.environ.get(TASK_GRANULARITY_ENV, DEFAULT_TASK_GRANULARITY).strip()
+    if configured not in TASK_GRANULARITY_ALLOWED:
+        append_event(
+            "master_planner_task_granularity_invalid_env",
+            env_var=TASK_GRANULARITY_ENV,
+            configured=configured,
+            fallback=DEFAULT_TASK_GRANULARITY,
+        )
+        return DEFAULT_TASK_GRANULARITY
+    return configured
+
+
+def split_fallback_enabled() -> bool:
+    return task_granularity_mode() in {"consolidated_default", "recovery_split_only", "split_default"}
 
 
 def git_last_commit() -> str:
@@ -538,7 +559,18 @@ def build_prompt() -> str:
     reqs = unprocessed_requirements()
     active = choose_active_requirement(reqs)
     req_block = "\n\n".join(f"## {req['name']}\n{req['text']}" for req in reqs) or "No unprocessed requirements."
+    granularity = task_granularity_mode()
     return f"""You are Claude Code running as the Master Non-Live V2 Rebuild Planner.
+
+Claude Code Max 20x profile is active.
+- Planner profile: {PLANNER_PROFILE_NAME}.
+- Task granularity mode: {granularity}.
+- Prefer consolidated milestone tasks.
+- Do not create split microtasks by default.
+- Split only after a failed consolidated task, quota/timeout, repeated path mismatch, output size pressure, or Codex remediation that benefits from isolation.
+- If a task fails due emit/path/size/timeout, create a targeted split recovery task instead of continuing to micro-split by habit.
+- Continue to use Codex review after every milestone.
+- Never confuse larger task capacity with broader safety authority. All live/legacy/Redis/exchange/deploy restrictions still apply.
 
 Read the repo evidence roots:
 {chr(10).join(f"- {root}" for root in EVIDENCE_ROOTS)}
@@ -556,6 +588,7 @@ Objective:
 - Map requirements against legacy_reference, service map, preservation policies, V2 code, and current Phase 2 artifacts.
 - Decide the next safest non-live rebuild milestone yourself.
 - Generate task definitions, implementation outputs, validation reports, Codex review tasks, and remediation tasks as needed.
+- Use consolidated non-live milestone tasks by default; keep split-task fallback for recovery only.
 - Execute through agent_supervisor where appropriate.
 - Validate, commit, push, request Codex review, remediate safe findings, and continue until a real safety gate.
 
@@ -567,6 +600,10 @@ Required planner knowledge:
 - `feature_pipeline.py` is parity-critical.
 - Trainer/GPU behavior must be parity-rebuilt, not replaced with a basic trainer.
 - Legacy config.py 25 symbols are active subset only, not full universe.
+- For REQ_0006 trainer parity, existing split tasks may finish if already staged, but future trainer parity steps should be consolidated by sub-milestone:
+  trainer liveness implementation + tests + docs as one task; trainer prediction worker health as one task; trainer GPU/checkpoint runner as one task; trainer confidence attribution as one task.
+- For REQ_0008 frontend design, use consolidated design-system milestone tasks and do not micro-split page-by-page unless validation fails.
+- Keep recovery and safety mechanisms active: safe path remap, BEGIN_FILE materialization, markdown fence stripping, Codex autofix, quota guard, and dispatch bridge.
 
 Hard stops:
 - Do not modify /home/wali/Desktop/AI BOT.
@@ -600,6 +637,10 @@ def status_payload(mode: str, blocked_reason: str | None = None) -> Dict[str, An
         "active_milestone": "master_planner_requirement_intake" if active else "idle",
         "active_task": planned_task_for_requirement(active["name"] if active else None),
         "current_phase": "phase2_core_rebuild",
+        "claude_code_profile": PLANNER_PROFILE_NAME,
+        "task_granularity_mode": task_granularity_mode(),
+        "split_fallback_enabled": split_fallback_enabled(),
+        "quota_monitor_enabled": True,
         "codex_gate": "required_after_each_milestone",
         "last_commit": git_last_commit(),
         "blocked_reason": blocked_reason,
