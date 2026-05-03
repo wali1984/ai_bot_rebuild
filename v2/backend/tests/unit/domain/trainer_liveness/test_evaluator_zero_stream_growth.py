@@ -40,3 +40,33 @@ def test_zero_prediction_stream_growth_without_process_evidence_does_not_alert(
     )
 
     assert alert is None
+
+
+def test_zero_prediction_stream_growth_with_zero_rss_does_not_alert(
+    healthy_snapshot: LivenessSignalSnapshot,
+    liveness_sla: LivenessSLAConfig,
+) -> None:
+    alert = evaluate_liveness(
+        replace(
+            healthy_snapshot,
+            trainer_rss_bytes=0,
+            prediction_stream_id_growth=0,
+        ),
+        liveness_sla,
+        now_ms=10_100,
+    )
+
+    assert alert is None
+
+
+def test_nonzero_prediction_stream_growth_does_not_alert(
+    healthy_snapshot: LivenessSignalSnapshot,
+    liveness_sla: LivenessSLAConfig,
+) -> None:
+    alert = evaluate_liveness(
+        replace(healthy_snapshot, prediction_stream_id_growth=1),
+        liveness_sla,
+        now_ms=10_100,
+    )
+
+    assert alert is None

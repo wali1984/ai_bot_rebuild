@@ -24,6 +24,7 @@ class LivenessSignalSnapshot:
     prediction_worker_alive: bool
     last_prediction_ts_ms: int | None
     last_gpu_batch_ts_ms: int | None
+    # Captured for lineage/explainability; alpha liveness does not alert on deconflict freshness.
     last_deconflict_ts_ms: int | None
     last_proposal_ts_ms: int | None
     prediction_stream_id_growth: int

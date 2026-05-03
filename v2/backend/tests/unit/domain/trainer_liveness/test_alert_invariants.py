@@ -22,6 +22,26 @@ def test_alert_accepts_known_reason(healthy_snapshot: LivenessSignalSnapshot) ->
     assert alert.reasons == (LIVENESS_REASON_PREDICTION_AGE_EXCEEDS_SLA,)
 
 
+def test_alert_rejects_invalid_alert_code(healthy_snapshot: LivenessSignalSnapshot) -> None:
+    with pytest.raises(LivenessDomainError, match="invalid_alert_code"):
+        LivenessAlert(
+            alert_code="OTHER",
+            reasons=(LIVENESS_REASON_PREDICTION_AGE_EXCEEDS_SLA,),
+            observation_ts_ms=healthy_snapshot.observation_ts_ms,
+            snapshot=healthy_snapshot,
+        )
+
+
+def test_alert_rejects_no_reasons(healthy_snapshot: LivenessSignalSnapshot) -> None:
+    with pytest.raises(LivenessDomainError, match="must_have_reasons"):
+        LivenessAlert(
+            alert_code=LIVENESS_ALERT_CODE,
+            reasons=(),
+            observation_ts_ms=healthy_snapshot.observation_ts_ms,
+            snapshot=healthy_snapshot,
+        )
+
+
 def test_alert_rejects_duplicate_reasons(healthy_snapshot: LivenessSignalSnapshot) -> None:
     with pytest.raises(LivenessDomainError, match="duplicate_reasons"):
         LivenessAlert(

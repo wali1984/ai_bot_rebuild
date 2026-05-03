@@ -27,6 +27,7 @@ def evaluate_liveness(
 
     reasons: list[str] = []
 
+    # Missing timestamps mean the component has never emitted; alpha treats that through stream growth.
     if (
         snapshot.last_prediction_ts_ms is not None
         and now_ms - snapshot.last_prediction_ts_ms > sla.prediction_age_max_ms
@@ -53,6 +54,7 @@ def evaluate_liveness(
     ):
         reasons.append(LIVENESS_REASON_PREDICTION_STREAM_ZERO_GROWTH)
 
+    # Worker-dead evidence is independent of stream growth; nonzero growth must not suppress it.
     if snapshot.prediction_worker_alive is False:
         reasons.append(LIVENESS_REASON_PREDICTION_WORKER_DEAD)
 

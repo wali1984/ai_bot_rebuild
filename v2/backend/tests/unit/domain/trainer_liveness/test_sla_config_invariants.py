@@ -13,22 +13,26 @@ def test_sla_config_accepts_positive_thresholds(liveness_sla: LivenessSLAConfig)
 
 
 @pytest.mark.parametrize(
-    "field",
+    ("field", "value"),
     [
-        "prediction_age_max_ms",
-        "gpu_batch_age_max_ms",
-        "proposal_age_max_ms",
-        "prediction_stream_zero_growth_window_ms",
+        ("prediction_age_max_ms", 0),
+        ("prediction_age_max_ms", -1),
+        ("gpu_batch_age_max_ms", 0),
+        ("gpu_batch_age_max_ms", -1),
+        ("proposal_age_max_ms", 0),
+        ("proposal_age_max_ms", -1),
+        ("prediction_stream_zero_growth_window_ms", 0),
+        ("prediction_stream_zero_growth_window_ms", -1),
     ],
 )
-def test_sla_config_rejects_non_positive_thresholds(field: str) -> None:
+def test_sla_config_rejects_non_positive_thresholds(field: str, value: int) -> None:
     values = {
         "prediction_age_max_ms": 500,
         "gpu_batch_age_max_ms": 750,
         "proposal_age_max_ms": 600,
         "prediction_stream_zero_growth_window_ms": 1_000,
     }
-    values[field] = 0
+    values[field] = value
 
     with pytest.raises(LivenessDomainError, match=field):
         LivenessSLAConfig(**values)
