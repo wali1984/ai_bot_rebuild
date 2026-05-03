@@ -534,6 +534,84 @@ def run_generated_tasks(task_ids: List[str]) -> List[Dict[str, Any]]:
     return results
 
 
+def task_has_satisfied_marker_gates(task: Dict[str, Any]) -> bool:
+    marker_pairs = [
+        (
+            str(task.get("predecessor_required_marker_file") or "").strip(),
+            str(task.get("predecessor_required_marker") or "").strip(),
+        ),
+        (
+            str(task.get("predecessor_codex_parallel_review_marker_file") or "").strip(),
+            str(task.get("predecessor_codex_parallel_review_marker") or "").strip(),
+        ),
+    ]
+    saw_gate = False
+    for marker_file, marker in marker_pairs:
+        if not marker_file and not marker:
+            continue
+        saw_gate = True
+        if not marker_file or not marker:
+            return False
+        marker_path = WORKSPACE / marker_file
+        if marker_path.is_absolute():
+            marker_path = pathlib.Path(marker_file)
+        try:
+            marker_path = marker_path.resolve()
+            marker_path.relative_to(WORKSPACE)
+        except Exception:
+            return False
+        if marker not in read_text(marker_path, 50000):
+            return False
+    return saw_gate
+
+
+def marker_ready_supervisor_task_ids() -> List[str]:
+    preferred_prefixes = (
+        "061_",
+        "069_",
+        "070_",
+        "062_",
+        "064_",
+        "065_",
+        "066_",
+        "067_",
+        "068_",
+    )
+    ready: List[str] = []
+    state_dir = WORKSPACE / "claude_worklog/agent_supervisor/state/tasks"
+    task_dir = WORKSPACE / "claude_worklog/agent_supervisor/tasks"
+    terminal = {
+        "completed",
+        "running",
+        "superseded_by_evidence",
+        "failed",
+        "cancelled",
+        "blocked_auth",
+        "blocked_approval",
+        "human_attention_required",
+    }
+    for task_path in sorted(task_dir.glob("*.json")):
+        try:
+            task = read_json(task_path)
+        except Exception:
+            continue
+        task_id = str(task.get("task_id") or task_path.stem)
+        state = read_json(state_dir / f"{task_id}.json")
+        status = str(state.get("status") or task.get("status") or "pending").lower()
+        if status in terminal:
+            continue
+        if not task_has_satisfied_marker_gates(task):
+            continue
+        ready.append(task_id)
+    return sorted(
+        ready,
+        key=lambda tid: (
+            next((idx for idx, prefix in enumerate(preferred_prefixes) if tid.startswith(prefix)), 999),
+            tid,
+        ),
+    )
+
+
 def ready_to_fire_task_ids() -> List[str]:
     if SPLIT_060_RECOVERY_MARKER.exists():
         split_tasks = [
@@ -560,7 +638,8 @@ def ready_to_fire_task_ids() -> List[str]:
             }:
                 continue
             return [task_id]
-        return []
+        marker_ready = marker_ready_supervisor_task_ids()
+        return marker_ready[:1]
 
     task_ids: List[str] = []
     for task_id, config in READY_TO_FIRE_TASKS.items():
@@ -577,7 +656,10 @@ def ready_to_fire_task_ids() -> List[str]:
         }:
             continue
         task_ids.append(task_id)
-    return task_ids
+    if task_ids:
+        return task_ids
+    marker_ready = marker_ready_supervisor_task_ids()
+    return marker_ready[:1]
 
 
 def build_prompt() -> str:

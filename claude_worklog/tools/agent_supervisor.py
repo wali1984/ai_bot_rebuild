@@ -85,6 +85,9 @@ DEFINITION_FIELDS = {
     "no_output_growth_timeout_seconds",
     "preapproved", "approval_file", "auto_commit", "commit_message",
     "next_recommended_action", "description",
+    "predecessor_task_ids", "predecessor_required_marker",
+    "predecessor_required_marker_file", "predecessor_codex_parallel_review_marker",
+    "predecessor_codex_parallel_review_marker_file", "trigger_gate",
 }
 
 STATE_FIELDS = {
@@ -1261,6 +1264,7 @@ def planner_task_autorun_allowed(task_path: pathlib.Path, human_required: bool) 
 
     status_map = {str(t.get("task_id", "")): str(t.get("status", "pending")) for _, t in list_tasks()}
     blockers = dependency_blockers(task, status_map)
+    blockers.extend(predecessor_marker_blockers(task))
     if blockers:
         return False, f"waiting on dependencies: {', '.join(blockers)}"
 
@@ -1574,7 +1578,42 @@ def list_tasks() -> List[Tuple[pathlib.Path, Dict[str, Any]]]:
 
 def dependency_blockers(task: Dict[str, Any], status_map: Dict[str, str]) -> List[str]:
     deps = [str(x) for x in task.get("depends_on", []) if str(x).strip()]
-    return [d for d in deps if status_map.get(d) != "completed"]
+    deps.extend(str(x) for x in task.get("predecessor_task_ids", []) if str(x).strip())
+    satisfied = {"completed", "superseded_by_evidence"}
+    return [d for d in deps if status_map.get(d) not in satisfied]
+
+
+def predecessor_marker_blockers(task: Dict[str, Any]) -> List[str]:
+    blockers: List[str] = []
+    marker_pairs = [
+        (
+            str(task.get("predecessor_required_marker_file", "")).strip(),
+            str(task.get("predecessor_required_marker", "")).strip(),
+        ),
+        (
+            str(task.get("predecessor_codex_parallel_review_marker_file", "")).strip(),
+            str(task.get("predecessor_codex_parallel_review_marker", "")).strip(),
+        ),
+    ]
+    for marker_file, marker in marker_pairs:
+        if not marker_file and not marker:
+            continue
+        if not marker_file or not marker:
+            blockers.append(f"incomplete predecessor marker gate: {marker_file or marker}")
+            continue
+        marker_path = pathlib.Path(marker_file)
+        if not marker_path.is_absolute():
+            marker_path = WORKSPACE_ROOT / marker_path
+        marker_path = marker_path.resolve()
+        if not in_workspace(marker_path):
+            blockers.append(f"predecessor marker file outside workspace: {marker_file}")
+            continue
+        if not marker_path.exists():
+            blockers.append(f"predecessor marker file missing: {marker_file}")
+            continue
+        if marker not in read_text(marker_path):
+            blockers.append(f"predecessor marker missing: {marker} in {marker_file}")
+    return blockers
 
 
 def check_required_outputs(task: Dict[str, Any]) -> List[str]:
@@ -2080,6 +2119,7 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
         if should_defer_resume(t):
             continue
         blockers = dependency_blockers(t, status_map)
+        blockers.extend(predecessor_marker_blockers(t))
         if blockers:
             continue
         runnable_candidates.append((-task_priority(t), tid))
@@ -2156,6 +2196,7 @@ def select_next_task_file() -> Optional[pathlib.Path]:
             continue
 
         blockers = dependency_blockers(task, status_map)
+        blockers.extend(predecessor_marker_blockers(task))
         if blockers:
             if status != "blocked_dependency":
                 update_task_state(
@@ -2299,6 +2340,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
             else:
                 status_map = {str(t.get("task_id", "")): str(t.get("status", "pending")) for _, t in list_tasks()}
                 blockers = dependency_blockers(task, status_map)
+                blockers.extend(predecessor_marker_blockers(task))
                 if blockers:
                     result["status"] = "blocked_dependency"
                     result["summary"] = f"waiting on dependencies: {', '.join(blockers)}"

@@ -4,7 +4,7 @@
   "risk_level": "L1",
   "status": "pending",
   "predecessor_task_ids": ["060_trainer_parity_2e1c_alpha_implementation"],
-  "predecessor_required_marker": "PHASE2E1C_ALPHA_TRAINER_PARITY_IMPL_READY_FOR_CODEX_REVIEW",
+  "predecessor_required_marker": "PHASE2E1C_ALPHA_TRAINER_LIVENESS_READY_FOR_LOCAL_VALIDATION",
   "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/46_2E1C_ALPHA_GO_NO_GO.md",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
