@@ -1,0 +1,40 @@
+{
+  "task_id": "064_trainer_parity_2e1c_beta_implementation",
+  "agent": "claude",
+  "risk_level": "L1",
+  "status": "pending",
+  "predecessor_task_ids": ["062_trainer_parity_2e1c_alpha_codex_review"],
+  "predecessor_required_marker": "PHASE2E1C_ALPHA_TRAINER_PARITY_IMPL_CODEX_PASS",
+  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/51_2E1C_ALPHA_CODEX_GO_NO_GO.md",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "v2/backend/app/domain/liveness_stream_growth/",
+    "v2/backend/tests/unit/domain/liveness_stream_growth/",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/"
+  ],
+  "required_output_files": [
+    "v2/backend/app/domain/liveness_stream_growth/__init__.py",
+    "v2/backend/app/domain/liveness_stream_growth/errors.py",
+    "v2/backend/app/domain/liveness_stream_growth/stream_observation.py",
+    "v2/backend/app/domain/liveness_stream_growth/growth_window_config.py",
+    "v2/backend/app/domain/liveness_stream_growth/growth_calculator.py",
+    "v2/backend/tests/unit/domain/liveness_stream_growth/__init__.py",
+    "v2/backend/tests/unit/domain/liveness_stream_growth/test_stream_observation_validation.py",
+    "v2/backend/tests/unit/domain/liveness_stream_growth/test_stream_observation_parsed_id.py",
+    "v2/backend/tests/unit/domain/liveness_stream_growth/test_growth_window_config_validation.py",
+    "v2/backend/tests/unit/domain/liveness_stream_growth/test_growth_calculator_input_validation.py",
+    "v2/backend/tests/unit/domain/liveness_stream_growth/test_growth_calculator_window_boundary.py",
+    "v2/backend/tests/unit/domain/liveness_stream_growth/test_growth_calculator_distinctness.py",
+    "v2/backend/tests/unit/domain/liveness_stream_growth/test_growth_calculator_stream_name_filter.py",
+    "v2/backend/tests/unit/domain/liveness_stream_growth/test_growth_calculator_future_observation.py",
+    "v2/backend/tests/unit/domain/liveness_stream_growth/test_growth_calculator_zero_growth_cases.py",
+    "v2/backend/tests/unit/domain/liveness_stream_growth/test_public_surface.py",
+    "v2/backend/tests/unit/domain/liveness_stream_growth/test_forbidden_tokens.py",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/56_2E1C_BETA_GO_NO_GO.md",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/57_2E1C_BETA_IMPLEMENTATION_REPORT.md"
+  ],
+  "prompt": "You are local Claude in /home/wali/Desktop/AI BOT REBUILD acting as the Phase 2E1.C.beta implementer for REQ_0006 (V2 trainer GPU parity service). You author the stream-id growth windowing DOMAIN LAYER ONLY. You do not modify legacy. You do not run the live trainer. You do not write Redis. You do not read Redis. You do not place exchange orders. You do not deploy. You do not expose or commit secrets. You do not commit or push.\n\nRead exactly these files first as authoritative:\n- claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/52_PHASE_2E1C_BETA_GROWTH_WINDOW_SPEC.md\n- claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/53_PHASE_2E1C_BETA_TEST_PLAN.md\n- claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/54_PHASE_2E1C_BETA_SAFETY_BOUNDARIES.md\n- claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/55_PHASE_2E1C_BETA_GO_NO_GO_REQUEST.md\n- claude_worklog/phase2_core_rebuild/trainer_gpu_parity/05_PREDICTION_WORKER_LIVENESS_FIX_SPEC.md\n- claude_worklog/v2_requirements/09_TRAINER_INTERNAL_WORKER_SUPERVISION_REQUIREMENT.md\n- claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/42_PHASE_2E1C_ALPHA_LIVENESS_DOMAIN_SPEC.md (for cross-reference; you do NOT import this package).\n\nAuthor exactly the files listed in required_output_files and no others.\n\nAuthoring tool discipline. The five Python source files and eleven Python test files are pure-Python, sync, no-async, no-Redis, no-subprocess, no-network, no-clock, no-legacy. The two Markdown files are status reports.\n\nStep 1 - author the package files per spec 52 'Surface to create' and 'Public surface'. The __init__.py must export exactly the four names declared in spec 52. errors.py defines LivenessStreamGrowthDomainError. stream_observation.py defines StreamIdObservation per spec 52 'StreamIdObservation' section, including the parsed_id helper. growth_window_config.py defines GrowthWindowConfig per spec 52 'GrowthWindowConfig' section. growth_calculator.py defines compute_stream_id_growth_in_window per spec 52 'compute_stream_id_growth_in_window' section.\n\nStep 2 - author the test files per spec 53. Each rubric in spec 53 'Required rubric coverage' must map to at least one test case; provide one test function per rubric row. Use only stdlib + pytest. No mocks, no monkey-patches that touch Redis or network. Forbidden tokens are enumerated in spec 53 'Forbidden-token grep' and MUST yield zero hits.\n\nStep 3 - run a self-grep for the forbidden tokens listed in spec 53 across the beta source and test trees. Record the raw counts. Every count MUST be zero. Any non-zero count is a hard fail and you MUST emit PHASE2E1C_BETA_TRAINER_PARITY_IMPL_BLOCKED to 56_2E1C_BETA_GO_NO_GO.md and stop.\n\nStep 4 - run rg \"^END_FILE:\" recursively across the beta source and test trees. Hit count MUST be zero. Any non-zero hit is a hard fail and you MUST emit PHASE2E1C_BETA_TRAINER_PARITY_IMPL_BLOCKED.\n\nStep 5 - run python -m py_compile against every authored Python file. Any failure is a hard fail.\n\nStep 6 - run pytest against the beta tests directory using v2/.venv-control-plane/bin/python. Capture stdout/stderr verbatim. The summary line MUST show zero failures. Any failure is a hard fail.\n\nStep 7 - emit 56_2E1C_BETA_GO_NO_GO.md. Exactly one of:\n  PHASE2E1C_BETA_TRAINER_PARITY_IMPL_READY_FOR_CODEX_REVIEW\n  PHASE2E1C_BETA_TRAINER_PARITY_IMPL_BLOCKED\nNo other content.\n\nStep 8 - emit 57_2E1C_BETA_IMPLEMENTATION_REPORT.md with sections: 'Files authored' (list of paths), 'Public surface' (the 4 names from __init__), 'Forbidden-token self-grep results' (token => count), 'END_FILE marker self-grep result', 'py_compile result' (per file), 'pytest invocation' (full command and exit code), 'Spec sections satisfied' (one row per spec 52 / spec 53 section), 'Cross-isolation check' (proof that beta does not import alpha). Final marker: PHASE2E1C_BETA_TRAINER_PARITY_IMPL_REPORT_READY.\n\nStep 9 - safety guarantees. Do not modify any file under v2/backend/app/domain/trainer_liveness/. Do not modify any file under v2/backend/app/domain/trainer_parity/. Do not modify any file under v2/backend/app/adapters/trainer/. Do not modify legacy. Do not commit. Do not push. Do not run any subprocess other than pytest, python -m py_compile, python -c, and grep / rg. Do not start the legacy trainer venv. Do not import any legacy module. Do not access Redis. Do not access network. Do not read .env. Do not enable live trading.\n\nIf any step fails, write PHASE2E1C_BETA_TRAINER_PARITY_IMPL_BLOCKED to 56_2E1C_BETA_GO_NO_GO.md, capture the failure rows in 57, and stop. Do not invoke remediation directly; remediation is a separate task under REQ_0007 autofix scope.",
+  "next_recommended_action": "On READY_FOR_CODEX_REVIEW, supervisor dispatches 065_trainer_parity_2e1c_beta_local_validation.json. On BLOCKED, supervisor opens a remediation task under REQ_0007 autofix scope before any re-implementation."
+}
+END_FILE: claude_worklog/agent_supervisor/tasks/064_trainer_parity_2e1c_beta_implementation.json
