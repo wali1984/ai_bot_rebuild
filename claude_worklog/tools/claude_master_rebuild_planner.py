@@ -429,6 +429,7 @@ def task_requests_forbidden_live_action(task: Dict[str, Any]) -> Tuple[bool, Lis
 def dispatch_approved_supervisor_task(task_id: str) -> Dict[str, Any]:
     """Safely dispatch an approved non-live supervisor task."""
     task_path = WORKSPACE / "claude_worklog/agent_supervisor/tasks" / f"{task_id}.json"
+    state_path = WORKSPACE / "claude_worklog/agent_supervisor/state/tasks" / f"{task_id}.json"
     result: Dict[str, Any] = {"task_id": task_id, "dispatched": False}
     if not task_path.exists():
         result.update({"blocked_reason": "task_file_missing"})
@@ -436,6 +437,21 @@ def dispatch_approved_supervisor_task(task_id: str) -> Dict[str, Any]:
         return result
 
     task = read_json(task_path)
+    runtime_state = read_json(state_path)
+    runtime_status = str(runtime_state.get("status") or "").lower()
+    if runtime_status == "superseded_by_evidence":
+        marker = str(runtime_state.get("superseded_by_evidence") or "")
+        result.update(
+            {
+                "skipped": True,
+                "returncode": 0,
+                "reason": "superseded_by_evidence",
+                "superseded_by_evidence": marker,
+            }
+        )
+        append_event("master_planner_dispatch_bridge_skipped_superseded_by_evidence", **result)
+        return result
+
     risk = str(task.get("risk_level") or "").upper()
     if risk not in {"L1", "L2", "L3"}:
         result.update({"blocked_reason": f"risk_not_allowed:{risk}"})
@@ -537,7 +553,11 @@ def ready_to_fire_task_ids() -> List[str]:
             state = read_json(WORKSPACE / "claude_worklog/agent_supervisor/state/tasks" / f"{task_id}.json")
             if str(predecessor_state.get("status") or "").lower() != "completed":
                 continue
-            if str(state.get("status") or "").lower() in {"completed", "running"}:
+            if str(state.get("status") or "").lower() in {
+                "completed",
+                "running",
+                "superseded_by_evidence",
+            }:
                 continue
             return [task_id]
         return []
@@ -550,7 +570,11 @@ def ready_to_fire_task_ids() -> List[str]:
             continue
         state_path = WORKSPACE / "claude_worklog/agent_supervisor/state/tasks" / f"{task_id}.json"
         state = read_json(state_path)
-        if str(state.get("status") or "").lower() in {"completed", "running"}:
+        if str(state.get("status") or "").lower() in {
+            "completed",
+            "running",
+            "superseded_by_evidence",
+        }:
             continue
         task_ids.append(task_id)
     return task_ids
