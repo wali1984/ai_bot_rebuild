@@ -1,0 +1,17 @@
+{
+  "task_id": "073_codex_parallel_rereview_trainer_liveness_autofix",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/73_CODEX_PARALLEL_REREVIEW_TRAINER_LIVENESS_AUTOFIX.md",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/74_CODEX_PARALLEL_REREVIEW_TRAINER_LIVENESS_AUTOFIX_GO_NO_GO.md"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Re-review the trainer liveness worker-dead autofix after prior Codex finding. Inputs: v2/backend/app/domain/trainer_liveness, v2/backend/tests/unit/domain/trainer_liveness, claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/69_CODEX_PARALLEL_REVIEW_TRAINER_LIVENESS.md, claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/71_CODEX_PARALLEL_TRAINER_LIVENESS_AUTOFIX_REPORT.md. Verify prediction_worker_alive=False now produces an alert even when prediction_stream_id_growth is nonzero; reason is exported and validated; tests cover public surface and multi-reason order; no live trainer restart, Redis writes, legacy mutation, exchange action, or secrets. Output exactly two BEGIN_FILE blocks. GO/NO-GO file must contain one line: CODEX_PARALLEL_TRAINER_LIVENESS_AUTOFIX_PASS or CODEX_PARALLEL_TRAINER_LIVENESS_AUTOFIX_FAIL.",
+  "next_recommended_action": "If pass, continue trainer parity sequence. If fail, create a follow-up remediation task."
+}
