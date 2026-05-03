@@ -1,0 +1,21 @@
+{
+  "task_id": "060c_trainer_liveness_validation_docs",
+  "agent": "claude",
+  "risk_level": "L1",
+  "status": "blocked_dependency",
+  "depends_on": [
+    "060a_trainer_liveness_domain_source",
+    "060b_trainer_liveness_unit_tests"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/46_2E1C_ALPHA_GO_NO_GO.md",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/47_2E1C_ALPHA_IMPLEMENTATION_REPORT.md"
+  ],
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. STRICT HEADLESS EMIT-ONLY MODE. Do not use tools. Do not write files directly. Do not ask for permission. Output only BEGIN_FILE / END_FILE blocks. No prose outside file blocks. Create only the trainer 2E1C alpha implementation report and GO/NO-GO marker. The report must describe the trainer liveness domain source/tests created by 060A/060B and explicitly state local validation still must be run by the supervisor/operator before Codex review. The GO/NO-GO file must contain exactly one line: PHASE2E1C_ALPHA_TRAINER_LIVENESS_READY_FOR_LOCAL_VALIDATION. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not run live trainer.",
+  "next_recommended_action": "After 060C, run local validation. Do not run 061/062 until local validation passes."
+}

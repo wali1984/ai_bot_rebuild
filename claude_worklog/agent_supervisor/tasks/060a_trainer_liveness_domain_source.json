@@ -1,0 +1,21 @@
+{
+  "task_id": "060a_trainer_liveness_domain_source",
+  "agent": "claude",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "v2/backend/app/domain/trainer_liveness/"
+  ],
+  "required_output_files": [
+    "v2/backend/app/domain/trainer_liveness/__init__.py",
+    "v2/backend/app/domain/trainer_liveness/errors.py",
+    "v2/backend/app/domain/trainer_liveness/signal_snapshot.py",
+    "v2/backend/app/domain/trainer_liveness/sla_config.py",
+    "v2/backend/app/domain/trainer_liveness/alert.py",
+    "v2/backend/app/domain/trainer_liveness/evaluator.py"
+  ],
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. STRICT HEADLESS EMIT-ONLY MODE. Do not use tools. Do not write files directly. Do not ask for permission. Output only BEGIN_FILE / END_FILE blocks. No prose outside file blocks. Create only the V2 trainer_liveness domain source files listed in required_output_files. This is non-live local V2 code only. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not run live trainer. Implement a trainer liveness domain model that supports detecting process-alive/worker-dead states, stale predictions, zero stream growth, fatal log signatures, multi-reason alerts, SLA thresholds, and human-readable reasons. Do not emit tests or docs in this task. Do not emit a GO/NO-GO marker in this task.",
+  "next_recommended_action": "After 060A materializes and compiles, run 060B."
+}

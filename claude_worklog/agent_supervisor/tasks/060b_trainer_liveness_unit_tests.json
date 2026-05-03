@@ -1,0 +1,29 @@
+{
+  "task_id": "060b_trainer_liveness_unit_tests",
+  "agent": "claude",
+  "risk_level": "L1",
+  "status": "blocked_dependency",
+  "depends_on": [
+    "060a_trainer_liveness_domain_source"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "v2/backend/tests/unit/domain/trainer_liveness/"
+  ],
+  "required_output_files": [
+    "v2/backend/tests/unit/domain/trainer_liveness/__init__.py",
+    "v2/backend/tests/unit/domain/trainer_liveness/conftest.py",
+    "v2/backend/tests/unit/domain/trainer_liveness/test_signal_snapshot_invariants.py",
+    "v2/backend/tests/unit/domain/trainer_liveness/test_sla_config_invariants.py",
+    "v2/backend/tests/unit/domain/trainer_liveness/test_alert_invariants.py",
+    "v2/backend/tests/unit/domain/trainer_liveness/test_evaluator_no_alert.py",
+    "v2/backend/tests/unit/domain/trainer_liveness/test_evaluator_age_exceeds.py",
+    "v2/backend/tests/unit/domain/trainer_liveness/test_evaluator_zero_stream_growth.py",
+    "v2/backend/tests/unit/domain/trainer_liveness/test_evaluator_fatal_log_signature.py",
+    "v2/backend/tests/unit/domain/trainer_liveness/test_evaluator_multi_reason.py",
+    "v2/backend/tests/unit/domain/trainer_liveness/test_public_surface.py"
+  ],
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. STRICT HEADLESS EMIT-ONLY MODE. Do not use tools. Do not write files directly. Do not ask for permission. Output only BEGIN_FILE / END_FILE blocks. No prose outside file blocks. Create only unit tests for the existing trainer_liveness domain source. Tests must cover signal snapshot invariants, SLA config invariants, alert invariants, no-alert case, age exceeds threshold, zero stream growth, fatal log signature, multi-reason alert, and public surface imports. This is non-live local test code only. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not run live trainer. Do not emit source files or docs in this task. Do not emit a GO/NO-GO marker in this task.",
+  "next_recommended_action": "After 060B materializes, run local compile/tests and then 060C."
+}
