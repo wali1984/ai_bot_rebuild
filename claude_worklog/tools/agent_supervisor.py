@@ -401,6 +401,29 @@ def line_is_negated(line: str) -> bool:
     return any(tok in line for tok in SAFETY_NEGATIONS)
 
 
+def line_mentions_forbidden_root(line: str) -> bool:
+    """Match the live legacy root without matching the rebuild workspace.
+
+    `/home/wali/Desktop/AI BOT REBUILD` shares a textual prefix with the live
+    bot root. Safety checks must treat the live root as a path boundary match,
+    otherwise safe non-live tasks fail just because their cwd is the rebuild
+    workspace.
+    """
+    root = re.escape(str(FORBIDDEN_ROOT).lower())
+    return re.search(root + r"(?! rebuild)(?=$|[/'\"\\\s,.;:)\]])", line) is not None
+
+
+def line_requests_forbidden_root_mutation(line: str) -> bool:
+    if not line_mentions_forbidden_root(line) or line_is_negated(line):
+        return False
+    root = re.escape(str(FORBIDDEN_ROOT).lower())
+    mutation = r"(write|modify|edit|patch|delete|remove|move|copy\s+to|touch|mutate|change)"
+    return (
+        re.search(mutation + r".{0,120}" + root, line) is not None
+        or re.search(root + r".{0,120}" + mutation, line) is not None
+    )
+
+
 def has_standing_non_live_v2_rebuild_approval() -> bool:
     approval_path = WORKSPACE_ROOT / STANDING_NON_LIVE_APPROVAL_FILE
     ok = approval_path.exists() and STANDING_NON_LIVE_APPROVAL_MARKER in read_text(approval_path)
@@ -428,9 +451,7 @@ def non_live_v2_task_safety_block(task: Dict[str, Any]) -> Optional[str]:
     combined = f"{prompt}\n{command}".lower()
     lines = [ln.strip() for ln in combined.splitlines()]
 
-    forbidden_root_lower = str(FORBIDDEN_ROOT).lower()
-    root_lines = [ln for ln in lines if forbidden_root_lower in ln]
-    if any(not line_is_negated(ln) and "read" not in ln for ln in root_lines):
+    if any(line_requests_forbidden_root_mutation(ln) for ln in lines):
         return "task mutates forbidden legacy root /home/wali/Desktop/AI BOT"
 
     for banned in LIVE_FORBIDDEN_PATTERNS:
@@ -456,9 +477,8 @@ def validate_task(task: Dict[str, Any]) -> Optional[str]:
     command = str(task.get("command", "")).lower()
     combined = f"{prompt}\n{command}"
 
-    forbidden_root_lower = str(FORBIDDEN_ROOT).lower()
-    root_lines = [ln.strip() for ln in combined.splitlines() if forbidden_root_lower in ln]
-    if any(not line_is_negated(ln) and "read" not in ln for ln in root_lines):
+    root_lines = [ln.strip() for ln in combined.splitlines()]
+    if any(line_requests_forbidden_root_mutation(ln) for ln in root_lines):
         return "task mutates forbidden root /home/wali/Desktop/AI BOT"
 
     for banned in BANNED_PATTERNS:
