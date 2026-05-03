@@ -7,6 +7,7 @@ from v2.backend.app.domain.trainer_liveness import (
     LIVENESS_REASON_GPU_BATCH_AGE_EXCEEDS_SLA,
     LIVENESS_REASON_PREDICTION_AGE_EXCEEDS_SLA,
     LIVENESS_REASON_PREDICTION_STREAM_ZERO_GROWTH,
+    LIVENESS_REASON_PREDICTION_WORKER_DEAD,
     LIVENESS_REASON_PROPOSAL_AGE_EXCEEDS_SLA,
     LivenessSignalSnapshot,
     LivenessSLAConfig,
@@ -24,6 +25,7 @@ def test_evaluator_collects_multiple_liveness_reasons(
             last_prediction_ts_ms=8_000,
             last_gpu_batch_ts_ms=8_000,
             last_proposal_ts_ms=8_000,
+            prediction_worker_alive=False,
             prediction_stream_id_growth=0,
             fatal_log_signature_observed=True,
         ),
@@ -37,5 +39,6 @@ def test_evaluator_collects_multiple_liveness_reasons(
         LIVENESS_REASON_GPU_BATCH_AGE_EXCEEDS_SLA,
         LIVENESS_REASON_PROPOSAL_AGE_EXCEEDS_SLA,
         LIVENESS_REASON_PREDICTION_STREAM_ZERO_GROWTH,
+        LIVENESS_REASON_PREDICTION_WORKER_DEAD,
         LIVENESS_REASON_FATAL_LOG_SIGNATURE_OBSERVED,
     )

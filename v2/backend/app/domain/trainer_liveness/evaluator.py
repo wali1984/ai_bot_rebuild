@@ -6,6 +6,7 @@ from .alert import (
     LIVENESS_REASON_GPU_BATCH_AGE_EXCEEDS_SLA,
     LIVENESS_REASON_PREDICTION_AGE_EXCEEDS_SLA,
     LIVENESS_REASON_PREDICTION_STREAM_ZERO_GROWTH,
+    LIVENESS_REASON_PREDICTION_WORKER_DEAD,
     LIVENESS_REASON_PROPOSAL_AGE_EXCEEDS_SLA,
     LivenessAlert,
 )
@@ -51,6 +52,9 @@ def evaluate_liveness(
         and snapshot.trainer_rss_bytes > 0
     ):
         reasons.append(LIVENESS_REASON_PREDICTION_STREAM_ZERO_GROWTH)
+
+    if snapshot.prediction_worker_alive is False:
+        reasons.append(LIVENESS_REASON_PREDICTION_WORKER_DEAD)
 
     if snapshot.fatal_log_signature_observed is True:
         reasons.append(LIVENESS_REASON_FATAL_LOG_SIGNATURE_OBSERVED)
