@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -85,6 +87,34 @@ def save_state(task_id: str, state: dict) -> None:
     (STATE_DIR / f"{task_id}.json").write_text(json.dumps(state, indent=2) + "\n")
 
 
+def process_alive(pid: object) -> bool:
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except Exception:
+        return False
+
+
+def active_process_mentions(task_id: str) -> bool:
+    result = subprocess.run(
+        ["bash", "-lc", f"pgrep -af {task_id!r} || true"],
+        cwd=WORKSPACE,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    lines = []
+    for line in result.stdout.splitlines():
+        if "pgrep -af" in line:
+            continue
+        if "reconcile_evidence_status.py" in line:
+            continue
+        lines.append(line)
+    return bool(lines)
+
+
 def marker_present(marker: str, relpath: str) -> bool:
     return marker in read_text(WORKSPACE / relpath)
 
@@ -105,7 +135,9 @@ def reconcile() -> dict:
 
     for task_id, marker in sorted(superseded.items()):
         state = load_state(task_id)
-        if state.get("status") == "running":
+        if state.get("status") == "running" and (
+            process_alive(state.get("run_pid")) or active_process_mentions(task_id)
+        ):
             continue
 
         hist = list(state.get("history") or [])

@@ -97,10 +97,12 @@ STATUS_VALUES = {
     "pending", "running", "completed", "failed",
     "blocked_quota", "blocked_auth", "blocked_approval", "blocked_dependency",
     "retry_scheduled", "skipped", "cancelled", "human_attention_required",
+    "superseded_by_evidence",
 }
 
 TERMINAL_BLOCKING_STATUSES = {
-    "failed", "cancelled", "blocked_auth", "blocked_approval", "human_attention_required",
+    "failed", "cancelled", "blocked_auth", "blocked_approval",
+    "human_attention_required", "superseded_by_evidence",
 }
 
 CREDENTIAL_PATTERN = re.compile(
@@ -1263,7 +1265,10 @@ def planner_task_autorun_allowed(task_path: pathlib.Path, human_required: bool) 
         return False, f"waiting on dependencies: {', '.join(blockers)}"
 
     status = str(task.get("status", "pending"))
-    if status in {"completed", "running", "cancelled", "failed", "blocked_auth", "blocked_approval", "human_attention_required"}:
+    if status in {
+        "completed", "running", "cancelled", "failed", "blocked_auth",
+        "blocked_approval", "human_attention_required", "superseded_by_evidence",
+    }:
         return False, f"task status {status} not runnable"
 
     return True, "allowed"
@@ -2007,7 +2012,7 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
     counts = {
         "pending": 0, "running": 0, "completed": 0, "failed": 0, "blocked": 0,
         "retry_scheduled": 0, "skipped": 0, "cancelled": 0,
-        "human_attention_required": 0,
+        "human_attention_required": 0, "superseded_by_evidence": 0,
     }
     next_pending = None
     running = None
@@ -2065,9 +2070,12 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
                 "attention_reason": t.get("attention_reason"),
                 "last_summary": t.get("last_summary"),
             })
+        elif st == "superseded_by_evidence":
+            counts["superseded_by_evidence"] += 1
 
         if st in {"completed", "running", "cancelled", "failed",
-                  "blocked_auth", "blocked_approval", "human_attention_required"}:
+                  "blocked_auth", "blocked_approval", "human_attention_required",
+                  "superseded_by_evidence"}:
             continue
         if should_defer_resume(t):
             continue
@@ -2139,7 +2147,10 @@ def select_next_task_file() -> Optional[pathlib.Path]:
 
         if status == "completed":
             continue
-        if status in {"cancelled", "failed", "blocked_auth", "blocked_approval", "human_attention_required"}:
+        if status in {
+            "cancelled", "failed", "blocked_auth", "blocked_approval",
+            "human_attention_required", "superseded_by_evidence",
+        }:
             continue
         if should_defer_resume(task):
             continue
@@ -2259,222 +2270,237 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
         "last_retry_reason": None,
     }
 
-    validation_error = validate_task(task)
-    if validation_error:
-        result["status"] = "failed"
-        result["summary"] = validation_error
-        result["next_recommended_action"] = "fix task definition"
+    task_status = str(task.get("status", "pending"))
+    if task_status == "superseded_by_evidence":
+        marker = str(task.get("superseded_by_evidence", "")).strip()
+        result["status"] = "superseded_by_evidence"
+        result["summary"] = (
+            "task not executed because committed evidence supersedes this task"
+            + (f": {marker}" if marker else "")
+        )
+        result["next_recommended_action"] = "continue with latest evidence-backed task"
+        append_event({
+            "event": "task_execution_skipped_superseded_by_evidence",
+            "task_id": task_id,
+            "marker": marker,
+        })
     else:
-        approved, reason = task_approved_v2(task)
-        if not approved:
-            result["status"] = "blocked_approval"
-            result["summary"] = reason
-            result["next_recommended_action"] = "add approval and rerun"
+        validation_error = validate_task(task)
+        if validation_error:
+            result["status"] = "failed"
+            result["summary"] = validation_error
+            result["next_recommended_action"] = "fix task definition"
         else:
-            status_map = {str(t.get("task_id", "")): str(t.get("status", "pending")) for _, t in list_tasks()}
-            blockers = dependency_blockers(task, status_map)
-            if blockers:
-                result["status"] = "blocked_dependency"
-                result["summary"] = f"waiting on dependencies: {', '.join(blockers)}"
+            approved, reason = task_approved_v2(task)
+            if not approved:
+                result["status"] = "blocked_approval"
+                result["summary"] = reason
+                result["next_recommended_action"] = "add approval and rerun"
             else:
-                existing_missing = check_required_outputs(task)
-                if not existing_missing and str(task.get("status", "")) == "completed":
-                    result["status"] = "completed"
-                    result["summary"] = "required outputs already exist"
-                elif dry_run:
-                    result["status"] = "pending"
-                    result["summary"] = "dry-run: task not executed"
+                status_map = {str(t.get("task_id", "")): str(t.get("status", "pending")) for _, t in list_tasks()}
+                blockers = dependency_blockers(task, status_map)
+                if blockers:
+                    result["status"] = "blocked_dependency"
+                    result["summary"] = f"waiting on dependencies: {', '.join(blockers)}"
                 else:
-                    update_task_state(
-                        task_id,
-                        status="running",
-                        last_run={"start": start, "end": None, "status": "running"},
-                        run_pid=None,
-                    )
-                    running_status = {
-                        "task_id": task_id,
-                        "agent": agent,
-                        "risk_level": risk,
-                        "start_time": start,
-                        "end_time": None,
-                        "status": "running",
-                        "stdout_path": str(stdout_path),
-                        "stderr_path": str(stderr_path),
-                        "summary": "task execution in progress",
-                        "next_recommended_action": "wait for completion",
-                        "materialized_files": [],
-                        "run_pid": None,
-                    }
-                    write_json(summary_path, running_status)
-                    write_health_and_queue(running_status)
-                    append_event({"event": "task_running", **running_status})
-
-                    cwd = pathlib.Path(task.get("cwd", str(WORKSPACE_ROOT))).expanduser()
-                    if not cwd.is_absolute():
-                        cwd = WORKSPACE_ROOT / cwd
-                    hard_timeout_s = task_timeout_seconds(task)
-
-                    rc = 1
-                    run_pid: Optional[int] = None
-                    timed_out = False
-
-                    def _mark_run_pid(pid: int) -> None:
-                        update_task_state(task_id, run_pid=pid)
-                        running_status["run_pid"] = pid
+                    existing_missing = check_required_outputs(task)
+                    if not existing_missing and str(task.get("status", "")) == "completed":
+                        result["status"] = "completed"
+                        result["summary"] = "required outputs already exist"
+                    elif dry_run:
+                        result["status"] = "pending"
+                        result["summary"] = "dry-run: task not executed"
+                    else:
+                        update_task_state(
+                            task_id,
+                            status="running",
+                            last_run={"start": start, "end": None, "status": "running"},
+                            run_pid=None,
+                        )
+                        running_status = {
+                            "task_id": task_id,
+                            "agent": agent,
+                            "risk_level": risk,
+                            "start_time": start,
+                            "end_time": None,
+                            "status": "running",
+                            "stdout_path": str(stdout_path),
+                            "stderr_path": str(stderr_path),
+                            "summary": "task execution in progress",
+                            "next_recommended_action": "wait for completion",
+                            "materialized_files": [],
+                            "run_pid": None,
+                        }
                         write_json(summary_path, running_status)
                         write_health_and_queue(running_status)
+                        append_event({"event": "task_running", **running_status})
 
-                    if agent == "claude":
-                        if not claude_ready():
-                            result["status"] = "blocked_auth"
-                            result["summary"] = "claude not ready"
-                        else:
-                            prompt = str(task.get("prompt", ""))
-                            rc, run_pid, timed_out = run_cmd_with_pid(
-                                ["claude", "--print", prompt, "--output-format", "text"],
-                                cwd, stdout_path, stderr_path,
-                                timeout_seconds=hard_timeout_s, on_start=_mark_run_pid,
-                            )
-                            result["status"] = "completed" if rc == 0 else "failed"
-                    elif agent == "codex":
-                        if not codex_ready():
-                            result["status"] = "blocked_auth"
-                            result["summary"] = "codex not ready"
-                        else:
-                            prompt = str(task.get("prompt", ""))
-                            rc, run_pid, timed_out = run_cmd_with_pid(
-                                ["codex", "exec", prompt],
-                                cwd, stdout_path, stderr_path,
-                                timeout_seconds=hard_timeout_s, on_start=_mark_run_pid,
-                            )
-                            result["status"] = "completed" if rc == 0 else "failed"
-                    elif agent == "ollama":
-                        model = str(task.get("model", "llama3"))
-                        if not any(m == model for m in ollama_models()):
-                            result["status"] = "blocked_dependency"
-                            result["summary"] = f"ollama model missing: {model}"
-                        else:
-                            prompt = str(task.get("prompt", ""))
-                            rc, run_pid, timed_out = run_cmd_with_pid(
-                                ["ollama", "run", model, prompt],
-                                cwd, stdout_path, stderr_path,
-                                timeout_seconds=hard_timeout_s, on_start=_mark_run_pid,
-                            )
-                            result["status"] = "completed" if rc == 0 else "failed"
-                    elif agent == "system_check":
-                        cmd = task.get("command")
-                        if not cmd:
-                            stdout_path.write_text("", encoding="utf-8")
-                            stderr_path.write_text("missing command\n", encoding="utf-8")
-                            result["status"] = "failed"
-                        else:
-                            rc, run_pid, timed_out = run_cmd_with_pid(
-                                ["bash", "-lc", str(cmd)],
-                                cwd, stdout_path, stderr_path,
-                                timeout_seconds=hard_timeout_s, on_start=_mark_run_pid,
-                            )
-                            result["status"] = "completed" if rc == 0 else "failed"
+                        cwd = pathlib.Path(task.get("cwd", str(WORKSPACE_ROOT))).expanduser()
+                        if not cwd.is_absolute():
+                            cwd = WORKSPACE_ROOT / cwd
+                        hard_timeout_s = task_timeout_seconds(task)
 
-                    result["run_pid"] = run_pid
-                    result["timed_out"] = timed_out
+                        rc = 1
+                        run_pid: Optional[int] = None
+                        timed_out = False
 
-                    if timed_out and result["status"] == "failed":
-                        result["summary"] = (
-                            (result.get("summary") or "")
-                            + f" subprocess hard timeout after {hard_timeout_s}s"
-                        ).strip()
-                        result["last_retry_reason"] = "subprocess_timeout"
+                        def _mark_run_pid(pid: int) -> None:
+                            update_task_state(task_id, run_pid=pid)
+                            running_status["run_pid"] = pid
+                            write_json(summary_path, running_status)
+                            write_health_and_queue(running_status)
 
-                    if result["status"] == "failed":
-                        classified_status, classifier_detail = classify_agent_block(agent, stdout_path, stderr_path)
-                        if classified_status:
-                            result["status"] = classified_status
-                            result["summary"] = f"{agent} {classified_status} detected"
-                            if classifier_detail == "prompt_permission_model_error":
-                                result["summary"] = "task prompt permission-model error: headless task attempted direct writes"
-                                result["last_retry_reason"] = "prompt_permission_model_error"
-                                result["attention_reason"] = "task_prompt_must_use_begin_file_emit_mode"
-                                append_event({
-                                    "event": "task_prompt_permission_model_error",
-                                    "task_id": task_id,
-                                    "agent": agent,
-                                })
-                            if classified_status == "blocked_quota":
-                                resume = parse_iso_utc(classifier_detail)
-                                if resume is None:
-                                    resume = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=30)
-                                update_task_state(task_id, resume_after_utc=resume.isoformat())
-
-                    emit_files = bool(task.get("emit_files", False))
-                    if emit_files and agent in {"claude", "codex"} and result["status"] == "completed":
-                        allowed_prefixes = [str(x) for x in task.get("allowed_output_prefixes", []) if str(x).strip()]
-                        if not allowed_prefixes:
-                            result["status"] = "failed"
-                            result["summary"] = "emit_files=true but allowed_output_prefixes missing"
-                        else:
-                            required_outputs = [str(x) for x in task.get("required_output_files", []) if str(x).strip()]
-                            task_risk = str(task.get("risk_level", "L0")).upper()
-                            mat = materialize_emit_files(stdout_path, allowed_prefixes, required_outputs, task_risk)
-                            result["materialized_files"] = mat.get("materialized_files", [])
-                            errors = mat.get("errors", [])
-                            if errors:
-                                result["status"] = "failed"
-                                result["summary"] = "; ".join(errors)
-
-                            missing_required = check_required_outputs(task)
-                            if missing_required:
-                                retry_mat = materialize_emit_files(stdout_path, allowed_prefixes, required_outputs, task_risk)
-                                result["materialized_files"] = list(
-                                    dict.fromkeys(result["materialized_files"] + retry_mat.get("materialized_files", []))
-                                )
-                                missing_required = check_required_outputs(task)
-
-                            if missing_required:
-                                result["status"] = "failed"
-                                prior = result.get("summary", "")
-                                extra = f"missing required output files: {', '.join(missing_required)}"
-                                result["summary"] = f"{prior}; {extra}".strip("; ")
-
-                    if result["status"] == "blocked_quota" and agent == "claude":
-                        resume_at = parse_iso_utc(task.get("resume_after_utc"))
-                        if resume_at is not None and dt.datetime.now(dt.timezone.utc) >= resume_at:
-                            if run_claude_readiness_check():
-                                result["status"] = "retry_scheduled"
-                                result["summary"] = "claude ready check passed; retry scheduled"
-                                result["last_retry_reason"] = "quota_reset_recovered"
-                                update_task_state(task_id, resume_after_utc=None)
+                        if agent == "claude":
+                            if not claude_ready():
+                                result["status"] = "blocked_auth"
+                                result["summary"] = "claude not ready"
                             else:
+                                prompt = str(task.get("prompt", ""))
+                                rc, run_pid, timed_out = run_cmd_with_pid(
+                                    ["claude", "--print", prompt, "--output-format", "text"],
+                                    cwd, stdout_path, stderr_path,
+                                    timeout_seconds=hard_timeout_s, on_start=_mark_run_pid,
+                                )
+                                result["status"] = "completed" if rc == 0 else "failed"
+                        elif agent == "codex":
+                            if not codex_ready():
+                                result["status"] = "blocked_auth"
+                                result["summary"] = "codex not ready"
+                            else:
+                                prompt = str(task.get("prompt", ""))
+                                rc, run_pid, timed_out = run_cmd_with_pid(
+                                    ["codex", "exec", prompt],
+                                    cwd, stdout_path, stderr_path,
+                                    timeout_seconds=hard_timeout_s, on_start=_mark_run_pid,
+                                )
+                                result["status"] = "completed" if rc == 0 else "failed"
+                        elif agent == "ollama":
+                            model = str(task.get("model", "llama3"))
+                            if not any(m == model for m in ollama_models()):
+                                result["status"] = "blocked_dependency"
+                                result["summary"] = f"ollama model missing: {model}"
+                            else:
+                                prompt = str(task.get("prompt", ""))
+                                rc, run_pid, timed_out = run_cmd_with_pid(
+                                    ["ollama", "run", model, prompt],
+                                    cwd, stdout_path, stderr_path,
+                                    timeout_seconds=hard_timeout_s, on_start=_mark_run_pid,
+                                )
+                                result["status"] = "completed" if rc == 0 else "failed"
+                        elif agent == "system_check":
+                            cmd = task.get("command")
+                            if not cmd:
+                                stdout_path.write_text("", encoding="utf-8")
+                                stderr_path.write_text("missing command\n", encoding="utf-8")
+                                result["status"] = "failed"
+                            else:
+                                rc, run_pid, timed_out = run_cmd_with_pid(
+                                    ["bash", "-lc", str(cmd)],
+                                    cwd, stdout_path, stderr_path,
+                                    timeout_seconds=hard_timeout_s, on_start=_mark_run_pid,
+                                )
+                                result["status"] = "completed" if rc == 0 else "failed"
+
+                        result["run_pid"] = run_pid
+                        result["timed_out"] = timed_out
+
+                        if timed_out and result["status"] == "failed":
+                            result["summary"] = (
+                                (result.get("summary") or "")
+                                + f" subprocess hard timeout after {hard_timeout_s}s"
+                            ).strip()
+                            result["last_retry_reason"] = "subprocess_timeout"
+
+                        if result["status"] == "failed":
+                            classified_status, classifier_detail = classify_agent_block(agent, stdout_path, stderr_path)
+                            if classified_status:
+                                result["status"] = classified_status
+                                result["summary"] = f"{agent} {classified_status} detected"
+                                if classifier_detail == "prompt_permission_model_error":
+                                    result["summary"] = "task prompt permission-model error: headless task attempted direct writes"
+                                    result["last_retry_reason"] = "prompt_permission_model_error"
+                                    result["attention_reason"] = "task_prompt_must_use_begin_file_emit_mode"
+                                    append_event({
+                                        "event": "task_prompt_permission_model_error",
+                                        "task_id": task_id,
+                                        "agent": agent,
+                                    })
+                                if classified_status == "blocked_quota":
+                                    resume = parse_iso_utc(classifier_detail)
+                                    if resume is None:
+                                        resume = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=30)
+                                    update_task_state(task_id, resume_after_utc=resume.isoformat())
+
+                        emit_files = bool(task.get("emit_files", False))
+                        if emit_files and agent in {"claude", "codex"} and result["status"] == "completed":
+                            allowed_prefixes = [str(x) for x in task.get("allowed_output_prefixes", []) if str(x).strip()]
+                            if not allowed_prefixes:
+                                result["status"] = "failed"
+                                result["summary"] = "emit_files=true but allowed_output_prefixes missing"
+                            else:
+                                required_outputs = [str(x) for x in task.get("required_output_files", []) if str(x).strip()]
+                                task_risk = str(task.get("risk_level", "L0")).upper()
+                                mat = materialize_emit_files(stdout_path, allowed_prefixes, required_outputs, task_risk)
+                                result["materialized_files"] = mat.get("materialized_files", [])
+                                errors = mat.get("errors", [])
+                                if errors:
+                                    result["status"] = "failed"
+                                    result["summary"] = "; ".join(errors)
+
+                                missing_required = check_required_outputs(task)
+                                if missing_required:
+                                    retry_mat = materialize_emit_files(stdout_path, allowed_prefixes, required_outputs, task_risk)
+                                    result["materialized_files"] = list(
+                                        dict.fromkeys(result["materialized_files"] + retry_mat.get("materialized_files", []))
+                                    )
+                                    missing_required = check_required_outputs(task)
+
+                                if missing_required:
+                                    result["status"] = "failed"
+                                    prior = result.get("summary", "")
+                                    extra = f"missing required output files: {', '.join(missing_required)}"
+                                    result["summary"] = f"{prior}; {extra}".strip("; ")
+
+                        if result["status"] == "blocked_quota" and agent == "claude":
+                            resume_at = parse_iso_utc(task.get("resume_after_utc"))
+                            if resume_at is not None and dt.datetime.now(dt.timezone.utc) >= resume_at:
+                                if run_claude_readiness_check():
+                                    result["status"] = "retry_scheduled"
+                                    result["summary"] = "claude ready check passed; retry scheduled"
+                                    result["last_retry_reason"] = "quota_reset_recovered"
+                                    update_task_state(task_id, resume_after_utc=None)
+                                else:
+                                    update_task_state(
+                                        task_id,
+                                        resume_after_utc=(dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=30)).isoformat(),
+                                    )
+
+                        max_attempts = int(task.get("max_attempts", 3))
+                        retry_count = int(task.get("retry_count", 0))
+                        if result["status"] == "failed" and result.get("last_retry_reason") != "prompt_permission_model_error":
+                            if retry_count + 1 < max_attempts:
+                                new_retry = retry_count + 1
                                 update_task_state(
                                     task_id,
-                                    resume_after_utc=(dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=30)).isoformat(),
+                                    retry_count=new_retry,
+                                    resume_after_utc=(dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5)).isoformat(),
+                                    last_retry_reason=result.get("last_retry_reason") or "task_failed",
                                 )
-
-                    max_attempts = int(task.get("max_attempts", 3))
-                    retry_count = int(task.get("retry_count", 0))
-                    if result["status"] == "failed" and result.get("last_retry_reason") != "prompt_permission_model_error":
-                        if retry_count + 1 < max_attempts:
-                            new_retry = retry_count + 1
-                            update_task_state(
-                                task_id,
-                                retry_count=new_retry,
-                                resume_after_utc=(dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5)).isoformat(),
-                                last_retry_reason=result.get("last_retry_reason") or "task_failed",
-                            )
-                            result["status"] = "retry_scheduled"
-                            result["summary"] = (
-                                result.get("summary", "failed")
-                                + f"; retry {new_retry}/{max_attempts} scheduled"
-                            )
-                        else:
-                            result["status"] = "human_attention_required"
-                            result["attention_reason"] = (
-                                f"max_attempts {max_attempts} exhausted; last reason: "
-                                + (result.get("last_retry_reason") or "task_failed")
-                            )
-                            result["summary"] = (
-                                result.get("summary", "failed")
-                                + f"; max_attempts {max_attempts} exhausted -> human_attention_required"
-                            )
+                                result["status"] = "retry_scheduled"
+                                result["summary"] = (
+                                    result.get("summary", "failed")
+                                    + f"; retry {new_retry}/{max_attempts} scheduled"
+                                )
+                            else:
+                                result["status"] = "human_attention_required"
+                                result["attention_reason"] = (
+                                    f"max_attempts {max_attempts} exhausted; last reason: "
+                                    + (result.get("last_retry_reason") or "task_failed")
+                                )
+                                result["summary"] = (
+                                    result.get("summary", "failed")
+                                    + f"; max_attempts {max_attempts} exhausted -> human_attention_required"
+                                )
 
     if not result["summary"]:
         result["summary"] = f"agent run status: {result['status']}"
