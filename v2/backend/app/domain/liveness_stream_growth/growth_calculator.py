@@ -28,6 +28,7 @@ def compute_stream_id_growth_in_window(
     for observation in observations:
         if not isinstance(observation, StreamIdObservation):
             raise LivenessStreamGrowthDomainError("must_be_stream_id_observation", field="observations")
+        # A future observation invalidates the entire supplied window before stream filtering.
         if observation.observation_ts_ms > now_ms:
             raise LivenessStreamGrowthDomainError("observation_in_future", field="observation_ts_ms")
         if observation.stream_name != stream_name:
@@ -37,6 +38,7 @@ def compute_stream_id_growth_in_window(
         else:
             in_window = observation.observation_ts_ms > lo
         if in_window:
+            # Redis stream IDs are counted as literal observed IDs, not normalized numeric offsets.
             distinct_stream_ids.add(observation.stream_id)
 
     return len(distinct_stream_ids)

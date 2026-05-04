@@ -1,6 +1,6 @@
 # 2E1C Beta Local Validation Run Log
 
-Generated: 2026-05-03T23:59:33.511718+00:00
+Generated: 2026-05-04T00:05:19.017286+00:00
 
 Scope: non-live V2 liveness stream growth beta validation.
 
@@ -100,9 +100,27 @@ Stderr:
 
 Verdict: PASS
 
+## V4b beta test file-I/O grep
+
+Command: `python internal Path/read_text/write_text/open search`
+
+Exit code: 0
+
+Stdout:
+```
+
+```
+
+Stderr:
+```
+
+```
+
+Verdict: PASS
+
 ## V5 pytest
 
-Command: `v2/.venv-control-plane/bin/python -m pytest v2/backend/tests/unit/domain/liveness_stream_growth/ -q --no-header --maxfail=1`
+Command: `.venv/bin/python -m pytest v2/backend/tests/unit/domain/liveness_stream_growth/ -q --no-header --maxfail=1`
 
 Exit code: 0
 

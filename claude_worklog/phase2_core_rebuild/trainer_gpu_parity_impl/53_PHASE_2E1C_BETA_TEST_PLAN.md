@@ -179,7 +179,7 @@ Tokens (case-sensitive unless noted):
 Tests run via:
 
 ```
-v2/.venv-control-plane/bin/python -m pytest \
+.venv/bin/python -m pytest \
   v2/backend/tests/unit/domain/liveness_stream_growth/ \
   -q --no-header --maxfail=1
 ```

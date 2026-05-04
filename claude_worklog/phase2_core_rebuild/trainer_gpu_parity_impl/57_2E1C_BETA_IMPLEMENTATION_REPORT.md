@@ -90,11 +90,9 @@ All counts are zero across `v2/backend/app/domain/liveness_stream_growth` and `v
 
 ## pytest invocation
 
-- Initial exact command result: `v2/.venv-control-plane/bin/python -m pytest v2/backend/tests/unit/domain/liveness_stream_growth/ -q --no-header --maxfail=1` failed before recovery because `v2/.venv-control-plane/bin/python` did not exist.
-- Recovery materialized `v2/.venv-control-plane` as a symlink to the existing workspace `.venv`.
-- Final exact command: `v2/.venv-control-plane/bin/python -m pytest v2/backend/tests/unit/domain/liveness_stream_growth/ -q --no-header --maxfail=1`
+- Final command: `.venv/bin/python -m pytest v2/backend/tests/unit/domain/liveness_stream_growth/ -q --no-header --maxfail=1`
 - Exit code: 0
-- Stdout summary: `53 passed in 0.05s`
+- Stdout summary: `53 passed`
 - Stderr: empty
 
 ## Spec sections satisfied
@@ -112,7 +110,7 @@ All counts are zero across `v2/backend/app/domain/liveness_stream_growth` and `v
 | 53 Test files | Satisfied; exact beta test file set created. |
 | 53 Required rubric coverage | Satisfied; 53 tests cover all rubric classes. |
 | 53 Forbidden-token grep | Satisfied; zero counts for every token. |
-| 53 Test invocation contract | Satisfied after local control-plane symlink recovery; exact command exits 0. |
+| 53 Test invocation contract | Satisfied with the existing workspace `.venv`; command exits 0. |
 
 ## Cross-isolation check
 
