@@ -10,7 +10,7 @@ from v2.backend.app.domain.trainer_liveness_observation_collector import (
 MUST_BE_NONEMPTY_STR = "must_be_nonem" + "p" + "ty_str"
 
 
-def test_collect_rejects_nonempty_string_stream_names() -> None:
+def test_collect_rejects_bad_string_stream_names() -> None:
     reader = InMemoryStreamLatestIdReader({"prediction": "1-0"})
 
     for stream_names in (("",), (1,)):
