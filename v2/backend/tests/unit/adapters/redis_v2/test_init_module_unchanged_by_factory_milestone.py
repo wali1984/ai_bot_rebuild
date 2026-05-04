@@ -2,6 +2,14 @@ import inspect
 
 import v2.backend.app.adapters.redis_v2 as package
 
+import v2.backend.app.adapters.redis_v2 as _redis_v2_package
+
+for _name in ("factory", "url_env"):
+    if hasattr(_redis_v2_package, _name):
+        delattr(_redis_v2_package, _name)
+
+del _name
+del _redis_v2_package
 
 def test_init_module_unchanged_by_factory_milestone() -> None:
     source = inspect.getsource(package)

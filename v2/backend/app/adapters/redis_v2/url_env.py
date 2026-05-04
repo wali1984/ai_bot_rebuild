@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import os
 
 from v2.backend.app.adapters.redis_v2.errors import RedisStreamReaderError
@@ -18,7 +16,11 @@ def read_v2_redis_url(*, env: object | None = None) -> str:
         raise RedisStreamReaderError("must_be_str", field="V2_REDIS_URL")
     if raw == "":
         raise RedisStreamReaderError("must_be_nonempty", field="V2_REDIS_URL")
-    if not raw.startswith(("redis://", "rediss://", "unix://")):
+    if (
+        not raw.startswith("redis://")
+        and not raw.startswith("rediss://")
+        and not raw.startswith("unix://")
+    ):
         raise RedisStreamReaderError(
             "must_use_allowed_scheme",
             field="V2_REDIS_URL",

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import redis
 
 from v2.backend.app.adapters.redis_v2.errors import RedisStreamReaderError
