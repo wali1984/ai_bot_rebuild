@@ -7,7 +7,7 @@ from v2.backend.app.domain.trainer_liveness_composition import LivenessSnapshotB
 
 def test_calls_factory_with_both_kwargs(monkeypatch):
     calls = []
-    env = {"V2_REDIS_URL": "redis://env:6379/0"}
+    env = {"V2_REDIS_URL": "redis://h:6379/0"}
 
     class FakeReader:
         def latest_stream_id(self, stream_name):
