@@ -16,6 +16,10 @@ def test_evaluate_does_not_mutate_supplied_histories():
     proposal_history = (StreamIdObservation("prop", "1-0", 900),)
     prediction_before = tuple(prediction_history)
     proposal_before = tuple(proposal_history)
+    prediction_tuple_id = id(prediction_history)
+    proposal_tuple_id = id(proposal_history)
+    prediction_element = prediction_history[0]
+    proposal_element = proposal_history[0]
     evaluate_trainer_liveness(
         _FakeReader({"pred": "2-0", "prop": "2-0"}),
         base_inputs=LivenessSnapshotBaseInputs(1, 1, 1, 2, True, 1, 1, 1, 1, False, 1),
@@ -29,3 +33,7 @@ def test_evaluate_does_not_mutate_supplied_histories():
     )
     assert prediction_history == prediction_before
     assert proposal_history == proposal_before
+    assert id(prediction_history) == prediction_tuple_id
+    assert id(proposal_history) == proposal_tuple_id
+    assert prediction_history[0] is prediction_element
+    assert proposal_history[0] is proposal_element

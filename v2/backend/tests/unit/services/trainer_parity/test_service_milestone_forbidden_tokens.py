@@ -31,6 +31,8 @@ def test_service_milestone_forbidden_tokens():
         root / "tests/unit/services/trainer_parity/test_evaluate_rejects_zero_max_history.py",
         root / "tests/unit/services/trainer_parity/test_evaluate_rejects_negative_max_history.py",
         root / "tests/unit/services/trainer_parity/test_evaluate_appends_prediction_observation_to_prediction_history.py",
+        root / "tests/unit/services/trainer_parity/test_evaluate_appends_proposal_observation_to_proposal_history.py",
+        root / "tests/unit/services/trainer_parity/test_evaluate_skips_streams_with_none_latest_id.py",
         root / "tests/unit/services/trainer_parity/test_evaluate_caps_prediction_history_at_max.py",
         root / "tests/unit/services/trainer_parity/test_evaluate_caps_proposal_history_at_max.py",
         root / "tests/unit/services/trainer_parity/test_evaluate_does_not_mutate_supplied_histories.py",
