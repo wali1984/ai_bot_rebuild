@@ -105,7 +105,6 @@ fires:
    as a single Max20-consolidated milestone task. Do NOT split it
    unless it fails for an emit/path/size/timeout reason; the task
    prompt is explicit that implementation, forbidden-token grep,
-   END_FILE leak self-check, py_compile, pytest, alpha/beta
    cross-isolation regression, and status-report authoring all run
    in this single task.
 
@@ -231,4 +230,3 @@ deliberately deferred until δ is Codex-passed so the in-process
 safety boundary remains intact for as long as possible.
 
 PHASE2H_THREE_LANE_STATUS_DIRECTIVE_2E1C_DELTA_DISPATCH_AUTHORIZED
-END_FILE: claude_worklog/phase2_core_rebuild/decision_explainability/07_PLANNER_TURN_NO_CHANGE_CONFIRMATION_2E1C_DELTA.md

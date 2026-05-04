@@ -246,4 +246,3 @@ subprocess, no-network, no-clock, no-legacy by construction; γ remains
 deferred.
 
 PHASE2H_THREE_LANE_STATUS_DIRECTIVE_2E1C_DELTA_RUN_TWO_REAUTHORIZED
-END_FILE: claude_worklog/phase2_core_rebuild/decision_explainability/08_PLANNER_RUN_TWO_REAUTHORIZE_2E1C_DELTA_DISPATCH.md

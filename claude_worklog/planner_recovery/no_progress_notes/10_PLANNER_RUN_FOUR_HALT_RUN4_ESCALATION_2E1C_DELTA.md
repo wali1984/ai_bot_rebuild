@@ -368,4 +368,3 @@ remains deferred. The Run-4 HALT and the recovery task `081` are both
 non-live, L1-L2 only, and confined to safety/status/review tooling.
 
 PHASE2H_THREE_LANE_STATUS_DIRECTIVE_2E1C_DELTA_RUN_FOUR_HALTED
-END_FILE: claude_worklog/phase2_core_rebuild/decision_explainability/10_PLANNER_RUN_FOUR_HALT_RUN4_ESCALATION_2E1C_DELTA.md
