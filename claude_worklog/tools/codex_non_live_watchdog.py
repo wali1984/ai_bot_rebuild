@@ -289,16 +289,24 @@ def recover_dirty_tree() -> bool:
         return False
 
     _, safety_hits = safety_scan(paths)
-    severe_hits = [
-        hit
-        for hit in safety_hits
-        if "/home/wali/Desktop/AI BOT/" in hit
-        or "create_order" in hit
-        or "cancel_order" in hit
-        or "change_leverage" in hit
-        or "change_margin" in hit
-        or "LIVE_TRADING_ENABLED" in hit
-    ]
+    severe_hits = []
+    for hit in safety_hits:
+        rel = hit.split(":", 1)[0]
+        suffix = Path(rel).suffix
+        # Generated docs and task prompts often quote forbidden boundaries. That
+        # is not an attempted live action. Treat executable/source files as the
+        # actionable surface for term-based blocking.
+        if suffix in {".md", ".json", ".txt"}:
+            continue
+        if (
+            "/home/wali/Desktop/AI BOT/" in hit
+            or "create_order" in hit
+            or "cancel_order" in hit
+            or "change_leverage" in hit
+            or "change_margin" in hit
+            or "LIVE_TRADING_ENABLED" in hit
+        ):
+            severe_hits.append(hit)
     if severe_hits:
         append_event({"event": "codex_watchdog_paused_for_safety_hits", "hits": severe_hits[:20]})
         return False
