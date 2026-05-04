@@ -1,0 +1,72 @@
+{
+  "task_id": "085_codex_recover_planner_dirty_tree_dispatch_hold",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "predecessor_marker": "PLANNER_DIRTY_TREE_DISPATCH_HOLD_REQ0015_TRIGGER_REPORT_READY",
+  "predecessor_marker_files": [
+    "claude_worklog/autonomous_control_plane/PLANNER_DIRTY_TREE_DISPATCH_HOLD_REQ0015_TRIGGER_REPORT_2026_05_04.md"
+  ],
+  "dispatch_bridge_clean_tree_override_authority": "REQ_0015_PLANNER_LEVEL_HUMAN_ATTENTION_CODEX_AUTORECOVERY",
+  "dispatch_bridge_clean_tree_override_scope": "this_task_only",
+  "allowed_output_prefixes": [
+    "claude_worklog/agent_supervisor_reliability/",
+    "claude_worklog/agent_supervisor/tasks/",
+    "claude_worklog/security/"
+  ],
+  "required_output_files": [
+    "claude_worklog/agent_supervisor_reliability/85_CODEX_DIRTY_TREE_DISPATCH_HOLD_RECOVERY_REPORT.md",
+    "claude_worklog/agent_supervisor_reliability/85_CODEX_DIRTY_TREE_DISPATCH_HOLD_RECOVERY_GO_NO_GO.md"
+  ],
+  "scope_dirty_paths": [
+    "claude_worklog/agent_supervisor/tasks/085_codex_recover_planner_dirty_tree_dispatch_hold.json",
+    "claude_worklog/agent_supervisor/tasks/086_codex_recover_082_gamma_implementation_blocker.json",
+    "claude_worklog/autonomous_control_plane/PLANNER_DIRTY_TREE_DISPATCH_HOLD_REQ0015_TRIGGER_REPORT_2026_05_04.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN10_REQ0015_TRIGGER_REPORT_MATERIALIZATION.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN11_REQ0015_TRIGGER_REPORT_AND_085_REMATERIALIZATION.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN12_TRIGGER_REPORT_AND_085_REMATERIALIZATION_FIX.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN13_TRIGGER_REPORT_PATH_RELOCATION_AND_085_REMATERIALIZATION.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN14_RECONCILIATION_AND_086_RECOVERY_DISPATCH.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN15_PLANNER_SUSPEND_PENDING_085_DISPATCH.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN16_PLANNER_HARD_SUSPEND_PENDING_HUMAN_COMMIT.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN17_HARD_SUSPEND_REINVOCATION_ACK.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN18_HARD_SUSPEND_REINVOCATION_ACK.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN19_HARD_SUSPEND_REINVOCATION_ACK.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN20_HARD_SUSPEND_REINVOCATION_ACK.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN21_HARD_SUSPEND_REINVOCATION_ACK.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN22_HARD_SUSPEND_REINVOCATION_ACK.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN23_HARD_SUSPEND_FINAL_ACK_PENDING_HUMAN_COMMIT.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN24_DISPATCH_HOLD_SCOPE_REMATERIALIZATION.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN2_RECONCILIATION.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN3_RECONCILIATION.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN4_RECONCILIATION.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN5_STANDSTILL.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN6_STANDSTILL.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN7_REQ0015_AUTORECOVERY_DISPATCH.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN8_REQ0015_AUTORECOVERY_MATERIALIZATION.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN9_REQ0015_AUTORECOVERY_MATERIALIZATION_FIX.md",
+    "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt"
+  ],
+  "forbidden_actions": [
+    "modify /home/wali/Desktop/AI BOT",
+    "write or delete Redis keys",
+    "restart live services",
+    "place or cancel orders",
+    "change leverage or margin",
+    "enable live trading",
+    "deploy",
+    "run production migrations",
+    "expose or commit secrets",
+    "bypass final live approval",
+    "widen scope beyond scope_dirty_paths",
+    "modify task 082 or task 083 definitions",
+    "modify the gamma planning chain (88_*, 89_*, 90_*, 91_*) or the gamma recovery artifacts (84_*)",
+    "modify claude_master_rebuild_planner_prompt.txt beyond its current on-disk content",
+    "L4 or L5 action"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. You are running under REQ_0015_PLANNER_LEVEL_HUMAN_ATTENTION_CODEX_AUTORECOVERY with the supervisor's `git is clean` precondition narrowly overridden for this task only. Your job is to clear the planner-level dirty-tree dispatch hold so task 082_trainer_parity_2e1c_gamma_implementation.json can fire on the next reconciliation tick. Read the trigger report claude_worklog/autonomous_control_plane/PLANNER_DIRTY_TREE_DISPATCH_HOLD_REQ0015_TRIGGER_REPORT_2026_05_04.md before doing anything else. Do not modify /home/wali/Desktop/AI BOT. Do not write or delete Redis keys. Do not restart live services. Do not place or cancel orders. Do not change leverage or margin. Do not enable live trading. Do not deploy. Do not run production migrations. Do not expose or commit secrets. Do not bypass final live approval. Do not perform any L4/L5 action. Do not widen scope beyond the twenty-eight paths listed in scope_dirty_paths. Do not modify task 082 or task 083 definitions. Do not modify the gamma planning chain (88_PHASE_2E1C_GAMMA_SPEC.md, 89_PHASE_2E1C_GAMMA_TEST_PLAN.md, 90_PHASE_2E1C_GAMMA_SAFETY_BOUNDARIES.md, 91_PHASE_2E1C_GAMMA_GO_NO_GO_REQUEST.md) or the gamma recovery artifacts (84_CODEX_GAMMA_MATERIALIZATION_RECOVERY_REPORT.md, 84_CODEX_GAMMA_MATERIALIZATION_RECOVERY_GO_NO_GO.md). Do not modify claude_master_rebuild_planner_prompt.txt beyond what is already on disk. Procedure: (1) Run `git status --short` and verify the dirty set equals exactly the twenty-eight paths in scope_dirty_paths plus zero untracked files outside that set; if extra paths appear, emit BLOCKED. (2) For each scope_dirty_path, run a content audit grepping for live, Redis, legacy, exchange, deploy, and secret terms; the planner-prompt path is allowed to contain negative safety phrasing per claude_worklog/agent_supervisor_reliability/06_MASTER_PLANNER_DISPATCH_BRIDGE_POLICY.md, but no real Redis URL, exchange API key, secret, or live-toggle code. (3) Run a high-confidence secret scan across the scope_dirty_paths (e.g. detect-secrets / gitleaks / trufflehog at high confidence) and write the raw scan output to claude_worklog/security/CODEX_085_SECRET_SCAN_2026_05_04.txt. (4) If audits and secret scan all pass, `git add` exactly the twenty-eight scope_dirty_paths, then `git commit -m \"Recover planner dirty-tree dispatch hold via REQ_0015 (task 085)\"`, then `git push`. (5) If anything fails, do not commit and do not push; instead write a BLOCKED GO/NO-GO with the failure reason. (6) Emit two artifacts using the harness's standard begin-file/end-file emission protocol: claude_worklog/agent_supervisor_reliability/85_CODEX_DIRTY_TREE_DISPATCH_HOLD_RECOVERY_REPORT.md describing the audit results, secret scan result, commit hash, push result, and post-state of `git status --short`; and claude_worklog/agent_supervisor_reliability/85_CODEX_DIRTY_TREE_DISPATCH_HOLD_RECOVERY_GO_NO_GO.md containing exactly one of the lines `CODEX_DIRTY_TREE_DISPATCH_HOLD_RECOVERY_READY` or `CODEX_DIRTY_TREE_DISPATCH_HOLD_RECOVERY_BLOCKED` followed by a one-paragraph rationale. Do not include any standalone end-of-content protocol terminator line inside either artifact's body. Do not run task 082 or any trainer implementation. Do not start the next reconciliation tick yourself; the supervisor's normal post-task loop handles it.",
+  "next_recommended_action": "After 085 commits + pushes the bundled twenty-eight paths and emits READY, the supervisor's normal post-task commit step lands 85_*_REPORT.md and 85_*_GO_NO_GO.md, the working tree becomes clean, the parallel-Codex-lane precondition `git_clean_and_no_active_dirty_claude_output` flips to true, and the next reconciliation tick dispatches 082_trainer_parity_2e1c_gamma_implementation.json automatically. If 085 emits BLOCKED, leave human_attention_required active with the explicit blocker line."
+}
