@@ -18,6 +18,25 @@ Evidence = Tuple[str, str, List[str]]
 
 EVIDENCE_MARKERS: List[Evidence] = [
     (
+        "PHASE2E1C_GAMMA_TRAINER_PARITY_IMPL_CODEX_PASS",
+        "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/95_2E1C_GAMMA_CODEX_GO_NO_GO.md",
+        [
+            "083_trainer_parity_2e1c_gamma_codex_review",
+        ],
+    ),
+    (
+        "PHASE2E1C_GAMMA_TRAINER_PARITY_IMPL_AND_VALIDATION_PASSED",
+        "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/92_2E1C_GAMMA_GO_NO_GO.md",
+        [
+            "082_trainer_parity_2e1c_gamma_implementation",
+            "084_codex_recover_planner_gamma_materialization_blocker",
+            "086",
+            "086A_trainer_parity_2e1c_gamma_reader_protocol",
+            "086B_trainer_parity_2e1c_gamma_observation_collector",
+            "086C_trainer_parity_2e1c_gamma_observation_history",
+        ],
+    ),
+    (
         "PHASE2E1C_BETA_TRAINER_PARITY_IMPL_CODEX_PASS",
         "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/69_2E1C_BETA_FINAL_CODEX_GO_NO_GO.md",
         [

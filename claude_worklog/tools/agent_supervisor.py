@@ -1262,13 +1262,13 @@ def planner_task_autorun_allowed(task_path: pathlib.Path, human_required: bool) 
     if not approved:
         return False, reason
 
-    status_map = {str(t.get("task_id", "")): str(t.get("status", "pending")) for _, t in list_tasks()}
+    status_map = task_status_map(list_tasks())
     blockers = dependency_blockers(task, status_map)
     blockers.extend(predecessor_marker_blockers(task))
     if blockers:
         return False, f"waiting on dependencies: {', '.join(blockers)}"
 
-    status = str(task.get("status", "pending"))
+    status = task_effective_status(task)
     if status in {
         "completed", "running", "cancelled", "failed", "blocked_auth",
         "blocked_approval", "human_attention_required", "superseded_by_evidence",
@@ -1581,6 +1581,23 @@ def dependency_blockers(task: Dict[str, Any], status_map: Dict[str, str]) -> Lis
     deps.extend(str(x) for x in task.get("predecessor_task_ids", []) if str(x).strip())
     satisfied = {"completed", "superseded_by_evidence"}
     return [d for d in deps if status_map.get(d) not in satisfied]
+
+
+def task_effective_status(task: Dict[str, Any]) -> str:
+    """Prefer runtime state over task-definition status for scheduling decisions."""
+    tid = str(task.get("task_id", "")).strip()
+    definition_status = str(task.get("status", "pending"))
+    if not tid:
+        return definition_status
+    state_status = str(load_task_state(tid).get("status", "")).strip()
+    return state_status or definition_status
+
+
+def task_status_map(tasks: List[Tuple[pathlib.Path, Dict[str, Any]]]) -> Dict[str, str]:
+    return {
+        str(t.get("task_id", "")): task_effective_status(t)
+        for _, t in tasks
+    }
 
 
 def predecessor_marker_blockers(task: Dict[str, Any]) -> List[str]:
@@ -1997,7 +2014,7 @@ def auto_commit_task_outputs(task_path: pathlib.Path, task: Dict[str, Any], resu
 
 
 def derive_gate(tasks: List[Tuple[pathlib.Path, Dict[str, Any]]]) -> str:
-    status_map = {str(t.get("task_id", "")): str(t.get("status", "pending")) for _, t in tasks}
+    status_map = task_status_map(tasks)
 
     if status_map.get("010_actual_codex_architecture_rerun_after_remediation") == "running":
         return "CODEX_RERUN_RUNNING"
@@ -2034,7 +2051,7 @@ def task_priority(task: Dict[str, Any]) -> int:
 
 
 def should_defer_resume(task: Dict[str, Any]) -> bool:
-    st = str(task.get("status", ""))
+    st = task_effective_status(task)
     if st not in {"blocked_quota", "retry_scheduled"}:
         return False
     resume = parse_iso_utc(task.get("resume_after_utc"))
@@ -2047,7 +2064,7 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
     write_json(CURRENT_STATUS_FILE, current)
 
     tasks = list_tasks()
-    status_map = {str(t.get("task_id", "")): str(t.get("status", "pending")) for _, t in tasks}
+    status_map = task_status_map(tasks)
     counts = {
         "pending": 0, "running": 0, "completed": 0, "failed": 0, "blocked": 0,
         "retry_scheduled": 0, "skipped": 0, "cancelled": 0,
@@ -2065,7 +2082,7 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
 
     for _, t in tasks:
         tid = str(t.get("task_id", ""))
-        st = str(t.get("status", "pending"))
+        st = task_effective_status(t)
         if st == "pending":
             counts["pending"] += 1
             if next_pending is None:
@@ -2178,12 +2195,12 @@ def set_next_tasks(task: Dict[str, Any], success: bool) -> None:
 
 def select_next_task_file() -> Optional[pathlib.Path]:
     tasks = list_tasks()
-    status_map = {str(t.get("task_id", "")): str(t.get("status", "pending")) for _, t in tasks}
+    status_map = task_status_map(tasks)
     candidates: List[Tuple[int, str, pathlib.Path]] = []
 
     for p, task in tasks:
-        status = str(task.get("status", "pending"))
         tid = str(task.get("task_id", p.stem))
+        status = task_effective_status(task)
 
         if status == "completed":
             continue
@@ -2311,7 +2328,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
         "last_retry_reason": None,
     }
 
-    task_status = str(task.get("status", "pending"))
+    task_status = task_effective_status(task)
     if task_status == "superseded_by_evidence":
         marker = str(task.get("superseded_by_evidence", "")).strip()
         result["status"] = "superseded_by_evidence"
@@ -2338,7 +2355,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                 result["summary"] = reason
                 result["next_recommended_action"] = "add approval and rerun"
             else:
-                status_map = {str(t.get("task_id", "")): str(t.get("status", "pending")) for _, t in list_tasks()}
+                status_map = task_status_map(list_tasks())
                 blockers = dependency_blockers(task, status_map)
                 blockers.extend(predecessor_marker_blockers(task))
                 if blockers:
@@ -2346,7 +2363,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                     result["summary"] = f"waiting on dependencies: {', '.join(blockers)}"
                 else:
                     existing_missing = check_required_outputs(task)
-                    if not existing_missing and str(task.get("status", "")) == "completed":
+                    if not existing_missing and task_effective_status(task) == "completed":
                         result["status"] = "completed"
                         result["summary"] = "required outputs already exist"
                     elif dry_run:
