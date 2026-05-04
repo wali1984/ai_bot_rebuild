@@ -1,0 +1,27 @@
+import pytest
+
+from v2.backend.app.domain.liveness_stream_growth import GrowthWindowConfig, StreamIdObservation
+from v2.backend.app.domain.trainer_liveness_composition import LivenessSnapshotBaseInputs
+from v2.backend.app.services.trainer_parity import TrainerParityServiceError, evaluate_trainer_liveness
+
+
+class _FakeReader:
+    def latest_stream_id(self, stream_name: str) -> str | None:
+        return None
+
+
+def test_evaluate_rejects_non_observation_in_prediction_history():
+    with pytest.raises(TrainerParityServiceError) as raised:
+        evaluate_trainer_liveness(
+            _FakeReader(),
+            base_inputs=LivenessSnapshotBaseInputs(1, 1, 1, 2, True, 1, 1, 1, 1, False, 1),
+            prediction_history=(StreamIdObservation("pred", "1-0", 1), object()),
+            proposal_history=(),
+            growth_config=GrowthWindowConfig(1000),
+            now_ms_clock=lambda: 1,
+            prediction_stream_name="pred",
+            proposal_stream_name="prop",
+            max_history_per_stream=2,
+        )
+    assert raised.value.code == "must_be_stream_id_observation"
+    assert raised.value.field == "prediction_history"
