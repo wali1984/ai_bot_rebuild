@@ -1,0 +1,36 @@
+{
+  "task_id": "086B_trainer_parity_2e1c_gamma_observation_collector",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "depends_on": [
+    "086A_trainer_parity_2e1c_gamma_reader_protocol"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "predecessor_required_marker": "PHASE_2E1C_GAMMA_READER_PROTOCOL_PASS",
+  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/086A_GAMMA_READER_PROTOCOL_GO_NO_GO.md",
+  "allowed_output_prefixes": [
+    "v2/backend/app/domain/trainer_liveness_observation_collector/",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/"
+  ],
+  "required_output_files": [
+    "v2/backend/app/domain/trainer_liveness_observation_collector/observation_collector.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_collect_validates_reader_protocol.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_collect_validates_stream_names_tuple.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_collect_validates_stream_names_each_nonempty_str.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_collect_validates_clock_callable.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_collect_validates_clock_returns_int.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_collect_validates_clock_nonnegative.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_collect_calls_clock_exactly_once_per_invocation.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_collect_returns_observations_in_input_order.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_collect_skips_stream_with_none_latest_id.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_collect_propagates_beta_observation_validation.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_collect_does_not_mutate_inputs.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_collect_observation_ts_consistent_within_cycle.py",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/086B_GAMMA_OBSERVATION_COLLECTOR_GO_NO_GO.md"
+  ],
+  "prompt": "You are Codex in /home/wali/Desktop/AI BOT REBUILD. Implement only the gamma observation_collector slice from specs 88/89/90. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not import Redis clients. Do not restart services. Do not enable live trading. Do not deploy. Emit only BEGIN_FILE blocks for required_output_files. The collector uses the reader protocol and beta StreamIdObservation, calls the injected clock exactly once, skips None stream ids, preserves input order, and propagates beta validation errors unchanged. GO/NO-GO must contain exactly PHASE_2E1C_GAMMA_OBSERVATION_COLLECTOR_PASS or PHASE_2E1C_GAMMA_OBSERVATION_COLLECTOR_BLOCKED.",
+  "next_recommended_action": "Run compile/tests for gamma reader plus collector slices, then run 086C."
+}

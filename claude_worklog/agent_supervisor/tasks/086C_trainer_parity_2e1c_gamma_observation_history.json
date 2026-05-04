@@ -1,0 +1,36 @@
+{
+  "task_id": "086C_trainer_parity_2e1c_gamma_observation_history",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "depends_on": [
+    "086B_trainer_parity_2e1c_gamma_observation_collector"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "predecessor_required_marker": "PHASE_2E1C_GAMMA_OBSERVATION_COLLECTOR_PASS",
+  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/086B_GAMMA_OBSERVATION_COLLECTOR_GO_NO_GO.md",
+  "allowed_output_prefixes": [
+    "v2/backend/app/domain/trainer_liveness_observation_collector/",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/"
+  ],
+  "required_output_files": [
+    "v2/backend/app/domain/trainer_liveness_observation_collector/observation_history.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_extend_history_appends_in_order.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_extend_history_returns_unchanged_when_under_max.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_extend_history_truncates_oldest_when_exceeding_max.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_extend_history_validates_history_tuple.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_extend_history_validates_new_tuple.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_extend_history_validates_history_entry_types.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_extend_history_validates_new_entry_types.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_extend_history_validates_max_total_int.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_extend_history_validates_max_total_positive.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_extend_history_does_not_mutate_inputs.py",
+    "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_forbidden_tokens.py",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/92_2E1C_GAMMA_GO_NO_GO.md",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/93_2E1C_GAMMA_IMPLEMENTATION_REPORT.md"
+  ],
+  "prompt": "You are Codex in /home/wali/Desktop/AI BOT REBUILD. Implement only the gamma observation_history slice and final gamma status docs from specs 88/89/90. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not import Redis clients. Do not restart services. Do not enable live trading. Do not deploy. Emit only BEGIN_FILE blocks for required_output_files. The history helper appends new beta observations, validates tuple inputs and max_total, truncates from the front when needed, and does not mutate inputs. Add the forbidden-token test for the full gamma source/test tree. Final GO/NO-GO must contain exactly PHASE2E1C_GAMMA_TRAINER_PARITY_IMPL_AND_VALIDATION_PASSED or PHASE2E1C_GAMMA_TRAINER_PARITY_IMPL_BLOCKED. The implementation report must end with PHASE2E1C_GAMMA_TRAINER_PARITY_IMPL_REPORT_READY.",
+  "next_recommended_action": "Run full gamma compile/tests plus alpha/beta/delta cross-isolation, then dispatch 083 Codex review if gamma PASS."
+}
