@@ -1,0 +1,22 @@
+{
+  "task_id": "077_trainer_parity_2e1c_beta_codex_rereview_after_remediation",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "predecessor_task_ids": [
+    "066_trainer_parity_2e1c_beta_codex_review"
+  ],
+  "predecessor_required_marker": "PHASE2E1C_BETA_CODEX_FAIL_REMEDIATION_READY_FOR_REREVIEW",
+  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/63_2E1C_BETA_CODEX_FAIL_REMEDIATION_GO_NO_GO.md",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/64_2E1C_BETA_CODEX_REREVIEW_AFTER_REMEDIATION.md",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/65_2E1C_BETA_CODEX_REREVIEW_GO_NO_GO.md"
+  ],
+  "prompt": "You are Codex acting as the Phase 2E1.C.beta remediation re-reviewer. Review only whether the blockers in 60_2E1C_BETA_CODEX_REVIEW.md were fixed by the remediation in 62_2E1C_BETA_CODEX_FAIL_REMEDIATION_REPORT.md. Do not modify any V2 file. Do not modify legacy. Do not write Redis. Do not read Redis. Do not restart services. Do not place/cancel orders. Do not deploy. Do not expose secrets. Read: 52/53/54/55 beta specs, 57 implementation report, 58/59 validation evidence, 60/61 Codex FAIL evidence, 62/63 remediation evidence, v2/backend/app/domain/liveness_stream_growth, and v2/backend/tests/unit/domain/liveness_stream_growth. Verify: no v2/.venv-control-plane symlink or dependency remains, beta tests perform no file I/O, forbidden-token counts are zero, trainer_liveness literal is absent, inline rationale comments exist for future-before-filter and literal stream-id distinctness, py_compile passes, pytest passes, no live/Redis/legacy/exchange/deploy/secrets. Emit exactly two BEGIN_FILE blocks. The GO/NO-GO file must contain exactly one line: PHASE2E1C_BETA_TRAINER_PARITY_IMPL_CODEX_PASS or PHASE2E1C_BETA_TRAINER_PARITY_IMPL_CODEX_FAIL.",
+  "next_recommended_action": "On PASS, continue to the next 2E1C sub-phase. On FAIL, create a narrow Codex autofix task."
+}
