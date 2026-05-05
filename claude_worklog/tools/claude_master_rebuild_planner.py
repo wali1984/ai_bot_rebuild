@@ -453,6 +453,18 @@ def substantive_git_dirty() -> List[str]:
     return dirty
 
 
+def restore_runtime_prompt_noise_before_dispatch() -> None:
+    """Keep child task clean-worktree preconditions from seeing planner prompt noise."""
+    subprocess.run(
+        ["git", "restore", "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt"],
+        cwd=str(WORKSPACE),
+        text=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+
+
 def active_agent_child_processes() -> str:
     cp = subprocess.run(
         [
@@ -832,6 +844,8 @@ def dispatch_approved_supervisor_task(task_id: str) -> Dict[str, Any]:
         result.update({"blocked_reason": "git_dirty", "dirty": dirty[:20]})
         append_event("master_planner_dispatch_bridge_blocked", **result)
         return result
+
+    restore_runtime_prompt_noise_before_dispatch()
 
     append_event("master_planner_dispatch_bridge_started", task_id=task_id)
     cp = subprocess.run(
