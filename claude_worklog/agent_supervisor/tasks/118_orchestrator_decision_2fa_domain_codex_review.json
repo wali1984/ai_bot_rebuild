@@ -1,0 +1,69 @@
+{
+  "task_id": "118_orchestrator_decision_2fa_domain_codex_review",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "depends_on": [
+    "117_orchestrator_decision_2fa_domain_implementation"
+  ],
+  "predecessor_task_ids": [
+    "117_orchestrator_decision_2fa_domain_implementation"
+  ],
+  "predecessor_required_marker": "PHASE2F_A_ORCHESTRATOR_DECISION_DOMAIN_IMPL_AND_VALIDATION_PASSED",
+  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/07_2F_A_ORCHESTRATOR_DECISION_DOMAIN_GO_NO_GO.md",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "task_granularity_mode": "consolidated_default",
+  "requires_clean_worktree": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/"
+  ],
+  "forbidden_output_paths": [
+    "v2/",
+    "claude_worklog/autonomous_control_plane/",
+    "claude_worklog/agent_supervisor/tasks/",
+    "claude_worklog/security/",
+    "claude_worklog/requirements_inbox/",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity/",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/",
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/00_PHASE_2F_SUB_PHASE_BREAKDOWN.md",
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/01_PHASE_2F_LEGACY_EVIDENCE_REVIEW.md",
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/02_PHASE_2F_A_ORCHESTRATOR_DECISION_DOMAIN_SPEC.md",
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/03_PHASE_2F_A_ORCHESTRATOR_DECISION_DOMAIN_TEST_PLAN.md",
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/04_PHASE_2F_A_ORCHESTRATOR_DECISION_DOMAIN_SAFETY_BOUNDARIES.md",
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/05_PHASE_2F_A_ORCHESTRATOR_DECISION_DOMAIN_GO_NO_GO_REQUEST.md",
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/06_2F_A_ORCHESTRATOR_DECISION_DOMAIN_IMPLEMENTATION_REPORT.md",
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/07_2F_A_ORCHESTRATOR_DECISION_DOMAIN_GO_NO_GO.md"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/08_2F_A_ORCHESTRATOR_DECISION_DOMAIN_CODEX_REVIEW.md",
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/09_2F_A_ORCHESTRATOR_DECISION_DOMAIN_CODEX_GO_NO_GO.md"
+  ],
+  "forbidden_actions": [
+    "modify /home/wali/Desktop/AI BOT",
+    "read or write any Redis key",
+    "invoke any Redis command",
+    "modify any v2/ source or test file",
+    "modify any prior-milestone artifact byte content",
+    "modify any 2F.A authored source or test file",
+    "modify the master planner prompt",
+    "modify any task definition under claude_worklog/agent_supervisor/tasks/",
+    "restart any live service",
+    "place or cancel exchange orders",
+    "change leverage or margin",
+    "enable live trading",
+    "ship to anywhere",
+    "run a migration in any environment",
+    "approve the live gate",
+    "emit a standalone harness BEGIN/END framing token marker line in any authored file body"
+  ],
+  "scope_dirty_paths": [],
+  "prompt": "You are Codex acting as adversarial reviewer for Phase 2F.A of REQ_0006 intersect REQ_0017 (orchestrator decision domain). You author exactly the two files listed in required_output_files of this task definition and nothing else. You do NOT modify any v2/ source or test file. You do NOT modify any prior-milestone artifact byte content. You do NOT modify any 2F.A authored source or test file. You do NOT modify the master planner prompt. You do NOT modify any task definition under claude_worklog/agent_supervisor/tasks/. You do NOT modify legacy. You do NOT access Redis at any layer. You do NOT restart any live service. You do NOT place or cancel exchange orders. You do NOT change leverage or margin. You do NOT enable live trading. You do NOT ship anywhere. You do NOT run any migration in any environment. You do NOT approve the live gate.\n\nWorktree precondition: this task requires a clean worktree at dispatch. Run `git status --porcelain` first. If it returns any non-empty line, surface to human attention and stop without writing 08 or 09.\n\nPredecessor gate: claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/07_2F_A_ORCHESTRATOR_DECISION_DOMAIN_GO_NO_GO.md MUST contain exactly PHASE2F_A_ORCHESTRATOR_DECISION_DOMAIN_IMPL_AND_VALIDATION_PASSED. If absent or different, write PHASE2F_A_ORCHESTRATOR_DECISION_DOMAIN_CODEX_FAIL to 09, capture the missing-marker reason in 08, and stop.\n\nRead exactly these files as authoritative for review:\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/00_PHASE_2F_SUB_PHASE_BREAKDOWN.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/01_PHASE_2F_LEGACY_EVIDENCE_REVIEW.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/02_PHASE_2F_A_ORCHESTRATOR_DECISION_DOMAIN_SPEC.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/03_PHASE_2F_A_ORCHESTRATOR_DECISION_DOMAIN_TEST_PLAN.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/04_PHASE_2F_A_ORCHESTRATOR_DECISION_DOMAIN_SAFETY_BOUNDARIES.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/05_PHASE_2F_A_ORCHESTRATOR_DECISION_DOMAIN_GO_NO_GO_REQUEST.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/06_2F_A_ORCHESTRATOR_DECISION_DOMAIN_IMPLEMENTATION_REPORT.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/07_2F_A_ORCHESTRATOR_DECISION_DOMAIN_GO_NO_GO.md\n- v2/backend/app/domain/orchestrator_decision/__init__.py\n- v2/backend/app/domain/orchestrator_decision/errors.py\n- v2/backend/app/domain/orchestrator_decision/record.py\n- v2/backend/tests/unit/domain/orchestrator_decision/__init__.py\n- the 34 test files under v2/backend/tests/unit/domain/orchestrator_decision/\n\nReview rubric: evaluate each of the 34 rows in 05 'Codex review rubric' and mark PASS or FAIL with a one-line evidence pointer per PASS row. Run the validation commands documented in 117 'Validation commands you MUST run and capture exit codes for in 06' on the actual repo state and re-confirm zero non-zero exit codes. Run `git status -s` and confirm zero output lines. Run the forbidden-token scan and confirm zero matches per token. Run a fresh-subprocess import of v2.backend.app.domain.orchestrator_decision and confirm none of redis, redis.asyncio, aioredis, hiredis, httpx, requests, fastapi, uvicorn, asyncio, threading, or v2.backend.app.adapters.redis_v2.url_env are loaded.\n\nCodex review out-of-scope per 05: do NOT propose adding the assembler service or composition root in this milestone, do NOT propose modifying any prior-milestone artifact, do NOT propose adding any new lineage ID at the value-object layer, do NOT propose adding any FastAPI surface, Redis adapter, GPU runner, or model-loading subsystem, do NOT propose adding any non-trivial logic at the value-object layer beyond the validation invariants enumerated in 02.\n\nEmit 08_2F_A_ORCHESTRATOR_DECISION_DOMAIN_CODEX_REVIEW.md with sections: 'Rubric verdicts' (the 34 rows with PASS/FAIL and one-line evidence per row), 'Validation re-run' (each command with exit code and one-line summary), 'Forbidden token re-scan' (token + zero-match confirmation), 'Cross-isolation diff re-run' (git status -s zero lines), 'Fresh-subprocess import re-run' (each forbidden module with confirmation it is NOT in sys.modules), 'Safety review' (each forbidden runtime behavior listed in 04 with 'none observed' or 'observed: <evidence>'), 'Out-of-scope check' (confirmation that no out-of-scope item is proposed). Final marker line: PHASE2F_A_ORCHESTRATOR_DECISION_DOMAIN_CODEX_REVIEW_READY. The body MUST NOT contain any harness BEGIN/END framing token marker line.\n\nEmit 09_2F_A_ORCHESTRATOR_DECISION_DOMAIN_CODEX_GO_NO_GO.md. Exactly one of:\n  PHASE2F_A_ORCHESTRATOR_DECISION_DOMAIN_CODEX_PASS\n  PHASE2F_A_ORCHESTRATOR_DECISION_DOMAIN_CODEX_FAIL\nNo other content. The body MUST NOT contain any harness BEGIN/END framing token marker line.\n\nStop conditions: any live behavior, any Redis access at any layer, any Redis command at any time, any legacy mutation, any release intent in any environment, any modification of any prior-milestone source or test file, any modification of any 2F.A authored source or test file, any URL or credential leakage. On any of these, write FAIL to 09, document the violation in 08, and stop. Do NOT autofix in this task; if FAIL is concrete and non-safety, the supervisor will dispatch a separate REQ_0007 / REQ_0014 autofix task scoped to the three authored 2F.A source files plus the 34 new test files only.",
+  "next_recommended_action": "On PHASE2F_A_ORCHESTRATOR_DECISION_DOMAIN_CODEX_PASS, planner opens Phase 2F.B (orchestrator decision assembler service) under a fresh consolidated turn. On PHASE2F_A_ORCHESTRATOR_DECISION_DOMAIN_CODEX_FAIL with concrete blockers and no safety violation, supervisor dispatches a REQ_0007 / REQ_0014 autofix task scoped to the three authored 2F.A source files plus the 34 new test files only and re-runs the Codex review flow. On any safety violation, surface to human attention; no autofix is permitted.",
+  "lane": "codex_watchdog",
+  "mvp_relevance": "Codex adversarial review of Phase 2F.A orchestrator decision domain materializes the PHASE2F_A_ORCHESTRATOR_DECISION_DOMAIN_CODEX_PASS gate that unblocks Phase 2F.B (assembler service) and continues progress toward REQ_0017 milestone 2 ORCHESTRATOR_DECISION_MVP and the broader V2_BACKTEST_AND_PAPER_MVP_READY target.",
+  "next_gate": "PHASE2F_A_ORCHESTRATOR_DECISION_DOMAIN_CODEX_PASS",
+  "blocked_by": [
+    "PHASE2F_A_ORCHESTRATOR_DECISION_DOMAIN_IMPL_AND_VALIDATION_PASSED"
+  ]
+}
