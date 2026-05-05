@@ -1,0 +1,40 @@
+{
+  "task_id": "123_codex_closed_loop_recover_119_orchestrator_2fb",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "v2/",
+    "claude_worklog/phase2_core_rebuild/",
+    "claude_worklog/agent_supervisor/",
+    "claude_worklog/security/",
+    "claude_worklog/tools/",
+    "claude_worklog/agent_supervisor_reliability/"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision/123_CODEX_CLOSED_LOOP_RECOVERY_119_REPORT.md",
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision/123_CODEX_CLOSED_LOOP_RECOVERY_119_GO_NO_GO.md"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. You have full authority to recover non-live blockers inside AI BOT REBUILD. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not delete Redis keys. Do not restart live services. Do not place/cancel orders. Do not enable live trading. Recover task 119_orchestrator_decision_2fb_assembler_service_implementation. Inspect existing source, tests, docs, GO/NO-GO markers, stdout/stderr, and runtime state. If required outputs already exist, validate them. If GO/NO-GO says FAIL, inspect the failure reason and patch code/tests/docs to pass. If tests are missing or weak, add/harden tests. If validation passes, update/create the correct PASS marker. Also identify whether 122 safety block was a false positive caused by policy text such as redis_write, and propose or patch a safer scanner rule if appropriate. Run only non-live local validation mentally/through emitted artifacts; do not run live systems. Output exactly two BEGIN_FILE blocks for the recovery report and GO/NO-GO. GO/NO-GO must contain exactly one line: CODEX_CLOSED_LOOP_RECOVERY_119_READY or CODEX_CLOSED_LOOP_RECOVERY_119_BLOCKED.",
+  "lane": "codex_watchdog",
+  "mvp_relevance": "Unblocks ORCHESTRATOR_DECISION_MVP by closing 2F.B assembler service recovery.",
+  "blocked_by": [
+    "119 human_attention_required",
+    "2F.B failed marker",
+    "122 redis_write false-positive guard"
+  ],
+  "next_gate": "ORCHESTRATOR_DECISION_2FB_ASSEMBLER_SERVICE_CODEX_PASS",
+  "legacy_evidence_consulted": [
+    "legacy service map",
+    "orchestrator worker mapping",
+    "trainer prediction output MVP"
+  ],
+  "legacy_failure_addressed": [
+    "stale/unclear decision routing",
+    "missing decision lineage",
+    "manual recovery loops"
+  ],
+  "next_recommended_action": "If READY, commit recovery artifacts and allow planner to advance to risk gateway MVP. If BLOCKED, leave precise blocker."
+}
