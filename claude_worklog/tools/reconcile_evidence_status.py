@@ -18,6 +18,13 @@ Evidence = Tuple[str, str, List[str]]
 
 EVIDENCE_MARKERS: List[Evidence] = [
     (
+        "PHASE2E3C_TRAINER_PREDICTION_OUTPUT_COMPOSITION_ROOT_CODEX_PASS",
+        "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/205_2E3C_PREDICTION_OUTPUT_COMPOSITION_ROOT_CODEX_GO_NO_GO.md",
+        [
+            "116_trainer_parity_2e3c_prediction_output_composition_root_codex_review",
+        ],
+    ),
+    (
         "PHASE2E3C_TRAINER_PREDICTION_OUTPUT_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED",
         "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/203_2E3C_PREDICTION_OUTPUT_COMPOSITION_ROOT_GO_NO_GO.md",
         [

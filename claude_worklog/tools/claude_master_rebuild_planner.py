@@ -172,7 +172,7 @@ def paper_backtest_mvp_ready() -> bool:
 def next_paper_backtest_milestone() -> str:
     marker_paths = {
         "TRAINER_PREDICTION_OUTPUT_MVP": [
-            "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/186_2E3A_PREDICTION_OUTPUT_DOMAIN_CODEX_GO_NO_GO.md",
+            "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/205_2E3C_PREDICTION_OUTPUT_COMPOSITION_ROOT_CODEX_GO_NO_GO.md",
         ],
         "ORCHESTRATOR_DECISION_MVP": [],
         "RISK_GATEWAY_DEFAULT_DENY_MVP": [],
