@@ -34,6 +34,26 @@ FORBIDDEN_TERMS = [
     "production migration",
 ]
 
+POLICY_MENTION_ALLOWLIST = (
+    "do not write redis",
+    "do not delete redis",
+    "never write redis",
+    "never delete redis",
+    "redis writes are forbidden",
+    "redis write is forbidden",
+    "redis_write is forbidden",
+    "block redis write",
+    "block redis writes",
+    "forbidden redis write",
+    "forbidden redis writes",
+    "no redis write",
+    "no redis writes",
+    "without redis writes",
+    "zero redis writes",
+    "do not enable live trading",
+    "live trading remains blocked",
+)
+
 SECRET_PATTERN = re.compile(
     r"AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|-----BEGIN (RSA|EC|OPENSSH|DSA) PRIVATE KEY-----|"
     r"xox[baprs]-[0-9A-Za-z-]{10,}|ghp_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{20,}|"
@@ -226,9 +246,13 @@ def safety_scan(paths: list[Path]) -> tuple[bool, list[str]]:
         if not path.exists() or not path.is_file():
             continue
         text = read_text(path, 500_000)
-        for term in FORBIDDEN_TERMS:
-            if term in text:
-                hits.append(f"{path.relative_to(WORKSPACE)}:{term}")
+        for line_no, line in enumerate(text.splitlines(), start=1):
+            lower_line = line.lower()
+            if any(phrase in lower_line for phrase in POLICY_MENTION_ALLOWLIST):
+                continue
+            for term in FORBIDDEN_TERMS:
+                if term in line:
+                    hits.append(f"{path.relative_to(WORKSPACE)}:{line_no}:{term}")
     return not hits, hits
 
 
@@ -341,6 +365,92 @@ def run_supervisor_task(task_id: str) -> int:
     return proc.returncode
 
 
+def latest_codex_fail_marker() -> str | None:
+    """Find latest non-live FAIL marker that should trigger Codex recovery."""
+    roots = [
+        WORKSPACE / "claude_worklog/phase2_core_rebuild",
+        WORKSPACE / "claude_worklog/v2_scaffold_reviews",
+    ]
+    fail_line = re.compile(r"(^|\b)(CODEX_FAIL|CODEX_REVIEW_FAIL|[A-Z0-9_]+_FAILED)(\b|$)")
+    pass_line = re.compile(r"(^|\b)(CODEX_PASS|[A-Z0-9_]+_PASSED)(\b|$)")
+    candidates: list[tuple[float, Path]] = []
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            if "GO_NO_GO" not in path.name and "GO-NO-GO" not in path.name:
+                continue
+            text = read_text(path, 20_000)
+            marker_lines = [line.strip() for line in text.splitlines() if line.strip()]
+            if not any(fail_line.search(line) for line in marker_lines):
+                continue
+            if any(pass_line.search(line) for line in marker_lines):
+                continue
+            candidates.append((path.stat().st_mtime, path))
+    if not candidates:
+        return None
+    candidates.sort()
+    return str(candidates[-1][1].relative_to(WORKSPACE))
+
+
+def create_codex_marker_recovery_task(marker_path: str) -> str:
+    safe_id = re.sub(r"[^a-zA-Z0-9]+", "_", marker_path).strip("_").lower()[:80]
+    task_id = f"codex_recover_fail_marker_{safe_id}"
+    path = TASKS_DIR / f"{task_id}.json"
+    if path.exists():
+        return task_id
+    task = {
+        "task_id": task_id,
+        "agent": "codex",
+        "risk_level": "L1",
+        "status": "pending",
+        "lane": "codex_watchdog",
+        "mvp_relevance": "Recovers a non-live failed marker blocking the paper/backtest MVP path.",
+        "blocked_by": [marker_path],
+        "next_gate": "CODEX_FAIL_MARKER_RECOVERY_READY",
+        "legacy_evidence_consulted": [
+            "current phase2 evidence",
+            "runtime task states",
+            "GO/NO-GO marker files",
+        ],
+        "legacy_failure_addressed": ["manual recovery loop"],
+        "cwd": str(WORKSPACE),
+        "emit_files": True,
+        "allowed_output_prefixes": [
+            "v2/",
+            "claude_worklog/phase2_core_rebuild/",
+            "claude_worklog/security/",
+            "claude_worklog/agent_supervisor/",
+            "claude_worklog/tools/",
+        ],
+        "required_output_files": [
+            f"claude_worklog/phase2_core_rebuild/automation_reliability/{task_id}_REPORT.md",
+            f"claude_worklog/phase2_core_rebuild/automation_reliability/{task_id}_GO_NO_GO.md",
+        ],
+        "prompt": (
+            f"You are local Codex CLI in {WORKSPACE}. Full non-live recovery authority. "
+            f"Recover the failed marker or Codex FAIL at {marker_path}. Inspect related code, tests, docs, task states, "
+            "stdout/stderr, and validation evidence. If safe, patch non-live V2 files, tests, validation docs, "
+            "evidence reconciliation, or planner/supervisor/watchdog logic. Do not modify /home/wali/Desktop/AI BOT. "
+            "Do not write Redis. Do not restart live services. Do not enable live trading. Do not deploy. "
+            "Do not expose secrets. Output exactly two BEGIN_FILE blocks. GO/NO-GO one line: "
+            "CODEX_FAIL_MARKER_RECOVERY_READY or CODEX_FAIL_MARKER_RECOVERY_BLOCKED."
+        ),
+        "next_recommended_action": "If ready, validate/commit/push and restart planner. If blocked, leave explicit blocker.",
+    }
+    write_text(path, json.dumps(task, indent=2) + "\n")
+    append_event(
+        {
+            "event": "codex_watchdog_fail_marker_recovery_task_created",
+            "marker_path": marker_path,
+            "recovery_task": task_id,
+        }
+    )
+    return task_id
+
+
 def recover_dirty_tree() -> bool:
     restore_runtime_prompt_noise()
     archive_planner_noise()
@@ -404,6 +514,23 @@ def cycle() -> int:
     if not git_clean() and not recover_dirty_tree():
         print("DIRTY_TREE_RECOVERY_BLOCKED")
         return 2
+
+    fail_marker = latest_codex_fail_marker()
+    if fail_marker:
+        recovery = create_codex_marker_recovery_task(fail_marker)
+        commit_all(f"Add Codex watchdog recovery task for fail marker {Path(fail_marker).name}")
+        rc = run_supervisor_task(recovery)
+        recover_dirty_tree()
+        if rc != 0:
+            print(f"FAIL_MARKER_RECOVERY_TASK_NONZERO {recovery} {rc}")
+            return rc
+        append_event(
+            {
+                "event": "codex_watchdog_fail_marker_recovered",
+                "marker_path": fail_marker,
+                "recovery_task": recovery,
+            }
+        )
 
     blocked = latest_human_attention_task()
     if blocked:
