@@ -18,6 +18,31 @@ Evidence = Tuple[str, str, List[str]]
 
 EVIDENCE_MARKERS: List[Evidence] = [
     (
+        "PHASE2E3B_TRAINER_PREDICTION_RECORD_ASSEMBLER_CODEX_PASS",
+        "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/197_2E3B_PREDICTION_RECORD_ASSEMBLER_CODEX_GO_NO_GO.md",
+        [
+            "113_trainer_parity_2e3b_prediction_record_assembler_implementation",
+            "114_trainer_parity_2e3b_prediction_record_assembler_codex_review",
+            "codex_recover_114_trainer_parity_2e3b_prediction_record_assembler_codex_review",
+        ],
+    ),
+    (
+        "PHASE2E3B_TRAINER_PREDICTION_RECORD_ASSEMBLER_IMPL_AND_VALIDATION_PASSED",
+        "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/195_2E3B_PREDICTION_RECORD_ASSEMBLER_GO_NO_GO.md",
+        [
+            "113_trainer_parity_2e3b_prediction_record_assembler_implementation",
+        ],
+    ),
+    (
+        "PHASE2E3A_TRAINER_PREDICTION_OUTPUT_DOMAIN_CODEX_REREVIEW_AFTER_DIRTY_TREE_CLEAN_PASS",
+        "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/189_2E3A_CODEX_REREVIEW_AFTER_DIRTY_TREE_CLEAN_GO_NO_GO.md",
+        [
+            "110_trainer_parity_2e3a_prediction_output_domain_implementation",
+            "111_trainer_parity_2e3a_prediction_output_domain_codex_review",
+            "112_trainer_parity_2e3a_codex_rereview_after_dirty_tree_clean",
+        ],
+    ),
+    (
         "PHASE2E1C_GAMMA_TRAINER_PARITY_IMPL_CODEX_PASS",
         "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/95_2E1C_GAMMA_CODEX_GO_NO_GO.md",
         [
