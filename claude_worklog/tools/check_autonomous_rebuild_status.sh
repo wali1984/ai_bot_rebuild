@@ -41,6 +41,11 @@ p = Path("claude_worklog/agent_supervisor/status/master_rebuild_planner_status.j
 d = json.loads(p.read_text()) if p.exists() else {}
 print(f"Claude Code profile: {d.get('claude_code_profile') or 'Max20 consolidated default'}")
 print(f"task granularity mode: {d.get('task_granularity_mode') or 'consolidated_default'}")
+print(f"planner lane lock enabled: {'yes' if d.get('planner_lane_lock_enabled', False) else 'no'}")
+print(f"active lane: {d.get('active_lane') or '-'}")
+print(f"active MVP target: {d.get('active_mvp_target') or '-'}")
+print(f"next paper/backtest milestone: {d.get('next_paper_backtest_milestone') or '-'}")
+print(f"rejected drift count: {d.get('rejected_drift_count', 0)}")
 print(f"split fallback enabled: {'yes' if d.get('split_fallback_enabled', True) else 'no'}")
 print(f"quota monitor enabled: {'yes' if d.get('quota_monitor_enabled', True) else 'no'}")
 print(f"Codex parallel lane: {d.get('codex_parallel_lane') or 'Codex Pro parallel review/autofix lane'}")

@@ -28,6 +28,32 @@ CODEX_PARALLEL_LANE_NAME = "Codex Pro parallel review/autofix lane"
 TASK_GRANULARITY_ENV = "AI_BOT_PLANNER_TASK_GRANULARITY"
 TASK_GRANULARITY_ALLOWED = {"consolidated_default", "split_default", "recovery_split_only"}
 DEFAULT_TASK_GRANULARITY = "consolidated_default"
+PAPER_BACKTEST_MVP_GOAL_MARKER = "V2_BACKTEST_AND_PAPER_MVP_READY"
+ACTIVE_MVP_TARGET = PAPER_BACKTEST_MVP_GOAL_MARKER
+APPROVED_PLANNER_LANES = {
+    "paper_backtest_mvp",
+    "explainability_ui",
+    "codex_watchdog",
+    "legacy_parity",
+}
+NEXT_PAPER_BACKTEST_MILESTONES = [
+    "TRAINER_PREDICTION_OUTPUT_MVP",
+    "ORCHESTRATOR_DECISION_MVP",
+    "RISK_GATEWAY_DEFAULT_DENY_MVP",
+    "PAPER_EXECUTION_LEDGER_MVP",
+    "REPLAY_BACKTEST_RUNNER_MVP",
+    "PAPER_MODE_MVP",
+    "SHADOW_MODE_READINESS",
+]
+EXPLAINABILITY_LINEAGE_IDS = (
+    "feature_snapshot_id",
+    "prediction_id",
+    "signal_id",
+    "risk_decision_id",
+    "execution_intent_id",
+    "paper_trade_id",
+    "shadow_decision_id",
+)
 
 EVIDENCE_ROOTS = [
     "claude_worklog/requirements_inbox",
@@ -62,6 +88,8 @@ FORBIDDEN_TEXT = (
     "change_margin",
     "enable_live_trading",
 )
+
+DRIFT_REJECT_COUNT = 0
 
 READY_TO_FIRE_TASKS = {
     "060_trainer_parity_2e1c_alpha_implementation": {
@@ -124,6 +152,146 @@ def split_fallback_enabled() -> bool:
     return task_granularity_mode() in {"consolidated_default", "recovery_split_only", "split_default"}
 
 
+def paper_backtest_mvp_ready() -> bool:
+    search_roots = [
+        WORKSPACE / "claude_worklog/phase2_core_rebuild",
+        WORKSPACE / "claude_worklog/final_readiness",
+    ]
+    for root in search_roots:
+        if not root.exists():
+            continue
+        for path in root.rglob("*"):
+            if not path.is_file() or path.suffix not in {".md", ".json", ".txt"}:
+                continue
+            lines = [line.strip() for line in read_text(path, 50000).splitlines()]
+            if PAPER_BACKTEST_MVP_GOAL_MARKER in lines:
+                return True
+    return False
+
+
+def next_paper_backtest_milestone() -> str:
+    marker_paths = {
+        "TRAINER_PREDICTION_OUTPUT_MVP": [
+            "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/186_2E3A_PREDICTION_OUTPUT_DOMAIN_CODEX_GO_NO_GO.md",
+        ],
+        "ORCHESTRATOR_DECISION_MVP": [],
+        "RISK_GATEWAY_DEFAULT_DENY_MVP": [],
+        "PAPER_EXECUTION_LEDGER_MVP": [],
+        "REPLAY_BACKTEST_RUNNER_MVP": [],
+        "PAPER_MODE_MVP": [],
+        "SHADOW_MODE_READINESS": [],
+    }
+    for milestone in NEXT_PAPER_BACKTEST_MILESTONES:
+        paths = marker_paths.get(milestone) or []
+        if not paths:
+            return milestone
+        if not any("PASS" in read_text(WORKSPACE / rel, 50000) for rel in paths):
+            return milestone
+    return PAPER_BACKTEST_MVP_GOAL_MARKER
+
+
+def lane_lock_active() -> bool:
+    return not paper_backtest_mvp_ready()
+
+
+def task_lane_validation(task: Dict[str, Any]) -> Tuple[bool, str]:
+    """Validate REQ_0018 lane metadata for generated/dispatchable tasks."""
+    if not lane_lock_active():
+        return True, "mvp_ready_lane_lock_released"
+
+    task_id = str(task.get("task_id") or "")
+    lane = str(task.get("lane") or "").strip()
+    relevance = str(task.get("mvp_relevance") or "").strip()
+    next_gate = str(task.get("next_gate") or "").strip()
+    has_blocked_by = "blocked_by" in task
+    prompt = str(task.get("prompt") or "")
+    combined = " ".join(
+        [
+            task_id,
+            lane,
+            relevance,
+            next_gate,
+            prompt,
+            str(task.get("next_recommended_action") or ""),
+        ]
+    ).lower()
+
+    missing: List[str] = []
+    if lane not in APPROVED_PLANNER_LANES:
+        missing.append("lane")
+    if not relevance:
+        missing.append("mvp_relevance")
+    if not has_blocked_by:
+        missing.append("blocked_by")
+    if not next_gate:
+        missing.append("next_gate")
+    if missing:
+        return False, "missing_or_invalid_" + "_".join(missing)
+
+    if lane == "paper_backtest_mvp":
+        allowed_terms = (
+            "prediction",
+            "orchestrator",
+            "risk",
+            "paper",
+            "backtest",
+            "replay",
+            "shadow",
+            "confidence",
+            "feature_snapshot_id",
+            "prediction_id",
+            "trainer",
+        )
+        if not any(term in combined for term in allowed_terms):
+            return False, "paper_backtest_lane_missing_mvp_terms"
+        return True, "paper_backtest_mvp_lane"
+
+    if lane == "explainability_ui":
+        if not any(identifier in combined for identifier in EXPLAINABILITY_LINEAGE_IDS):
+            return False, "explainability_ui_missing_real_lineage_contract"
+        return True, "explainability_ui_lane"
+
+    if lane == "codex_watchdog":
+        allowed_terms = (
+            "codex",
+            "review",
+            "autofix",
+            "test",
+            "safety",
+            "secret scan",
+            "watchdog",
+            "reconcile",
+            "dispatch",
+            "remap",
+            "blocker",
+        )
+        if not any(term in combined for term in allowed_terms):
+            return False, "codex_watchdog_lane_missing_quality_terms"
+        return True, "codex_watchdog_lane"
+
+    if lane == "legacy_parity":
+        if "legacy" not in combined and "parity" not in combined and "preserve" not in combined:
+            return False, "legacy_parity_lane_missing_preservation_terms"
+        if any(token in combined for token in ("modify /home/wali/desktop/ai bot", "write redis", "delete redis")):
+            return False, "legacy_parity_lane_requests_forbidden_mutation"
+        return True, "legacy_parity_lane"
+
+    return False, "unknown_lane"
+
+
+def log_planner_task_rejected_drift(task: Dict[str, Any], reason: str) -> None:
+    global DRIFT_REJECT_COUNT
+    DRIFT_REJECT_COUNT += 1
+    append_event(
+        "planner_task_rejected_drift",
+        task_id=str(task.get("task_id") or ""),
+        reason=reason,
+        proposed_lane=str(task.get("lane") or ""),
+        missing_mvp_relevance=not bool(str(task.get("mvp_relevance") or "").strip()),
+        active_mvp_target=ACTIVE_MVP_TARGET,
+    )
+
+
 def git_last_commit() -> str:
     cp = subprocess.run(["git", "log", "--oneline", "-1"], cwd=str(WORKSPACE), text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False)
     return cp.stdout.strip()
@@ -132,6 +300,16 @@ def git_last_commit() -> str:
 def git_status_short() -> str:
     cp = subprocess.run(["git", "status", "--short"], cwd=str(WORKSPACE), text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False)
     return cp.stdout.strip()
+
+
+def rejected_drift_count() -> int:
+    path = WORKSPACE / "claude_worklog/agent_supervisor/events.jsonl"
+    if not path.exists():
+        return 0
+    try:
+        return sum(1 for line in path.read_text(encoding="utf-8", errors="ignore").splitlines() if "planner_task_rejected_drift" in line)
+    except Exception:
+        return 0
 
 
 def substantive_git_dirty() -> List[str]:
@@ -357,6 +535,10 @@ def generated_task_ids(materialized: List[str]) -> List[str]:
             continue
         data = read_json(WORKSPACE / rel)
         task_id = str(data.get("task_id") or pathlib.Path(rel).stem)
+        lane_ok, lane_reason = task_lane_validation(data)
+        if not lane_ok:
+            log_planner_task_rejected_drift(data, lane_reason)
+            continue
         risk = str(data.get("risk_level") or "L1").upper()
         if data.get("status") == "pending" and risk in {"L1", "L2", "L3"}:
             task_ids.append(task_id)
@@ -450,6 +632,19 @@ def dispatch_approved_supervisor_task(task_id: str) -> Dict[str, Any]:
             }
         )
         append_event("master_planner_dispatch_bridge_skipped_superseded_by_evidence", **result)
+        return result
+
+    lane_ok, lane_reason = task_lane_validation(task)
+    if not lane_ok:
+        log_planner_task_rejected_drift(task, lane_reason)
+        result.update(
+            {
+                "blocked_reason": "planner_task_rejected_drift",
+                "lane_rejection_reason": lane_reason,
+                "proposed_lane": str(task.get("lane") or ""),
+            }
+        )
+        append_event("master_planner_dispatch_bridge_blocked", **result)
         return result
 
     risk = str(task.get("risk_level") or "").upper()
@@ -689,6 +884,19 @@ Codex Pro parallel lane is active.
 - Codex must not run a milestone's required review before that milestone's local validation marker passes.
 - Codex parallel scope is limited to v2/, claude_worklog/phase2_core_rebuild/, claude_worklog/v2_scaffold_reviews/, claude_worklog/security/, claude_worklog/agent_supervisor/tasks/, and claude_worklog/tools/ only for safety/status/review tooling.
 
+REQ_0018 planner lane lock is enforced until {PAPER_BACKTEST_MVP_GOAL_MARKER} exists.
+- Every generated task JSON must include lane, mvp_relevance, blocked_by, and next_gate.
+- Approved lanes only: paper_backtest_mvp, explainability_ui, codex_watchdog, legacy_parity.
+- Hard-prioritize paper_backtest_mvp.
+- Lane A paper_backtest_mvp tasks must advance: trainer prediction output, prediction_id / feature_snapshot_id emission, confidence attribution output, orchestrator decision MVP, risk gateway default-deny MVP, paper execution ledger MVP, replay/backtest runner MVP, paper mode MVP, or shadow-mode readiness.
+- Lane B explainability_ui tasks are allowed only when backed by real lineage/data contracts: feature_snapshot_id, prediction_id, signal_id, risk_decision_id, execution_intent_id, paper_trade_id, or shadow_decision_id.
+- Lane C codex_watchdog tasks are allowed for review, autofix, test hardening, safety scans, evidence reconciliation, dispatch bridge fixes, or safe path remap fixes.
+- Lane D legacy_parity tasks are allowed only for read-only preservation/parity mapping and must never mutate legacy.
+- Do not create generic scaffold expansion, generic architecture docs, general frontend polish, new dashboards without real data contracts, or automation framework work unless it directly unblocks Lane A or Lane C.
+- If a proposed task cannot state its approved lane and concrete MVP relevance, do not emit it.
+- Current near-term MVP target: {ACTIVE_MVP_TARGET}.
+- Next paper/backtest milestone: {next_paper_backtest_milestone()}.
+
 Read the repo evidence roots:
 {chr(10).join(f"- {root}" for root in EVIDENCE_ROOTS)}
 
@@ -759,6 +967,12 @@ def status_payload(mode: str, blocked_reason: str | None = None) -> Dict[str, An
         "claude_code_profile": PLANNER_PROFILE_NAME,
         "task_granularity_mode": task_granularity_mode(),
         "split_fallback_enabled": split_fallback_enabled(),
+        "planner_lane_lock_enabled": lane_lock_active(),
+        "approved_planner_lanes": sorted(APPROVED_PLANNER_LANES),
+        "active_lane": "paper_backtest_mvp",
+        "active_mvp_target": ACTIVE_MVP_TARGET,
+        "next_paper_backtest_milestone": next_paper_backtest_milestone(),
+        "rejected_drift_count": rejected_drift_count() + DRIFT_REJECT_COUNT,
         "quota_monitor_enabled": True,
         "codex_parallel_lane": CODEX_PARALLEL_LANE_NAME,
         "codex_parallel_lane_enabled": True,
