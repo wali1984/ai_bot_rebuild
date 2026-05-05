@@ -130,13 +130,71 @@ def remove_end_file_leaks(paths: list[Path]) -> list[str]:
         if not path.exists() or not path.is_file():
             continue
         lines = path.read_text(errors="replace").splitlines()
-        new_lines = [line for line in lines if line.strip() not in {"END_FILE", "END_FILE:"}]
+        if lines and lines[0].strip() == "```markdown":
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        new_lines = [line for line in lines if not line.strip().startswith("END_FILE")]
         if new_lines != lines:
             path.write_text("\n".join(new_lines).rstrip() + "\n")
             cleaned.append(str(path.relative_to(WORKSPACE)))
     if cleaned:
         append_event({"event": "codex_watchdog_removed_end_file_leaks", "files": cleaned[:50]})
     return cleaned
+
+
+def normalize_json_extra_data(path: Path) -> bool:
+    """Trim leaked BEGIN/END_FILE prose after a valid leading JSON object."""
+    try:
+        raw = path.read_text(errors="replace")
+        json.loads(raw)
+        return False
+    except json.JSONDecodeError:
+        pass
+    except Exception:
+        return False
+
+    try:
+        raw = path.read_text(errors="replace")
+        decoder = json.JSONDecoder()
+        obj, end = decoder.raw_decode(raw)
+        trailing = raw[end:].strip()
+        if not trailing:
+            return False
+        if not (
+            "END_FILE" in trailing
+            or "BEGIN_FILE" in trailing
+            or "Planner turn" in trailing
+            or "PHASE" in trailing
+        ):
+            return False
+        path.write_text(json.dumps(obj, indent=2) + "\n", encoding="utf-8")
+        append_event(
+            {
+                "event": "codex_watchdog_normalized_json_extra_data",
+                "path": str(path.relative_to(WORKSPACE)),
+            }
+        )
+        return True
+    except Exception as exc:
+        append_event(
+            {
+                "event": "codex_watchdog_json_extra_data_normalize_failed",
+                "path": str(path.relative_to(WORKSPACE)),
+                "error": repr(exc),
+            }
+        )
+        return False
+
+
+def normalize_dirty_json_extra_data(paths: list[Path]) -> list[str]:
+    normalized = []
+    for path in paths:
+        if path.suffix != ".json" or not path.exists() or not path.is_file():
+            continue
+        if normalize_json_extra_data(path):
+            normalized.append(str(path.relative_to(WORKSPACE)))
+    return normalized
 
 
 def validate_task_jsons() -> tuple[bool, list[str]]:
@@ -275,7 +333,9 @@ def run_supervisor_task(task_id: str) -> int:
 def recover_dirty_tree() -> bool:
     restore_runtime_prompt_noise()
     archive_planner_noise()
-    remove_end_file_leaks(dirty_paths())
+    paths = dirty_paths()
+    remove_end_file_leaks(paths)
+    normalize_dirty_json_extra_data(paths)
 
     ok_json, json_errors = validate_task_jsons()
     if not ok_json:
