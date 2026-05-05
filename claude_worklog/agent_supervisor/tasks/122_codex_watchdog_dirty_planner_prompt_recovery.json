@@ -1,0 +1,69 @@
+{
+  "task_id": "122_codex_watchdog_dirty_planner_prompt_recovery",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "lane": "codex_watchdog",
+  "mvp_relevance": "Clear the harness-managed dirty claude_master_rebuild_planner_prompt.txt so 121_orchestrator_decision_2fb_evidence_reconciliation can satisfy its requires_clean_worktree precondition and dispatch. Task 121 is the only artifact gating dispatch of 120_orchestrator_decision_2fb_assembler_service_codex_review, which closes Phase 2F.B. Phase 2F closes REQ_0017 milestone 2 ORCHESTRATOR_DECISION_MVP. This recovery is the smallest concrete advance toward V2_BACKTEST_AND_PAPER_MVP_READY available right now.",
+  "blocked_by": [],
+  "next_gate": "CODEX_NON_LIVE_RECOVERY_READY",
+  "legacy_evidence_consulted": [
+    "git status --porcelain output showing single dirty file claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt",
+    "git diff --stat showing 1610-line addition only, no removals",
+    "git log entries d4dd1ad, c6be482, 1eda50e, 2a9a391, 8feb4b3, 2275050, efe0af8, adec5e8, b0f4f73 establishing prior Codex watchdog dirty-non-live-automation-artifact recovery commits as the durable harness pattern",
+    "121_orchestrator_decision_2fb_evidence_reconciliation.json blocked_by entry naming this exact dirty file as the only blocker"
+  ],
+  "legacy_failure_addressed": "harness-managed dirty planner prompt drift: under the legacy bot, durable runtime instructions could remain uncommitted across operator handoffs, producing dispatch holds where the supervisor refused to dispatch a clean-worktree-required task because a non-live durable instruction file was still dirty in the worktree. The 2F.B dispatch hold is the V2 proof surface that committed evidence overrides dirty-tree dispatch noise once safety preconditions pass.",
+  "depends_on": [],
+  "predecessor_task_ids": [],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "task_granularity_mode": "consolidated_default",
+  "requires_clean_worktree": false,
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/automation_reliability/"
+  ],
+  "allowed_deletion_paths": [],
+  "forbidden_output_paths": [
+    "v2/",
+    "claude_worklog/agent_supervisor/tasks/",
+    "claude_worklog/requirements_inbox/",
+    "claude_worklog/security/",
+    "claude_worklog/tools/",
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity/",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/",
+    "legacy_reference/",
+    "/home/wali/Desktop/AI BOT",
+    "ollama/"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/automation_reliability/122_DIRTY_PLANNER_PROMPT_RECOVERY_REPORT.md",
+    "claude_worklog/phase2_core_rebuild/automation_reliability/122_DIRTY_PLANNER_PROMPT_RECOVERY_GO_NO_GO.md"
+  ],
+  "forbidden_actions": [
+    "modify /home/wali/Desktop/AI BOT",
+    "read or write any Redis key",
+    "invoke any Redis command",
+    "modify any file under v2/",
+    "modify any file under legacy_reference/",
+    "modify the byte content of claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt beyond what the harness already wrote",
+    "modify any task definition under claude_worklog/agent_supervisor/tasks/",
+    "modify any 2F.A or 2F.B authored source, test, or marker file",
+    "restart any live service",
+    "place or cancel exchange orders",
+    "change leverage or margin",
+    "enable live trading",
+    "ship to anywhere",
+    "run a migration in any environment",
+    "approve the live gate",
+    "expose or commit secrets",
+    "emit a standalone harness BEGIN/END framing token marker line in any authored file body",
+    "emit a standalone END_FILE line in any authored file body"
+  ],
+  "scope_dirty_paths": [
+    "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD acting on REQ_0014 / REQ_0015 / REQ_0016 / REQ_0007 Codex non-live human-replacement watchdog policy. The worktree carries exactly one dirty file: claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt. The dirty content is a 1610-line addition that adds the Claude Code Max 20x consolidated profile, Codex Pro parallel lane policy, and REQ_0018 / REQ_0020 planner lane lock policy to the durable planner prompt. No bytes are removed. The dirty content is durable non-live planner instructions only. Your job is to validate the safety of this dirty content, commit it as durable planner instructions, and unblock dispatch of 121_orchestrator_decision_2fb_evidence_reconciliation. You do NOT modify the planner prompt content beyond what the harness already wrote. You do NOT modify any V2 source or test file. You do NOT modify legacy. You do NOT access Redis. You do NOT restart services. You do NOT place or cancel exchange orders. You do NOT change leverage or margin. You do NOT enable live trading. You do NOT ship anywhere. You do NOT run any migration. You do NOT approve the live gate.\n\nWorktree precondition checks (all MUST pass before any commit):\n- `git status --porcelain` MUST return exactly one line and that line MUST end with `claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt`. If any other dirty path appears, surface to human attention and stop without writing any output file.\n- `git diff --stat -- claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt` MUST report insertions only. If any removal count is non-zero, surface to human attention and stop without writing any output file.\n- `git diff --numstat -- claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt` MUST report a removal count of 0. If non-zero, stop.\n\nForbidden-token sweep against the dirty diff (each token MUST return zero matches via `git diff -- claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt | rg --fixed-strings --case-sensitive TOKEN`):\n- `BINANCE_API_KEY`\n- `BINANCE_API_SECRET`\n- `KUCOIN_API_KEY`\n- `KUCOIN_API_SECRET`\n- `KUCOIN_API_PASSPHRASE`\n- `COINANK_API_KEY`\n- `COINAPI_API_KEY`\n- `BEGIN RSA PRIVATE KEY`\n- `BEGIN OPENSSH PRIVATE KEY`\n- `BEGIN PRIVATE KEY`\n- `aws_secret_access_key`\n- `xoxb-`\n- `xoxp-`\n- `ghp_`\n- `gho_`\n- `mongodb+srv://`\n- `redis://`\n- `postgres://`\n- `mysql://`\n- `slack.com/api`\n- `discord.com/api`\n\nLive-behavior token sweep against the dirty diff (each token MUST return zero matches):\n- `enable live trading`\n- `place order`\n- `cancel order`\n- `change leverage`\n- `change margin`\n- `restart live`\n- `delete redis`\n- `flushdb`\n- `flushall`\n\nIf all preconditions pass and all sweeps return zero matches, perform EXACTLY these steps in this order:\n\n1. Run `.venv/bin/python claude_worklog/tools/secret_scan.py --high-confidence claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt` if that script exists. If it does not exist, run a fallback `git diff -- claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt | rg --fixed-strings --case-sensitive -e BINANCE_API_KEY -e BINANCE_API_SECRET -e KUCOIN_API_KEY -e KUCOIN_API_SECRET -e KUCOIN_API_PASSPHRASE -e COINANK_API_KEY -e COINAPI_API_KEY` and confirm zero matches. Capture the exit code. Both must exit 0 / zero-match before commit.\n\n2. Run `git add claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt` and confirm exit 0.\n\n3. Run `git commit -m 'Codex watchdog recover dirty non-live automation artifacts'` with the exact subject line. Capture commit SHA. Confirm exit 0. The commit body MAY include a one-line trailer naming task 122 and the unblocked task 121.\n\n4. Run `git status --porcelain` and confirm zero output lines. If any dirty path remains, the recovery has not unblocked dispatch; document the residual dirty path in the report and emit BLOCKED.\n\n5. Run `git log -1 --pretty=format:%H%x09%s` and capture the new commit SHA and subject for the report.\n\n6. Emit `claude_worklog/phase2_core_rebuild/automation_reliability/122_DIRTY_PLANNER_PROMPT_RECOVERY_REPORT.md`. Sections:\n   - 'Dirty file at start' with the single `git status --porcelain` line read at task start.\n   - 'Diff shape' with insertion count, removal count, and a one-line summary of what was added (Claude Code Max 20x consolidated profile + Codex Pro parallel lane + REQ_0018/REQ_0020 planner lane lock).\n   - 'Forbidden-token sweep' enumerating each token with zero-match confirmation.\n   - 'Live-behavior token sweep' enumerating each token with zero-match confirmation.\n   - 'Secret scan' with the exact command run and exit code 0 / zero-match.\n   - 'Commit' with the new commit SHA and the exact commit subject.\n   - 'Post-commit worktree' with `git status --porcelain` zero-line confirmation.\n   - 'Unblocked dispatch' naming 121_orchestrator_decision_2fb_evidence_reconciliation as the dispatch-ready successor and 120_orchestrator_decision_2fb_assembler_service_codex_review as the next-after gate.\n   - 'Safety' confirming no live behavior, no Redis, no legacy mutation, no service restart, no exchange action, no deployment, no migration, no secret exposure, live gate remains blocked.\n   Final marker line: `CODEX_NON_LIVE_RECOVERY_REPORT_READY`. The body MUST NOT contain any harness BEGIN/END framing token marker line, and MUST NOT contain a standalone END_FILE line.\n\n7. Emit `claude_worklog/phase2_core_rebuild/automation_reliability/122_DIRTY_PLANNER_PROMPT_RECOVERY_GO_NO_GO.md` with EXACTLY this single line and trailing newline:\n   CODEX_NON_LIVE_RECOVERY_READY\n   No other content. The body MUST NOT contain any harness BEGIN/END framing token marker line, and MUST NOT contain a standalone END_FILE line.\n\nFailure path: if any precondition fails, any forbidden-token sweep matches, any live-behavior sweep matches, any secret scan matches, the commit fails, or the worktree is still dirty after commit, write a 122 REPORT documenting the failure and emit `122_DIRTY_PLANNER_PROMPT_RECOVERY_GO_NO_GO.md` with the single line `CODEX_NON_LIVE_RECOVERY_BLOCKED` and stop. Do NOT autofix the planner prompt content in this task. Do NOT amend prior commits. Do NOT force-push.\n\nStop conditions: any live behavior, any Redis access, any legacy mutation, any release intent, any modification of any V2 source or test file, any modification of any 2F.A or 2F.B authored source/test/marker file, any modification of the planner prompt content beyond what the harness already wrote, any modification of any task definition, any URL or credential leakage. On any of these, write the BLOCKED GO/NO-GO and stop.",
+  "next_recommended_action": "On CODEX_NON_LIVE_RECOVERY_READY, supervisor pre-dispatch gate clears for 121_orchestrator_decision_2fb_evidence_reconciliation.json on the next dispatch tick because the worktree is now clean and 121's requires_clean_worktree precondition is satisfied. On CODEX_NON_LIVE_RECOVERY_READY for 121 (PHASE2F_B_EVIDENCE_RECONCILIATION_PASSED), supervisor pre-dispatch gate clears for 120_orchestrator_decision_2fb_assembler_service_codex_review.json. On CODEX_NON_LIVE_RECOVERY_BLOCKED, the supervisor surfaces to human attention; no autofix layer is permitted on top of the planner prompt content."
+}
