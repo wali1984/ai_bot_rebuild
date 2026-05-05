@@ -1,0 +1,86 @@
+{
+  "task_id": "codex_recover_2e3c_planner_emission_end_file_marker_leakage_cleanup",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "task_granularity_mode": "consolidated_default",
+  "requires_clean_worktree": false,
+  "lane": "codex_watchdog",
+  "mvp_relevance": "Strips trailing END_FILE marker leakage from the six 2E3.C planner emission files, validates json.load of 115 and 116, secret-scans, and commits the 11 dirty entries in a single durable commit. Without this cleanup the supervisor cannot dispatch task 115 because (a) git is dirty and 115.requires_clean_worktree is true, and (b) 115 JSON itself fails json.load due to the trailing END_FILE: <path> line outside the closing brace. This task therefore unblocks Lane A paper_backtest_mvp dispatch for 115 and downstream 116, closing REQ_0017 milestone 1 TRAINER_PREDICTION_OUTPUT_MVP.",
+  "next_gate": "PHASE2E3C_PLANNER_EMISSION_END_FILE_MARKER_LEAKAGE_RECOVERY_PASS",
+  "blocked_by": [],
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/",
+    "claude_worklog/agent_supervisor/",
+    "claude_worklog/security/"
+  ],
+  "scope_dirty_paths": [
+    "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt",
+    "claude_worklog/autonomous_control_plane/PLANNER_TURN_2E3C_OPEN_PREDICTION_OUTPUT_COMPOSITION_ROOT.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_TURN_2E3C_AWAITING_115_DISPATCH.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_TURN_2E3C_NEW_WATCHDOG_END_FILE_LEAKAGE_RECOVERY.md",
+    "claude_worklog/agent_supervisor/tasks/115_trainer_parity_2e3c_prediction_output_composition_root_implementation.json",
+    "claude_worklog/agent_supervisor/tasks/116_trainer_parity_2e3c_prediction_output_composition_root_codex_review.json",
+    "claude_worklog/agent_supervisor/tasks/codex_recover_2e3c_planner_emission_end_file_marker_leakage_cleanup.json",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/198_PHASE_2E3C_PREDICTION_OUTPUT_COMPOSITION_ROOT_SPEC.md",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/199_PHASE_2E3C_PREDICTION_OUTPUT_COMPOSITION_ROOT_TEST_PLAN.md",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/200_PHASE_2E3C_PREDICTION_OUTPUT_COMPOSITION_ROOT_SAFETY_BOUNDARIES.md",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/201_PHASE_2E3C_PREDICTION_OUTPUT_COMPOSITION_ROOT_GO_NO_GO_REQUEST.md"
+  ],
+  "strip_targets": [
+    "claude_worklog/agent_supervisor/tasks/115_trainer_parity_2e3c_prediction_output_composition_root_implementation.json",
+    "claude_worklog/agent_supervisor/tasks/116_trainer_parity_2e3c_prediction_output_composition_root_codex_review.json",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/198_PHASE_2E3C_PREDICTION_OUTPUT_COMPOSITION_ROOT_SPEC.md",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/199_PHASE_2E3C_PREDICTION_OUTPUT_COMPOSITION_ROOT_TEST_PLAN.md",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/200_PHASE_2E3C_PREDICTION_OUTPUT_COMPOSITION_ROOT_SAFETY_BOUNDARIES.md",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/201_PHASE_2E3C_PREDICTION_OUTPUT_COMPOSITION_ROOT_GO_NO_GO_REQUEST.md"
+  ],
+  "leave_as_is_paths": [
+    "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt",
+    "claude_worklog/autonomous_control_plane/PLANNER_TURN_2E3C_OPEN_PREDICTION_OUTPUT_COMPOSITION_ROOT.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_TURN_2E3C_AWAITING_115_DISPATCH.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_TURN_2E3C_NEW_WATCHDOG_END_FILE_LEAKAGE_RECOVERY.md",
+    "claude_worklog/agent_supervisor/tasks/codex_recover_2e3c_planner_emission_end_file_marker_leakage_cleanup.json"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_2e3c_planner_emission_end_file_marker_leakage_cleanup_REPORT.md",
+    "claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_2e3c_planner_emission_end_file_marker_leakage_cleanup_GO_NO_GO.md"
+  ],
+  "forbidden_output_paths": [
+    "v2/",
+    "/home/wali/Desktop/AI BOT",
+    "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt",
+    "claude_worklog/autonomous_control_plane/PLANNER_TURN_2E3C_OPEN_PREDICTION_OUTPUT_COMPOSITION_ROOT.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_TURN_2E3C_AWAITING_115_DISPATCH.md",
+    "claude_worklog/autonomous_control_plane/PLANNER_TURN_2E3C_NEW_WATCHDOG_END_FILE_LEAKAGE_RECOVERY.md",
+    "legacy_reference/",
+    "ollama/"
+  ],
+  "forbidden_actions": [
+    "modify /home/wali/Desktop/AI BOT",
+    "read or write any Redis key",
+    "invoke any Redis command",
+    "import redis or redis.asyncio or aioredis or hiredis",
+    "restart any live service",
+    "place or cancel exchange orders",
+    "change leverage or margin",
+    "enable live trading",
+    "ship to anywhere",
+    "run a migration in any environment",
+    "approve the live gate",
+    "modify any file under v2/",
+    "modify any file under /home/wali/Desktop/AI BOT",
+    "modify the planner-prompt file body",
+    "modify the body of any planner-turn markdown file under claude_worklog/autonomous_control_plane/",
+    "modify any prior-milestone artifact byte content other than removing the trailing standalone END_FILE: <repo-relative-path> line on the six strip_targets when and only when the suffix path equals the file's own repo-relative path",
+    "modify the file content body of this task definition file or of the planner-turn doc PLANNER_TURN_2E3C_NEW_WATCHDOG_END_FILE_LEAKAGE_RECOVERY.md",
+    "force-push",
+    "rewrite git history",
+    "amend an already-pushed commit",
+    "expose or commit secrets"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. You have full authority inside AI BOT REBUILD only. You do NOT modify /home/wali/Desktop/AI BOT. You do NOT read or write any Redis key. You do NOT invoke any Redis command. You do NOT restart any live service. You do NOT place or cancel exchange orders. You do NOT change leverage or margin. You do NOT enable live trading. You do NOT deploy. You do NOT run any migration in any environment. You do NOT expose or commit secrets. You do NOT approve the live gate. You do NOT modify any file under v2/. You do NOT modify the master planner prompt body. You do NOT modify the body of any planner-turn markdown file under claude_worklog/autonomous_control_plane/. You do NOT modify the body of this task definition file or of PLANNER_TURN_2E3C_NEW_WATCHDOG_END_FILE_LEAKAGE_RECOVERY.md. You do NOT force-push. You do NOT rewrite git history. You do NOT amend an already-pushed commit.\n\nScope: surgically strip trailing standalone END_FILE marker leakage from the six 2E3.C planner emission files, validate, secret-scan, and commit/push the durable artifacts so the worktree returns to clean and dispatch of supervisor task 115_trainer_parity_2e3c_prediction_output_composition_root_implementation is unblocked.\n\nStep 1 - precondition snapshot.\nRun `git status --porcelain` and capture the exact output. The expected dirty set is exactly these eleven entries inside AI BOT REBUILD and nothing else:\n  M claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt\n  ?? claude_worklog/autonomous_control_plane/PLANNER_TURN_2E3C_OPEN_PREDICTION_OUTPUT_COMPOSITION_ROOT.md\n  ?? claude_worklog/autonomous_control_plane/PLANNER_TURN_2E3C_AWAITING_115_DISPATCH.md\n  ?? claude_worklog/autonomous_control_plane/PLANNER_TURN_2E3C_NEW_WATCHDOG_END_FILE_LEAKAGE_RECOVERY.md\n  ?? claude_worklog/agent_supervisor/tasks/115_trainer_parity_2e3c_prediction_output_composition_root_implementation.json\n  ?? claude_worklog/agent_supervisor/tasks/116_trainer_parity_2e3c_prediction_output_composition_root_codex_review.json\n  ?? claude_worklog/agent_supervisor/tasks/codex_recover_2e3c_planner_emission_end_file_marker_leakage_cleanup.json\n  ?? claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/198_PHASE_2E3C_PREDICTION_OUTPUT_COMPOSITION_ROOT_SPEC.md\n  ?? claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/199_PHASE_2E3C_PREDICTION_OUTPUT_COMPOSITION_ROOT_TEST_PLAN.md\n  ?? claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/200_PHASE_2E3C_PREDICTION_OUTPUT_COMPOSITION_ROOT_SAFETY_BOUNDARIES.md\n  ?? claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/201_PHASE_2E3C_PREDICTION_OUTPUT_COMPOSITION_ROOT_GO_NO_GO_REQUEST.md\nIf any other entry appears, write CODEX_NON_LIVE_RECOVERY_BLOCKED to the GO/NO-GO file, document the unexpected entries in the report, and stop without committing.\n\nStep 2 - predecessor gate verification.\nVerify claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/197_2E3B_PREDICTION_RECORD_ASSEMBLER_CODEX_GO_NO_GO.md exists and contains exactly the single line PHASE2E3B_TRAINER_PREDICTION_RECORD_ASSEMBLER_CODEX_PASS. If not, write CODEX_NON_LIVE_RECOVERY_BLOCKED, document the missing-marker reason in the report, and stop.\n\nStep 3 - surgical strip.\nFor each file F in strip_targets:\n  3a. Read F as bytes.\n  3b. Decode UTF-8 strict.\n  3c. Compute the file's repo-relative path R as the same string used in strip_targets.\n  3d. The expected trailing leakage is the literal substring: '\\nEND_FILE: ' + R followed by an optional single trailing newline at end of file. Use the regex r'\\nEND_FILE: ' + re.escape(R) + r'\\n?\\Z' with re.MULTILINE off.\n  3e. If the regex matches exactly once at end of file, replace the match with '\\n' if the original ended with a newline else with the empty string. Preserve the file's terminal newline policy: a file that ended with '\\n' before the leakage line still ends with '\\n' after strip.\n  3f. If the regex does NOT match (file does not actually have the leakage), do NOT modify F. Document this in the report. Do NOT proceed to commit.\n  3g. Do NOT modify any byte of F other than the trailing leakage match. Do NOT change line endings. Do NOT change indentation. Do NOT touch any other END_FILE-shaped substring inside the body.\n  3h. Write F back to disk atomically.\n\nStep 4 - validation per file.\n  4a. For each F in strip_targets, run `git diff --no-color -- F` and verify the diff shows exactly one removed hunk that consists of the leaked line and nothing else.\n  4b. For F in {115_*.json, 116_*.json}, run `python3 -c \"import json,sys; json.load(open(sys.argv[1]))\" F`. Both must exit 0.\n  4c. For each F in strip_targets, the last non-empty line of F must NOT match the regex ^END_FILE(?::\\s*\\S+)?$.\n  4d. For each F in strip_targets, no line of F may match the regex ^BEGIN_FILE(?::\\s*\\S+)?$ on a single line by itself.\n  4e. Capture every command output in the report.\n\nStep 5 - cross-file invariants.\n  5a. The body of claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt MUST NOT have changed since Step 1. Verify with `git diff --stat -- claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt` showing the same line counts as in Step 1.\n  5b. The bodies of the three planner-turn markdown docs under claude_worklog/autonomous_control_plane/ MUST NOT have changed by this task. Verify with `git status --porcelain -- claude_worklog/autonomous_control_plane/PLANNER_TURN_2E3C_*.md` showing all three as '??' untracked unchanged.\n  5c. The body of this task definition file (codex_recover_2e3c_planner_emission_end_file_marker_leakage_cleanup.json) MUST NOT have been modified by this task. Verify with `git status --porcelain -- claude_worklog/agent_supervisor/tasks/codex_recover_2e3c_planner_emission_end_file_marker_leakage_cleanup.json` showing '??' untracked unchanged.\n  5d. No file under v2/ may appear in `git status --porcelain -- v2/`. The output must be empty.\n  5e. No file under /home/wali/Desktop/AI BOT may have been touched. Verify by running `cd '/home/wali/Desktop/AI BOT' && git status --porcelain` (read-only check; do NOT cd back into AI BOT REBUILD via destructive operations).\n\nStep 6 - secret scan.\nRun the project's standard high-confidence secret scan over the eleven dirty entries plus the two report outputs. The scan must report zero matches for any of: AWS access key id, AWS secret access key, OpenAI API key, Anthropic API key, GitHub PAT, Slack webhook URL, JWT, RSA private key block, Binance api_key/api_secret pair, KuCoin api_key/api_secret pair. Do NOT flag plain identifiers (variable names like 'api_key' without a value), narrative prose, fixture-shaped placeholders that do not look like real credentials. Capture the exact command and exit code in the report. If any high-confidence match appears, write CODEX_NON_LIVE_RECOVERY_BLOCKED, document the offending file (with the offending substring redacted to its first 4 chars and a length indicator), and stop without committing.\n\nStep 7 - commit and push.\n  7a. `git add` exactly the eleven scope_dirty_paths entries plus the two report outputs (codex_recover_2e3c_planner_emission_end_file_marker_leakage_cleanup_REPORT.md and codex_recover_2e3c_planner_emission_end_file_marker_leakage_cleanup_GO_NO_GO.md).\n  7b. `git commit -m \"Codex watchdog recover 2E3C planner emission END_FILE marker leakage\"` with no `--no-verify` and no `--amend`. Use a HEREDOC if needed for body. Do NOT add Co-Authored-By trailers; this commit is a watchdog action, not a Claude or human authoring action.\n  7c. `git push` (no `--force`, no `--force-with-lease`).\n  7d. After the commit and push, run `git status --porcelain` and verify the output is exactly zero lines.\n\nStep 8 - emit the two required outputs.\nEmit exactly two BEGIN_FILE blocks corresponding to required_output_files:\n  - claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_2e3c_planner_emission_end_file_marker_leakage_cleanup_REPORT.md: full step-by-step report with command outputs, file-by-file strip evidence, validation evidence, secret-scan evidence, commit hash, push result, and post-commit `git status --porcelain` evidence.\n  - claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_2e3c_planner_emission_end_file_marker_leakage_cleanup_GO_NO_GO.md: exactly one line, either CODEX_NON_LIVE_RECOVERY_READY or CODEX_NON_LIVE_RECOVERY_BLOCKED.\nNeither file body may contain any standalone harness BEGIN/END framing token marker line. Close both BEGIN_FILE blocks with bare END_FILE markers (no path suffix). The report file body MUST NOT include a 'BEGIN_FILE: <path>' or 'END_FILE: <path>' marker on a line by itself.\n\nStop conditions: any live behavior, any Redis access at any layer, any Redis command at any time, any legacy mutation, any release intent in any environment, any modification of any v2/ source or test file, any modification of /home/wali/Desktop/AI BOT, any byte modification of any file body other than the surgical trailing-line strip on the six listed strip_targets, any modification of the planner-prompt body, any modification of any planner-turn markdown body under claude_worklog/autonomous_control_plane/, any modification of the body of this task definition or of PLANNER_TURN_2E3C_NEW_WATCHDOG_END_FILE_LEAKAGE_RECOVERY.md, any high-confidence secret-scan match, any push failure, any cross-isolation violation observed in Step 5. On any of these, write CODEX_NON_LIVE_RECOVERY_BLOCKED to the GO/NO-GO file, document the violation in the report with concrete evidence, and stop without committing.",
+  "next_recommended_action": "On CODEX_NON_LIVE_RECOVERY_READY with post-commit `git status --porcelain` showing zero lines, supervisor dispatches 115_trainer_parity_2e3c_prediction_output_composition_root_implementation. On CODEX_NON_LIVE_RECOVERY_BLOCKED, supervisor surfaces to human attention with the documented blocker. Under no circumstance does the supervisor retry this task with --force, --no-verify, or --amend."
+}
