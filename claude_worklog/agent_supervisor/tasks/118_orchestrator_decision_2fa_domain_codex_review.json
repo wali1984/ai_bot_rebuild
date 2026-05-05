@@ -63,6 +63,12 @@
   "lane": "codex_watchdog",
   "mvp_relevance": "Codex adversarial review of Phase 2F.A orchestrator decision domain materializes the PHASE2F_A_ORCHESTRATOR_DECISION_DOMAIN_CODEX_PASS gate that unblocks Phase 2F.B (assembler service) and continues progress toward REQ_0017 milestone 2 ORCHESTRATOR_DECISION_MVP and the broader V2_BACKTEST_AND_PAPER_MVP_READY target.",
   "next_gate": "PHASE2F_A_ORCHESTRATOR_DECISION_DOMAIN_CODEX_PASS",
+  "legacy_evidence_consulted": [
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/01_PHASE_2F_LEGACY_EVIDENCE_REVIEW.md",
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/06_2F_A_ORCHESTRATOR_DECISION_DOMAIN_IMPLEMENTATION_REPORT.md",
+    "trainer prediction output gate PHASE2E3C_TRAINER_PREDICTION_OUTPUT_COMPOSITION_ROOT_CODEX_PASS"
+  ],
+  "legacy_failure_addressed": "review hardens the first orchestrator decision contract so legacy-style missing lineage cannot pass into risk and paper/backtest stages",
   "blocked_by": [
     "PHASE2F_A_ORCHESTRATOR_DECISION_DOMAIN_IMPL_AND_VALIDATION_PASSED"
   ]

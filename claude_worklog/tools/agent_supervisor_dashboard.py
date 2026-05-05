@@ -454,8 +454,15 @@ def print_dashboard(refresh_seconds: int) -> None:
         print(f"planner lane lock enabled: {'yes' if master_planner.get('planner_lane_lock_enabled', False) else 'no'}")
         print(f"active lane: {master_planner.get('active_lane') or '-'}")
         print(f"active MVP target: {master_planner.get('active_mvp_target') or '-'}")
+        print(f"current MVP milestone: {master_planner.get('current_mvp_milestone') or '-'}")
+        print(f"next MVP milestone: {master_planner.get('next_mvp_milestone') or master_planner.get('next_paper_backtest_milestone') or '-'}")
         print(f"next paper/backtest milestone: {master_planner.get('next_paper_backtest_milestone') or '-'}")
-        print(f"rejected drift count: {master_planner.get('rejected_drift_count', 0)}")
+        distance = master_planner.get("distance_to_v2_backtest_and_paper_mvp_ready") or {}
+        if isinstance(distance, dict):
+            print(f"distance to V2_BACKTEST_AND_PAPER_MVP_READY: {distance.get('remaining_count', '-') } milestones remaining")
+        print(f"legacy evidence consulted: {master_planner.get('legacy_evidence_consulted') or '-'}")
+        print(f"drift rejection count: {master_planner.get('drift_rejection_count', master_planner.get('rejected_drift_count', 0))}")
+        print(f"Codex recovery active: {'yes' if master_planner.get('codex_recovery_active', False) else 'no'}")
         print(f"split fallback enabled: {'yes' if master_planner.get('split_fallback_enabled', True) else 'no'}")
         print(f"quota monitor enabled: {'yes' if master_planner.get('quota_monitor_enabled', True) else 'no'}")
         print(f"Codex parallel lane: {master_planner.get('codex_parallel_lane') or 'Codex Pro parallel review/autofix lane'}")

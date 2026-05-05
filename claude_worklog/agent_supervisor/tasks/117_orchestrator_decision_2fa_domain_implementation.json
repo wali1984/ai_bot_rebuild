@@ -167,6 +167,12 @@
   "lane": "paper_backtest_mvp",
   "mvp_relevance": "Builds the orchestrator decision domain value object that opens REQ_0017 milestone 2 ORCHESTRATOR_DECISION_MVP. The OrchestratorDecisionRecord with decision_id, prediction_id, feature_snapshot_id, decision_action, decision_reason_code, and the input prediction lineage fields is the consumable surface for the next milestone (RISK_GATEWAY_DEFAULT_DENY_MVP) and the foundational value-object layer of Phase 2F.",
   "next_gate": "PHASE2F_A_ORCHESTRATOR_DECISION_DOMAIN_IMPL_AND_VALIDATION_PASSED",
+  "legacy_evidence_consulted": [
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/01_PHASE_2F_LEGACY_EVIDENCE_REVIEW.md",
+    "trainer prediction output gate PHASE2E3C_TRAINER_PREDICTION_OUTPUT_COMPOSITION_ROOT_CODEX_PASS",
+    "legacy signal/proposal routing gaps documented in Phase 2F orchestrator evidence"
+  ],
+  "legacy_failure_addressed": "missing explicit legacy decision lineage between trainer predictions and downstream risk/execution decisions",
   "blocked_by": [
     "PHASE2E3C_TRAINER_PREDICTION_OUTPUT_COMPOSITION_ROOT_CODEX_PASS"
   ]

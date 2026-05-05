@@ -44,8 +44,15 @@ print(f"task granularity mode: {d.get('task_granularity_mode') or 'consolidated_
 print(f"planner lane lock enabled: {'yes' if d.get('planner_lane_lock_enabled', False) else 'no'}")
 print(f"active lane: {d.get('active_lane') or '-'}")
 print(f"active MVP target: {d.get('active_mvp_target') or '-'}")
+print(f"current MVP milestone: {d.get('current_mvp_milestone') or '-'}")
+print(f"next MVP milestone: {d.get('next_mvp_milestone') or d.get('next_paper_backtest_milestone') or '-'}")
 print(f"next paper/backtest milestone: {d.get('next_paper_backtest_milestone') or '-'}")
-print(f"rejected drift count: {d.get('rejected_drift_count', 0)}")
+distance = d.get("distance_to_v2_backtest_and_paper_mvp_ready") or {}
+if isinstance(distance, dict):
+    print(f"distance to V2_BACKTEST_AND_PAPER_MVP_READY: {distance.get('remaining_count', '-')} milestones remaining")
+print(f"legacy evidence consulted: {d.get('legacy_evidence_consulted') or '-'}")
+print(f"drift rejection count: {d.get('drift_rejection_count', d.get('rejected_drift_count', 0))}")
+print(f"Codex recovery active: {'yes' if d.get('codex_recovery_active', False) else 'no'}")
 print(f"split fallback enabled: {'yes' if d.get('split_fallback_enabled', True) else 'no'}")
 print(f"quota monitor enabled: {'yes' if d.get('quota_monitor_enabled', True) else 'no'}")
 print(f"Codex parallel lane: {d.get('codex_parallel_lane') or 'Codex Pro parallel review/autofix lane'}")

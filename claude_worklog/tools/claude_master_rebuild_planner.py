@@ -54,6 +54,83 @@ EXPLAINABILITY_LINEAGE_IDS = (
     "paper_trade_id",
     "shadow_decision_id",
 )
+REQ_0020_REQUIRED_TASK_FIELDS = (
+    "lane",
+    "mvp_relevance",
+    "blocked_by",
+    "next_gate",
+    "legacy_evidence_consulted",
+    "legacy_failure_addressed",
+)
+MVP_MILESTONE_TERMS = {
+    "TRAINER_PREDICTION_OUTPUT_MVP": (
+        "trainer",
+        "prediction",
+        "prediction_id",
+        "feature_snapshot_id",
+        "confidence",
+    ),
+    "ORCHESTRATOR_DECISION_MVP": (
+        "orchestrator",
+        "decision",
+        "signal",
+        "prediction_id",
+        "lineage",
+    ),
+    "RISK_GATEWAY_DEFAULT_DENY_MVP": (
+        "risk",
+        "gateway",
+        "default-deny",
+        "default deny",
+        "risk_decision_id",
+    ),
+    "PAPER_EXECUTION_LEDGER_MVP": (
+        "paper",
+        "ledger",
+        "execution_intent_id",
+        "paper_trade_id",
+    ),
+    "REPLAY_BACKTEST_RUNNER_MVP": (
+        "replay",
+        "backtest",
+        "runner",
+        "pnl",
+        "drawdown",
+    ),
+    "PAPER_MODE_MVP": (
+        "paper mode",
+        "paper trading",
+        "paper_trade_id",
+    ),
+    "SHADOW_MODE_READINESS": (
+        "shadow",
+        "shadow_decision_id",
+        "legacy comparison",
+    ),
+}
+GENERIC_DRIFT_TERMS = (
+    "generic scaffold",
+    "scaffold expansion",
+    "generic architecture",
+    "architecture summary",
+    "frontend polish",
+    "cosmetic-only",
+    "cosmetic only",
+    "dashboard polish",
+    "generic docs",
+    "documentation only",
+    "infrastructure expansion",
+)
+IMPLEMENTATION_REVIEW_RECOVERY_TERMS = (
+    "implementation",
+    "review",
+    "recovery",
+    "autofix",
+    "validation",
+    "codex",
+    "test",
+    "gate",
+)
 
 EVIDENCE_ROOTS = [
     "claude_worklog/requirements_inbox",
@@ -190,12 +267,39 @@ def next_paper_backtest_milestone() -> str:
     return PAPER_BACKTEST_MVP_GOAL_MARKER
 
 
+def current_mvp_milestone() -> str:
+    """Return the last completed/active MVP milestone for status visibility."""
+    next_milestone = next_paper_backtest_milestone()
+    if next_milestone == PAPER_BACKTEST_MVP_GOAL_MARKER:
+        return PAPER_BACKTEST_MVP_GOAL_MARKER
+    try:
+        index = NEXT_PAPER_BACKTEST_MILESTONES.index(next_milestone)
+    except ValueError:
+        return next_milestone
+    if index == 0:
+        return next_milestone
+    return NEXT_PAPER_BACKTEST_MILESTONES[index - 1]
+
+
+def distance_to_mvp_ready() -> Dict[str, Any]:
+    next_milestone = next_paper_backtest_milestone()
+    if next_milestone == PAPER_BACKTEST_MVP_GOAL_MARKER:
+        return {"remaining_count": 0, "remaining_milestones": []}
+    try:
+        index = NEXT_PAPER_BACKTEST_MILESTONES.index(next_milestone)
+    except ValueError:
+        remaining = NEXT_PAPER_BACKTEST_MILESTONES
+    else:
+        remaining = NEXT_PAPER_BACKTEST_MILESTONES[index:]
+    return {"remaining_count": len(remaining), "remaining_milestones": remaining}
+
+
 def lane_lock_active() -> bool:
     return not paper_backtest_mvp_ready()
 
 
 def task_lane_validation(task: Dict[str, Any]) -> Tuple[bool, str]:
-    """Validate REQ_0018 lane metadata for generated/dispatchable tasks."""
+    """Validate REQ_0018/REQ_0020 lane metadata for generated/dispatchable tasks."""
     if not lane_lock_active():
         return True, "mvp_ready_lane_lock_released"
 
@@ -204,6 +308,8 @@ def task_lane_validation(task: Dict[str, Any]) -> Tuple[bool, str]:
     relevance = str(task.get("mvp_relevance") or "").strip()
     next_gate = str(task.get("next_gate") or "").strip()
     has_blocked_by = "blocked_by" in task
+    legacy_evidence = task.get("legacy_evidence_consulted")
+    legacy_failure = str(task.get("legacy_failure_addressed") or "").strip()
     prompt = str(task.get("prompt") or "")
     combined = " ".join(
         [
@@ -211,44 +317,53 @@ def task_lane_validation(task: Dict[str, Any]) -> Tuple[bool, str]:
             lane,
             relevance,
             next_gate,
+            str(legacy_evidence or ""),
+            legacy_failure,
             prompt,
             str(task.get("next_recommended_action") or ""),
         ]
     ).lower()
 
     missing: List[str] = []
-    if lane not in APPROVED_PLANNER_LANES:
-        missing.append("lane")
-    if not relevance:
-        missing.append("mvp_relevance")
-    if not has_blocked_by:
-        missing.append("blocked_by")
-    if not next_gate:
-        missing.append("next_gate")
+    for field in REQ_0020_REQUIRED_TASK_FIELDS:
+        if field == "lane":
+            if lane not in APPROVED_PLANNER_LANES:
+                missing.append("lane")
+        elif field == "mvp_relevance":
+            if not relevance:
+                missing.append("mvp_relevance")
+        elif field == "blocked_by":
+            if not has_blocked_by:
+                missing.append("blocked_by")
+        elif field == "next_gate":
+            if not next_gate:
+                missing.append("next_gate")
+        elif field == "legacy_evidence_consulted":
+            if not legacy_evidence:
+                missing.append("legacy_evidence_consulted")
+        elif field == "legacy_failure_addressed":
+            if not legacy_failure:
+                missing.append("legacy_failure_addressed")
     if missing:
         return False, "missing_or_invalid_" + "_".join(missing)
 
+    is_delivery_task = any(term in combined for term in IMPLEMENTATION_REVIEW_RECOVERY_TERMS)
+    if any(term in combined for term in GENERIC_DRIFT_TERMS) and not is_delivery_task:
+        return False, "forbidden_generic_drift_without_mvp_delivery"
+
     if lane == "paper_backtest_mvp":
-        allowed_terms = (
-            "prediction",
-            "orchestrator",
-            "risk",
-            "paper",
-            "backtest",
-            "replay",
-            "shadow",
-            "confidence",
-            "feature_snapshot_id",
-            "prediction_id",
-            "trainer",
-        )
-        if not any(term in combined for term in allowed_terms):
-            return False, "paper_backtest_lane_missing_mvp_terms"
+        current_target = next_paper_backtest_milestone()
+        if current_target != PAPER_BACKTEST_MVP_GOAL_MARKER:
+            allowed_terms = MVP_MILESTONE_TERMS.get(current_target, ())
+            if allowed_terms and not any(term in combined for term in allowed_terms):
+                return False, f"paper_backtest_lane_not_current_mvp_milestone:{current_target}"
         return True, "paper_backtest_mvp_lane"
 
     if lane == "explainability_ui":
         if not any(identifier in combined for identifier in EXPLAINABILITY_LINEAGE_IDS):
             return False, "explainability_ui_missing_real_lineage_contract"
+        if any(term in combined for term in ("frontend polish", "cosmetic-only", "cosmetic only", "dashboard polish")):
+            return False, "explainability_ui_forbidden_cosmetic_polish"
         return True, "explainability_ui_lane"
 
     if lane == "codex_watchdog":
@@ -288,7 +403,11 @@ def log_planner_task_rejected_drift(task: Dict[str, Any], reason: str) -> None:
         reason=reason,
         proposed_lane=str(task.get("lane") or ""),
         missing_mvp_relevance=not bool(str(task.get("mvp_relevance") or "").strip()),
+        missing_legacy_evidence_consulted=not bool(task.get("legacy_evidence_consulted")),
+        missing_legacy_failure_addressed=not bool(str(task.get("legacy_failure_addressed") or "").strip()),
         active_mvp_target=ACTIVE_MVP_TARGET,
+        current_mvp_milestone=current_mvp_milestone(),
+        next_mvp_milestone=next_paper_backtest_milestone(),
     )
 
 
@@ -348,6 +467,11 @@ def active_agent_child_processes() -> str:
         check=False,
     )
     return cp.stdout.strip()
+
+
+def codex_recovery_active() -> bool:
+    children = active_agent_child_processes()
+    return "codex_recover_" in children or "codex exec" in children
 
 
 def remove_dead_supervisor_lock() -> Tuple[bool, str]:
@@ -884,18 +1008,25 @@ Codex Pro parallel lane is active.
 - Codex must not run a milestone's required review before that milestone's local validation marker passes.
 - Codex parallel scope is limited to v2/, claude_worklog/phase2_core_rebuild/, claude_worklog/v2_scaffold_reviews/, claude_worklog/security/, claude_worklog/agent_supervisor/tasks/, and claude_worklog/tools/ only for safety/status/review tooling.
 
-REQ_0018 planner lane lock is enforced until {PAPER_BACKTEST_MVP_GOAL_MARKER} exists.
-- Every generated task JSON must include lane, mvp_relevance, blocked_by, and next_gate.
+REQ_0018/REQ_0020 planner lane lock is enforced until {PAPER_BACKTEST_MVP_GOAL_MARKER} exists.
+- Every generated task JSON must include lane, mvp_relevance, blocked_by, next_gate, legacy_evidence_consulted, and legacy_failure_addressed.
 - Approved lanes only: paper_backtest_mvp, explainability_ui, codex_watchdog, legacy_parity.
 - Hard-prioritize paper_backtest_mvp.
+- Required MVP sequence: TRAINER_PREDICTION_OUTPUT_MVP -> ORCHESTRATOR_DECISION_MVP -> RISK_GATEWAY_DEFAULT_DENY_MVP -> PAPER_EXECUTION_LEDGER_MVP -> REPLAY_BACKTEST_RUNNER_MVP -> PAPER_MODE_MVP -> SHADOW_MODE_READINESS -> {PAPER_BACKTEST_MVP_GOAL_MARKER}.
 - Lane A paper_backtest_mvp tasks must advance: trainer prediction output, prediction_id / feature_snapshot_id emission, confidence attribution output, orchestrator decision MVP, risk gateway default-deny MVP, paper execution ledger MVP, replay/backtest runner MVP, paper mode MVP, or shadow-mode readiness.
 - Lane B explainability_ui tasks are allowed only when backed by real lineage/data contracts: feature_snapshot_id, prediction_id, signal_id, risk_decision_id, execution_intent_id, paper_trade_id, or shadow_decision_id.
 - Lane C codex_watchdog tasks are allowed for review, autofix, test hardening, safety scans, evidence reconciliation, dispatch bridge fixes, or safe path remap fixes.
 - Lane D legacy_parity tasks are allowed only for read-only preservation/parity mapping and must never mutate legacy.
-- Do not create generic scaffold expansion, generic architecture docs, general frontend polish, new dashboards without real data contracts, or automation framework work unless it directly unblocks Lane A or Lane C.
-- If a proposed task cannot state its approved lane and concrete MVP relevance, do not emit it.
+- Do not create broad scaffold/infrastructure work without MVP relevance.
+- Do not create frontend polish without real data contracts.
+- Do not create generic docs instead of implementation, review, validation, recovery, or Codex hardening.
+- Do not drift into non-priority work while the paper/backtest path is incomplete.
+- Every V2 build milestone must state the legacy evidence consulted, the legacy behavior preserved, the legacy failure addressed, and the V2 proof gate that validates the fix.
+- If a proposed task cannot state its approved lane, concrete MVP relevance, next gate, legacy evidence consulted, and legacy failure addressed, do not emit it.
 - Current near-term MVP target: {ACTIVE_MVP_TARGET}.
+- Current MVP milestone: {current_mvp_milestone()}.
 - Next paper/backtest milestone: {next_paper_backtest_milestone()}.
+- Distance to {PAPER_BACKTEST_MVP_GOAL_MARKER}: {distance_to_mvp_ready()["remaining_count"]} milestones remaining.
 
 Read the repo evidence roots:
 {chr(10).join(f"- {root}" for root in EVIDENCE_ROOTS)}
@@ -943,6 +1074,7 @@ Hard stops:
 - Do not run production migrations.
 - Do not expose or commit secrets.
 - Stop on L4/L5, live/legacy/Redis/exchange/deploy/secrets, or Codex hard fail with no safe remediation.
+- Final live approval is human-only. More automation capacity never grants live authority.
 
 Output policy:
 - Print BEGIN_FILE / END_FILE blocks only.
@@ -971,8 +1103,15 @@ def status_payload(mode: str, blocked_reason: str | None = None) -> Dict[str, An
         "approved_planner_lanes": sorted(APPROVED_PLANNER_LANES),
         "active_lane": "paper_backtest_mvp",
         "active_mvp_target": ACTIVE_MVP_TARGET,
+        "current_mvp_milestone": current_mvp_milestone(),
+        "next_mvp_milestone": next_paper_backtest_milestone(),
         "next_paper_backtest_milestone": next_paper_backtest_milestone(),
+        "legacy_evidence_consulted": "required_per_task",
+        "legacy_failure_addressed": "required_per_task",
         "rejected_drift_count": rejected_drift_count() + DRIFT_REJECT_COUNT,
+        "drift_rejection_count": rejected_drift_count() + DRIFT_REJECT_COUNT,
+        "codex_recovery_active": codex_recovery_active(),
+        "distance_to_v2_backtest_and_paper_mvp_ready": distance_to_mvp_ready(),
         "quota_monitor_enabled": True,
         "codex_parallel_lane": CODEX_PARALLEL_LANE_NAME,
         "codex_parallel_lane_enabled": True,

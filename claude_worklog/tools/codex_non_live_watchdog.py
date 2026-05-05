@@ -284,6 +284,17 @@ def create_codex_recovery_task(blocked_task: str) -> str:
         "agent": "codex",
         "risk_level": "L1",
         "status": "pending",
+        "lane": "codex_watchdog",
+        "mvp_relevance": f"Recover non-live blocker {blocked_task} so the paper/backtest MVP path can continue.",
+        "blocked_by": [blocked_task],
+        "next_gate": "CODEX_NON_LIVE_RECOVERY_READY",
+        "legacy_evidence_consulted": [
+            "runtime task state",
+            "task stdout/stderr",
+            "GO/NO-GO markers",
+            "validation artifacts",
+        ],
+        "legacy_failure_addressed": "non-live automation blocker preventing continuation toward V2_BACKTEST_AND_PAPER_MVP_READY",
         "cwd": str(WORKSPACE),
         "emit_files": True,
         "allowed_output_prefixes": [
