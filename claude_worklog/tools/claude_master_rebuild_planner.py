@@ -704,6 +704,16 @@ def line_requests_live_legacy_root_mutation(line: str) -> bool:
     )
 
 
+def line_is_safety_sweep_literal(line: str) -> bool:
+    stripped = line.strip()
+    stripped = re.sub(r"^[-*]\s+", "", stripped)
+    stripped = stripped.strip("`'\" ")
+    return re.fullmatch(
+        r"(redis-cli\s+(set|del|xadd|xdel|flushdb|flushall)|xadd|xdel|flushdb|flushall)",
+        stripped,
+    ) is not None
+
+
 def task_requests_forbidden_live_action(task: Dict[str, Any]) -> Tuple[bool, List[str]]:
     """Detect concrete unsafe task requests without blocking safety disclaimers."""
     prompt_text = " ".join(
@@ -723,10 +733,16 @@ def task_requests_forbidden_live_action(task: Dict[str, Any]) -> Tuple[bool, Lis
         "deployment": r"\b(kubectl\s+apply|terraform\s+apply|deploy(ment)?\s+to\s+prod|production migration)\b",
         "secret_exposure": r"\b(print|echo|cat)\s+.*\b(secret|api[_-]?key|token)\b",
     }
-    for label, pattern in forbidden_patterns.items():
-        if re.search(pattern, prompt_text):
-            blockers.append(label)
     lines = [line.strip() for line in prompt_text.splitlines()]
+    for label, pattern in forbidden_patterns.items():
+        for line in lines:
+            if line_is_negated(line):
+                continue
+            if label == "redis_write" and line_is_safety_sweep_literal(line):
+                continue
+            if re.search(pattern, line):
+                blockers.append(label)
+                break
     if any(line_requests_live_legacy_root_mutation(line) for line in lines):
         blockers.append("legacy_mutation")
     return bool(blockers), blockers

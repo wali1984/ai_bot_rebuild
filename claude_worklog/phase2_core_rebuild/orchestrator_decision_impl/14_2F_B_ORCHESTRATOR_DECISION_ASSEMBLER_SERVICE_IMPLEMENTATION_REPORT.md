@@ -11,9 +11,8 @@
 ## Placeholder deletion
 
 - `v2/backend/app/services/orchestrator_decision.py` is absent from the working tree.
-- `git rm v2/backend/app/services/orchestrator_decision.py` could not stage the deletion because `.git/index.lock` could not be created in this sandbox: `Read-only file system`.
-- `git ls-files v2/backend/app/services/orchestrator_decision.py` still returns the tracked placeholder path because the deletion is unstaged.
-- `git ls-files` for the new package files returns zero lines because the new files are untracked and this sandbox cannot write the git index.
+- `git ls-files v2/backend/app/services/orchestrator_decision.py` returns zero lines.
+- `git ls-files` for the new package files returns exactly the three tracked package source paths.
 
 ## Public surface
 
@@ -42,10 +41,10 @@
 - `.venv/bin/python -m pytest v2/backend/tests/unit/domain/trainer_liveness/ -q` - exit 0, 52 passed.
 - `.venv/bin/python -m pytest v2/backend/tests/unit/composition/trainer_parity/ -q` - exit 0, 25 passed.
 - `.venv/bin/python -m pytest v2/backend/tests/unit/services/trainer_parity/ -q` - exit 0, 34 passed.
-- `git ls-files v2/backend/app/services/orchestrator_decision.py` - exit 0, one tracked line remains because git index writes are unavailable.
-- `git ls-files v2/backend/app/services/orchestrator_decision/__init__.py` - exit 0, zero lines because git index writes are unavailable.
-- `git ls-files v2/backend/app/services/orchestrator_decision/service.py` - exit 0, zero lines because git index writes are unavailable.
-- `git ls-files v2/backend/app/services/orchestrator_decision/errors.py` - exit 0, zero lines because git index writes are unavailable.
+- `git ls-files v2/backend/app/services/orchestrator_decision.py` - exit 0, zero output lines.
+- `git ls-files v2/backend/app/services/orchestrator_decision/__init__.py` - exit 0, exactly one output line.
+- `git ls-files v2/backend/app/services/orchestrator_decision/service.py` - exit 0, exactly one output line.
+- `git ls-files v2/backend/app/services/orchestrator_decision/errors.py` - exit 0, exactly one output line.
 
 ## Forbidden token scan
 
@@ -53,7 +52,7 @@ Zero matches in `v2/backend/app/services/orchestrator_decision/` for each source
 
 ## Cross-isolation diff
 
-`git status --porcelain` shows only the allowed working-tree changes: deletion of the placeholder, creation of the new service package, and creation of the new service test directory. The implementation report and GO/NO-GO are also authored under the allowed impl-report directory.
+`git status --porcelain` shows no dirty 2F.B source or test paths. The only current dirty paths are watchdog/recovery artifacts outside the authored 2F.B service and test tree.
 
 ## Final 37 test file names
 
@@ -61,6 +60,6 @@ Zero matches in `v2/backend/app/services/orchestrator_decision/` for each source
 
 ## Safety review
 
-No live behavior, Redis access, legacy mutation, service restart, exchange action, deployment action, migration, FastAPI surface, adapter expansion, composition root, risk gateway, execution surface, wall-clock helper, logging, stdout, socket, URL/env factory import, module-level singleton, cache, or lock was observed in the authored 2F.B source files. The remaining blocker is strictly git-index materialization, not runtime safety.
+No live behavior, Redis access, legacy mutation, service restart, exchange action, deployment action, migration, FastAPI surface, adapter expansion, composition root, risk gateway, execution surface, wall-clock helper, logging, stdout, socket, URL/env factory import, module-level singleton, cache, or lock was observed in the authored 2F.B source files.
 
 PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_IMPLEMENTATION_REPORT_READY
