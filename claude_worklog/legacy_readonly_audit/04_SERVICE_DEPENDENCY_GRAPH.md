@@ -1,6 +1,6 @@
 # Legacy Service Dependency Graph
 
-Generated: 2026-05-06T22:10:20.845216+00:00
+Generated: 2026-05-06T22:40:25.742502+00:00
 
 Evidence-based approximate graph from startup script and known running services.
 
