@@ -18,6 +18,13 @@ Evidence = Tuple[str, str, List[str]]
 
 EVIDENCE_MARKERS: List[Evidence] = [
     (
+        "PHASE2H_B_PAPER_EXECUTION_LEDGER_ASSEMBLER_SERVICE_CODEX_PASS",
+        "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/18_2H_B_PAPER_EXECUTION_LEDGER_ASSEMBLER_SERVICE_CODEX_GO_NO_GO.md",
+        [
+            "137_paper_execution_ledger_2hb_assembler_service_codex_review",
+        ],
+    ),
+    (
         "PHASE2H_A_PAPER_EXECUTION_LEDGER_DOMAIN_CODEX_PASS",
         "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/09_2H_A_PAPER_EXECUTION_LEDGER_DOMAIN_CODEX_GO_NO_GO.md",
         [
