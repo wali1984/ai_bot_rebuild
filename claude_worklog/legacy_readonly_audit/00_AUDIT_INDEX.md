@@ -1,6 +1,6 @@
 # Legacy Read-Only Audit Index
 
-Generated: 2026-05-06T21:40:11.888957+00:00
+Generated: 2026-05-06T22:10:18.201144+00:00
 
 - `01_PROCESS_SNAPSHOT.md`
 - `02_STARTUP_SCRIPT_MAP.md`

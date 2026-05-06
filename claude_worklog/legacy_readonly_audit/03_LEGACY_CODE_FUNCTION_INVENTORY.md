@@ -1,6 +1,6 @@
 # Legacy Code Function Inventory
 
-Generated: 2026-05-06T21:40:14.642536+00:00
+Generated: 2026-05-06T22:10:20.844910+00:00
 
 Read-only AST/hash inventory. No legacy files modified.
 
