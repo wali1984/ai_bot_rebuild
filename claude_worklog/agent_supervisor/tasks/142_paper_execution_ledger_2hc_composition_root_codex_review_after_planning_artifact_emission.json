@@ -1,0 +1,105 @@
+{
+  "task_id": "142_paper_execution_ledger_2hc_composition_root_codex_review_after_planning_artifact_emission",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "supersedes": "139_paper_execution_ledger_2hc_composition_root_codex_review",
+  "depends_on": [
+    "141_paper_execution_ledger_2hc_composition_root_implementation_after_planning_artifact_emission"
+  ],
+  "predecessor_task_ids": [
+    "141_paper_execution_ledger_2hc_composition_root_implementation_after_planning_artifact_emission"
+  ],
+  "predecessor_required_marker": "PHASE2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED",
+  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/24_2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_GO_NO_GO.md",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "task_granularity_mode": "consolidated_default",
+  "requires_clean_worktree": true,
+  "worktree_excluded_paths": [
+    "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt",
+    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_fail_marker_recovery_ready.json"
+  ],
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/"
+  ],
+  "forbidden_output_paths": [
+    "v2/",
+    "claude_worklog/autonomous_control_plane/",
+    "claude_worklog/agent_supervisor/tasks/",
+    "claude_worklog/security/",
+    "claude_worklog/requirements_inbox/",
+    "claude_worklog/phase2_core_rebuild/automation_reliability/",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity/",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/",
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision/",
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/",
+    "claude_worklog/phase2_core_rebuild/risk_gateway/",
+    "claude_worklog/phase2_core_rebuild/risk_gateway_impl/",
+    "claude_worklog/phase2_core_rebuild/decision_explainability/",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/00_PHASE_2H_SUB_PHASE_BREAKDOWN.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/01_PHASE_2H_LEGACY_EVIDENCE_REVIEW.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/02_PHASE_2H_A_PAPER_EXECUTION_LEDGER_DOMAIN_SPEC.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/03_PHASE_2H_A_PAPER_EXECUTION_LEDGER_DOMAIN_TEST_PLAN.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/04_PHASE_2H_A_PAPER_EXECUTION_LEDGER_DOMAIN_SAFETY_BOUNDARIES.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/05_PHASE_2H_A_PAPER_EXECUTION_LEDGER_DOMAIN_GO_NO_GO_REQUEST.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/06_2H_A_PAPER_EXECUTION_LEDGER_DOMAIN_IMPLEMENTATION_REPORT.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/07_2H_A_PAPER_EXECUTION_LEDGER_DOMAIN_GO_NO_GO.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/08_2H_A_PAPER_EXECUTION_LEDGER_DOMAIN_CODEX_REVIEW.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/09_2H_A_PAPER_EXECUTION_LEDGER_DOMAIN_CODEX_GO_NO_GO.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/10_2H_A_PAPER_EXECUTION_LEDGER_DOMAIN_CODEX_RECONCILIATION_ADDENDUM.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/11_PHASE_2H_B_PAPER_EXECUTION_LEDGER_ASSEMBLER_SERVICE_SPEC.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/12_PHASE_2H_B_PAPER_EXECUTION_LEDGER_ASSEMBLER_SERVICE_TEST_PLAN.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/13_PHASE_2H_B_PAPER_EXECUTION_LEDGER_ASSEMBLER_SERVICE_SAFETY_BOUNDARIES.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/14_PHASE_2H_B_PAPER_EXECUTION_LEDGER_ASSEMBLER_SERVICE_GO_NO_GO_REQUEST.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/15_2H_B_PAPER_EXECUTION_LEDGER_ASSEMBLER_SERVICE_IMPLEMENTATION_REPORT.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/16_2H_B_PAPER_EXECUTION_LEDGER_ASSEMBLER_SERVICE_GO_NO_GO.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/17_2H_B_PAPER_EXECUTION_LEDGER_ASSEMBLER_SERVICE_CODEX_REVIEW.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/18_2H_B_PAPER_EXECUTION_LEDGER_ASSEMBLER_SERVICE_CODEX_GO_NO_GO.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/19_PHASE_2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_SPEC.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/20_PHASE_2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_TEST_PLAN.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/21_PHASE_2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_SAFETY_BOUNDARIES.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/22_PHASE_2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_GO_NO_GO_REQUEST.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/23_2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_IMPLEMENTATION_REPORT.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/24_2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_GO_NO_GO.md"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/25_2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_CODEX_REVIEW.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/26_2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_CODEX_GO_NO_GO.md"
+  ],
+  "forbidden_actions": [
+    "modify /home/wali/Desktop/AI BOT",
+    "read or write any Redis key",
+    "invoke any Redis command",
+    "modify any v2/ source or test file",
+    "modify any prior-milestone artifact byte content",
+    "modify any 2H.C planning or implementation artifact at 19-24",
+    "modify any task definition under claude_worklog/agent_supervisor/tasks/",
+    "modify the master planner prompt",
+    "restart any live service",
+    "place or cancel exchange orders",
+    "change leverage or margin",
+    "enable live trading",
+    "ship to anywhere",
+    "run a migration in any environment",
+    "approve the live gate",
+    "expose or commit any secret",
+    "emit a standalone harness BEGIN/END framing token marker line in any authored file body"
+  ],
+  "scope_dirty_paths": [],
+  "prompt": "You are Codex acting as adversarial reviewer for Phase 2H.C of REQ_0006 intersect REQ_0017 (paper execution ledger composition root). This task supersedes 139_paper_execution_ledger_2hc_composition_root_codex_review, which was blocked because its predecessor 138 never produced the implementation artifacts.\n\nReview the 2H.C implementation produced by 141_paper_execution_ledger_2hc_composition_root_implementation_after_planning_artifact_emission against the rubric in 22_PHASE_2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_GO_NO_GO_REQUEST.md 'Codex review task rubric'. Read 19, 20, 21, 22, 23 (implementation report), and 24 (impl GO/NO-GO) under paper_execution_ledger_impl/. Read v2/backend/app/composition/paper_execution_ledger/__init__.py, errors.py, and runtime.py. Read all 25 test files plus the package __init__.py under v2/backend/tests/unit/composition/paper_execution_ledger/.\n\nDo NOT modify any v2/ file. Do NOT modify any task definition. Do NOT modify any prior-milestone artifact. Do NOT modify any 2H.C planning or implementation artifact at 19-24. Do NOT modify the master planner prompt. Do NOT access Redis at any layer. Do NOT restart any live service, place or cancel exchange orders, change leverage or margin, enable live trading, ship anywhere, run migrations, or approve the live gate.\n\nWorktree precondition: this task requires a clean worktree at dispatch. Run `git status --porcelain` first. The supervisor's worktree-isolation contract excludes the planner-prompt dirty entry at claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt and any durable Lane C parallel-capacity readonly-review marker files under claude_worklog/agent_supervisor/tasks/ from the dispatch worktree. If `git status --porcelain` returns ANY non-empty line in the dispatch worktree, surface to human attention and stop without writing 25 or 26.\n\nPredecessor gate: claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/24_2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_GO_NO_GO.md MUST contain exactly PHASE2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED. If absent or different, write PHASE2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_CODEX_FAIL to 26, capture the missing-marker reason in 25, and stop.\n\nReview rubric: walk every numbered item in 22 'Codex review task rubric' (items 1-52). For each item, classify PASS or FAIL with one-line evidence (file path and line range, or rg output, or pytest exit code, or git output). On any FAIL with concrete blockers and no safety violation, surface FAIL and request a REQ_0007 / REQ_0014 autofix task scoped to the three authored 2H.C source files plus the 25 new test files only. On any safety violation, surface to human attention; no autofix is permitted.\n\nValidation commands you MUST re-run and capture exit codes for in 25:\n- .venv/bin/python -m py_compile v2/backend/app/composition/paper_execution_ledger/__init__.py v2/backend/app/composition/paper_execution_ledger/errors.py v2/backend/app/composition/paper_execution_ledger/runtime.py\n- .venv/bin/python -m pytest v2/backend/tests/unit/composition/paper_execution_ledger/ -q\n- For each forbidden token T from 19 'Forbidden tokens in source files': `rg --fixed-strings --case-sensitive T v2/backend/app/composition/paper_execution_ledger/`\n- git ls-files v2/backend/app/composition/paper_execution_ledger.py\n- git ls-files v2/backend/app/services/paper_loop.py\n- git diff --stat HEAD -- v2/backend/app/services/paper_loop.py\n- git ls-files v2/backend/app/domain/execution/\n\nEmit 25_2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_CODEX_REVIEW.md with sections: 'Rubric items reviewed' (all 52 items with PASS/FAIL and one-line evidence), 'Forbidden token scan' (every forbidden literal, evidence of zero matches), 'Cross-isolation diff' (git status -s line count), 'Suite regression check' (pytest exit codes for the 17 prior-milestone suites listed in 20 'Test runner expectations'), 'Safety review' (each row from 21 'Forbidden runtime behaviors' with 'none observed' or 'observed: <evidence>'), 'Final verdict' (PASS or FAIL with summary). Final marker line: PHASE2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_CODEX_REVIEW_READY. The body MUST NOT contain any harness BEGIN/END framing token marker line.\n\nEmit 26_2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_CODEX_GO_NO_GO.md. Exactly one of:\n  PHASE2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_CODEX_PASS\n  PHASE2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_CODEX_FAIL\nNo other content. The file MUST NOT contain any harness BEGIN/END framing token marker line.",
+  "next_recommended_action": "On PHASE2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_CODEX_PASS, supervisor closes Phase 2H, satisfies REQ_0017 milestone 4 PAPER_EXECUTION_LEDGER_MVP, marks 139_paper_execution_ledger_2hc_composition_root_codex_review as superseded_by_evidence, and the planner opens REQ_0017 milestone 5 REPLAY_BACKTEST_RUNNER_MVP under a fresh consolidated milestone turn. On PHASE2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_CODEX_FAIL with concrete blockers and no safety violation, supervisor dispatches a REQ_0007 / REQ_0014 autofix task scoped to the three authored source files plus the 25 new test files only and re-runs the implementation/review flow. On any safety violation, surface to human attention; no autofix is permitted.",
+  "lane": "paper_backtest_mvp",
+  "mvp_relevance": "Codex review of the paper execution ledger composition root binder closes Phase 2H.C and completes REQ_0017 milestone 4 PAPER_EXECUTION_LEDGER_MVP. Without this review, the paper/backtest MVP path cannot advance to REQ_0017 milestone 5 REPLAY_BACKTEST_RUNNER_MVP. This task supersedes 139, which was blocked because its predecessor 138 never produced the implementation artifacts due to missing 2H.C planning artifacts at 19-22 (now emitted by the planner).",
+  "next_gate": "PHASE2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_CODEX_PASS",
+  "legacy_evidence_consulted": [
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/01_PHASE_2H_LEGACY_EVIDENCE_REVIEW.md",
+    "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/22_PHASE_2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_GO_NO_GO_REQUEST.md (Codex review rubric)",
+    "PHASE2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED gate marker",
+    "PHASE2G_C_RISK_GATEWAY_COMPOSITION_ROOT_CODEX_PASS gate marker (composition-root review precedent)"
+  ],
+  "legacy_failure_addressed": "legacy bot lacked an adversarial review gate over composition-root binders, so silent regressions in clock pinning, mirror taxonomy forwarding, or live_blocked invariants could ship undetected. The 2H.C Codex review fixes this by rerunning the 52-item rubric in 22 'Codex review task rubric' against the implementation produced by 141, including explicit verification that the binder forwards to the 2H.B assembler service exactly once per call and never directly constructs PaperExecutionLedgerEntry, so the paper/backtest MVP path on the road to V2_BACKTEST_AND_PAPER_MVP_READY remains parity-correct.",
+  "blocked_by": [
+    "PHASE2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED"
+  ]
+}
