@@ -453,10 +453,14 @@ def fail_marker_superseded_by_codex_pass(fail_path: str) -> bool:
                 continue
             if "GO_NO_GO" not in path.name and "GO-NO-GO" not in path.name:
                 continue
+            if "REQUEST" in path.name:
+                continue
             rel = str(path.relative_to(WORKSPACE))
             if marker_stage_key(rel) != stage:
                 continue
             marker_lines = [line.strip() for line in read_text(path, 20_000).splitlines() if line.strip()]
+            if len(marker_lines) != 1:
+                continue
             if not any(pass_line.search(line) for line in marker_lines):
                 continue
             append_event(
