@@ -251,9 +251,15 @@ def next_paper_backtest_milestone() -> str:
         "TRAINER_PREDICTION_OUTPUT_MVP": [
             "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/205_2E3C_PREDICTION_OUTPUT_COMPOSITION_ROOT_CODEX_GO_NO_GO.md",
         ],
-        "ORCHESTRATOR_DECISION_MVP": [],
-        "RISK_GATEWAY_DEFAULT_DENY_MVP": [],
-        "PAPER_EXECUTION_LEDGER_MVP": [],
+        "ORCHESTRATOR_DECISION_MVP": [
+            "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/25_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_GO_NO_GO.md",
+        ],
+        "RISK_GATEWAY_DEFAULT_DENY_MVP": [
+            "claude_worklog/phase2_core_rebuild/risk_gateway_impl/25_2G_C_RISK_GATEWAY_COMPOSITION_ROOT_CODEX_GO_NO_GO.md",
+        ],
+        "PAPER_EXECUTION_LEDGER_MVP": [
+            "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/26_2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_CODEX_GO_NO_GO.md",
+        ],
         "REPLAY_BACKTEST_RUNNER_MVP": [],
         "PAPER_MODE_MVP": [],
         "SHADOW_MODE_READINESS": [],
@@ -268,17 +274,8 @@ def next_paper_backtest_milestone() -> str:
 
 
 def current_mvp_milestone() -> str:
-    """Return the last completed/active MVP milestone for status visibility."""
-    next_milestone = next_paper_backtest_milestone()
-    if next_milestone == PAPER_BACKTEST_MVP_GOAL_MARKER:
-        return PAPER_BACKTEST_MVP_GOAL_MARKER
-    try:
-        index = NEXT_PAPER_BACKTEST_MILESTONES.index(next_milestone)
-    except ValueError:
-        return next_milestone
-    if index == 0:
-        return next_milestone
-    return NEXT_PAPER_BACKTEST_MILESTONES[index - 1]
+    """Return the active MVP milestone currently being built or reviewed."""
+    return next_paper_backtest_milestone()
 
 
 def distance_to_mvp_ready() -> Dict[str, Any]:
