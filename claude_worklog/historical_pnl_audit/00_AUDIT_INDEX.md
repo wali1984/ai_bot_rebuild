@@ -1,6 +1,6 @@
 # Historical PnL / Trade / Trainer Audit Index
 
-Generated: 2026-05-06T21:24:12.876298+00:00
+Generated: 2026-05-06T23:35:20.993374+00:00
 
 - `01_DATA_SOURCE_STATUS.md`
 - `02_BINANCE_READONLY_PULL_SUMMARY.md`
