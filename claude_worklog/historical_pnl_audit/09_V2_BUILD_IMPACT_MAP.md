@@ -1,6 +1,6 @@
 # V2 Build Impact Map
 
-Generated: 2026-05-06T21:23:46.761193+00:00
+Generated: 2026-05-06T21:24:12.876877+00:00
 
 | Historical evidence | V2 impact | MVP lane |
 |---|---|---|
