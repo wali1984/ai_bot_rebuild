@@ -20,6 +20,10 @@ echo "=== MASTER PLANNER ==="
 ./claude_worklog/tools/status_claude_master_rebuild_planner.sh 2>/dev/null || true
 
 echo
+echo "=== PARALLEL CAPACITY SCHEDULER ==="
+./claude_worklog/tools/status_parallel_capacity_scheduler.sh 2>/dev/null || true
+
+echo
 echo "=== SUPERVISOR ==="
 ./claude_worklog/tools/status_autonomous_agent_supervisor.sh 2>/dev/null || true
 
