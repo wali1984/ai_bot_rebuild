@@ -1,0 +1,35 @@
+{
+  "task_id": "codex_recover_fail_marker_claude_worklog_phase2_core_rebuild_automation_reliability_140_2h_b_codex_fail_au",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "lane": "codex_watchdog",
+  "mvp_relevance": "Recovers a non-live failed marker blocking the paper/backtest MVP path.",
+  "blocked_by": [
+    "claude_worklog/phase2_core_rebuild/automation_reliability/140_2H_B_CODEX_FAIL_AUTOFIX_AND_RECONCILIATION_GO_NO_GO.md"
+  ],
+  "next_gate": "CODEX_FAIL_MARKER_RECOVERY_READY",
+  "legacy_evidence_consulted": [
+    "current phase2 evidence",
+    "runtime task states",
+    "GO/NO-GO marker files"
+  ],
+  "legacy_failure_addressed": [
+    "manual recovery loop"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "v2/",
+    "claude_worklog/phase2_core_rebuild/",
+    "claude_worklog/security/",
+    "claude_worklog/agent_supervisor/",
+    "claude_worklog/tools/"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_fail_marker_claude_worklog_phase2_core_rebuild_automation_reliability_140_2h_b_codex_fail_au_REPORT.md",
+    "claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_fail_marker_claude_worklog_phase2_core_rebuild_automation_reliability_140_2h_b_codex_fail_au_GO_NO_GO.md"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Full non-live recovery authority. Recover the failed marker or Codex FAIL at claude_worklog/phase2_core_rebuild/automation_reliability/140_2H_B_CODEX_FAIL_AUTOFIX_AND_RECONCILIATION_GO_NO_GO.md. Inspect related code, tests, docs, task states, stdout/stderr, and validation evidence. If safe, patch non-live V2 files, tests, validation docs, evidence reconciliation, or planner/supervisor/watchdog logic. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not deploy. Do not expose secrets. Output exactly two BEGIN_FILE blocks. GO/NO-GO one line: CODEX_FAIL_MARKER_RECOVERY_READY or CODEX_FAIL_MARKER_RECOVERY_BLOCKED.",
+  "next_recommended_action": "If ready, validate/commit/push and restart planner. If blocked, leave explicit blocker."
+}
