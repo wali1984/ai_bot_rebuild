@@ -77,7 +77,13 @@ def run(cmd: list[str] | str) -> subprocess.CompletedProcess[str]:
 
 def write(path: Path, text: str) -> None:
     def normalize_generated(value: str) -> str:
-        return re.sub(r"Generated: [^\n]+", "Generated: <stable>", value)
+        value = re.sub(r"Generated: [^\n]+", "Generated: <stable>", value)
+        value = re.sub(
+            r"db(\d+):keys=\d+,expires=\d+,avg_ttl=\d+",
+            r"db\1:keys=<stable>,expires=<stable>,avg_ttl=<stable>",
+            value,
+        )
+        return re.sub(r"\b(XLEN|LLEN|HLEN|ZCARD|SCARD|STRLEN)=\d+\b", r"\1=<stable>", value)
 
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() and normalize_generated(path.read_text(errors="replace")) == normalize_generated(text):
@@ -290,7 +296,7 @@ def redis_readonly_inventory(limit: int = 500) -> str:
     if info.returncode == 0:
         lines.extend(["", "## INFO keyspace", "```text", info.stdout.strip(), "```"])
 
-    scan = run(f"redis-cli --scan | head -n {limit}")
+    scan = run(f"redis-cli --scan | sort | head -n {limit}")
     keys = [key for key in scan.stdout.splitlines() if key.strip()]
     lines.extend(["", f"## Sampled keys (limit {limit})", ""])
     for key in keys:
