@@ -11,11 +11,11 @@
 ## Placeholder Deletion
 
 - Working tree file `v2/backend/app/services/risk_gateway.py`: deleted by recovery patch.
-- `git rm v2/backend/app/services/risk_gateway.py`: exit 128, blocked by `.git/index.lock` creation failure on a read-only Git index.
-- `git ls-files v2/backend/app/services/risk_gateway.py`: still returns `v2/backend/app/services/risk_gateway.py` because the deletion cannot be staged.
-- `git ls-files v2/backend/app/services/risk_gateway/__init__.py`: zero lines because the Git index cannot be updated.
-- `git ls-files v2/backend/app/services/risk_gateway/service.py`: zero lines because the Git index cannot be updated.
-- `git ls-files v2/backend/app/services/risk_gateway/errors.py`: zero lines because the Git index cannot be updated.
+- `git add -A v2/backend/app/services/risk_gateway.py v2/backend/app/services/risk_gateway v2/backend/tests/unit/services/risk_gateway claude_worklog/phase2_core_rebuild/risk_gateway_impl/14_2G_B_RISK_GATEWAY_ASSEMBLER_SERVICE_IMPLEMENTATION_REPORT.md claude_worklog/phase2_core_rebuild/risk_gateway_impl/15_2G_B_RISK_GATEWAY_ASSEMBLER_SERVICE_GO_NO_GO.md`: exit 0.
+- `git ls-files v2/backend/app/services/risk_gateway.py`: zero lines.
+- `git ls-files v2/backend/app/services/risk_gateway/__init__.py`: one line.
+- `git ls-files v2/backend/app/services/risk_gateway/service.py`: one line.
+- `git ls-files v2/backend/app/services/risk_gateway/errors.py`: one line.
 
 ## Public Surface
 
@@ -48,10 +48,10 @@
 - `.venv/bin/python -m pytest v2/backend/tests/unit/domain/trainer_liveness/ -q` - exit 0, 52 passed
 - `.venv/bin/python -m pytest v2/backend/tests/unit/composition/trainer_parity/ -q` - exit 0, 25 passed
 - `.venv/bin/python -m pytest v2/backend/tests/unit/services/trainer_parity/ -q` - exit 0, 34 passed
-- `git ls-files v2/backend/app/services/risk_gateway.py` - exit 0, one line, fails expected zero-line contract due Git index write blocker.
-- `git ls-files v2/backend/app/services/risk_gateway/__init__.py` - exit 0, zero lines, fails expected one-line contract due Git index write blocker.
-- `git ls-files v2/backend/app/services/risk_gateway/service.py` - exit 0, zero lines, fails expected one-line contract due Git index write blocker.
-- `git ls-files v2/backend/app/services/risk_gateway/errors.py` - exit 0, zero lines, fails expected one-line contract due Git index write blocker.
+- `git ls-files v2/backend/app/services/risk_gateway.py` - exit 0, zero lines.
+- `git ls-files v2/backend/app/services/risk_gateway/__init__.py` - exit 0, one line.
+- `git ls-files v2/backend/app/services/risk_gateway/service.py` - exit 0, one line.
+- `git ls-files v2/backend/app/services/risk_gateway/errors.py` - exit 0, one line.
 
 ## Forbidden Token Scan
 
@@ -59,15 +59,17 @@ Zero matches in the three authored source files for: `redis`, `Redis`, `REDIS`, 
 
 ## Cross-Isolation Diff
 
-`git status --short` contains the expected risk-gateway working tree changes plus unrelated pre-existing deleted planner files under `claude_worklog/autonomous_control_plane/`.
+`git status --short` contains the expected staged risk-gateway changes plus unrelated archived planner-note deletes/moves under `claude_worklog/autonomous_control_plane/` and `claude_worklog/planner_recovery/risk_gateway_128_notes/`.
 
 Risk-gateway listing:
 
-- `D v2/backend/app/services/risk_gateway.py`
-- `?? v2/backend/app/services/risk_gateway/`
-- `?? v2/backend/tests/unit/services/risk_gateway/`
-- `?? claude_worklog/phase2_core_rebuild/risk_gateway_impl/14_2G_B_RISK_GATEWAY_ASSEMBLER_SERVICE_IMPLEMENTATION_REPORT.md`
-- `?? claude_worklog/phase2_core_rebuild/risk_gateway_impl/15_2G_B_RISK_GATEWAY_ASSEMBLER_SERVICE_GO_NO_GO.md`
+- `D  v2/backend/app/services/risk_gateway.py`
+- `A  v2/backend/app/services/risk_gateway/__init__.py`
+- `A  v2/backend/app/services/risk_gateway/errors.py`
+- `A  v2/backend/app/services/risk_gateway/service.py`
+- `A  v2/backend/tests/unit/services/risk_gateway/`
+- `A  claude_worklog/phase2_core_rebuild/risk_gateway_impl/14_2G_B_RISK_GATEWAY_ASSEMBLER_SERVICE_IMPLEMENTATION_REPORT.md`
+- `A  claude_worklog/phase2_core_rebuild/risk_gateway_impl/15_2G_B_RISK_GATEWAY_ASSEMBLER_SERVICE_GO_NO_GO.md`
 
 ## Final 30 Test File Names
 
@@ -111,6 +113,6 @@ Risk-gateway listing:
 - No adapter, composition, API, CLI, jobs, main, sibling service, or forbidden trainer-domain import: none observed.
 - Reserved default-deny constant not imported and reserved default-deny reason never emitted by the assembler: none observed.
 - No URL, token, key, credential-shaped string, singleton, cache, lock, live behavior, order placement, live service restart, Redis write, Redis key deletion, migration, deployment, or live gate approval: none observed.
-- Git index staging contract: observed blocker, `.git/index.lock` cannot be created, so Git tracking checks fail despite passing local source/test validation.
+- Git index staging contract: passed from the operator shell after recovery; the prior Codex subprocess `.git/index.lock` issue was transient to that subprocess and no longer blocks this milestone.
 
 PHASE2G_B_RISK_GATEWAY_ASSEMBLER_SERVICE_IMPLEMENTATION_REPORT_READY

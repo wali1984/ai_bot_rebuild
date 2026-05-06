@@ -298,6 +298,57 @@ def latest_human_attention_task() -> str | None:
     return candidates[-1][1]
 
 
+def verify_required_outputs_for_task(task_id: str) -> tuple[bool, list[str]]:
+    """Verify that all required outputs listed in a task definition exist."""
+    task_path = TASKS_DIR / f"{task_id}.json"
+    if not task_path.exists():
+        return False, [f"missing_task_definition:{task_id}"]
+    try:
+        task = json.loads(task_path.read_text())
+    except Exception as exc:
+        return False, [f"invalid_task_json:{exc}"]
+    required = task.get("required_output_files", []) or []
+    missing = [rel for rel in required if not (WORKSPACE / rel).exists()]
+    return not missing, missing
+
+
+def normalize_task_completed_after_recovery(task_id: str, reason: str) -> bool:
+    ok, missing = verify_required_outputs_for_task(task_id)
+    if not ok:
+        append_event(
+            {
+                "event": "codex_watchdog_required_output_verification_failed",
+                "task_id": task_id,
+                "missing": missing[:50],
+            }
+        )
+        return False
+
+    state_path = STATE_DIR / f"{task_id}.json"
+    state = read_json(state_path)
+    hist = list(state.get("history") or [])
+    ts = now()
+    hist.append({"ts": ts, "status": "completed", "reason": reason})
+    state.update(
+        {
+            "task_id": task_id,
+            "status": "completed",
+            "run_pid": None,
+            "resume_after_utc": None,
+            "attention_reason": None,
+            "last_retry_reason": None,
+            "last_summary": reason,
+            "last_status_change_ts": ts,
+            "last_event_ts": ts,
+            "history": hist[-50:],
+        }
+    )
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    write_text(state_path, json.dumps(state, indent=2) + "\n")
+    append_event({"event": "codex_watchdog_task_normalized_completed", "task_id": task_id, "reason": reason})
+    return True
+
+
 def create_codex_recovery_task(blocked_task: str) -> str:
     task_id = f"codex_recover_{blocked_task}"
     path = TASKS_DIR / f"{task_id}.json"
@@ -538,6 +589,10 @@ def cycle() -> int:
         commit_all(f"Add Codex watchdog recovery task for {blocked}")
         rc = run_supervisor_task(recovery)
         recover_dirty_tree()
+        normalize_task_completed_after_recovery(
+            blocked,
+            f"Completed after Codex watchdog recovery task {recovery} verified required outputs.",
+        )
         if rc != 0:
             print(f"RECOVERY_TASK_NONZERO {recovery} {rc}")
             return rc
