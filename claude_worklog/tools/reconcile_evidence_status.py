@@ -21,7 +21,10 @@ EVIDENCE_MARKERS: List[Evidence] = [
         "PHASE2H_B_PAPER_EXECUTION_LEDGER_ASSEMBLER_SERVICE_CODEX_PASS",
         "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/18_2H_B_PAPER_EXECUTION_LEDGER_ASSEMBLER_SERVICE_CODEX_GO_NO_GO.md",
         [
+            "136_paper_execution_ledger_2hb_assembler_service_implementation",
             "137_paper_execution_ledger_2hb_assembler_service_codex_review",
+            "140_paper_execution_ledger_2hb_codex_fail_autofix_and_reconciliation",
+            "codex_recover_fail_marker_claude_worklog_phase2_core_rebuild_automation_reliability_140_2h_b_codex_fail_au",
         ],
     ),
     (

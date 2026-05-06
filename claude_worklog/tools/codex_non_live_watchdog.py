@@ -416,6 +416,61 @@ def run_supervisor_task(task_id: str) -> int:
     return proc.returncode
 
 
+def marker_stage_key(path: str) -> str:
+    """Return a coarse phase stage key such as 2h_b or 2h_c for marker supersession."""
+    name = Path(path).name.lower()
+    match = re.search(r"2([a-z])[_-]?([a-z])", name)
+    if match:
+        return f"2{match.group(1)}_{match.group(2)}"
+    match = re.search(r"phase2([a-z])[_-]?([a-z])", name)
+    if match:
+        return f"2{match.group(1)}_{match.group(2)}"
+    return name.split("_", 1)[0]
+
+
+def fail_marker_superseded_by_codex_pass(fail_path: str) -> bool:
+    """Skip stale fail markers when the same stage already has a Codex PASS marker.
+
+    This intentionally requires a CODEX_PASS-style GO/NO-GO marker, not a generic
+    implementation PASSED marker, so implementation success cannot hide a real
+    later Codex review failure.
+    """
+    fail = WORKSPACE / fail_path
+    if not fail.exists():
+        return False
+
+    stage = marker_stage_key(fail_path)
+    pass_line = re.compile(r"(^|\b)(CODEX_PASS|[A-Z0-9_]+_CODEX_PASS)(\b|$)")
+    roots = [
+        WORKSPACE / "claude_worklog/phase2_core_rebuild",
+        WORKSPACE / "claude_worklog/v2_scaffold_reviews",
+    ]
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            if "GO_NO_GO" not in path.name and "GO-NO-GO" not in path.name:
+                continue
+            rel = str(path.relative_to(WORKSPACE))
+            if marker_stage_key(rel) != stage:
+                continue
+            marker_lines = [line.strip() for line in read_text(path, 20_000).splitlines() if line.strip()]
+            if not any(pass_line.search(line) for line in marker_lines):
+                continue
+            append_event(
+                {
+                    "event": "codex_watchdog_fail_marker_superseded",
+                    "fail_marker": fail_path,
+                    "pass_marker": rel,
+                    "stage": stage,
+                }
+            )
+            return True
+    return False
+
+
 def latest_codex_fail_marker() -> str | None:
     """Find latest non-live FAIL marker that should trigger Codex recovery."""
     roots = [
@@ -443,7 +498,12 @@ def latest_codex_fail_marker() -> str | None:
     if not candidates:
         return None
     candidates.sort()
-    return str(candidates[-1][1].relative_to(WORKSPACE))
+    for _mtime, path in reversed(candidates):
+        rel = str(path.relative_to(WORKSPACE))
+        if fail_marker_superseded_by_codex_pass(rel):
+            continue
+        return rel
+    return None
 
 
 def create_codex_marker_recovery_task(marker_path: str) -> str:
