@@ -1,6 +1,6 @@
 # V2 Build Impact Map From Legacy Evidence
 
-Generated: 2026-05-06T20:09:20.675327+00:00
+Generated: 2026-05-06T20:09:58.386463+00:00
 
 | Legacy evidence | V2 requirement impact | MVP lane |
 |---|---|---|
