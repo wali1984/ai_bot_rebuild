@@ -1,6 +1,6 @@
 # Legacy Startup Script Map
 
-Generated: 2026-05-06T21:10:04.745511+00:00
+Generated: 2026-05-06T21:40:11.917649+00:00
 
 Script: `/home/wali/Desktop/AI BOT/scripts/start_all_services_production.sh`
 
