@@ -220,13 +220,14 @@ def make_task_id(marker: str) -> str:
 
 def create_readonly_review_task(milestone: dict[str, str]) -> str | None:
     marker = milestone.get("marker")
-    path = milestone.get("path")
-    if not marker or not path or review_task_exists(marker):
+    marker_path = milestone.get("path")
+    if not marker or not marker_path or review_task_exists(marker):
         return None
     task_id = make_task_id(marker)
     task_path = TASKS_DIR / f"{task_id}.json"
-    report = f"claude_worklog/phase2_core_rebuild/parallel_capacity_reviews/{task_id}_REPORT.md"
-    go_no_go = f"claude_worklog/phase2_core_rebuild/parallel_capacity_reviews/{task_id}_GO_NO_GO.md"
+    parent = Path(marker_path).parent.as_posix()
+    report = f"{parent}/{task_id}_REPORT.md"
+    go_no_go = f"{parent}/{task_id}_GO_NO_GO.md"
     task = {
         "task_id": task_id,
         "agent": "codex",
@@ -248,17 +249,18 @@ def create_readonly_review_task(milestone: dict[str, str]) -> str | None:
         "cwd": str(WORKSPACE),
         "emit_files": True,
         "allowed_output_prefixes": [
-            "claude_worklog/phase2_core_rebuild/parallel_capacity_reviews/",
+            f"{parent}/",
         ],
         "required_output_files": [report, go_no_go],
         "prompt": (
             f"You are local Codex CLI in {WORKSPACE}. Run a read-only parallel review of committed milestone "
-            f"{marker} from {path}. Do not patch source files. Do not modify current dirty work. Do not touch "
+            f"{marker} from {marker_path}. Do not patch source files. Do not modify current dirty work. Do not touch "
             "/home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not place/cancel "
             "orders. Do not enable live trading. Review for paper/backtest MVP compatibility, risk-gateway "
             "handoff completeness, lineage/explainability gaps, stale evidence, and missing test-hardening "
-            "recommendations. Output exactly two BEGIN_FILE blocks for the report and GO/NO-GO. GO/NO-GO must "
-            "contain one line: CODEX_PARALLEL_READONLY_REVIEW_READY or CODEX_PARALLEL_READONLY_REVIEW_BLOCKED."
+            "recommendations. Output exactly two BEGIN_FILE blocks using these exact paths: "
+            f"{report} and {go_no_go}. Do not emit any other file path. The GO/NO-GO file must contain exactly "
+            "one line: CODEX_PARALLEL_READONLY_REVIEW_READY or CODEX_PARALLEL_READONLY_REVIEW_BLOCKED."
         ),
         "next_recommended_action": "If READY, planner may consume recommendations without blocking current build. If BLOCKED, Codex watchdog may open a non-live autofix when no builder child is active.",
     }
@@ -375,6 +377,12 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
             if task_id:
                 rc = run_task(task_id)
                 actions.append({"action": "ran_parallel_readonly_review", "task_id": task_id, "returncode": rc})
+                if git_status_lines() and not active_claude_children() and not active_codex_children():
+                    watchdog_rc = run_watchdog_once()
+                    actions.append({"action": "ran_watchdog_after_parallel_review", "returncode": watchdog_rc})
+
+        git_status = git_status_lines()
+        git_clean = not git_status
 
         if git_clean and not planner_running and not active_claude_children():
             start_service("start_claude_master_rebuild_planner.sh")
