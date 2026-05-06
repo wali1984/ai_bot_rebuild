@@ -1,6 +1,6 @@
 # Legacy Failure Case Register
 
-Generated: 2026-05-06T20:40:04.681912+00:00
+Generated: 2026-05-06T21:10:11.854648+00:00
 
 ## 2026_05_LAB_HEDGE_UNWIND_SHORT_SQUEEZE_FAILURE.md
 
