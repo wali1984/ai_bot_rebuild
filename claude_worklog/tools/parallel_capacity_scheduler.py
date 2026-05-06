@@ -130,6 +130,41 @@ def latest_human_attention_task() -> str | None:
     return candidates[-1][1]
 
 
+def marker_stage_key(path: str) -> str:
+    name = Path(path).name.lower()
+    match = re.search(r"2([a-z])[_-]?([a-z])", name)
+    if match:
+        return f"2{match.group(1)}_{match.group(2)}"
+    match = re.search(r"phase2([a-z])[_-]?([a-z])", name)
+    if match:
+        return f"2{match.group(1)}_{match.group(2)}"
+    return name.split("_")[0]
+
+
+def fail_marker_superseded_by_codex_pass(fail_path: Path) -> bool:
+    stage = marker_stage_key(str(fail_path.relative_to(WORKSPACE)))
+    for path in PHASE2_DIR.rglob("*"):
+        if not path.is_file():
+            continue
+        rel = str(path.relative_to(WORKSPACE))
+        if marker_stage_key(rel) != stage:
+            continue
+        if "REQUEST" in path.name:
+            continue
+        lines = [line.strip() for line in read_text(path, 20_000).splitlines() if line.strip()]
+        if len(lines) == 1 and "CODEX_PASS" in lines[0]:
+            append_event(
+                {
+                    "event": "parallel_capacity_scheduler_fail_marker_superseded",
+                    "fail_marker": str(fail_path.relative_to(WORKSPACE)),
+                    "pass_marker": rel,
+                    "stage": stage,
+                }
+            )
+            return True
+    return False
+
+
 def latest_fail_marker() -> str | None:
     candidates: list[tuple[float, Path]] = []
     if not PHASE2_DIR.exists():
@@ -146,7 +181,11 @@ def latest_fail_marker() -> str | None:
     if not candidates:
         return None
     candidates.sort()
-    return str(candidates[-1][1].relative_to(WORKSPACE))
+    for _mtime, path in reversed(candidates):
+        if fail_marker_superseded_by_codex_pass(path):
+            continue
+        return str(path.relative_to(WORKSPACE))
+    return None
 
 
 def latest_committed_milestone() -> dict[str, str]:
