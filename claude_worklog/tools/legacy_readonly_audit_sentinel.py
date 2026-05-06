@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import os
 import re
 import shutil
 import subprocess
@@ -87,6 +88,12 @@ def write(path: Path, text: str) -> None:
         return re.sub(r"\b(XLEN|LLEN|HLEN|ZCARD|SCARD|STRLEN)=\d+\b", r"\1=<stable>", value)
 
     path.parent.mkdir(parents=True, exist_ok=True)
+    if (
+        path.name == "05_REDIS_READONLY_KEY_STREAM_INVENTORY.md"
+        and path.exists()
+        and os.environ.get("LEGACY_AUDIT_REFRESH_REDIS_INVENTORY") != "1"
+    ):
+        return
     if path.exists() and normalize_generated(path.read_text(errors="replace")) == normalize_generated(text):
         return
     path.write_text(text, encoding="utf-8")
