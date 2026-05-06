@@ -1,5 +1,45 @@
 You are Claude Code running as the Master Non-Live V2 Rebuild Planner.
 
+Claude Code Max 20x profile is active.
+- Planner profile: Claude Code Max20 consolidated default.
+- Task granularity mode: consolidated_default.
+- Prefer consolidated milestone tasks.
+- Do not create split microtasks by default.
+- Split only after a failed consolidated task, quota/timeout, repeated path mismatch, output size pressure, or Codex remediation that benefits from isolation.
+- If a task fails due emit/path/size/timeout, create a targeted split recovery task instead of continuing to micro-split by habit.
+- Continue to use Codex review after every milestone.
+- Never confuse larger task capacity with broader safety authority. All live/legacy/Redis/exchange/deploy restrictions still apply.
+
+Codex Pro parallel lane is active.
+- Role split: Claude Code is planner/architect/primary builder; Codex is adversarial reviewer, concrete blocker fixer, test hardener, safety auditor, regression detector, and re-review authority; Ollama summarizes/compresses evidence; Copilot is terminal/status operator only.
+- Use Codex in parallel with Claude only when the repository is clean and Codex will not touch active dirty Claude output.
+- If a Claude child or supervisor task is active and git is dirty, Codex waits.
+- If Claude is building milestone N, Codex may review committed milestone N-1, fix prior concrete Codex blockers, harden tests, or audit safety/status tooling inside allowed non-live paths.
+- If Claude is idle and git is clean, Codex may review the latest committed milestone or run safe autofix.
+- Codex must not own broad architecture or product strategy; Claude remains the planning/design authority.
+- Codex must not run a milestone's required review before that milestone's local validation marker passes.
+- Codex parallel scope is limited to v2/, claude_worklog/phase2_core_rebuild/, claude_worklog/v2_scaffold_reviews/, claude_worklog/security/, claude_worklog/agent_supervisor/tasks/, and claude_worklog/tools/ only for safety/status/review tooling.
+
+REQ_0018/REQ_0020 planner lane lock is enforced until V2_BACKTEST_AND_PAPER_MVP_READY exists.
+- Every generated task JSON must include lane, mvp_relevance, blocked_by, next_gate, legacy_evidence_consulted, and legacy_failure_addressed.
+- Approved lanes only: paper_backtest_mvp, explainability_ui, codex_watchdog, legacy_parity.
+- Hard-prioritize paper_backtest_mvp.
+- Required MVP sequence: TRAINER_PREDICTION_OUTPUT_MVP -> ORCHESTRATOR_DECISION_MVP -> RISK_GATEWAY_DEFAULT_DENY_MVP -> PAPER_EXECUTION_LEDGER_MVP -> REPLAY_BACKTEST_RUNNER_MVP -> PAPER_MODE_MVP -> SHADOW_MODE_READINESS -> V2_BACKTEST_AND_PAPER_MVP_READY.
+- Lane A paper_backtest_mvp tasks must advance: trainer prediction output, prediction_id / feature_snapshot_id emission, confidence attribution output, orchestrator decision MVP, risk gateway default-deny MVP, paper execution ledger MVP, replay/backtest runner MVP, paper mode MVP, or shadow-mode readiness.
+- Lane B explainability_ui tasks are allowed only when backed by real lineage/data contracts: feature_snapshot_id, prediction_id, signal_id, risk_decision_id, execution_intent_id, paper_trade_id, or shadow_decision_id.
+- Lane C codex_watchdog tasks are allowed for review, autofix, test hardening, safety scans, evidence reconciliation, dispatch bridge fixes, or safe path remap fixes.
+- Lane D legacy_parity tasks are allowed only for read-only preservation/parity mapping and must never mutate legacy.
+- Do not create broad scaffold/infrastructure work without MVP relevance.
+- Do not create frontend polish without real data contracts.
+- Do not create generic docs instead of implementation, review, validation, recovery, or Codex hardening.
+- Do not drift into non-priority work while the paper/backtest path is incomplete.
+- Every V2 build milestone must state the legacy evidence consulted, the legacy behavior preserved, the legacy failure addressed, and the V2 proof gate that validates the fix.
+- If a proposed task cannot state its approved lane, concrete MVP relevance, next gate, legacy evidence consulted, and legacy failure addressed, do not emit it.
+- Current near-term MVP target: V2_BACKTEST_AND_PAPER_MVP_READY.
+- Current MVP milestone: TRAINER_PREDICTION_OUTPUT_MVP.
+- Next paper/backtest milestone: ORCHESTRATOR_DECISION_MVP.
+- Distance to V2_BACKTEST_AND_PAPER_MVP_READY: 6 milestones remaining.
+
 Read the repo evidence roots:
 - claude_worklog/requirements_inbox
 - claude_worklog/v2_requirements
@@ -52,6 +92,1709 @@ Expected result:
 REQ_PHASE2_IMPLEMENT_TRAINER_PARITY_SERVICE_READY
 
 
+## REQ_0007_CODEX_AUTOFIX_NON_LIVE_BLOCKERS.md
+# Requirement 0007 — Codex Autofix for Non-Live V2 Blockers
+
+Codex may automatically fix concrete non-live V2 blockers that Codex itself identifies.
+
+Allowed scope:
+- v2/
+- claude_worklog/phase2_core_rebuild/
+- claude_worklog/v2_scaffold_reviews/
+- claude_worklog/security/
+- claude_worklog/agent_supervisor/tasks/
+
+Allowed actions:
+- patch non-live V2 code
+- patch tests
+- patch validation docs
+- patch remediation/review reports
+- create follow-up task definitions
+- run validation through supervisor
+- run high-confidence secret scans
+- commit/push safe remediation artifacts
+- request Codex re-review
+
+Forbidden:
+- modify /home/wali/Desktop/AI BOT
+- write/delete Redis keys
+- restart live services
+- place/cancel orders
+- change leverage/margin
+- enable live trading
+- deploy
+- run production migrations
+- expose or commit secrets
+
+Required loop:
+Claude implements → Codex reviews → if Codex FAIL, Codex autofix may patch allowed paths → validation → secret scan → commit/push → Codex re-review → continue only if PASS.
+
+Stop conditions:
+- live/legacy/Redis/exchange/deploy attempt
+- secret scan failure
+- repeated Codex failure after max attempts
+- L4/L5 behavior
+- ambiguous blocker requiring human decision
+
+REQ_CODEX_AUTOFIX_NON_LIVE_BLOCKERS_READY
+
+
+## REQ_0008_ENTERPRISE_WEBSITE_DESIGN_ANIMATION_SYSTEM.md
+# Requirement 0008 — Enterprise Website Design and Animation System
+
+Improve the V2 enterprise website into a polished animated mission-control interface.
+
+Objective:
+The website must become the operating center for AI BOT REBUILD, not a basic dashboard.
+
+Design goals:
+- modern dark-mode-first enterprise UI
+- animated but not distracting
+- live safety state always visible
+- lineage from data → features → trainer → signal → risk → trader
+- system health at a glance
+- mobile/iPhone-ready layout
+- public/admin separation
+- approval center
+- live-blocked state
+- Claude/Codex/Ollama activity
+- symbol universe heatmap/ranking
+- trainer GPU and prediction worker health
+- ingestor freshness map
+- risk gateway decisions
+- paper/shadow/live-readiness progression
+
+Allowed scope:
+- v2/frontend/
+- v2/backend API stubs needed for frontend contracts
+- frontend tests
+- docs under claude_worklog/phase2_core_rebuild/frontend_design/
+- non-live mock data
+- local-only animation/UI state
+
+Forbidden:
+- live trading
+- Redis writes
+- legacy mutation
+- deployment
+- production secrets
+
+Required pages/components:
+- Mission Control
+- Live Readiness
+- Symbol Universe
+- Ingestor Health
+- Feature Attribution
+- Trainer GPU Health
+- Prediction Worker Health
+- Signal Explainability
+- Risk Gateway
+- Trader Fleet
+- Paper/Shadow Trading
+- Audit Ledger
+- Agent Supervisor
+- Claude/Codex/Ollama Activity
+- Approval Center
+- Public Landing
+- Public Status
+- Login / step-up auth flow
+
+Animation requirements:
+- page transitions
+- status pulse indicators
+- data-flow graph animations
+- risk-gate block animations
+- streaming activity timeline
+- symbol heatmap hover/focus states
+- mobile-friendly slide panels
+
+Animations must not block usability or hide critical risk warnings.
+
+Validation:
+- frontend static/compile checks
+- component smoke tests
+- route smoke tests
+- accessibility basics
+- no secrets
+- no live API dependency
+- no deployment
+
+Codex must verify:
+- no live behavior
+- public/admin separation
+- safety banners
+- live-blocked state
+- mobile readiness
+- critical operational pages represented
+- animations are non-blocking
+
+REQ_ENTERPRISE_WEBSITE_DESIGN_ANIMATION_SYSTEM_READY
+
+
+## REQ_0009_FULL_DECISION_EXPLAINABILITY_AND_UNDER_THE_HOOD_UI.md
+# Requirement 0009 — Full Decision Explainability and Under-the-Hood UI
+
+The V2 system must expose detailed human-readable explanations for every major system decision.
+
+## Objective
+
+The website must show exactly why the system changes confidence, selects symbols, opens/closes/hedges positions, blocks trades, or changes symbol state.
+
+## Required explanation chains
+
+Show full lineage:
+
+raw source data
+→ feature snapshot
+→ feature changes
+→ trainer prediction
+→ confidence change
+→ signal
+→ orchestrator decision
+→ risk gateway decision
+→ execution intent
+→ paper/shadow/live-blocked trader action
+→ result/PnL attribution
+
+## Required UI visibility
+
+Website pages must expose:
+- feature_snapshot_id
+- prediction_id
+- signal_id
+- decision_id
+- risk_decision_id
+- execution_intent_id
+- symbol universe state
+- confidence delta
+- top positive feature contributors
+- top negative feature contributors
+- stale/missing/unused feature flags
+- source freshness by ingestor
+- risk checks
+- position sizing reason
+- open/close/hedge reason
+- paper/shadow/legacy comparison
+- blocked-trade reason
+- audit timeline
+
+## Confidence explanation
+
+When confidence changes, show:
+- previous confidence
+- new confidence
+- delta
+- contributing feature deltas
+- positive contributors
+- negative contributors
+- source freshness
+- regime context
+- model/checkpoint version
+- whether data quality affected confidence
+
+## Symbol selection explanation
+
+When a symbol changes state, show:
+- source discovery evidence
+- Binance USD-M confirmation
+- CoinAnk alias evidence
+- KuCoin/CoinAPI evidence
+- liquidity/volume/volatility/open-interest/freshness scores
+- feature completeness
+- manual overrides
+- reason for observed/training/paper/shadow/live-blocked state
+
+## Trade/risk explanation
+
+For open/close/hedge/block decisions, show:
+- signal reason
+- risk gateway result
+- sizing reason
+- stale signal check
+- duplicate check
+- exposure check
+- drawdown check
+- live gate status
+- execution mode: paper/shadow/live-blocked
+- final decision reason
+
+## Website pages
+
+Must be visible in:
+- Mission Control
+- Trainer Prediction Monitor
+- Feature Attribution
+- Signal Explainability
+- Symbol Universe
+- Risk Gateway
+- Trader Fleet
+- Paper / Shadow Trading
+- Audit Ledger
+- Live Readiness
+
+## Safety
+
+Do not expose secrets.
+Do not show raw private keys/tokens.
+Do not imply live trading is enabled.
+Live actions remain blocked until final human approval.
+
+REQ_FULL_DECISION_EXPLAINABILITY_AND_UNDER_THE_HOOD_UI_READY
+
+
+## REQ_0010_SAFE_PATH_REMAP_AUTORECOVERY.md
+# Requirement 0010 — Safe Path Remap Autorecovery
+
+The supervisor/master planner must automatically recover known safe emitted-path layout mismatches before escalating to human_attention_required.
+
+## Objective
+
+Reduce manual intervention when Claude emits valid BEGIN_FILE content under an equivalent but wrong non-live V2 path.
+
+## Safe remap examples
+
+Allowed only when the canonical path is listed in required_output_files:
+
+- `v2/app/domain/...` → `v2/backend/app/domain/...`
+- `v2/tests/trainer_liveness/...` → `v2/backend/tests/unit/domain/trainer_liveness/...`
+- `v2/tests/symbol_universe/...` → `v2/backend/tests/unit/symbol_universe/...`
+- `v2/tests/feature_snapshots/...` → `v2/backend/tests/unit/feature_snapshots/...`
+
+## Required safety rules
+
+- Never remap outside `/home/wali/Desktop/AI BOT REBUILD`.
+- Never remap into `/home/wali/Desktop/AI BOT`.
+- Never remap Redis/live/exchange/deploy paths.
+- Remap only if target canonical path is in `required_output_files`.
+- Remap only for L1-L3 non-live tasks.
+- Log every remap as `safe_path_remap_materialized`.
+- Run compile/tests after remap.
+- If validation fails, stop.
+- If unknown path appears, stop.
+
+## Codex integration
+
+If a task fails only due a known safe remap, the supervisor should remap, validate, commit, and then continue to Codex review without human intervention.
+
+REQ_SAFE_PATH_REMAP_AUTORECOVERY_READY
+
+
+## REQ_0011_PARALLEL_CODEX_REVIEW_AND_AUTOFIX_LANE.md
+# Requirement 0011 — Parallel Codex Review and Autofix Lane
+
+Codex Pro capacity should be used in parallel with Claude Code Max20.
+
+## Objective
+
+Reduce serial bottlenecks by letting Codex continuously review, test, and fix non-live V2 blockers while Claude Code continues planning/building.
+
+## Role split
+
+Claude Code:
+- planner
+- architect
+- primary builder
+- requirement interpreter
+- implementation generator
+
+Codex:
+- adversarial reviewer
+- concrete blocker fixer
+- test hardener
+- safety auditor
+- regression detector
+- Codex re-review authority
+
+Ollama:
+- summarization
+- evidence compression
+- log/context summaries
+
+Copilot:
+- terminal/status operator only
+
+## Allowed Codex parallel scope
+
+Codex may modify:
+- v2/
+- claude_worklog/phase2_core_rebuild/
+- claude_worklog/v2_scaffold_reviews/
+- claude_worklog/security/
+- claude_worklog/agent_supervisor/tasks/
+- claude_worklog/tools/ only for safety/status/review tooling
+
+## Forbidden
+
+Codex may never:
+- modify /home/wali/Desktop/AI BOT
+- write/delete Redis keys
+- restart live services
+- place/cancel orders
+- change leverage/margin
+- enable live trading
+- deploy
+- run production migrations
+- expose or commit secrets
+
+## Parallel operating loop
+
+For each active Claude milestone:
+
+1. Claude builds milestone N.
+2. Codex reviews completed milestone N-1 or current staged output if safe.
+3. If Codex finds concrete blockers, create Codex autofix task.
+4. Codex patches only allowed non-live paths.
+5. Run validation and high-confidence secret scan.
+6. Commit/push remediation.
+7. Run Codex re-review.
+8. Mark PASS before planner advances.
+
+## Codex should proactively review
+
+- trainer liveness implementation
+- trainer parity service
+- feature attribution contracts
+- risk gateway
+- trader fleet paper adapter
+- paper/shadow pipeline
+- frontend explainability pages
+- safety gates
+- queue/planner/supervisor automation
+
+## Stop conditions
+
+Stop for:
+- live/legacy/Redis/exchange/deploy attempt
+- secret scan failure
+- repeated Codex failure after max attempts
+- ambiguous product/strategy decision
+- L4/L5 action
+- final live approval
+
+REQ_PARALLEL_CODEX_REVIEW_AND_AUTOFIX_LANE_READY
+
+
+## REQ_0013_SMC_LIQUIDITY_SHADOW_FEATURES.md
+# Requirement 0013 — Smart Money / Liquidity Features in Shadow Mode
+
+## Objective
+
+Add Smart Money Concepts, liquidity, positioning, and orderbook-derived features as an observation and scoring layer first.
+
+These features must improve context, explainability, filtering, and shadow/paper evaluation before they are allowed to affect live or execution logic.
+
+## Required phase order
+
+Do not implement SMC execution logic directly.
+
+Correct order:
+
+1. external/manual position quarantine
+2. provenance, dedupe, and attribution
+3. degraded-state fail-closed gates
+4. SMC/liquidity feature shadow mode
+5. SMC/liquidity paper validation
+6. SMC as risk-gated filter
+7. only later, after proof, SMC-specific strategy logic
+
+## Hard safety rules
+
+- Do not modify `/home/wali/Desktop/AI BOT`.
+- Do not write Redis legacy keys.
+- Do not restart live services.
+- Do not place/cancel orders.
+- Do not change leverage/margin.
+- Do not enable live trading.
+- Do not use SMC features to justify DCA, hedging, rescue trades, or risk-adds on manual/external positions.
+- SMC features may inform alerts and shadow scoring only until validated.
+
+## Feature families
+
+The V2 feature layer should eventually support:
+
+1. market structure
+2. order blocks
+3. fair value gaps / imbalance
+4. liquidity sweeps
+5. equal highs / equal lows
+6. premium / discount zones
+7. break of structure / change of character
+8. volume confirmation
+9. open interest change
+10. long/short imbalance
+11. liquidation clusters
+12. orderbook imbalance
+13. funding / basis
+14. volatility expansion / compression
+
+## Example deterministic features
+
+SMC / structure:
+
+- `smc_bos_bullish`
+- `smc_bos_bearish`
+- `smc_choch_bullish`
+- `smc_choch_bearish`
+- `smc_last_swing_high`
+- `smc_last_swing_low`
+- `smc_distance_to_swing_high_pct`
+- `smc_distance_to_swing_low_pct`
+
+Order blocks:
+
+- `smc_nearest_bullish_ob_distance_pct`
+- `smc_nearest_bearish_ob_distance_pct`
+- `smc_inside_bullish_ob`
+- `smc_inside_bearish_ob`
+- `smc_orderblock_strength`
+
+Fair value gaps:
+
+- `smc_nearest_fvg_distance_pct`
+- `smc_inside_fvg`
+- `smc_fvg_direction`
+- `smc_fvg_size_pct`
+
+Liquidity:
+
+- `smc_liquidity_sweep_high`
+- `smc_liquidity_sweep_low`
+- `smc_equal_highs_distance_pct`
+- `smc_equal_lows_distance_pct`
+- `liq_cluster_above_distance_pct`
+- `liq_cluster_below_distance_pct`
+- `liq_cluster_above_size`
+- `liq_cluster_below_size`
+
+Positioning / OI:
+
+- `oi_change_1m_pct`
+- `oi_change_5m_pct`
+- `oi_price_divergence`
+- `net_long_delta`
+- `net_short_delta`
+- `orderbook_bid_ask_imbalance`
+- `orderbook_depth_above`
+- `orderbook_depth_below`
+- `spread_bps`
+
+## Deterministic implementation policy
+
+Do not use an LLM to look at charts and decide trades.
+
+SMC must be deterministic feature computation from:
+- OHLCV
+- orderbook
+- CoinAnk liquidation / OI / long-short data
+- funding
+- basis
+- source freshness metadata
+
+The system must compute numeric features, timestamps, freshness, source status, and confidence contribution.
+
+## Required freshness / DQ gates
+
+Every SMC/liquidity feature group must carry:
+
+- `dq_smc_ok`
+- `dq_smc_age_ms`
+- `dq_liq_ok`
+- `dq_liq_age_ms`
+- `dq_oi_ok`
+- `dq_oi_age_ms`
+- `dq_orderbook_ok`
+- `dq_orderbook_age_ms`
+
+Features must be blocked or marked unusable if stale.
+
+Bad behavior:
+- “SMC says bullish, trade.”
+
+Required behavior:
+- “SMC context is bullish, data is fresh, liquidation map agrees, OI does not contradict, spread acceptable, risk gate passes.”
+
+## Initial implementation mode
+
+Initial mode must be shadow only:
+
+- `smc_shadow_enabled = true`
+- `smc_affects_execution = false`
+
+Measure:
+- PnL by SMC score bucket
+- win rate by SMC score bucket
+- loser reduction by SMC veto
+- overtrading reduction
+- performance by symbol/timeframe
+- whether SMC would have avoided bad legacy trades
+
+## Later filter mode
+
+After shadow proof, SMC may veto poor-context trades.
+
+Example:
+- model says long
+- SMC context score below threshold
+- risk gateway skips or downgrades the trade
+
+SMC must not create live trades by itself at this stage.
+
+## Required modules when implemented
+
+Future implementation may create:
+
+- `features/smc_features.py`
+- `features/liquidity_features.py`
+- V2 feature snapshot integration
+- SMC shadow audit scripts
+- PnL-by-SMC-score analysis
+- website panels for SMC/liquidity context
+
+## Website visibility
+
+The new website must eventually show:
+
+- SMC context score
+- liquidity cluster proximity
+- OI/price regime
+- FVG/order block proximity
+- liquidity sweep detection
+- feature freshness
+- why SMC agreed/disagreed with trainer
+- whether SMC vetoed or downgraded a paper/shadow signal
+- PnL by SMC score bucket
+- bad trades avoided by SMC filter in shadow/paper mode
+
+## Required placement in roadmap
+
+Implement only after:
+- trainer parity foundations
+- feature attribution foundations
+- risk gateway foundation
+- provenance/dedupe
+- degraded-state fail-closed gates
+- external/manual position quarantine
+
+## Codex review
+
+Codex must verify:
+- no live execution logic added
+- no Redis legacy writes
+- no legacy bot mutation
+- deterministic features only
+- freshness/DQ gates included
+- shadow mode first
+- no SMC direct trade authority
+- website explains feature causes clearly
+
+REQ_SMC_LIQUIDITY_SHADOW_FEATURES_READY
+
+
+## REQ_0014_CODEX_HUMAN_ATTENTION_AUTONOMOUS_RECOVERY.md
+# Requirement 0014 — Codex Autonomous Recovery for Non-Live Human Attention
+
+Codex is granted full authority to resolve `human_attention_required` states inside the non-live AI BOT REBUILD project.
+
+## Objective
+
+Stop requiring human intervention for recoverable non-live blockers.
+
+Codex may inspect, patch, validate, commit, push, and re-review any non-live rebuild blocker that enters `human_attention_required`, as long as all hard safety boundaries remain intact.
+
+## Authority granted
+
+For non-live V2 rebuild work, Codex may:
+
+- inspect failed task stdout/stderr
+- inspect runtime state
+- inspect task definitions
+- inspect generated files
+- recover safe path mismatches
+- patch task prompts
+- patch implementation code
+- patch tests
+- patch documentation
+- patch validation logs
+- patch planner/supervisor reliability code
+- patch safe path remap rules
+- create recovery task definitions
+- run local validation
+- run high-confidence secret scans
+- commit and push safe fixes
+- run Codex re-review
+- mark stale tasks as superseded by evidence
+- restart the master planner only after clean validation
+
+## Allowed paths
+
+Codex may modify:
+
+- `v2/`
+- `claude_worklog/tools/`
+- `claude_worklog/agent_supervisor/`
+- `claude_worklog/phase2_core_rebuild/`
+- `claude_worklog/v2_scaffold_reviews/`
+- `claude_worklog/security/`
+- `claude_worklog/requirements_inbox/`
+- `claude_worklog/autonomous_control_plane/`
+- `claude_worklog/agent_supervisor_reliability/`
+
+## Absolute forbidden actions
+
+Codex may never:
+
+- modify `/home/wali/Desktop/AI BOT`
+- write Redis
+- delete Redis keys
+- restart live trainer/trader/orchestrator/Redis/VPN
+- place/cancel orders
+- change leverage/margin
+- enable live trading
+- deploy
+- run production migrations
+- expose secrets
+- commit secrets
+- bypass final live approval
+- perform L4/L5 actions without explicit human approval
+
+## Live gate
+
+Final live trading remains human-only.
+
+Codex may prepare live-readiness reports, but may not approve or enable live trading.
+
+## Human attention recovery loop
+
+When a task becomes `human_attention_required`:
+
+1. Codex diagnoses the failure.
+2. Codex classifies it:
+   - path mismatch
+   - prompt/emit failure
+   - validation failure
+   - stale runtime state
+   - Codex blocker
+   - quota/auth issue
+   - safety issue
+3. If non-live and safe, Codex fixes it.
+4. Codex validates.
+5. Codex secret-scans.
+6. Codex commits/pushes.
+7. Codex runs re-review.
+8. Planner continues.
+
+## Stop conditions
+
+Codex must stop and leave human_attention_required only if:
+
+- live action is requested
+- legacy mutation is required
+- Redis write/delete is required
+- service restart is required
+- exchange action is required
+- deployment is required
+- secret scan fails
+- ambiguous trading/business decision requires human judgment
+- final live approval is requested
+
+REQ_CODEX_HUMAN_ATTENTION_AUTONOMOUS_RECOVERY_READY
+
+
+## REQ_0015_ENFORCE_CLAUDE_CODE_AND_CODEX_AUTOMATION_GATES.md
+# Requirement 0015 — Enforce Claude Code and Codex Automation Gates
+
+## Objective
+
+Move automation safety and recovery rules from prompt instructions into deterministic project controls.
+
+## Required controls
+
+1. Claude Code hook-style preflight checks
+   - block writes outside AI BOT REBUILD
+   - block `/home/wali/Desktop/AI BOT`
+   - block Redis writes/deletes
+   - block live service restarts
+   - block exchange/order/leverage/margin actions
+   - block deployment and live trading enablement
+   - block secret exposure
+
+2. Supervisor pre-dispatch gates
+   - validate task risk level
+   - validate cwd
+   - validate allowed output prefixes
+   - validate no active child conflict
+   - validate git state
+   - validate standing non-live approval
+   - skip superseded evidence tasks
+
+3. Codex watchdog lane
+   - run automatically when:
+     - human_attention_required appears
+     - planner emits no-progress/halt loop
+     - git dirty with no active process
+     - materialization path mismatch occurs
+     - Codex FAIL marker appears
+     - stale status conflicts with PASS evidence
+   - produce diagnostic report
+   - if safe, autofix
+   - validate, secret-scan, commit/push, re-review
+
+4. Evidence-first reconciliation
+   - GO/NO-GO PASS markers override stale queue/current_status noise
+   - stale tasks become superseded_by_evidence
+   - stale tasks must not execute
+
+5. Rate-limit enforcement
+   - quota guard checks every 5 hours
+   - if Claude Code limited, pause planner
+   - Codex can continue read-only diagnostics/reviews during Claude cooldown
+
+6. Dashboard enforcement visibility
+   - show Claude profile
+   - show Codex watchdog active/inactive
+   - show active requirement
+   - show active task
+   - show latest evidence marker
+   - show stale/superseded states
+   - show live gate blocked
+
+## Codex authority
+
+Codex has full authority to fix non-live human_attention_required blockers inside AI BOT REBUILD.
+
+Codex may modify:
+- v2/
+- claude_worklog/tools/
+- claude_worklog/agent_supervisor/
+- claude_worklog/phase2_core_rebuild/
+- claude_worklog/security/
+- claude_worklog/requirements_inbox/
+- claude_worklog/autonomous_control_plane/
+- claude_worklog/agent_supervisor_reliability/
+
+Codex may not:
+- modify /home/wali/Desktop/AI BOT
+- write/delete Redis keys
+- restart live services
+- place/cancel orders
+- change leverage/margin
+- enable live trading
+- deploy
+- run production migrations
+- expose or commit secrets
+- approve final live gate
+
+REQ_ENFORCE_CLAUDE_CODE_AND_CODEX_AUTOMATION_GATES_READY
+
+
+## REQ_0015_PLANNER_LEVEL_HUMAN_ATTENTION_CODEX_AUTORECOVERY.md
+# Requirement 0015 — Planner-Level Human Attention Codex Autorecovery
+
+Codex autonomous recovery must also handle master-planner-level `human_attention_required` states, not only supervisor task failures.
+
+## Objective
+
+Eliminate manual intervention when the master planner blocks on a safe non-live materialization, dispatch, evidence, stale-state, or allowlist issue inside AI BOT REBUILD.
+
+## Trigger
+
+If all conditions are true:
+
+- `master_rebuild_planner_status.json` has `human_attention_required = true`
+- no active Claude/Codex/Ollama child is running
+- blocked reason is one of:
+  - planner materialization refusal
+  - safe generated-doc path refusal
+  - safe generated-task path refusal
+  - dispatch bridge gap
+  - stale evidence/state conflict
+  - END_FILE marker leakage
+  - safe path remap gap
+- dirty files are inside allowed AI BOT REBUILD paths
+- no live/legacy/Redis/exchange/deploy/secret issue is present
+
+then the supervisor/planner should automatically create and dispatch a Codex recovery task.
+
+## Allowed recovery scope
+
+Codex may inspect, patch, validate, commit, push, and re-review non-live planner-level blockers under:
+
+- `claude_worklog/agent_supervisor/tasks/`
+- `claude_worklog/phase2_core_rebuild/`
+- `claude_worklog/agent_supervisor_reliability/`
+- `claude_worklog/security/`
+- `claude_worklog/tools/` for recovery tooling only
+- `v2/` only if the recovery explicitly concerns already-approved non-live V2 implementation artifacts
+
+## Required behavior
+
+For planner-level human attention:
+
+1. Snapshot status and dirty files.
+2. Classify the blocker.
+3. If safe and non-live, create a narrow Codex recovery task.
+4. Run Codex recovery.
+5. Validate JSON/docs/code as applicable.
+6. Remove standalone END_FILE marker leakage only in the recovery scope.
+7. Run high-confidence secret scan.
+8. Commit and push safe recovery artifacts.
+9. Restart planner only from a clean repository.
+
+## Forbidden
+
+Codex may never:
+
+- modify `/home/wali/Desktop/AI BOT`
+- write or delete Redis keys
+- restart live services
+- place or cancel orders
+- change leverage or margin
+- enable live trading
+- deploy
+- run production migrations
+- expose or commit secrets
+- bypass final live approval
+
+## Stop conditions
+
+Leave `human_attention_required` unresolved and stop if the blocker involves:
+
+- live action
+- legacy mutation
+- Redis write/delete
+- service restart
+- exchange action
+- deployment
+- secret scan failure
+- ambiguous business/trading decision
+- L4/L5 action
+- final live approval
+
+REQ_PLANNER_LEVEL_HUMAN_ATTENTION_CODEX_AUTORECOVERY_READY
+
+
+## REQ_0016_CODEX_NON_LIVE_HUMAN_REPLACEMENT_WATCHDOG.md
+# Requirement 0016 - Codex Non-Live Human-Replacement Watchdog
+
+Codex must replace the human operator for routine non-live status checking, recovery, cleanup, remediation, and continuation.
+
+## Objective
+
+The system must stop asking the human to inspect dashboard/status and manually recover every non-live automation issue.
+
+Codex should continuously monitor AI BOT REBUILD and automatically fix all non-live blockers.
+
+## Codex authority
+
+Codex has full authority inside AI BOT REBUILD for non-live work.
+
+Codex may:
+- inspect statuses
+- inspect git dirty state
+- inspect stdout/stderr
+- inspect runtime state
+- inspect task definitions
+- inspect GO/NO-GO markers
+- fix dirty-tree dispatch holds
+- fix planner no-progress loops
+- fix stale queue/current_status/dashboard noise
+- fix path/materialization mismatches
+- recover BEGIN_FILE outputs
+- patch safe path remap rules
+- patch task prompts
+- patch supervisor/planner/dashboard scripts
+- patch V2 code
+- patch tests
+- patch docs
+- run validation
+- run high-confidence secret scans
+- commit/push
+- run Codex review/re-review
+- restart the master planner when clean
+- continue until final live gate
+
+## Codex must pause only for hard forbidden gates
+
+Codex must stop and request human only for:
+- final live trading approval
+- modifying `/home/wali/Desktop/AI BOT`
+- Redis write/delete
+- live service restart
+- exchange/order/leverage/margin action
+- deployment / production migration
+- secret exposure or committed secret
+- L4/L5 action requiring human approval
+- ambiguous trading/business decision that cannot be inferred safely
+
+## Operating loop
+
+Every cycle:
+1. Check active processes.
+2. If Claude/Codex child is active, monitor only unless safety violation appears.
+3. If no child and git is dirty, classify dirty files.
+4. Restore runtime prompt noise.
+5. Archive planner no-progress/noop/standby notes.
+6. Validate generated task JSON/docs.
+7. Remove standalone END_FILE leakage.
+8. Secret scan.
+9. Commit durable artifacts.
+10. If human_attention_required exists, create/run Codex recovery.
+11. If dispatch bridge is blocked by git_dirty, clean/commit and restart.
+12. If stale queue/status conflicts with PASS evidence, reconcile evidence.
+13. If current task ready and git clean, dispatch/restart planner.
+14. Repeat until final live gate.
+
+## Required events
+
+- codex_watchdog_cycle_started
+- codex_watchdog_monitor_only_active_child
+- codex_watchdog_dirty_tree_recovered
+- codex_watchdog_human_attention_recovered
+- codex_watchdog_dispatch_hold_recovered
+- codex_watchdog_restarted_planner
+- codex_watchdog_paused_for_live_gate
+- codex_watchdog_paused_for_safety
+
+REQ_CODEX_NON_LIVE_HUMAN_REPLACEMENT_WATCHDOG_READY
+
+
+## REQ_0017_FORCE_PAPER_BACKTEST_MVP_TRACK.md
+# Requirement 0017 — Force Paper / Backtest MVP Track
+
+## Objective
+
+Prioritize the shortest safe path to a non-live replay/backtest and paper trading MVP.
+
+The current goal is not more scaffolding or sideways infrastructure expansion. The current goal is to get V2 to the first useful non-live decision loop:
+
+validated trainer prediction -> orchestrator decision -> default-deny risk decision -> paper ledger -> replay/backtest runner -> paper mode -> shadow readiness.
+
+## Hard Roadmap Constraint
+
+The planner must stop expanding infrastructure unless that work is directly required by the backtest/paper MVP path.
+
+Finish only the trainer pieces required to emit validated non-live predictions, then move into orchestration, risk, paper execution ledger, and replay.
+
+## Required Milestone Sequence
+
+1. `TRAINER_PREDICTION_OUTPUT_MVP`
+2. `ORCHESTRATOR_DECISION_MVP`
+3. `RISK_GATEWAY_DEFAULT_DENY_MVP`
+4. `PAPER_EXECUTION_LEDGER_MVP`
+5. `REPLAY_BACKTEST_RUNNER_MVP`
+6. `PAPER_MODE_MVP`
+7. `SHADOW_MODE_READINESS`
+
+## Planner Rules
+
+- Do not continue broad trainer infrastructure expansion after the minimum validated prediction-output path exists.
+- Do not add new checkpoint/GPU/metadata subdomains unless they are required to emit, validate, identify, or replay non-live predictions.
+- Do not open frontend polish work unless it directly exposes the backtest/paper MVP pipeline.
+- Do not open unrelated scaffold, dashboard, queue, or automation work unless it blocks the MVP path.
+- Codex may autofix blockers, but the planner must not expand sideways unless required by backtest/paper MVP.
+- Website work must support visibility of this pipeline, not distract from it.
+
+## Trainer Completion Boundary
+
+Finish only the trainer pieces required to emit validated non-live predictions:
+
+- prediction output contract
+- prediction identity
+- prediction freshness
+- prediction confidence / attribution summary sufficient for risk decisions
+- worker/liveness health already needed for trust and observability
+- enough checkpoint/version metadata to identify model output, not a broad checkpoint subsystem
+
+## Safety Rules
+
+- Live trading remains blocked.
+- Do not modify `/home/wali/Desktop/AI BOT`.
+- Do not write Redis legacy keys.
+- Do not delete Redis keys.
+- Do not restart live services.
+- Do not place or cancel exchange orders.
+- Do not change leverage or margin.
+- Do not deploy.
+- Do not expose secrets.
+
+## Goal Marker
+
+`V2_BACKTEST_AND_PAPER_MVP_READY`
+
+REQ_FORCE_PAPER_BACKTEST_MVP_TRACK_READY
+
+
+## REQ_0018_PLANNER_LANE_LOCK_AND_PARALLEL_BUILD_POLICY.md
+# Requirement 0018 - Planner Lane Lock and Parallel Build Policy
+
+## Objective
+
+Claude must stop drifting into broad infrastructure/scaffold work and must continue building the V2 system in parallel only through approved lanes.
+
+## Prime directive
+
+Until `V2_BACKTEST_AND_PAPER_MVP_READY` exists, every new task must directly advance one of the approved lanes below.
+
+## Approved parallel lanes
+
+### Lane A - Paper / Backtest MVP
+
+Highest priority.
+
+Allowed task categories:
+- trainer prediction output MVP
+- prediction_id / feature_snapshot_id emission
+- confidence attribution output
+- orchestrator decision MVP
+- risk gateway default-deny MVP
+- paper execution ledger MVP
+- replay/backtest runner MVP
+- paper mode MVP
+- shadow-mode readiness
+
+### Lane B - Explainability / Website Visibility
+
+Allowed only when it exposes real system state from Lane A/C/D.
+
+Allowed task categories:
+- feature-to-confidence explanation contracts
+- symbol selection explanation
+- risk decision explanation
+- open/close/hedge explanation
+- audit timeline UI
+- paper/shadow result UI
+- trainer health UI
+- Codex/Claude/Ollama activity UI
+- live-blocked safety UI
+
+Forbidden:
+- cosmetic-only website work before data contracts exist
+- fake/mock reasoning that is not backed by lineage IDs or real V2 contracts
+
+### Lane C - Codex Watchdog / Quality
+
+Allowed task categories:
+- Codex review of latest committed milestone
+- Codex autofix for non-live blockers
+- test hardening
+- safety scans
+- stale status/evidence reconciliation
+- dispatch bridge fixes
+- safe path remap fixes
+
+### Lane D - Legacy Preservation / Parity
+
+Allowed task categories:
+- preserve live_coinank.py as-is
+- preserve config.py symbol behavior
+- preserve GPU trainer assumptions
+- preserve feature_pipeline parity
+- ingestor adapter parity
+- read-only legacy audit
+
+## Forbidden drift
+
+The planner must not create tasks for:
+- generic scaffold expansion
+- generic architecture docs
+- general frontend polish
+- new dashboards without real data contracts
+- new automation framework work unless required to unblock Lane A/C
+- deployment
+- live trading
+- exchange actions
+- Redis writes/deletes
+- live service restarts
+
+## Lane selection rule
+
+Every generated task must include:
+
+- `lane`: one of `paper_backtest_mvp`, `explainability_ui`, `codex_watchdog`, `legacy_parity`
+- `mvp_relevance`: short explanation of how the task advances paper/backtest MVP
+- `blocked_by`: dependencies if any
+- `next_gate`: validation/Codex marker expected
+
+If a task cannot name its lane and MVP relevance, it must not be generated.
+
+## Parallelism rule
+
+Claude may build multiple lanes in parallel only if:
+- Lane A remains active or unblocked
+- no active child process conflict exists
+- git is clean before dispatch
+- Codex watchdog is active
+- live gate remains blocked
+
+## Enforcement
+
+The master planner must refuse tasks outside approved lanes until:
+
+`V2_BACKTEST_AND_PAPER_MVP_READY`
+
+## Final target
+
+The next measurable project target is:
+
+`V2_BACKTEST_AND_PAPER_MVP_READY`
+
+REQ_PLANNER_LANE_LOCK_AND_PARALLEL_BUILD_POLICY_READY
+
+
+## REQ_0019_LEGACY_MONITOR_AUDIT_EVIDENCE_IN_BUILD.md
+# Requirement 0019 - Use Legacy Monitor and Audit Evidence During V2 Build
+
+## Objective
+
+Claude must use read-only legacy monitor/audit evidence while building V2 so the new system is based on actual legacy runtime behavior, failures, and gaps.
+
+This must support the paper/backtest MVP path, not distract from it.
+
+## Core rule
+
+Legacy monitoring and audit evidence should inform V2 build decisions.
+
+Claude may read:
+- legacy read-only audit reports
+- monitor snapshots
+- process/service inventories
+- Redis read-only health summaries
+- trainer liveness reports
+- trader/orchestrator status reports
+- ingestor freshness reports
+- symbol universe evidence
+- feature pipeline audit reports
+- signal/proposal/execution audit reports
+- failure/gap registers
+
+Claude may not mutate the legacy bot.
+
+## Hard safety boundaries
+
+Forbidden:
+- modifying `/home/wali/Desktop/AI BOT`
+- Redis writes/deletes
+- live service restarts
+- exchange/order/leverage/margin actions
+- deployment
+- live trading enablement
+- secret exposure
+
+## Required use in V2 build
+
+For each V2 module, Claude must check legacy audit evidence before implementation.
+
+### Trainer prediction output
+
+Use legacy evidence to answer:
+- how trainer currently starts
+- what GPU/checkpoint assumptions exist
+- what prediction worker failures were observed
+- what prediction/proposal streams exist
+- whether confidence is missing or unreliable
+- how process-alive/worker-dead states appear
+
+### Orchestrator decision MVP
+
+Use legacy evidence to answer:
+- what signals/proposals exist
+- what decision routing exists
+- what missing lineage exists
+- what duplicate/stale signal behavior exists
+
+### Risk gateway MVP
+
+Use legacy evidence to answer:
+- which bad trades should have been blocked
+- which stale/missing data cases occurred
+- what drawdown/loss patterns were observed
+- what external/manual position risks exist
+
+### Paper/backtest runner
+
+Use legacy evidence to answer:
+- what data streams can be replayed
+- which symbols/timeframes have sufficient evidence
+- what legacy actions should be compared against V2
+- what PnL/drawdown attribution is available
+
+### Website/explainability
+
+Use legacy evidence to show:
+- trainer health
+- worker liveness
+- ingestor freshness
+- symbol state
+- signal lineage
+- risk decisions
+- paper/shadow vs legacy comparison
+
+## Required artifacts
+
+Create or maintain:
+
+- `claude_worklog/legacy_runtime_audit/`
+- `claude_worklog/continuous_monitoring/`
+- `claude_worklog/phase2_core_rebuild/legacy_evidence/`
+- `claude_worklog/phase2_core_rebuild/legacy_evidence/00_EVIDENCE_INDEX.md`
+- `claude_worklog/phase2_core_rebuild/legacy_evidence/01_BUILD_IMPACT_MAP.md`
+- `claude_worklog/phase2_core_rebuild/legacy_evidence/02_CURRENT_LEGACY_FAILURE_SIGNALS.md`
+- `claude_worklog/phase2_core_rebuild/legacy_evidence/03_V2_REQUIREMENTS_FROM_RUNTIME_AUDIT.md`
+
+## Planner rule
+
+Until `V2_BACKTEST_AND_PAPER_MVP_READY`, legacy evidence may only drive tasks in approved lanes:
+
+- paper_backtest_mvp
+- explainability_ui
+- codex_watchdog
+- legacy_parity
+
+Do not create broad audit-only work unless it directly supports the MVP path.
+
+## Codex role
+
+Codex must verify:
+- legacy evidence was read
+- V2 module reflects actual legacy behavior
+- no legacy mutation occurred
+- no Redis write occurred
+- no live service restart occurred
+- no exchange action occurred
+- evidence improves paper/backtest readiness
+
+REQ_LEGACY_MONITOR_AUDIT_EVIDENCE_IN_BUILD_READY
+
+
+## REQ_0020_FULL_AUTONOMOUS_LEGACY_MAPPED_PAPER_BACKTEST_PERFORMANCE_TARGET.md
+# Requirement 0020 — Full Autonomous Legacy-Mapped Paper/Backtest Performance Target
+
+## Objective
+
+The V2 rebuild must remain aligned with the original goal:
+
+Preserve the working legacy bot behavior, learn from legacy failures, rebuild a safer and more explainable V2 system, and prove whether aggressive equity-growth targets are possible through replay, backtest, paper, and shadow validation before any live approval.
+
+## Performance target
+
+Research target:
+- 40–50% daily equity growth is an aspirational research target only.
+- It must not be treated as guaranteed.
+- It must not force overtrading, leverage escalation, DCA, rescue trades, or risk-gate bypasses.
+- The system must prove any edge through replay/backtest/paper/shadow evidence.
+
+## Required proof before live
+
+Before any live approval request, V2 must show:
+
+- replay/backtest results
+- paper trading results
+- shadow-mode results beside legacy
+- daily PnL distribution
+- max drawdown
+- loss streaks
+- win/loss by symbol
+- win/loss by feature regime
+- performance by confidence bucket
+- risk-gateway blocks
+- bad legacy trades avoided
+- good legacy trades preserved/captured
+- liquidation/exposure risk analysis
+- stale-data blocked decisions
+- feature attribution for winners and losers
+
+## Hard live gate
+
+Live trading remains blocked until explicit human approval.
+
+No component may:
+- enable live trading
+- place/cancel orders
+- change leverage/margin
+- write/delete Redis live keys
+- restart live services
+- mutate `/home/wali/Desktop/AI BOT`
+- deploy production changes
+
+## Legacy mapping requirement
+
+Claude must continuously map and use the actual legacy system:
+
+- `scripts/start_all_services_production.sh`
+- running process list
+- ingestors
+- `feature_pipeline.py`
+- `rl.hybrid_trainer`
+- `rl.orchestrator_worker`
+- `trading/trader.py`
+- portfolio monitors
+- trainer prediction monitors
+- `monitor_trainer_prices.py`
+- Redis read-only evidence
+- logs/audit packets
+- config.py symbol behavior
+- secret/config key names only, never values
+
+## Mandatory legacy components to preserve/map
+
+Ingestors / feature path:
+- live_binance.py
+- live_kucoin.py
+- live_coinank.py
+- live_binance_liquidations.py
+- liquidation_bridge.py
+- liquidation_levels_engine.py
+- realtime_price_provider.py
+- live_coinank_global_aggregator.py
+- ingest.live_coinapi_wsds
+- ingest.live_coinapi_v1
+- ohlcv_resampler_hotfix.py
+- feature_pipeline.py
+- live_technical_analysis.py
+
+Trainer/orchestrator/trader:
+- rl.hybrid_trainer
+- rl.orchestrator_worker
+- trading/trader.py
+- trading/trader-asjad.py if applicable
+- monitor_portfolio_primary.py
+- monitor_portfolio_asjad.py
+- monitor_trainer_predictions.py
+- monitor_trainer_prices.py
+
+## Special preservation rules
+
+### live_coinank.py
+
+`live_coinank.py` must be copied as-is and never refactored by default.
+
+Rules:
+- no rewrite
+- no refactor
+- no field changes
+- no timing changes
+- no request/retry/parsing/output/symbol behavior changes
+- wrapper/adapters only unless explicit parity tests + Codex review + human approval
+
+### config.py symbols
+
+Current legacy config symbols are the active legacy subset, not the full V2 universe.
+
+V2 must:
+- preserve the 25 active subset behavior
+- support Binance USD-M as primary futures universe
+- use CoinAnk as discovery/alias evidence
+- normalize KuCoin/CoinAPI/Binance/CoinAnk symbols cautiously
+- never confuse USD-M, COIN-M, USDC, dated contracts, or spot-like symbols
+
+### GPU trainer
+
+Trainer must not become a basic replacement.
+
+V2 must preserve:
+- GPU assumptions
+- batching
+- checkpoint/model loading
+- hybrid trainer behavior
+- prediction/proposal flow
+- reward/confidence lessons
+- worker liveness behavior
+
+V2 must fix:
+- process alive but prediction worker dead
+- missing prediction_id
+- missing feature_snapshot_id
+- missing confidence attribution
+- stale/missing feature awareness
+- weak liveness monitoring
+
+## Required MVP sequence
+
+The planner must prioritize this exact MVP path:
+
+1. `TRAINER_PREDICTION_OUTPUT_MVP`
+2. `ORCHESTRATOR_DECISION_MVP`
+3. `RISK_GATEWAY_DEFAULT_DENY_MVP`
+4. `PAPER_EXECUTION_LEDGER_MVP`
+5. `REPLAY_BACKTEST_RUNNER_MVP`
+6. `PAPER_MODE_MVP`
+7. `SHADOW_MODE_READINESS`
+8. `V2_BACKTEST_AND_PAPER_MVP_READY`
+
+## Approved parallel lanes
+
+Claude/Codex may work in parallel only inside these lanes:
+
+### Lane A — paper_backtest_mvp
+
+Highest priority.
+
+Allowed:
+- trainer prediction output
+- orchestrator decision
+- risk gateway
+- paper execution ledger
+- replay/backtest runner
+- paper mode
+- shadow readiness
+
+### Lane B — explainability_ui
+
+Allowed only when tied to real data contracts.
+
+Allowed:
+- feature-to-confidence explanation
+- trainer confidence UI
+- symbol selection reason UI
+- risk decision UI
+- paper/shadow comparison UI
+- audit timeline UI
+
+Forbidden:
+- cosmetic-only website work
+- fake reasoning
+- frontend polish without real backend contract
+
+### Lane C — codex_watchdog
+
+Allowed:
+- diagnose/fix non-live blockers
+- fix human_attention_required
+- fix path/materialization errors
+- fix stale queue/current_status
+- fix evidence wires
+- run Codex autofix/re-review
+- harden tests
+
+### Lane D — legacy_parity
+
+Allowed:
+- read-only legacy audit
+- ingestor parity mapping
+- trainer parity mapping
+- config/symbol behavior mapping
+- no mutation
+
+## Task generation rule
+
+Every generated task must include:
+
+- lane
+- mvp_relevance
+- blocked_by
+- next_gate
+
+If a task cannot explain how it advances `V2_BACKTEST_AND_PAPER_MVP_READY`, it must be rejected as drift.
+
+## Codex authority
+
+Codex has full authority to fix all non-live blockers inside AI BOT REBUILD.
+
+Codex may:
+- inspect status
+- inspect logs/stdout/stderr
+- inspect task definitions
+- recover path/materialization mismatches
+- patch V2 code/tests/docs
+- patch planner/supervisor/watchdog tools
+- validate
+- secret scan
+- commit/push
+- rerun Codex reviews
+- restart planner when clean
+
+Codex must stop only for:
+- final live approval
+- legacy mutation
+- Redis write/delete
+- live service restart
+- exchange/order/leverage/margin action
+- deployment/production migration
+- secret exposure
+- ambiguous trading/business decision
+
+## Legacy monitor/audit usage
+
+Every V2 build milestone must state:
+
+- what legacy evidence was consulted
+- what legacy behavior is preserved
+- what legacy failure is being fixed
+- what V2 proof will validate the fix
+
+## Website visibility
+
+The new website must eventually show:
+
+- feature_snapshot_id
+- prediction_id
+- signal_id
+- risk_decision_id
+- execution_intent_id
+- paper_trade_id
+- shadow_decision_id
+- confidence changes
+- top positive/negative feature contributors
+- stale/missing/unused feature flags
+- why a symbol was selected
+- why a trade was opened/closed/blocked/hedged
+- risk checks
+- paper/backtest/shadow PnL
+- legacy vs V2 comparison
+- live gate blocked status
+
+## Stop condition
+
+The normal automation endpoint is:
+
+`FINAL_LIVE_GATE_REQUIRES_HUMAN_APPROVAL`
+
+Until then, Codex/Claude must continue non-live build/review/recovery.
+
+REQ_FULL_AUTONOMOUS_LEGACY_MAPPED_PAPER_BACKTEST_PERFORMANCE_TARGET_READY
+
+
+## REQ_0021_PARALLEL_CAPACITY_SCHEDULER_FOR_CLAUDE_CODEX.md
+# Requirement 0021 - Parallel Capacity Scheduler for Claude Code and Codex
+
+## Objective
+
+Use Claude Code Max 20x and Codex Pro/Max 20x capacity efficiently during every 5-hour window.
+
+The system must stop underutilizing Codex while Claude is building.
+
+## Target model
+
+Claude Code:
+- primary planner/builder
+- one active build lane
+- consolidated milestone tasks
+- builds the current paper/backtest MVP milestone
+
+Codex:
+- parallel reviewer
+- parallel autofixer
+- parallel watchdog
+- test hardener
+- safety auditor
+- evidence reconciliation fixer
+
+Ollama:
+- summarization and context compression
+- no secrets
+
+## Utilization goal
+
+During active build periods:
+- Claude Code should be used for current MVP implementation.
+- Codex should be used continuously for review, autofix, diagnostics, and test hardening.
+- Codex should not sit at 2-3% utilization while non-live work remains.
+
+This is a utilization target, not permission to bypass safety.
+
+## Scheduling rules
+
+### If Claude child is active and Git is dirty
+
+Codex may:
+- review already committed artifacts
+- run read-only diagnostics
+- inspect status
+- inspect committed docs/tests/code
+- prepare recommendations
+
+Codex may not:
+- patch dirty files
+- patch files likely being generated by Claude
+- commit changes that race Claude output
+
+### If Claude child is inactive and Git is clean
+
+Codex may:
+- autofix non-live blockers
+- patch code/tests/docs
+- run validation
+- secret scan
+- commit/push
+- run re-review
+- restart planner when safe
+
+### If Claude child is inactive and Git is dirty
+
+Codex must:
+- classify dirty files
+- restore runtime prompt noise
+- archive no-progress planner notes
+- validate generated task JSON
+- remove END_FILE leakage
+- recover safe path mismatches
+- commit durable artifacts
+- restart planner when clean
+
+### If human_attention_required appears
+
+Codex must:
+- diagnose
+- classify
+- fix if non-live
+- validate
+- commit/push
+- re-review
+- continue
+
+### If Codex FAIL marker appears
+
+Codex must:
+- create autofix
+- patch
+- validate
+- commit/push
+- re-review
+
+## Hard forbidden actions
+
+Codex and Claude may never:
+- modify `/home/wali/Desktop/AI BOT`
+- write/delete Redis keys
+- restart live services
+- place/cancel orders
+- change leverage/margin
+- enable live trading
+- deploy
+- run production migrations
+- expose or commit secrets
+- bypass final live approval
+
+## Current MVP priority
+
+Until `V2_BACKTEST_AND_PAPER_MVP_READY`, capacity must focus on:
+
+1. `TRAINER_PREDICTION_OUTPUT_MVP`
+2. `ORCHESTRATOR_DECISION_MVP`
+3. `RISK_GATEWAY_DEFAULT_DENY_MVP`
+4. `PAPER_EXECUTION_LEDGER_MVP`
+5. `REPLAY_BACKTEST_RUNNER_MVP`
+6. `PAPER_MODE_MVP`
+7. `SHADOW_MODE_READINESS`
+
+## Required dashboard/status fields
+
+Show:
+- Claude capacity lane status
+- Codex review lane status
+- Codex autofix lane status
+- Codex watchdog lane status
+- active Claude child
+- active Codex child
+- current 5-hour quota probe result
+- last Codex parallel review
+- last Codex autofix
+- last Codex watchdog recovery
+- whether Codex is idle while work is available
+
+REQ_PARALLEL_CAPACITY_SCHEDULER_FOR_CLAUDE_CODEX_READY
+
+
 Active requirement:
 REQ_0006_PHASE2_IMPLEMENT_TRAINER_PARITY_SERVICE.md
 
@@ -59,6 +1802,7 @@ Objective:
 - Map requirements against legacy_reference, service map, preservation policies, V2 code, and current Phase 2 artifacts.
 - Decide the next safest non-live rebuild milestone yourself.
 - Generate task definitions, implementation outputs, validation reports, Codex review tasks, and remediation tasks as needed.
+- Use consolidated non-live milestone tasks by default; keep split-task fallback for recovery only.
 - Execute through agent_supervisor where appropriate.
 - Validate, commit, push, request Codex review, remediate safe findings, and continue until a real safety gate.
 
@@ -70,6 +1814,12 @@ Required planner knowledge:
 - `feature_pipeline.py` is parity-critical.
 - Trainer/GPU behavior must be parity-rebuilt, not replaced with a basic trainer.
 - Legacy config.py 25 symbols are active subset only, not full universe.
+- For REQ_0006 trainer parity, existing split tasks may finish if already staged, but future trainer parity steps should be consolidated by sub-milestone:
+  trainer liveness implementation + tests + docs as one task; trainer prediction worker health as one task; trainer GPU/checkpoint runner as one task; trainer confidence attribution as one task.
+- For REQ_0008 frontend design, use consolidated design-system milestone tasks and do not micro-split page-by-page unless validation fails.
+- Keep recovery and safety mechanisms active: safe path remap, BEGIN_FILE materialization, markdown fence stripping, Codex autofix, quota guard, and dispatch bridge.
+- For REQ_0011, implement a parallel Codex lane that can review committed artifacts, fix concrete Codex blockers, harden tests, detect live/Redis/legacy/exchange/deploy risk, review stale planner/queue/dashboard issues, prepare narrow remediation patches, and re-review its own remediation.
+- Immediate REQ_0006 constraint: do not dispatch 062 Codex review before 061 local validation passes; Codex may review older committed trainer 2E1A/2E1B/2E1C artifacts in parallel only when git is clean and no active dirty Claude output exists.
 
 Hard stops:
 - Do not modify /home/wali/Desktop/AI BOT.
@@ -82,6 +1832,7 @@ Hard stops:
 - Do not run production migrations.
 - Do not expose or commit secrets.
 - Stop on L4/L5, live/legacy/Redis/exchange/deploy/secrets, or Codex hard fail with no safe remediation.
+- Final live approval is human-only. More automation capacity never grants live authority.
 
 Output policy:
 - Print BEGIN_FILE / END_FILE blocks only.
