@@ -119,13 +119,33 @@ def find_legacy_file(name: str) -> list[Path]:
     return sorted(found)
 
 
-def process_snapshot() -> str:
+def is_rebuild_automation_process(line: str) -> bool:
+    markers = (
+        "/home/wali/Desktop/AI BOT REBUILD",
+        "claude_worklog/tools/",
+        "claude --print",
+        "codex exec",
+        "ollama run",
+        "agent_supervisor.py",
+        "codex_non_live_watchdog.py",
+        "parallel_capacity_scheduler.py",
+        "legacy_readonly_audit_sentinel.py",
+        "historical_pnl_trade_audit.py",
+    )
+    return any(marker in line for marker in markers)
+
+
+def matching_process_lines(patterns: list[str]) -> list[str]:
     proc = run("ps -eo pid,ppid,cmd")
-    lines = [
+    return [
         line
         for line in proc.stdout.splitlines()
-        if any(pattern in line for pattern in PROCESS_PATTERNS)
+        if any(pattern in line for pattern in patterns) and not is_rebuild_automation_process(line)
     ]
+
+
+def process_snapshot() -> str:
+    lines = matching_process_lines(PROCESS_PATTERNS)
     return "\n".join(
         [
             "# Legacy Runtime Process Snapshot",
@@ -320,11 +340,7 @@ def redis_readonly_inventory(limit: int = 500) -> str:
 
 
 def trainer_runtime_evidence() -> str:
-    proc = run(
-        "ps -eo pid,ppid,cmd | "
-        "grep -E 'rl.hybrid_trainer|monitor_trainer_predictions|monitor_trainer_prices' | "
-        "grep -v grep || true"
-    )
+    lines = matching_process_lines(["rl.hybrid_trainer", "monitor_trainer_predictions", "monitor_trainer_prices"])
     return "\n".join(
         [
             "# Trainer Runtime Evidence",
@@ -335,7 +351,7 @@ def trainer_runtime_evidence() -> str:
             "",
             "## Processes",
             "```text",
-            proc.stdout.strip() or "NO_TRAINER_PROCESS_MATCHES",
+            "\n".join(lines) if lines else "NO_TRAINER_PROCESS_MATCHES",
             "```",
             "",
             "## Required V2 impact",
@@ -350,11 +366,7 @@ def trainer_runtime_evidence() -> str:
 
 
 def orchestrator_trader_evidence() -> str:
-    proc = run(
-        "ps -eo pid,ppid,cmd | "
-        "grep -E 'orchestrator_worker|trading/trader|monitor_portfolio' | "
-        "grep -v grep || true"
-    )
+    lines = matching_process_lines(["orchestrator_worker", "trading/trader", "monitor_portfolio"])
     return "\n".join(
         [
             "# Orchestrator / Trader Runtime Evidence",
@@ -364,7 +376,7 @@ def orchestrator_trader_evidence() -> str:
             "Read-only process evidence.",
             "",
             "```text",
-            proc.stdout.strip() or "NO_ORCHESTRATOR_TRADER_PROCESS_MATCHES",
+            "\n".join(lines) if lines else "NO_ORCHESTRATOR_TRADER_PROCESS_MATCHES",
             "```",
             "",
             "## Required V2 impact",
