@@ -36,9 +36,9 @@ REQ_0018/REQ_0020 planner lane lock is enforced until V2_BACKTEST_AND_PAPER_MVP_
 - Every V2 build milestone must state the legacy evidence consulted, the legacy behavior preserved, the legacy failure addressed, and the V2 proof gate that validates the fix.
 - If a proposed task cannot state its approved lane, concrete MVP relevance, next gate, legacy evidence consulted, and legacy failure addressed, do not emit it.
 - Current near-term MVP target: V2_BACKTEST_AND_PAPER_MVP_READY.
-- Current MVP milestone: TRAINER_PREDICTION_OUTPUT_MVP.
-- Next paper/backtest milestone: ORCHESTRATOR_DECISION_MVP.
-- Distance to V2_BACKTEST_AND_PAPER_MVP_READY: 6 milestones remaining.
+- Current MVP milestone: PAPER_EXECUTION_LEDGER_MVP.
+- Next paper/backtest milestone: PAPER_EXECUTION_LEDGER_MVP.
+- Distance to V2_BACKTEST_AND_PAPER_MVP_READY: 4 milestones remaining.
 
 Read the repo evidence roots:
 - claude_worklog/requirements_inbox
