@@ -83,6 +83,7 @@ def write(path: Path, text: str) -> None:
             r"db\1:keys=<stable>,expires=<stable>,avg_ttl=<stable>",
             value,
         )
+        value = re.sub(r"\bcount=\d+\b", "count=<stable>", value)
         return re.sub(r"\b(XLEN|LLEN|HLEN|ZCARD|SCARD|STRLEN)=\d+\b", r"\1=<stable>", value)
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -294,6 +295,16 @@ def dependency_graph() -> str:
     )
 
 
+def normalize_redis_key_pattern(key: str) -> str:
+    key = re.sub(
+        r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+        "<uuid>",
+        key,
+    )
+    key = re.sub(r"\d+\.\d+", "<num>", key)
+    return re.sub(r"\d{4,}", "<num>", key)
+
+
 def redis_readonly_inventory(limit: int = 500) -> str:
     if not shutil.which("redis-cli"):
         return "# Redis Read-Only Key/Stream Inventory\n\nredis-cli not found.\n"
@@ -318,24 +329,14 @@ def redis_readonly_inventory(limit: int = 500) -> str:
 
     scan = run(f"redis-cli --scan | sort | head -n {limit}")
     keys = [key for key in scan.stdout.splitlines() if key.strip()]
-    lines.extend(["", f"## Sampled keys (limit {limit})", ""])
+    patterns: dict[tuple[str, str], int] = {}
     for key in keys:
-        display = "[REDACTED_SECRET_LIKE_KEY_NAME]" if SECRET_WORDS.search(key) else key
+        display = "[REDACTED_SECRET_LIKE_KEY_NAME]" if SECRET_WORDS.search(key) else normalize_redis_key_pattern(key)
         key_type = run(["redis-cli", "TYPE", key]).stdout.strip()
-        size = "-"
-        if key_type == "stream":
-            size = "XLEN=" + run(["redis-cli", "XLEN", key]).stdout.strip()
-        elif key_type == "list":
-            size = "LLEN=" + run(["redis-cli", "LLEN", key]).stdout.strip()
-        elif key_type == "hash":
-            size = "HLEN=" + run(["redis-cli", "HLEN", key]).stdout.strip()
-        elif key_type == "zset":
-            size = "ZCARD=" + run(["redis-cli", "ZCARD", key]).stdout.strip()
-        elif key_type == "set":
-            size = "SCARD=" + run(["redis-cli", "SCARD", key]).stdout.strip()
-        elif key_type == "string":
-            size = "STRLEN=" + run(["redis-cli", "STRLEN", key]).stdout.strip()
-        lines.append(f"- `{display}` type={key_type} {size}")
+        patterns[(display, key_type)] = patterns.get((display, key_type), 0) + 1
+    lines.extend(["", f"## Sampled key patterns (limit {limit})", ""])
+    for (pattern, key_type), count in sorted(patterns.items()):
+        lines.append(f"- `{pattern}` type={key_type} count={count}")
     return "\n".join(lines) + "\n"
 
 
