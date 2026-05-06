@@ -76,7 +76,12 @@ def run(cmd: list[str] | str) -> subprocess.CompletedProcess[str]:
 
 
 def write(path: Path, text: str) -> None:
+    def normalize_generated(value: str) -> str:
+        return re.sub(r"Generated: [^\n]+", "Generated: <stable>", value)
+
     path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists() and normalize_generated(path.read_text(errors="replace")) == normalize_generated(text):
+        return
     path.write_text(text, encoding="utf-8")
 
 
@@ -109,7 +114,7 @@ def find_legacy_file(name: str) -> list[Path]:
 
 
 def process_snapshot() -> str:
-    proc = run("ps -eo pid,ppid,etimes,cmd")
+    proc = run("ps -eo pid,ppid,cmd")
     lines = [
         line
         for line in proc.stdout.splitlines()
@@ -291,7 +296,6 @@ def redis_readonly_inventory(limit: int = 500) -> str:
     for key in keys:
         display = "[REDACTED_SECRET_LIKE_KEY_NAME]" if SECRET_WORDS.search(key) else key
         key_type = run(["redis-cli", "TYPE", key]).stdout.strip()
-        ttl = run(["redis-cli", "TTL", key]).stdout.strip()
         size = "-"
         if key_type == "stream":
             size = "XLEN=" + run(["redis-cli", "XLEN", key]).stdout.strip()
@@ -305,13 +309,13 @@ def redis_readonly_inventory(limit: int = 500) -> str:
             size = "SCARD=" + run(["redis-cli", "SCARD", key]).stdout.strip()
         elif key_type == "string":
             size = "STRLEN=" + run(["redis-cli", "STRLEN", key]).stdout.strip()
-        lines.append(f"- `{display}` type={key_type} ttl={ttl} {size}")
+        lines.append(f"- `{display}` type={key_type} {size}")
     return "\n".join(lines) + "\n"
 
 
 def trainer_runtime_evidence() -> str:
     proc = run(
-        "ps -eo pid,ppid,etimes,cmd | "
+        "ps -eo pid,ppid,cmd | "
         "grep -E 'rl.hybrid_trainer|monitor_trainer_predictions|monitor_trainer_prices' | "
         "grep -v grep || true"
     )
@@ -341,7 +345,7 @@ def trainer_runtime_evidence() -> str:
 
 def orchestrator_trader_evidence() -> str:
     proc = run(
-        "ps -eo pid,ppid,etimes,cmd | "
+        "ps -eo pid,ppid,cmd | "
         "grep -E 'orchestrator_worker|trading/trader|monitor_portfolio' | "
         "grep -v grep || true"
     )

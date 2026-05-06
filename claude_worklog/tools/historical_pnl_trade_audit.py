@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -56,7 +57,13 @@ def to_ms(value: datetime) -> int:
 
 
 def write(path: Path, text: str) -> None:
+    def normalize_generated(value: str) -> str:
+        value = re.sub(r"Generated: [^\n]+", "Generated: <stable>", value)
+        return re.sub(r'"generated_at": "[^"]+"', '"generated_at": "<stable>"', value)
+
     path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists() and normalize_generated(path.read_text(errors="replace")) == normalize_generated(text):
+        return
     path.write_text(text, encoding="utf-8")
 
 
