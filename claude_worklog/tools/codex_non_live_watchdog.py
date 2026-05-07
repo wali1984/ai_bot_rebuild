@@ -164,7 +164,7 @@ def remove_end_file_leaks(paths: list[Path]) -> list[str]:
 
 
 def normalize_json_extra_data(path: Path) -> bool:
-    """Trim leaked BEGIN/END_FILE prose after a valid leading JSON object."""
+    """Trim deterministic planner leakage after a valid leading JSON object."""
     try:
         raw = path.read_text(errors="replace")
         json.loads(raw)
@@ -181,18 +181,12 @@ def normalize_json_extra_data(path: Path) -> bool:
         trailing = raw[end:].strip()
         if not trailing:
             return False
-        if not (
-            "END_FILE" in trailing
-            or "BEGIN_FILE" in trailing
-            or "Planner turn" in trailing
-            or "PHASE" in trailing
-        ):
-            return False
         path.write_text(json.dumps(obj, indent=2) + "\n", encoding="utf-8")
         append_event(
             {
                 "event": "codex_watchdog_normalized_json_extra_data",
                 "path": str(path.relative_to(WORKSPACE)),
+                "trailing_preview": trailing[:200],
             }
         )
         return True
@@ -223,7 +217,14 @@ def validate_task_jsons() -> tuple[bool, list[str]]:
         try:
             json.loads(path.read_text())
         except Exception as exc:
-            errors.append(f"{path.relative_to(WORKSPACE)}: {exc}")
+            if normalize_json_extra_data(path):
+                try:
+                    json.loads(path.read_text())
+                    continue
+                except Exception as retry_exc:
+                    errors.append(f"{path.relative_to(WORKSPACE)}: {retry_exc}")
+            else:
+                errors.append(f"{path.relative_to(WORKSPACE)}: {exc}")
     return not errors, errors
 
 
