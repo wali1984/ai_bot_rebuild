@@ -1,0 +1,20 @@
+from v2.backend.app.domain.replay_backtest_runner import ReplayBacktestSummary
+
+
+def test_summary_constructs_with_valid_inputs_mixed_steps():
+    summary = ReplayBacktestSummary(
+        replay_summary_id="summary-1",
+        replay_run_id="run-1",
+        summary_emitted_ts_ms=123,
+        total_steps_count=5,
+        record_allow_steps_count=2,
+        record_deny_steps_count=3,
+        mirror_allow_proceed_long_steps_count=1,
+        mirror_allow_proceed_short_steps_count=1,
+        mirror_deny_orchestrator_held_steps_count=1,
+        mirror_deny_orchestrator_abstained_steps_count=1,
+        mirror_deny_default_steps_count=1,
+        live_blocked=True,
+    )
+    assert summary.record_allow_steps_count == 2
+    assert summary.record_deny_steps_count == 3

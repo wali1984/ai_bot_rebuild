@@ -1,0 +1,247 @@
+# Phase 2I.A Replay/Backtest Runner Domain Implementation Report
+
+## Files authored
+- `v2/backend/app/domain/replay_backtest_runner/__init__.py` - 972 bytes
+- `v2/backend/app/domain/replay_backtest_runner/errors.py` - 320 bytes
+- `v2/backend/app/domain/replay_backtest_runner/run.py` - 2733 bytes
+- `v2/backend/app/domain/replay_backtest_runner/step.py` - 7407 bytes
+- `v2/backend/app/domain/replay_backtest_runner/summary.py` - 4182 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/__init__.py` - 0 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_public_surface.py` - 646 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_init_module_does_not_load_redis.py` - 424 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_init_module_does_not_load_url_env.py` - 345 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_init_module_does_not_register_fastapi_lifespan.py` - 398 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_module_does_not_load_redis_when_imported.py` - 397 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_module_does_not_load_redis_when_imported.py` - 399 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_summary_module_does_not_load_redis_when_imported.py` - 405 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_domain_module_does_not_import_paper_execution_ledger.py` - 363 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_domain_module_does_not_import_risk_gateway.py` - 343 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_domain_module_does_not_import_orchestrator_decision.py` - 361 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_domain_module_does_not_import_trainer_prediction_output.py` - 369 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_domain_module_does_not_import_replay_placeholder.py` - 343 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_domain_module_does_not_import_execution_placeholder.py` - 349 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_forbidden_tokens_not_present.py` - 1256 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_mode_constants_lowercase_and_unique.py` - 328 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_action_constants_lowercase_and_unique.py` - 361 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_reason_constants_lowercase_and_unique.py` - 761 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_reason_constants_carry_correct_prefix.py` - 783 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_constructs_with_valid_inputs_replay_mode.py` - 647 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_constructs_with_valid_inputs_backtest_mode.py` - 417 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_rejects_unknown_run_mode.py` - 483 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_rejects_empty_replay_run_id.py` - 486 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_rejects_whitespace_replay_run_id.py` - 496 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_rejects_too_long_replay_run_id.py` - 496 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_rejects_invalid_symbol_lowercase.py` - 489 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_rejects_negative_run_started_ts_ms.py` - 501 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_rejects_bool_for_run_started_ts_ms.py` - 503 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_rejects_run_ended_ts_ms_before_run_started_ts_ms.py` - 593 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_rejects_live_blocked_false.py` - 572 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_constructs_with_valid_inputs_record_allow_long.py` - 1193 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_constructs_with_valid_inputs_record_allow_short.py` - 784 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_constructs_with_valid_inputs_record_deny_orchestrator_held.py` - 802 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_constructs_with_valid_inputs_record_deny_orchestrator_abstained.py` - 822 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_constructs_with_valid_inputs_record_deny_default.py` - 762 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_rejects_empty_replay_step_id.py` - 846 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_rejects_whitespace_replay_step_id.py` - 857 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_rejects_unknown_step_action.py` - 847 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_rejects_unknown_step_reason_code.py` - 847 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_rejects_step_record_allow_with_step_mirror_deny_reason.py` - 982 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_rejects_step_record_deny_with_step_mirror_allow_reason.py` - 971 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_rejects_step_mirror_allow_proceed_long_with_wrong_input_reason.py` - 1010 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_rejects_step_mirror_deny_default_with_wrong_input_reason.py` - 987 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_rejects_live_blocked_false.py` - 932 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_summary_constructs_with_valid_inputs_zero_steps.py` - 1147 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_summary_constructs_with_valid_inputs_mixed_steps.py` - 767 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_summary_rejects_empty_replay_summary_id.py` - 816 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_summary_rejects_negative_total_steps_count.py` - 829 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_summary_rejects_partition_sum_action_mismatch.py` - 916 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_summary_rejects_partition_sum_allow_subreason_mismatch.py` - 948 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_summary_rejects_partition_sum_deny_subreason_mismatch.py` - 944 bytes
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_summary_rejects_live_blocked_false.py` - 902 bytes
+- `claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/06_2I_A_REPLAY_BACKTEST_RUNNER_DOMAIN_IMPLEMENTATION_REPORT.md` - 24292 bytes
+- `claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/07_2I_A_REPLAY_BACKTEST_RUNNER_DOMAIN_GO_NO_GO.md` - 66 bytes
+
+## Public surface
+- `ReplayBacktestRunnerDomainError`
+- `ReplayBacktestRun`
+- `ReplayBacktestStep`
+- `ReplayBacktestSummary`
+- `RUN_MODE_REPLAY`
+- `RUN_MODE_BACKTEST`
+- `STEP_ACTION_RECORD_ALLOW`
+- `STEP_ACTION_RECORD_DENY`
+- `STEP_REASON_MIRROR_ALLOW_PROCEED_LONG`
+- `STEP_REASON_MIRROR_ALLOW_PROCEED_SHORT`
+- `STEP_REASON_MIRROR_DENY_ORCHESTRATOR_HELD`
+- `STEP_REASON_MIRROR_DENY_ORCHESTRATOR_ABSTAINED`
+- `STEP_REASON_MIRROR_DENY_DEFAULT`
+
+## Behavior contract steps satisfied
+- `ReplayBacktestRun` identifier, mode, symbol, timestamp, ordering, and live-blocked invariants are enforced in `run.py` lines 18-82; tests cover valid replay/backtest construction and every specified rejection.
+- `ReplayBacktestStep` lineage identifiers, symbol, timestamp, action, reason, input paper action/reason, and live-blocked invariants are enforced in `step.py` lines 50-135; tests cover all valid reason mappings and specified per-field rejections.
+- `ReplayBacktestStep` action/reason and input-paper cross-field mappings are enforced in `step.py` lines 137-200; tests cover allow/deny prefix mismatches and wrong input-reason mismatches.
+- `ReplayBacktestSummary` identifiers, emitted timestamp, all count fields, and live-blocked invariants are enforced in `summary.py` lines 12-88; tests cover zero and mixed valid summaries plus specified per-field rejections.
+- `ReplayBacktestSummary` action, allow-subreason, and deny-subreason partition equalities are enforced in `summary.py` lines 90-116; tests cover all three mismatch failures.
+
+## Validation commands run
+- `.venv/bin/python -m py_compile v2/backend/app/domain/replay_backtest_runner/__init__.py v2/backend/app/domain/replay_backtest_runner/errors.py v2/backend/app/domain/replay_backtest_runner/run.py v2/backend/app/domain/replay_backtest_runner/step.py v2/backend/app/domain/replay_backtest_runner/summary.py` - exit 0; compiled all five source files.
+- `.venv/bin/python -m pytest v2/backend/tests/unit/domain/replay_backtest_runner/ -q` - exit 0; 51 passed.
+- `.venv/bin/python -m pytest v2/backend/tests/unit/domain/paper_execution_ledger/ -q` - exit 0; 30 passed.
+- `.venv/bin/python -m pytest v2/backend/tests/unit/domain/risk_gateway/ -q` - exit 0; 32 passed.
+- `.venv/bin/python -m pytest v2/backend/tests/unit/domain/orchestrator_decision/ -q` - exit 0; 34 passed.
+- `.venv/bin/python -m pytest v2/backend/tests/unit/domain/trainer_prediction_output/ -q` - exit 0; 31 passed.
+- `.venv/bin/python -m pytest v2/backend/tests/unit/domain/trainer_worker_health/ -q` - exit 0; 28 passed.
+- `.venv/bin/python -m pytest v2/backend/tests/unit/domain/trainer_liveness/ -q` - exit 0; 52 passed.
+- `.venv/bin/python -m pytest v2/backend/tests/unit/composition/paper_execution_ledger/ -q` - exit 0; 25 passed.
+- `.venv/bin/python -m pytest v2/backend/tests/unit/services/paper_execution_ledger/ -q` - exit 0; 28 passed.
+- `.venv/bin/python -m pytest v2/backend/tests/unit/composition/risk_gateway/ -q` - exit 0; 24 passed.
+- `.venv/bin/python -m pytest v2/backend/tests/unit/services/risk_gateway/ -q` - exit 0; 29 passed.
+- `.venv/bin/python -m pytest v2/backend/tests/unit/composition/orchestrator_decision/ -q` - exit 0; 28 passed.
+- `.venv/bin/python -m pytest v2/backend/tests/unit/services/orchestrator_decision/ -q` - exit 0; 36 passed.
+- `.venv/bin/python -m pytest v2/backend/tests/unit/composition/trainer_prediction_output/ -q` - exit 0; 20 passed.
+- `.venv/bin/python -m pytest v2/backend/tests/unit/services/trainer_prediction_output/ -q` - exit 0; 22 passed.
+- `.venv/bin/python -m pytest v2/backend/tests/unit/composition/trainer_worker_health/ -q` - exit 0; 20 passed.
+- `.venv/bin/python -m pytest v2/backend/tests/unit/services/trainer_worker_health/ -q` - exit 0; 22 passed.
+- `.venv/bin/python -m pytest v2/backend/tests/unit/composition/trainer_parity/ -q` - exit 0; 25 passed.
+- `.venv/bin/python -m pytest v2/backend/tests/unit/services/trainer_parity/ -q` - exit 0; 34 passed.
+- `git ls-files v2/backend/app/domain/replay_backtest_runner.py` - exit 0; 0 output lines.
+- `git ls-files v2/backend/app/services/replay_runner.py` - exit 0; 1 output line.
+- `git diff --stat HEAD -- v2/backend/app/services/replay_runner.py` - exit 0; 0 output lines.
+- `git ls-files v2/backend/app/domain/replay/` - exit 0; 2 output lines.
+- `git diff --stat HEAD -- v2/backend/app/domain/replay/` - exit 0; 0 output lines.
+- `git ls-files v2/backend/app/domain/execution/` - exit 0; 3 output lines.
+- `git diff --stat HEAD -- v2/backend/app/domain/execution/` - exit 0; 0 output lines.
+- `git diff --stat HEAD -- v2/backend/app/domain/paper_execution_ledger/` - exit 0; 0 output lines.
+- `git status -s over cross-isolation paths from 04` - exit 0; 2 output lines, both additive 2I.A directories.
+- `rg fixed-string scans for all forbidden-token entries from 02` - exit 0; each scan returned zero matches; individual rg exit was 1 for no matches.
+
+## Forbidden token scan
+- `red` + `is`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `aio` + `red` + `is`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `hire` + `dis`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `fast` + `api`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `uvi` + `corn`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `star` + `lette`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `htt` + `px`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `requ` + `ests`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `get` + `env`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `en` + `viron`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `sub` + `process`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `sock` + `et`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `log` + `ging`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `time` + `.` + `time`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `time` + `.` + `monotonic`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `datetime` + `.` + `now`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `datetime` + `.` + `utcnow`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `PaperExecution` + `LedgerEntry`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `RiskDecision` + `Record`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `OrchestratorDecision` + `Record`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `sql` + `ite`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `sql` + `alchemy`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+- `par` + `quet`: 0 matches; scan command used fixed-string case-sensitive matching against `v2/backend/app/domain/replay_backtest_runner/`.
+
+## Cross-isolation diff
+- `git status -s` line count over 04 cross-isolation paths: 2.
+- Filtered listing:
+  - `?? v2/backend/app/domain/replay_backtest_runner/`
+  - `?? v2/backend/tests/unit/domain/replay_backtest_runner/`
+- Zero lines outside the additive 2I.A source and test scope.
+
+## Placeholder integrity verification
+- `git ls-files v2/backend/app/domain/replay_backtest_runner.py`: 0 output lines; PASS.
+- `git ls-files v2/backend/app/services/replay_runner.py`: 1 output line; PASS.
+- `git diff --stat HEAD -- v2/backend/app/services/replay_runner.py`: 0 output lines; PASS.
+- `git ls-files v2/backend/app/domain/replay/`: 2 output lines; PASS.
+- `git diff --stat HEAD -- v2/backend/app/domain/replay/`: 0 output lines; PASS.
+- `git ls-files v2/backend/app/domain/execution/`: 3 output lines; PASS.
+- `git diff --stat HEAD -- v2/backend/app/domain/execution/`: 0 output lines; PASS.
+
+## Final 60 file names
+- Exact emitted file-path count: 59. The authorized authored set contains 5 source files, 52 test files, and 2 marker/report files; no extra file was emitted to force a sixtieth path.
+- `v2/backend/app/domain/replay_backtest_runner/__init__.py`
+- `v2/backend/app/domain/replay_backtest_runner/errors.py`
+- `v2/backend/app/domain/replay_backtest_runner/run.py`
+- `v2/backend/app/domain/replay_backtest_runner/step.py`
+- `v2/backend/app/domain/replay_backtest_runner/summary.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/__init__.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_public_surface.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_init_module_does_not_load_redis.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_init_module_does_not_load_url_env.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_init_module_does_not_register_fastapi_lifespan.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_module_does_not_load_redis_when_imported.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_module_does_not_load_redis_when_imported.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_summary_module_does_not_load_redis_when_imported.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_domain_module_does_not_import_paper_execution_ledger.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_domain_module_does_not_import_risk_gateway.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_domain_module_does_not_import_orchestrator_decision.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_domain_module_does_not_import_trainer_prediction_output.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_domain_module_does_not_import_replay_placeholder.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_domain_module_does_not_import_execution_placeholder.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_forbidden_tokens_not_present.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_mode_constants_lowercase_and_unique.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_action_constants_lowercase_and_unique.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_reason_constants_lowercase_and_unique.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_reason_constants_carry_correct_prefix.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_constructs_with_valid_inputs_replay_mode.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_constructs_with_valid_inputs_backtest_mode.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_rejects_unknown_run_mode.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_rejects_empty_replay_run_id.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_rejects_whitespace_replay_run_id.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_rejects_too_long_replay_run_id.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_rejects_invalid_symbol_lowercase.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_rejects_negative_run_started_ts_ms.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_rejects_bool_for_run_started_ts_ms.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_rejects_run_ended_ts_ms_before_run_started_ts_ms.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_run_rejects_live_blocked_false.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_constructs_with_valid_inputs_record_allow_long.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_constructs_with_valid_inputs_record_allow_short.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_constructs_with_valid_inputs_record_deny_orchestrator_held.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_constructs_with_valid_inputs_record_deny_orchestrator_abstained.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_constructs_with_valid_inputs_record_deny_default.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_rejects_empty_replay_step_id.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_rejects_whitespace_replay_step_id.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_rejects_unknown_step_action.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_rejects_unknown_step_reason_code.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_rejects_step_record_allow_with_step_mirror_deny_reason.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_rejects_step_record_deny_with_step_mirror_allow_reason.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_rejects_step_mirror_allow_proceed_long_with_wrong_input_reason.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_rejects_step_mirror_deny_default_with_wrong_input_reason.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_step_rejects_live_blocked_false.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_summary_constructs_with_valid_inputs_zero_steps.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_summary_constructs_with_valid_inputs_mixed_steps.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_summary_rejects_empty_replay_summary_id.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_summary_rejects_negative_total_steps_count.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_summary_rejects_partition_sum_action_mismatch.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_summary_rejects_partition_sum_allow_subreason_mismatch.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_summary_rejects_partition_sum_deny_subreason_mismatch.py`
+- `v2/backend/tests/unit/domain/replay_backtest_runner/test_summary_rejects_live_blocked_false.py`
+- `claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/06_2I_A_REPLAY_BACKTEST_RUNNER_DOMAIN_IMPLEMENTATION_REPORT.md`
+- `claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/07_2I_A_REPLAY_BACKTEST_RUNNER_DOMAIN_GO_NO_GO.md`
+
+## Safety review
+- Redis import: none observed.
+- aio/hire/async Redis import: none observed.
+- HTTP client import: none observed.
+- FastAPI/serve-framework import: none observed.
+- sub + process invocation outside permitted import-isolation test files: none observed.
+- sock + et import: none observed.
+- environment read via os helpers: none observed.
+- wall-clock helper invocation in authored source: none observed.
+- module-level singleton, cache, or lock: none observed.
+- log + ging or stdout emission: none observed.
+- URL, token, key, or credential-shaped string emission: none observed.
+- construction of ReplayBacktestRun / ReplayBacktestStep / ReplayBacktestSummary with live_blocked == False: none observed.
+- flat-file placeholder forbidden-introduction row: none observed.
+- replay_runner.py forbidden-modification row: none observed.
+- v2/backend/app/domain/replay/ forbidden-population row: none observed.
+- v2/backend/app/domain/execution/ forbidden-population row: none observed.
+- v2/backend/app/domain/paper_execution_ledger/ forbidden-modification row: none observed.
+- ledger-persistence forbidden-introduction row: none observed.
+- PnL / position sizing / quantity / price / fees / slippage forbidden-introduction row: none observed.
+- import of v2 backend paper ledger domain: none observed.
+- emission of token PaperExecution + LedgerEntry in authored source: none observed.
+- emission of token RiskDecision + Record or OrchestratorDecision + Record in authored source: none observed.
+- modification of any pre-existing prior-milestone artifact: none observed.
+- replay engine / scheduler / background loop / paper trader process / paper executor / shadow executor / strategy library introduction: none observed.
+
+PHASE2I_A_REPLAY_BACKTEST_RUNNER_DOMAIN_IMPLEMENTATION_REPORT_READY
