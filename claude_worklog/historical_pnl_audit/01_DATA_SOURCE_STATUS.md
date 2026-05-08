@@ -1,6 +1,6 @@
 # Data Source Status
 
-Generated: 2026-05-08T05:45:02.629008+00:00
+Generated: 2026-05-08T17:45:03.521790+00:00
 
 - requested_days: 30
 - binance_pull_requested: False
@@ -108,12 +108,9 @@ Generated: 2026-05-08T05:45:02.629008+00:00
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/169_phase2p_historical_pnl_replay_wiring_implementation_supervisor_stdout.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/170_phase2p_historical_pnl_replay_wiring_codex_review_supervisor_stderr.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/170_phase2p_historical_pnl_replay_wiring_codex_review_supervisor_stdout.txt",
-    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/055_trainer_parity_2e1a_codex_rereview.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/059_trainer_parity_2e1b_endfile_marker_remediation.json",
-    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/060_trainer_parity_2e1c_alpha_implementation.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/065_trainer_parity_2e1c_beta_local_validation.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/072_codex_parallel_autofix_trainer_liveness_worker_dead.json",
-    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/073_codex_parallel_rereview_trainer_liveness_autofix.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/078_trainer_parity_2e1c_beta_final_codex_rereview.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/086A_trainer_parity_2e1c_gamma_reader_protocol.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/087_trainer_parity_2e1c_gamma_real_implementation.json",
@@ -124,6 +121,7 @@ Generated: 2026-05-08T05:45:02.629008+00:00
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/115_trainer_parity_2e3c_prediction_output_composition_root_implementation.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/169_phase2p_historical_pnl_replay_wiring_implementation.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/170_phase2p_historical_pnl_replay_wiring_codex_review.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/codex_parallel_review_20260508_174323_08_historical_pnl_integration.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/codex_recover_114_trainer_parity_2e3b_prediction_record_assembler_codex_review.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/codex_recover_115_trainer_parity_2e3c_prediction_output_composition_root_implementation.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/codex_recover_169_phase2p_historical_pnl_replay_wiring_implementation.json",
@@ -136,7 +134,9 @@ Generated: 2026-05-08T05:45:02.629008+00:00
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/053_trainer_parity_2e1a_implementation.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/054_trainer_parity_2e1a_codex_review.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/055_trainer_parity_2e1a_codex_rereview.json",
-    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/056_trainer_parity_2e1b_im
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/056_trainer_parity_2e1b_implementation.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/057_trainer_parity_2e1b_codex_review.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/058_trainer_parity_2e1b_local_v
 ```
 
 No secret values are printed.
