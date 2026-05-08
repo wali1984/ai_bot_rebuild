@@ -16,6 +16,10 @@ STATUS_PATH = WORKSPACE / "claude_worklog/agent_supervisor/status/parallel_capac
 TASKS_DIR = WORKSPACE / "claude_worklog/agent_supervisor/tasks"
 STATE_DIR = WORKSPACE / "claude_worklog/agent_supervisor/state/tasks"
 PHASE2_DIR = WORKSPACE / "claude_worklog/phase2_core_rebuild"
+CODEX_PARALLEL_REVIEWS_DIR = WORKSPACE / "claude_worklog/codex_parallel_reviews"
+CODEX_BATCH_GENERATOR = WORKSPACE / "claude_worklog/tools/create_codex_parallel_review_batch.py"
+CODEX_REVIEW_WINDOW_SECONDS = 5 * 60 * 60
+CODEX_UTILIZATION_TARGET_PERCENT = 50
 
 SCHEDULER_SESSION = "ai_bot_parallel_capacity_scheduler"
 WATCHDOG_SESSION = "ai_bot_codex_non_live_watchdog"
@@ -309,6 +313,135 @@ def create_readonly_review_task(milestone: dict[str, str]) -> str | None:
     return task_id
 
 
+def parse_iso_ts(value: str | None) -> float:
+    if not value:
+        return 0.0
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return 0.0
+
+
+def codex_parallel_review_tasks() -> list[Path]:
+    return sorted(TASKS_DIR.glob("codex_parallel_review_*.json"))
+
+
+def codex_review_state(task_path: Path) -> dict[str, Any]:
+    task_id = task_path.stem
+    state = read_json(STATE_DIR / f"{task_id}.json")
+    if state:
+        return state
+    task = read_json(task_path)
+    return {"task_id": task.get("task_id") or task_id, "status": task.get("status") or "pending"}
+
+
+def codex_review_counts() -> dict[str, int]:
+    cutoff = time.time() - CODEX_REVIEW_WINDOW_SECONDS
+    counts = {"pending": 0, "running": 0, "completed_this_window": 0, "blocked_this_window": 0, "total": 0}
+    terminal_statuses = {"completed", "superseded_by_evidence"}
+    for task_path in codex_parallel_review_tasks():
+        counts["total"] += 1
+        state = codex_review_state(task_path)
+        status = str(state.get("status") or "pending")
+        ts = parse_iso_ts(state.get("last_status_change_ts") or state.get("last_event_ts"))
+        if status in terminal_statuses:
+            if ts >= cutoff:
+                counts["completed_this_window"] += 1
+        elif status in {"failed", "human_attention_required"}:
+            if ts >= cutoff:
+                counts["blocked_this_window"] += 1
+        elif status == "running":
+            counts["running"] += 1
+        else:
+            counts["pending"] += 1
+    return counts
+
+
+def codex_review_batch_active(counts: dict[str, int] | None = None) -> bool:
+    counts = counts or codex_review_counts()
+    return bool(counts.get("pending") or counts.get("running"))
+
+
+def pending_codex_review_task_ids() -> list[str]:
+    task_ids: list[str] = []
+    for task_path in codex_parallel_review_tasks():
+        state = codex_review_state(task_path)
+        status = str(state.get("status") or "pending")
+        if status in {"completed", "superseded_by_evidence", "running"}:
+            continue
+        task = read_json(task_path)
+        task_ids.append(str(task.get("task_id") or task_path.stem))
+    return task_ids
+
+
+def commit_paths(paths: list[str], message: str) -> bool:
+    run(["git", "add", *paths])
+    diff = run(["git", "diff", "--cached", "--name-only"]).stdout.strip()
+    if not diff:
+        run(["git", "reset", "-q"])
+        return False
+    commit = run(["git", "commit", "-m", message])
+    append_event(
+        {
+            "event": "parallel_capacity_scheduler_git_commit",
+            "message": message,
+            "returncode": commit.returncode,
+            "stdout_tail": commit.stdout[-2000:],
+            "stderr_tail": commit.stderr[-2000:],
+        }
+    )
+    if commit.returncode != 0:
+        return False
+    push = run(["git", "push"])
+    append_event(
+        {
+            "event": "parallel_capacity_scheduler_git_push",
+            "message": message,
+            "returncode": push.returncode,
+            "stdout_tail": push.stdout[-2000:],
+            "stderr_tail": push.stderr[-2000:],
+        }
+    )
+    return push.returncode == 0
+
+
+def create_codex_review_batch() -> dict[str, Any]:
+    if not CODEX_BATCH_GENERATOR.exists():
+        return {"created": [], "skipped_recent": [], "error": "batch_generator_missing"}
+    proc = run(["python3", str(CODEX_BATCH_GENERATOR.relative_to(WORKSPACE))])
+    result: dict[str, Any] = {"created": [], "skipped_recent": [], "returncode": proc.returncode}
+    try:
+        parsed = json.loads(proc.stdout or "{}")
+        if isinstance(parsed, dict):
+            result.update(parsed)
+    except Exception:
+        result["parse_error"] = proc.stdout[-1000:]
+    result["stderr_tail"] = proc.stderr[-1000:]
+    append_event({"event": "parallel_capacity_scheduler_created_codex_review_batch", **result})
+    if result.get("created"):
+        commit_paths(
+            ["claude_worklog/agent_supervisor/tasks/codex_parallel_review_*.json"],
+            "Create Codex parallel review batch",
+        )
+    return result
+
+
+def run_pending_codex_reviews(max_tasks: int = 10) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    for task_id in pending_codex_review_task_ids()[:max_tasks]:
+        rc = run_task(task_id)
+        results.append({"task_id": task_id, "returncode": rc})
+    if results:
+        commit_paths(
+            [
+                "claude_worklog/codex_parallel_reviews",
+                "claude_worklog/agent_supervisor/tasks/codex_parallel_review_*.json",
+            ],
+            "Add Codex parallel review batch results",
+        )
+    return results
+
+
 def run_task(task_id: str) -> int:
     append_event({"event": "parallel_capacity_scheduler_running_codex_task", "task_id": task_id})
     proc = run(["python3", "claude_worklog/tools/agent_supervisor.py", "--task-id", task_id])
@@ -356,6 +489,8 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
     latest_milestone = latest_committed_milestone()
     fail_marker = latest_fail_marker()
     human_attention = latest_human_attention_task()
+    codex_review_batch_counts = codex_review_counts()
+    codex_batch_active = codex_review_batch_active(codex_review_batch_counts)
 
     available_work: list[str] = []
     next_safe_codex_task: str | None = None
@@ -369,6 +504,8 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
         available_work.append("recover dirty tree through Codex watchdog")
     if latest_milestone and not codex_children:
         available_work.append(f"read-only review latest committed milestone {latest_milestone.get('marker')}")
+    if not codex_children and (codex_review_batch_counts["pending"] or not codex_batch_active):
+        available_work.append("high-utilization Codex parallel review queue")
 
     if claude_children:
         claude_lane = "active"
@@ -391,6 +528,10 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
         next_safe_codex_task = f"run Codex recovery for {human_attention}"
     elif fail_marker:
         next_safe_codex_task = f"run Codex fail-marker recovery for {fail_marker}"
+    elif codex_review_batch_counts["pending"]:
+        next_safe_codex_task = "run pending Codex parallel review batch"
+    elif not codex_batch_active:
+        next_safe_codex_task = "create Codex parallel review batch"
     elif latest_milestone:
         next_safe_codex_task = f"queue read-only review for {latest_milestone.get('marker')}"
 
@@ -410,6 +551,22 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
         if git_clean and not claude_children and not codex_children and (human_attention or fail_marker):
             rc = run_watchdog_once()
             actions.append({"action": "ran_watchdog_blocker_recovery", "returncode": rc})
+
+        codex_review_batch_counts = codex_review_counts()
+        codex_batch_active = codex_review_batch_active(codex_review_batch_counts)
+        if git_clean and not claude_children and not active_codex_children() and not (human_attention or fail_marker):
+            if not codex_batch_active:
+                batch = create_codex_review_batch()
+                actions.append({"action": "created_codex_parallel_review_batch", **batch})
+                codex_review_batch_counts = codex_review_counts()
+            if codex_review_batch_counts.get("pending"):
+                review_results = run_pending_codex_reviews()
+                actions.append({"action": "ran_codex_parallel_review_batch", "results": review_results})
+
+        codex_review_batch_counts = codex_review_counts()
+        codex_batch_active = codex_review_batch_active(codex_review_batch_counts)
+        git_status = git_status_lines()
+        git_clean = not git_status
 
         if git_clean and not claude_children and not codex_children and latest_milestone:
             task_id = create_readonly_review_task(latest_milestone)
@@ -445,6 +602,12 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
         "planner_running": planner_running,
         "codex_watchdog_running": watchdog_running,
         "parallel_capacity_scheduler_running": scheduler_running,
+        "codex_utilization_target_percent": CODEX_UTILIZATION_TARGET_PERCENT,
+        "codex_review_batch_active": codex_batch_active,
+        "pending_codex_review_count": codex_review_batch_counts["pending"],
+        "running_codex_review_count": codex_review_batch_counts["running"],
+        "completed_codex_review_count_this_window": codex_review_batch_counts["completed_this_window"],
+        "blocked_codex_review_count_this_window": codex_review_batch_counts["blocked_this_window"],
         "quota_probe": quota_status(),
         "current_mvp_milestone": mvp.get("current_mvp_milestone"),
         "next_mvp_milestone": mvp.get("next_mvp_milestone"),
