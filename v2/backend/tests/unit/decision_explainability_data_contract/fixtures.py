@@ -184,4 +184,3 @@ def _build_scenario_inputs(
             )
         )
     return tuple(rows)
-END_FILE: v2/backend/tests/unit/decision_explainability_data_contract/fixtures.py

@@ -273,4 +273,3 @@ def _run_harness_from(
     inputs: tuple[DecisionExplainabilityFixtureInput, ...],
 ) -> DecisionExplainabilityHarnessResult:
     return decision_explainability_data_contract_harness(inputs)
-END_FILE: v2/backend/tests/unit/decision_explainability_data_contract/test_decision_explainability_data_contract.py

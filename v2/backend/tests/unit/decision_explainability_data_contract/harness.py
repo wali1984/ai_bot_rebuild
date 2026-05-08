@@ -79,4 +79,3 @@ def _project_envelope(
         source_scenario_slug=input_row.scenario_slug,
         step_index=input_row.step_index,
     )
-END_FILE: v2/backend/tests/unit/decision_explainability_data_contract/harness.py
