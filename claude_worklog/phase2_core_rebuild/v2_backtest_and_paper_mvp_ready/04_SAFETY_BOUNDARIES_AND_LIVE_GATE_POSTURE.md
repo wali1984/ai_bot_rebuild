@@ -50,4 +50,3 @@ Per REQ_0011 / REQ_0021:
 - Copilot remains terminal / status operator only.
 
 V2_BACKTEST_AND_PAPER_MVP_READY_SAFETY_BOUNDARIES_AND_LIVE_GATE_POSTURE_READY
-END_FILE: claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/04_SAFETY_BOUNDARIES_AND_LIVE_GATE_POSTURE.md

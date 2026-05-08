@@ -1,2 +1,1 @@
 V2_BACKTEST_AND_PAPER_MVP_READY
-END_FILE: claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/06_GO_NO_GO.md

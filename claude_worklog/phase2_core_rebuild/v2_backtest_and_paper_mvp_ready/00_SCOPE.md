@@ -56,4 +56,3 @@ The marker body `V2_BACKTEST_AND_PAPER_MVP_READY` certifies exactly the followin
 - Next gate: `V2_BACKTEST_AND_PAPER_MVP_READY` (this packet's `06_GO_NO_GO.md`), followed by `V2_BACKTEST_AND_PAPER_MVP_READY_CODEX_PASS` from task 162.
 
 V2_BACKTEST_AND_PAPER_MVP_READY_PACKET_SCOPE_READY
-END_FILE: claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/00_SCOPE.md

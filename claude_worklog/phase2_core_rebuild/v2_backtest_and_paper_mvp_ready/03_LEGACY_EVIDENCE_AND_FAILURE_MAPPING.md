@@ -88,4 +88,3 @@ REQ_0022 demands V2 learn from the LAB hedge-unwind failure where the legacy bot
 The downstream LAB hedge-unwind replay case authoring itself (REQ_0022 § "Required replay/backtest case") is NOT in scope of this consolidation gate; it is authored under the post-consolidation evidence-collection lane enumerated in `07_NEXT_STEP_AFTER_CONSOLIDATION.md`. The consolidation gate certifies only that the typed surfaces required to author the case exist.
 
 V2_BACKTEST_AND_PAPER_MVP_READY_LEGACY_EVIDENCE_AND_FAILURE_MAPPING_READY
-END_FILE: claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/03_LEGACY_EVIDENCE_AND_FAILURE_MAPPING.md

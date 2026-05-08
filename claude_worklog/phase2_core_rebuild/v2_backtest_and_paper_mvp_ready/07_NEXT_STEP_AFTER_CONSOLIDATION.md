@@ -47,4 +47,3 @@ The next planner turn opens after the V2_BACKTEST_AND_PAPER_MVP_READY consolidat
 Live trading remains blocked. The consolidation marker does not advance the live-readiness gate. `FINAL_NON_LIVE_REBUILD_READY_FOR_LIVE_GATE_REVIEW` remains a separate downstream artifact requiring explicit human approval, and is NOT requested by this consolidation.
 
 V2_BACKTEST_AND_PAPER_MVP_READY_NEXT_STEP_READY
-END_FILE: claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/07_NEXT_STEP_AFTER_CONSOLIDATION.md

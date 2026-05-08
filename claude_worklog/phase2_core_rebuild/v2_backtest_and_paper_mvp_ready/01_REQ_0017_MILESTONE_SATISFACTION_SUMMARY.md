@@ -67,4 +67,3 @@ REQ_0017 § "Required Milestone Sequence" enumerates eight milestones. The first
 - Closing Codex review marker file (after task 162 PASS): to be authored at `claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/10_GO_NO_GO_CODEX.md` with body `V2_BACKTEST_AND_PAPER_MVP_READY_CODEX_PASS`.
 
 REQ_0017_MILESTONE_SATISFACTION_SUMMARY_READY
-END_FILE: claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/01_REQ_0017_MILESTONE_SATISFACTION_SUMMARY.md

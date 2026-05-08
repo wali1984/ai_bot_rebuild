@@ -51,4 +51,3 @@ Codex must verify:
 If Codex FAIL returns concrete documentation blockers and no safety violation, Codex autofix per REQ_0007 / REQ_0014 may patch this consolidation packet only and re-run review. Stale-rubric / pre-existing-placeholder false positives follow the established reconciliation precedent: author `claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/11_CODEX_RECONCILIATION_ADDENDUM.md` with the addendum body, then flip `10_GO_NO_GO_CODEX.md` body to `V2_BACKTEST_AND_PAPER_MVP_READY_CODEX_PASS` per the established pattern (analogous to 2H.C, 2I.C, and the 2J.C reconciliation flow).
 
 V2_BACKTEST_AND_PAPER_MVP_READY_CODEX_REVIEW_REQUEST_READY
-END_FILE: claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/08_CODEX_REVIEW_REQUEST.md

@@ -50,4 +50,3 @@ If task 162 returns FAIL with concrete documentation blockers (e.g., a per-miles
 - Do not emit a standalone harness BEGIN/END framing token marker line in any authored file body (per the established END_FILE marker leakage recovery precedent).
 
 V2_BACKTEST_AND_PAPER_MVP_READY_GO_NO_GO_REQUEST_READY
-END_FILE: claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/05_GO_NO_GO_REQUEST.md

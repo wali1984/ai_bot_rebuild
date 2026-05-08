@@ -118,4 +118,3 @@ Trainer-side neighboring typed surfaces produced under the same REQ_0017 milesto
 - No modifications to placeholder files: `v2/backend/app/services/paper_loop.py`, `v2/backend/app/services/replay_runner.py`, `v2/backend/app/domain/replay/`, `v2/backend/app/domain/execution/` remain unchanged.
 
 V2_BACKTEST_AND_PAPER_MVP_READY_TYPED_SURFACE_INVENTORY_READY
-END_FILE: claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/02_TYPED_SURFACE_INVENTORY.md
