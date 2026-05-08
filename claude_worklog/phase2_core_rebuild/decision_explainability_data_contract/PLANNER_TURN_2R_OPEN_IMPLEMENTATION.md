@@ -51,4 +51,3 @@ Live trading: BLOCKED. Phase 2R is non-live by construction. No `/home/wali/Desk
 Per REQ_0007 / REQ_0011 / REQ_0014 / REQ_0016 / REQ_0021, on a Codex FAIL with concrete documentation blockers and no safety violation, the supervisor dispatches a Codex autofix scoped to the Phase 2R packet only. If the FAIL is a stale-rubric / pre-existing-placeholder false positive analogous to the 2H / 2I / 2J / 2K / 2L / 2M / 2N / 2O / 2P / 2Q reconciliation precedent, the supervisor authors `10_CODEX_RECONCILIATION_ADDENDUM.md` under `claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/` and rewrites the `09_CODEX_GO_NO_GO.md` body to PASS per the established reconciliation precedent. On any safety violation, surface to human attention; no autofix is permitted.
 
 PHASE2R_DECISION_EXPLAINABILITY_DATA_CONTRACT_PLANNER_TURN_OPEN_READY
-END_FILE: claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/PLANNER_TURN_2R_OPEN_IMPLEMENTATION.md

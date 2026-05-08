@@ -130,4 +130,3 @@ The following REQ_0009 § "Required UI visibility" fields are explicitly OUT OF 
 These fields become eligible only after their underlying subsystems are built in separately scoped, downstream Lane A or Lane B milestones.
 
 PHASE2R_DECISION_EXPLAINABILITY_DATA_CONTRACT_HARNESS_PIPELINE_SPEC_READY
-END_FILE: claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/03_HARNESS_PIPELINE_SPEC.md

@@ -57,4 +57,3 @@ The pytest module additionally asserts via an `import` AST walk that the harness
 Any other top-level module import is a test failure.
 
 PHASE2R_DECISION_EXPLAINABILITY_DATA_CONTRACT_TEST_PLAN_READY
-END_FILE: claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/04_TEST_PLAN.md

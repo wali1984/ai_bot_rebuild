@@ -93,4 +93,3 @@ Fixtures must NOT introduce:
 - any standalone harness framing token marker line (the literal string `BEGIN` followed by `_FILE` or the literal string `END` followed by `_FILE`) as a line in any authored file body.
 
 PHASE2R_DECISION_EXPLAINABILITY_DATA_CONTRACT_TYPED_INPUT_FIXTURE_SPEC_READY
-END_FILE: claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/02_TYPED_INPUT_FIXTURE_SPEC.md
