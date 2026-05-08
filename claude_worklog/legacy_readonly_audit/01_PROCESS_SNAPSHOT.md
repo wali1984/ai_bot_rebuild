@@ -1,6 +1,6 @@
 # Legacy Runtime Process Snapshot
 
-Generated: 2026-05-06T23:37:44.408228+00:00
+Generated: 2026-05-08T02:18:35.066928+00:00
 
 Read-only process inspection. No services were restarted.
 
@@ -9,7 +9,6 @@ Read-only process inspection. No services were restarted.
 1502637 2253730 python3 Desktop/AI BOT/monitor_portfolio_primary.py
 1504039  146781 python3 Desktop/AI BOT/scripts/monitor_trainer_predictions.py
 2422445  130149 python3 scripts/monitor_trainer_predictions.py
-2432997       1 python3 trading/trader.py
 2434190  130149 python3 ingest/live_binance.py
 2434257  130149 python3 ingest/live_kucoin.py
 2434262  130149 python3 ingest/live_coinank.py
