@@ -1,0 +1,35 @@
+{
+  "task_id": "codex_recover_168_phase2o_shadow_mode_evidence_collection_harness_codex_review",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "lane": "codex_watchdog",
+  "mvp_relevance": "Recover non-live blocker 168_phase2o_shadow_mode_evidence_collection_harness_codex_review so the paper/backtest MVP path can continue.",
+  "blocked_by": [
+    "168_phase2o_shadow_mode_evidence_collection_harness_codex_review"
+  ],
+  "next_gate": "CODEX_NON_LIVE_RECOVERY_READY",
+  "legacy_evidence_consulted": [
+    "runtime task state",
+    "task stdout/stderr",
+    "GO/NO-GO markers",
+    "validation artifacts"
+  ],
+  "legacy_failure_addressed": "non-live automation blocker preventing continuation toward V2_BACKTEST_AND_PAPER_MVP_READY",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "v2/",
+    "claude_worklog/phase2_core_rebuild/",
+    "claude_worklog/agent_supervisor/",
+    "claude_worklog/tools/",
+    "claude_worklog/security/",
+    "claude_worklog/agent_supervisor_reliability/"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_168_phase2o_shadow_mode_evidence_collection_harness_codex_review_REPORT.md",
+    "claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_168_phase2o_shadow_mode_evidence_collection_harness_codex_review_GO_NO_GO.md"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Recover blocked non-live task 168_phase2o_shadow_mode_evidence_collection_harness_codex_review. You have full authority inside AI BOT REBUILD only. Inspect task definition, runtime state, stdout/stderr, required outputs, emitted BEGIN_FILE paths, and validation artifacts. If safe, patch non-live V2 code/docs/tests/planner/supervisor artifacts, recover materialized files, and emit a precise recovery report. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not deploy. Do not expose secrets. Output exactly two BEGIN_FILE blocks for the report and GO/NO-GO. GO/NO-GO must contain one line: CODEX_NON_LIVE_RECOVERY_READY or CODEX_NON_LIVE_RECOVERY_BLOCKED.",
+  "next_recommended_action": "If ready, validate/commit/push and restart planner. If blocked, leave explicit blocker."
+}
