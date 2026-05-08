@@ -1,6 +1,6 @@
 # Legacy Runtime Process Snapshot
 
-Generated: 2026-05-08T16:20:30.884624+00:00
+Generated: 2026-05-08T19:51:00.085389+00:00
 
 Read-only process inspection. No services were restarted.
 
@@ -23,7 +23,6 @@ Read-only process inspection. No services were restarted.
 2435742  130149 python3 ingest/live_coinank_global_aggregator.py
 2435747  130149 python3 -m ingest.live_coinapi_wsds
 3355777  130149 python3 -m rl.hybrid_trainer --mode hybrid --training-mode live --enhanced-features
-3380897  130149 python3 -u trading/trader.py
 3451261  130149 /bin/bash -O extglob -c snap=$(command cat <&3) && builtin shopt -s extglob && builtin eval -- "$snap" && { builtin set +u 2>/dev/null || true; builtin eval "${__CURSOR_SANDBOX_ENV_RESTORE:-}" 2>/dev/null; builtin export PWD="$(builtin pwd)"; builtin shopt -s expand_aliases 2>/dev/null; builtin eval "$1"; }; COMMAND_EXIT_CODE=$?; dump_bash_state >&4; builtin exit $COMMAND_EXIT_CODE -- cd "/home/wali/Desktop/AI BOT" && export PYTHONPATH="/home/wali/Desktop/AI BOT:${PYTHONPATH}" && nohup nice -n 10 python3 -m ingest.live_coinapi_v1 >> .logs/live_coinapi_v1.log 2>&1 & echo "PID=$!"; sleep 2; pgrep -af "ingest\.live_coinapi_v1" | grep -v pgrep || true; tail -n 15 .logs/live_coinapi_v1.log
 3451263 3451261 python3 -m ingest.live_coinapi_v1
 ```
