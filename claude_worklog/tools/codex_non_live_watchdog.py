@@ -14,6 +14,7 @@ EVENTS = WORKSPACE / "claude_worklog/agent_supervisor/events.jsonl"
 TASKS_DIR = WORKSPACE / "claude_worklog/agent_supervisor/tasks"
 STATE_DIR = WORKSPACE / "claude_worklog/agent_supervisor/state/tasks"
 RECOVERY_DIR = WORKSPACE / "claude_worklog/planner_recovery/codex_watchdog"
+RECOVERY_ATTEMPT_DIR = WORKSPACE / "claude_worklog/agent_supervisor/runtime/codex_watchdog_recovery_attempts"
 
 FORBIDDEN_TERMS = [
     "/home/wali/Desktop/AI BOT/",
@@ -402,6 +403,28 @@ def create_codex_recovery_task(blocked_task: str) -> str:
     return task_id
 
 
+def recovery_attempt_allowed(key: str, max_attempts: int = 2) -> bool:
+    """Prevent repeated no-op recovery loops for the same target."""
+    RECOVERY_ATTEMPT_DIR.mkdir(parents=True, exist_ok=True)
+    safe = re.sub(r"[^a-zA-Z0-9_.-]+", "_", key)[:180]
+    path = RECOVERY_ATTEMPT_DIR / f"{safe}.json"
+    data = read_json(path)
+    attempts = int(data.get("attempts", 0))
+    if attempts >= max_attempts:
+        append_event(
+            {
+                "event": "codex_watchdog_recovery_attempt_limit_reached",
+                "key": key,
+                "attempts": attempts,
+            }
+        )
+        return False
+
+    data.update({"key": key, "attempts": attempts + 1, "last_attempt_ts": now()})
+    write_text(path, json.dumps(data, indent=2) + "\n")
+    return True
+
+
 def run_supervisor_task(task_id: str) -> int:
     append_event({"event": "codex_watchdog_running_recovery_task", "task_id": task_id})
     proc = run(["python3", "claude_worklog/tools/agent_supervisor.py", "--task-id", task_id])
@@ -635,6 +658,9 @@ def cycle() -> int:
     if fail_marker:
         recovery = create_codex_marker_recovery_task(fail_marker)
         commit_all(f"Add Codex watchdog recovery task for fail marker {Path(fail_marker).name}")
+        if not recovery_attempt_allowed(recovery):
+            print(f"RECOVERY_ATTEMPT_LIMIT_REACHED {recovery}")
+            return 2
         rc = run_supervisor_task(recovery)
         recover_dirty_tree()
         if rc != 0:
@@ -652,6 +678,9 @@ def cycle() -> int:
     if blocked:
         recovery = create_codex_recovery_task(blocked)
         commit_all(f"Add Codex watchdog recovery task for {blocked}")
+        if not recovery_attempt_allowed(recovery):
+            print(f"RECOVERY_ATTEMPT_LIMIT_REACHED {recovery}")
+            return 2
         rc = run_supervisor_task(recovery)
         recover_dirty_tree()
         normalize_task_completed_after_recovery(
