@@ -1,0 +1,72 @@
+{
+  "task_id": "codex_recover_173_phase2r_decision_explainability_data_contract_implementation",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "lane": "codex_watchdog",
+  "mvp_relevance": "Recover dirty non-live Phase 2R planner-turn artifacts (the 173 packet plus its 5 spec files and planner-turn note) so task 173_phase2r_decision_explainability_data_contract_implementation can dispatch and the first Lane B post-consolidation explainability data contract milestone can advance toward V2_BACKTEST_AND_PAPER_MVP_READY visibility surfaces. Keeps Lane A unblocked at HEAD and unblocks Lane B at the same time per REQ_0021 parallel capacity scheduler.",
+  "blocked_by": [
+    "173_phase2r_decision_explainability_data_contract_implementation"
+  ],
+  "next_gate": "CODEX_NON_LIVE_RECOVERY_READY",
+  "legacy_evidence_consulted": [
+    "git status / git diff for dirty Phase 2R artifacts at HEAD 03a9645",
+    "claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/01_LEGACY_FAILURE_EVIDENCE.md",
+    "claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/02_TYPED_INPUT_FIXTURE_SPEC.md",
+    "claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/03_HARNESS_PIPELINE_SPEC.md",
+    "claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/04_TEST_PLAN.md",
+    "claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/05_GO_NO_GO_REQUEST.md",
+    "claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/PLANNER_TURN_2R_OPEN_IMPLEMENTATION.md",
+    "claude_worklog/agent_supervisor/tasks/173_phase2r_decision_explainability_data_contract_implementation.json",
+    "claude_worklog/agent_supervisor/tasks/codex_recover_172_phase2q_aggregate_evidence_rollup_harness_codex_review.json",
+    "claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_172_phase2q_aggregate_evidence_rollup_harness_codex_review_REPORT.md",
+    "claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_171_phase2q_aggregate_evidence_rollup_harness_implementation_REPORT.md"
+  ],
+  "legacy_failure_addressed": "Phase 2R planner-turn output materialized BEGIN_FILE bodies into the working tree but the supervisor BEGIN_FILE/END_FILE materializer did not strip the standalone framing-token line 'END_FILE: <path>' from the tail of each authored file body, and additionally left a standalone planner-turn marker token line ('PHASE2R_DECISION_EXPLAINABILITY_DATA_CONTRACT_PLANNER_TURN_OPEN_READY') after the closing brace of the 173 task JSON. This is the same dirty-artifact pattern recovered repeatedly under recent HEAD commits 03a9645 / b81c23d / f62ee5a / c29d789 / fa58d2b / 3463c12 / 5df78a5 / b209415 / ead08a5 / 0420413 / 04aac74 / 0653274 / ea9aad9 / 72b37ac. Concretely: (a) the 6 markdown files under claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/ each have one trailing 'END_FILE: <path>' standalone line that must be stripped per task 173's forbidden_actions item 'emit a standalone harness framing token marker line in any authored file body'; (b) the 173 JSON file has trailing standalone tokens after the closing brace that make strict JSON parse fail and block supervisor dispatch. Phase 2R cannot dispatch until the dirty artifacts are cleaned and committed.",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "v2/",
+    "claude_worklog/phase2_core_rebuild/",
+    "claude_worklog/agent_supervisor/",
+    "claude_worklog/tools/",
+    "claude_worklog/security/",
+    "claude_worklog/agent_supervisor_reliability/"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_173_phase2r_decision_explainability_data_contract_implementation_REPORT.md",
+    "claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_173_phase2r_decision_explainability_data_contract_implementation_GO_NO_GO.md"
+  ],
+  "scope_dirty_paths": [
+    "claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/01_LEGACY_FAILURE_EVIDENCE.md",
+    "claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/02_TYPED_INPUT_FIXTURE_SPEC.md",
+    "claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/03_HARNESS_PIPELINE_SPEC.md",
+    "claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/04_TEST_PLAN.md",
+    "claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/05_GO_NO_GO_REQUEST.md",
+    "claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/PLANNER_TURN_2R_OPEN_IMPLEMENTATION.md",
+    "claude_worklog/agent_supervisor/tasks/173_phase2r_decision_explainability_data_contract_implementation.json"
+  ],
+  "worktree_excluded_paths": [
+    "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Recover the dirty Phase 2R planner-turn artifacts listed in scope_dirty_paths so task 173_phase2r_decision_explainability_data_contract_implementation can dispatch. You have full non-live authority inside AI BOT REBUILD only. STEP 1: Inspect each path in scope_dirty_paths. STEP 2: For each of the 6 markdown files, strip any standalone framing-token line at the tail of the body that exactly matches the regex '^(END_FILE|BEGIN_FILE): claude_worklog/.+$'. Preserve every other line, including any trailing GO/NO-GO marker line (e.g., PHASE2R_DECISION_EXPLAINABILITY_DATA_CONTRACT_LEGACY_FAILURE_EVIDENCE_READY, PHASE2R_DECISION_EXPLAINABILITY_DATA_CONTRACT_TYPED_INPUT_FIXTURE_SPEC_READY, PHASE2R_DECISION_EXPLAINABILITY_DATA_CONTRACT_HARNESS_PIPELINE_SPEC_READY, PHASE2R_DECISION_EXPLAINABILITY_DATA_CONTRACT_TEST_PLAN_READY, PHASE2R_DECISION_EXPLAINABILITY_DATA_CONTRACT_GO_NO_GO_REQUEST_READY, PHASE2R_DECISION_EXPLAINABILITY_DATA_CONTRACT_PLANNER_TURN_OPEN_READY). Do not alter any other byte content of these files. STEP 3: For the JSON task file claude_worklog/agent_supervisor/tasks/173_phase2r_decision_explainability_data_contract_implementation.json, strip any standalone trailing token lines after the final closing brace (specifically any 'END_FILE: ...' line and any 'PHASE2R_..._READY' line and any blank trailing lines beyond the closing brace plus a single newline), then verify the file parses as strict JSON with `python3 -c 'import json,sys;json.load(open(sys.argv[1]))' claude_worklog/agent_supervisor/tasks/173_phase2r_decision_explainability_data_contract_implementation.json`. STEP 4: Run a high-confidence secret scan over the 7 cleaned files (no API keys, no tokens, no .env contents). STEP 5: Run `git status --porcelain` and confirm the only modified/added paths are the 7 in scope_dirty_paths plus the worktree_excluded master planner prompt. STEP 6: Stage and commit the 7 cleaned paths with the single message 'Codex watchdog recover dirty Phase 2R 173 planner-turn artifacts' and push. STEP 7: Author the recovery report and GO/NO-GO under claude_worklog/phase2_core_rebuild/automation_reliability/. The GO/NO-GO file must contain exactly one line: CODEX_NON_LIVE_RECOVERY_READY on success, or CODEX_NON_LIVE_RECOVERY_BLOCKED with a separate explicit blocker description in the report on failure. HARD STOPS: do not modify /home/wali/Desktop/AI BOT; do not write Redis; do not invoke any Redis write/delete command; do not restart live services; do not enable live trading; do not deploy; do not place or cancel exchange orders; do not change leverage or margin; do not call Binance or any exchange API; do not expose or commit secrets; do not flip the FINAL_NON_LIVE_REBUILD_READY_FOR_LIVE_GATE_REVIEW gate or substitute for it; do not edit any spec body content beyond stripping the leaked standalone framing-token tail line; do not introduce any new domain type, service, composition root, adapter, FastAPI surface, scheduler, background loop, Redis adapter, GPU runner, model-loading subsystem, or strategy library; do not import any Binance or exchange client; do not modify task 173's body except to strip the trailing tokens after the closing brace.",
+  "validation_commands": [
+    "git status --porcelain",
+    "python3 -c \"import json,sys;json.load(open('claude_worklog/agent_supervisor/tasks/173_phase2r_decision_explainability_data_contract_implementation.json'))\"",
+    "test ! \"$(tail -n 1 claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/01_LEGACY_FAILURE_EVIDENCE.md)\" = \"END_FILE: claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/01_LEGACY_FAILURE_EVIDENCE.md\"",
+    "test ! \"$(tail -n 1 claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/02_TYPED_INPUT_FIXTURE_SPEC.md)\" = \"END_FILE: claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/02_TYPED_INPUT_FIXTURE_SPEC.md\"",
+    "test ! \"$(tail -n 1 claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/03_HARNESS_PIPELINE_SPEC.md)\" = \"END_FILE: claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/03_HARNESS_PIPELINE_SPEC.md\"",
+    "test ! \"$(tail -n 1 claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/04_TEST_PLAN.md)\" = \"END_FILE: claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/04_TEST_PLAN.md\"",
+    "test ! \"$(tail -n 1 claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/05_GO_NO_GO_REQUEST.md)\" = \"END_FILE: claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/05_GO_NO_GO_REQUEST.md\"",
+    "test ! \"$(tail -n 1 claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/PLANNER_TURN_2R_OPEN_IMPLEMENTATION.md)\" = \"END_FILE: claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/PLANNER_TURN_2R_OPEN_IMPLEMENTATION.md\"",
+    "test -f claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_173_phase2r_decision_explainability_data_contract_implementation_REPORT.md",
+    "test -f claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_173_phase2r_decision_explainability_data_contract_implementation_GO_NO_GO.md",
+    "test \"$(cat claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_173_phase2r_decision_explainability_data_contract_implementation_GO_NO_GO.md)\" = \"CODEX_NON_LIVE_RECOVERY_READY\""
+  ],
+  "success_marker": "CODEX_NON_LIVE_RECOVERY_READY",
+  "success_marker_file": "claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_173_phase2r_decision_explainability_data_contract_implementation_GO_NO_GO.md",
+  "failure_marker": "CODEX_NON_LIVE_RECOVERY_BLOCKED",
+  "failure_marker_file": "claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_173_phase2r_decision_explainability_data_contract_implementation_GO_NO_GO.md",
+  "review_report_file": "claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_173_phase2r_decision_explainability_data_contract_implementation_REPORT.md",
+  "next_recommended_action": "On CODEX_NON_LIVE_RECOVERY_READY with the 7 cleaned paths committed and pushed, the supervisor dispatches task 173_phase2r_decision_explainability_data_contract_implementation. On the resulting PHASE2R_DECISION_EXPLAINABILITY_DATA_CONTRACT_IMPLEMENTATION_READY marker, the planner authors task 174_phase2r_decision_explainability_data_contract_codex_review scoped to the Phase 2R packet (01..07) and the four test-only files under v2/backend/tests/unit/decision_explainability_data_contract/ per task 173 next_recommended_action. On CODEX_NON_LIVE_RECOVERY_BLOCKED with an explicit safety blocker (live action, legacy mutation, Redis write, live service restart, exchange action, deployment, secret scan failure, ambiguous business decision, or L4/L5 action), surface to human attention; no autofix is permitted."
+}
