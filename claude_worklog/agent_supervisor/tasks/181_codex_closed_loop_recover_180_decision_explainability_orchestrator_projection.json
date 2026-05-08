@@ -1,0 +1,41 @@
+{
+  "task_id": "181_codex_closed_loop_recover_180_decision_explainability_orchestrator_projection",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "v2/",
+    "claude_worklog/phase2_core_rebuild/",
+    "claude_worklog/agent_supervisor/",
+    "claude_worklog/security/",
+    "claude_worklog/tools/",
+    "claude_worklog/agent_supervisor_reliability/"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/decision_explainability_orchestrator_decision_projection/181_CODEX_CLOSED_LOOP_RECOVERY_180_REPORT.md",
+    "claude_worklog/phase2_core_rebuild/decision_explainability_orchestrator_decision_projection/181_CODEX_CLOSED_LOOP_RECOVERY_180_GO_NO_GO.md"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. You have full non-live recovery authority inside AI BOT REBUILD. Recover or explicitly defer task 180_phase2u_decision_explainability_orchestrator_decision_projection_implementation. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not delete Redis keys. Do not restart live services. Do not place/cancel orders. Do not enable live trading. Inspect the 180 task definition, required outputs, runtime state, stdout/stderr, existing decision explainability/orchestrator/replay/backtest files, and current MVP evidence. If 180 is required for V2_BACKTEST_AND_PAPER_MVP_READY, create/recover missing non-live files and tests under allowed paths. If 180 is an explainability UI/projection enhancement that should not block the core MVP, produce explicit deferral evidence assigning it to explainability_ui and explain why core paper/backtest readiness can proceed. Produce a recovery report and GO/NO-GO. GO/NO-GO must contain exactly one line: CODEX_CLOSED_LOOP_RECOVERY_180_READY or CODEX_CLOSED_LOOP_RECOVERY_180_BLOCKED.",
+  "lane": "codex_watchdog",
+  "mvp_relevance": "Closes or explicitly defers the 180 decision-explainability orchestrator projection blocker so V2_BACKTEST_AND_PAPER_MVP_READY can proceed without a stale recovery loop.",
+  "blocked_by": [
+    "180 human_attention_required",
+    "watchdog recovery attempt limit reached",
+    "unclear whether 180 is core MVP or explainability_ui"
+  ],
+  "next_gate": "CODEX_CLOSED_LOOP_RECOVERY_180_READY",
+  "legacy_evidence_consulted": [
+    "legacy_readonly_audit",
+    "historical_pnl_audit",
+    "orchestrator decision MVP evidence",
+    "replay/backtest MVP evidence"
+  ],
+  "legacy_failure_addressed": [
+    "missing human-readable orchestrator decision projection",
+    "manual recovery loop",
+    "stale paper/backtest readiness visibility"
+  ],
+  "next_recommended_action": "If READY, validate and commit. If BLOCKED, leave precise blocker and do not loop."
+}
