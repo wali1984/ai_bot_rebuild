@@ -1,0 +1,47 @@
+# Phase 2U — GO/NO-GO Request
+
+## Predecessor evidence
+
+All required predecessor markers are materialized at HEAD `23a4e5c`:
+
+- `PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_CODEX_PASS` at `claude_worklog/phase2_core_rebuild/decision_explainability_replay_backtest_projection/09_CODEX_GO_NO_GO.md`.
+- `PHASE2S_DECISION_EXPLAINABILITY_PAPER_LEDGER_PROJECTION_CODEX_PASS` at `claude_worklog/phase2_core_rebuild/decision_explainability_paper_ledger_projection/09_CODEX_GO_NO_GO.md`.
+- `PHASE2R_DECISION_EXPLAINABILITY_DATA_CONTRACT_CODEX_PASS` at `claude_worklog/phase2_core_rebuild/decision_explainability_data_contract/09_CODEX_GO_NO_GO.md`.
+- `V2_BACKTEST_AND_PAPER_MVP_READY` at `claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/06_GO_NO_GO.md`.
+- `V2_BACKTEST_AND_PAPER_MVP_READY_CODEX_PASS` at `claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/10_GO_NO_GO_CODEX.md`.
+- `PHASE2K_C_SHADOW_MODE_READINESS_FLAG_COMPOSITION_ROOT_CODEX_PASS` at `claude_worklog/phase2_core_rebuild/shadow_mode_readiness_impl/25_2K_C_SHADOW_MODE_READINESS_FLAG_COMPOSITION_ROOT_CODEX_GO_NO_GO.md`.
+- `PHASE2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_CODEX_PASS` at `claude_worklog/phase2_core_rebuild/paper_mode_impl/25_2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_CODEX_GO_NO_GO.md`.
+- `PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_PASS` at `claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/25_2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_GO_NO_GO.md`.
+- `PHASE2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_CODEX_PASS` at `claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/26_2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_CODEX_GO_NO_GO.md`.
+- All upstream MVP Codex PASS markers (`PHASE2E3C_TRAINER_PREDICTION_OUTPUT_COMPOSITION_ROOT_CODEX_PASS`, `PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_PASS`, `PHASE2G_C_RISK_GATEWAY_COMPOSITION_ROOT_CODEX_PASS`).
+- All post-consolidation Codex PASS markers (`PHASE2M_REPLAY_CASE_LAB_HEDGE_UNWIND_CODEX_PASS`, `PHASE2N_PAPER_MODE_EVIDENCE_COLLECTION_HARNESS_CODEX_PASS`, `PHASE2O_SHADOW_MODE_EVIDENCE_COLLECTION_HARNESS_CODEX_PASS`, `PHASE2P_HISTORICAL_PNL_REPLAY_WIRING_CODEX_PASS`, `PHASE2Q_AGGREGATE_EVIDENCE_ROLLUP_HARNESS_CODEX_PASS`).
+
+## Authoring scope (this turn)
+
+The planner turn authors:
+
+- `claude_worklog/phase2_core_rebuild/decision_explainability_orchestrator_decision_projection/01_LEGACY_FAILURE_EVIDENCE.md`.
+- `claude_worklog/phase2_core_rebuild/decision_explainability_orchestrator_decision_projection/02_TYPED_INPUT_FIXTURE_SPEC.md`.
+- `claude_worklog/phase2_core_rebuild/decision_explainability_orchestrator_decision_projection/03_HARNESS_PIPELINE_SPEC.md`.
+- `claude_worklog/phase2_core_rebuild/decision_explainability_orchestrator_decision_projection/04_TEST_PLAN.md`.
+- `claude_worklog/phase2_core_rebuild/decision_explainability_orchestrator_decision_projection/05_GO_NO_GO_REQUEST.md`.
+- `claude_worklog/phase2_core_rebuild/decision_explainability_orchestrator_decision_projection/PLANNER_TURN_2U_OPEN_IMPLEMENTATION.md`.
+- `claude_worklog/agent_supervisor/tasks/180_phase2u_decision_explainability_orchestrator_decision_projection_implementation.json`.
+- `claude_worklog/agent_supervisor/tasks/codex_recover_180_phase2u_decision_explainability_orchestrator_decision_projection_implementation.json`.
+
+## Task 180 deliverables
+
+Task `180_phase2u_decision_explainability_orchestrator_decision_projection_implementation` materializes:
+
+- `v2/backend/tests/unit/decision_explainability_orchestrator_decision_projection/__init__.py` (zero-byte test package marker; one trailing newline only).
+- `v2/backend/tests/unit/decision_explainability_orchestrator_decision_projection/fixtures.py`.
+- `v2/backend/tests/unit/decision_explainability_orchestrator_decision_projection/harness.py`.
+- `v2/backend/tests/unit/decision_explainability_orchestrator_decision_projection/test_decision_explainability_orchestrator_decision_projection.py`.
+- `claude_worklog/phase2_core_rebuild/decision_explainability_orchestrator_decision_projection/06_IMPLEMENTATION_REPORT.md`.
+- `claude_worklog/phase2_core_rebuild/decision_explainability_orchestrator_decision_projection/07_GO_NO_GO.md` (body line one: `PHASE2U_DECISION_EXPLAINABILITY_ORCHESTRATOR_DECISION_PROJECTION_IMPLEMENTATION_READY`).
+
+## GO/NO-GO request
+
+Authorize task 180 dispatch under the standing `worktree_excluded_paths` precedent for the in-flight planner-prompt MVP-counter rotation and the standing parallel-capacity placeholder JSONs.
+
+PHASE2U_DECISION_EXPLAINABILITY_ORCHESTRATOR_DECISION_PROJECTION_GO_NO_GO_REQUEST_READY
