@@ -5,7 +5,40 @@ const MISSION_CONTROL_PATH = '/admin/mission-control';
 
 const NOW_ISO = new Date().toISOString();
 
-const ALERT_QUEUE_PAYLOAD = {
+interface QueuePayload {
+  _meta: {
+    source: string;
+    read_at: string;
+    error: string | null;
+  };
+  data: {
+    generated_at: string;
+    next_pending_task: string | null;
+    current_running_task: string | null;
+    blocked_quota: {
+      task_id: string;
+      agent: string;
+      resume_after_utc: string;
+    } | null;
+    stale_running_count: number;
+    stale_running_tasks: string[];
+    no_event_count: number;
+    no_event_tasks: string[];
+    no_output_growth_count: number;
+    no_output_growth_tasks: string[];
+    human_attention_required_count: number;
+    human_attention_required_tasks: Array<{
+      task_id: string;
+      agent: string;
+      attention_reason: string;
+      last_summary: string;
+    }>;
+    counts: Record<string, number>;
+    gate: string;
+  };
+}
+
+const ALERT_QUEUE_PAYLOAD: QueuePayload = {
   _meta: {
     source: 'synthetic',
     read_at: NOW_ISO,
@@ -50,7 +83,7 @@ const ALERT_QUEUE_PAYLOAD = {
   },
 };
 
-const CLEAN_QUEUE_PAYLOAD = {
+const CLEAN_QUEUE_PAYLOAD: QueuePayload = {
   _meta: { source: 'synthetic', read_at: NOW_ISO, error: null as string | null },
   data: {
     generated_at: NOW_ISO,

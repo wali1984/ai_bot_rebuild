@@ -125,6 +125,11 @@ import buildValidationStatusMeta from './build-validation-status/meta';
 import buildValidationStatusRbac from './build-validation-status/rbac';
 import buildValidationStatusRoute from './build-validation-status/route';
 
+import OperatorProofDashboardPage from './operator-proof-dashboard';
+import operatorProofDashboardMeta from './operator-proof-dashboard/meta';
+import operatorProofDashboardRbac from './operator-proof-dashboard/rbac';
+import operatorProofDashboardRoute from './operator-proof-dashboard/route';
+
 import MobileIphoneReadinessPage from './mobile-iphone-readiness';
 import mobileIphoneReadinessMeta from './mobile-iphone-readiness/meta';
 import mobileIphoneReadinessRbac from './mobile-iphone-readiness/rbac';
@@ -171,6 +176,7 @@ export const PAGES: ReadonlyArray<PageModule> = [
   { meta: ollamaLocalAssistantMeta, rbac: ollamaLocalAssistantRbac, route: ollamaLocalAssistantRoute, Component: OllamaLocalAssistantPage },
   { meta: codexReviewCenterMeta, rbac: codexReviewCenterRbac, route: codexReviewCenterRoute, Component: CodexReviewCenterPage },
   { meta: buildValidationStatusMeta, rbac: buildValidationStatusRbac, route: buildValidationStatusRoute, Component: BuildValidationStatusPage },
+  { meta: operatorProofDashboardMeta, rbac: operatorProofDashboardRbac, route: operatorProofDashboardRoute, Component: OperatorProofDashboardPage },
   { meta: mobileIphoneReadinessMeta, rbac: mobileIphoneReadinessRbac, route: mobileIphoneReadinessRoute, Component: MobileIphoneReadinessPage },
   { meta: publicLandingMeta, rbac: publicLandingRbac, route: publicLandingRoute, Component: PublicLandingPage },
   { meta: publicStatusMeta, rbac: publicStatusRbac, route: publicStatusRoute, Component: PublicStatusPage },

@@ -33,6 +33,7 @@ export const ADMIN_PAGE_PATHS = [
   '/admin/ollama-local-assistant',
   '/admin/codex-review-center',
   '/admin/build-validation-status',
+  '/admin/operator-proof-dashboard',
   '/admin/mobile-iphone-readiness',
 ] as const;
 
@@ -70,6 +71,7 @@ export const VIEWER_VISIBLE_ADMIN_PATHS = [
   '/admin/replay',
   '/admin/system-health',
   '/admin/build-validation-status',
+  '/admin/operator-proof-dashboard',
 ] as const;
 
 export const PAGES_WITH_DANGEROUS_CONTROLS: ReadonlyArray<{ path: string; controls: ReadonlyArray<string> }> = [
