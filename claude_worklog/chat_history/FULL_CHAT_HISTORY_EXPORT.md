@@ -5,6 +5,26 @@
 This file was created in response to the operator request to document the full
 chat history verbatim.
 
+Follow-up correction: the first version of this file was too small for the
+operator's expectation. A much larger local recoverable archive has now been
+generated at:
+
+```text
+claude_worklog/chat_history/RECOVERABLE_FULL_CHAT_AND_AUTOMATION_HISTORY.md
+```
+
+That generated archive currently contains:
+
+```text
+2,449 recoverable files inlined
+1,711,573 lines
+156 MB
+```
+
+It is intentionally excluded from git tracking in `.git/info/exclude` because a
+single 156 MB Markdown blob exceeds normal GitHub file-size limits. The file is
+present locally in this workspace.
+
 Important limitation: Codex does not have a raw transcript-export tool for this
 conversation. Earlier turns in this session were compacted into a summary before
 this request, so I cannot honestly guarantee a complete word-for-word copy of
