@@ -1,28 +1,22 @@
 {
   "coverage": {
-    "checkpoint_id": false,
+    "checkpoint_id": true,
     "confidence": true,
-    "confidence_calibrated": false,
-    "confidence_raw": false,
+    "confidence_calibrated": true,
+    "confidence_raw": true,
     "dashboard_prediction_reasoning": true,
     "execution_intent_id": true,
     "feature_snapshot_id": true,
-    "model_version": false,
+    "model_version": true,
     "prediction_id": true,
     "risk_decision_id": true,
     "stale_missing_unused_flags": true,
     "top_positive_negative_contributors": true,
-    "trainer_worker_liveness": false
+    "trainer_worker_liveness": true
   },
-  "gaps": [
-    "model_version",
-    "checkpoint_id",
-    "confidence_raw",
-    "confidence_calibrated",
-    "trainer_worker_liveness"
-  ],
-  "generated_at": "2026-05-09T19:12:41.862793+00:00",
+  "gaps": [],
+  "generated_at": "2026-05-09T20:28:03.018571+00:00",
   "live_gate_status": "blocked_human_only",
   "live_ready": false,
-  "marker": "TRAINER_LINEAGE_AND_READINESS_BLOCKED"
+  "marker": "TRAINER_LINEAGE_AND_READINESS_READY"
 }

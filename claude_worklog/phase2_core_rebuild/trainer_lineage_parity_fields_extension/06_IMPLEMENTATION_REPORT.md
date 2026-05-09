@@ -1,4 +1,3 @@
-```markdown
 # Phase 2V — Trainer Lineage Parity Fields Extension — Implementation Report
 
 ## Files edited

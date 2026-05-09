@@ -1,0 +1,16 @@
+{
+  "task_packet": "185_phase2v_trainer_lineage_parity_fields_extension_implementation",
+  "task_packet_present": true,
+  "followup_review_task": "186_phase2v_codex_finalize_and_review",
+  "followup_review_task_completed": true,
+  "dispatch_bridge_event": "master_planner_dispatch_bridge_completed",
+  "phase_2v_pickup_proven": true,
+  "initial_codex_review_marker": "PHASE2V_TRAINER_LINEAGE_PARITY_FIELDS_EXTENSION_CODEX_FAIL",
+  "initial_codex_review_blocker": "system python lacked pytest",
+  "venv_validation": "18 passed",
+  "rereview_marker": "PHASE2V_TRAINER_LINEAGE_PARITY_FIELDS_EXTENSION_CODEX_PASS",
+  "live_gate_status": "blocked_human_only",
+  "legacy_bot_touched": false,
+  "redis_written": false,
+  "exchange_action": false
+}

@@ -5,5 +5,5 @@
   "queue_gate": "READY_FOR_CODEX_RERUN",
   "reason": "069A source scan completed; continue split decision-lineage inventory before unrelated work",
   "selected_task": "069B_decision_lineage_evidence_packet_builder",
-  "ts": "2026-05-09T19:12:41.858885+00:00"
+  "ts": "2026-05-09T20:28:03.005894+00:00"
 }

@@ -1,6 +1,6 @@
 # Continuous Paper / Shadow Runtime Report
 
-Generated: 2026-05-09T19:12:41.862206+00:00
+Generated: 2026-05-09T20:28:03.010389+00:00
 
 A non-live paper/shadow runtime artifact loop is available and writes only local V2 proof files.
 
