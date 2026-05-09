@@ -1,0 +1,29 @@
+{
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/external_manual_position_quarantine/",
+    "v2/frontend/public/external_manual_position_quarantine/"
+  ],
+  "evidence_sources": [
+    "claude_worklog/final_readiness/non_live_operational_proof/latest/paper_ledger_result.json",
+    "claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/latest/paper_ledger_30d.json",
+    "claude_worklog/legacy_readonly_audit/07_ORCHESTRATOR_TRADER_RUNTIME_EVIDENCE.md",
+    "claude_worklog/legacy_failure_cases/2026_05_LAB_HEDGE_UNWIND_SHORT_SQUEEZE_FAILURE.md"
+  ],
+  "generated_at": "2026-05-09T00:00:00Z",
+  "live_gate_status": "blocked_human_only",
+  "marker": "2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_READY",
+  "operator_dashboard_static_path": "v2/frontend/public/external_manual_position_quarantine/latest/",
+  "required_artifacts": [
+    "2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_REPORT.md",
+    "GO_NO_GO.md",
+    "ownership_classification_schema.json",
+    "manual_external_positions.json",
+    "quarantined_positions.json",
+    "unattributed_executions.json",
+    "duplicate_accounting_candidates.json",
+    "risk_gateway_quarantine_rules.md",
+    "operator_dashboard_payload.json",
+    "evidence_manifest.json",
+    "data_gaps.md"
+  ]
+}

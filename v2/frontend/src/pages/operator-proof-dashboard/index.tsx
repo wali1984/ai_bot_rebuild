@@ -54,8 +54,39 @@ interface CockpitPayload {
   autonomous_live_readiness_builder?: AutonomousBuilder;
   continuous_paper_shadow_runtime?: ContinuousPaperRuntime;
   trainer_lineage_and_readiness?: TrainerReadiness;
+  external_manual_position_quarantine?: ExternalManualPositionQuarantine;
   remaining_blockers_before_live: Array<{ id: string; status: string; detail: string }>;
   data_gaps: string[];
+}
+
+interface ExternalManualPositionQuarantine {
+  go_no_go?: string;
+  live_gate_status?: string;
+  summary?: Record<string, Primitive>;
+  ownership_rows?: QuarantineRow[];
+  manual_external_positions?: QuarantineRow[];
+  quarantined_positions?: QuarantineRow[];
+  unattributed_executions?: QuarantineRow[];
+  duplicate_accounting_candidates?: QuarantineRow[];
+  risk_gateway_rules?: Array<{ rule: string; effect: string }>;
+  data_gaps?: string[];
+}
+
+interface QuarantineRow {
+  evidence_id: string;
+  account_id?: string;
+  symbol?: string;
+  side_action?: string;
+  source_module?: string;
+  ownership_classification: string;
+  quarantined: boolean;
+  quarantine_reason?: string;
+  missing_attribution_fields: string[];
+  source_confidence: string;
+  risk_impact: string;
+  allowed_actions: string[];
+  blocked_actions: string[];
+  live_gate_status: string;
 }
 
 interface AutonomousBuilder {
@@ -267,6 +298,7 @@ interface SettingRow {
 }
 
 const cockpitPath = '/operator_gui_real_data_and_explainability/latest/operator_cockpit_payload.json';
+const quarantinePath = '/external_manual_position_quarantine/latest/operator_dashboard_payload.json';
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: 'no-store' });
@@ -326,6 +358,7 @@ function SidebarNav(): JSX.Element {
     'Symbol Universe',
     'Orchestrator Decisions',
     'Risk Gateway',
+    'External Manual Quarantine',
     'Trader Fleet',
     'Config Admin',
     'Audit Ledger',
@@ -548,6 +581,39 @@ function RiskGateway({ rows }: { rows: RiskRow[] }): JSX.Element {
   );
 }
 
+function ExternalManualQuarantine({ payload }: { payload?: ExternalManualPositionQuarantine }): JSX.Element {
+  const rows = payload?.ownership_rows ?? [];
+  return (
+    <Section id="external-manual-quarantine" title="External / Manual Position Quarantine">
+      <div className="operator-proof-grid">
+        <Metric label="Quarantine Gate" value={payload?.go_no_go ?? 'evidence_missing'} />
+        <Metric label="Live Gate" value={payload?.live_gate_status ?? 'blocked_human_only'} />
+        <Metric label="Classifications" value={payload?.summary?.classification_count ?? 'evidence_missing'} />
+        <Metric label="Quarantined" value={payload?.summary?.quarantined_count ?? 'evidence_missing'} />
+        <Metric label="Manual / External" value={payload?.summary?.manual_external_count ?? 'evidence_missing'} />
+        <Metric label="Duplicates" value={payload?.summary?.duplicate_accounting_candidate_count ?? 'evidence_missing'} />
+      </div>
+      <div className="operator-proof-table operator-proof-table--risk" role="table">
+        <div role="row" className="operator-proof-table__header">
+          <span>Symbol</span><span>Ownership</span><span>Reason</span><span>Missing</span><span>Allowed</span><span>Blocked</span>
+        </div>
+        {rows.map((row) => (
+          <div role="row" key={row.evidence_id}>
+            <span>{row.symbol ?? 'evidence_missing'}</span>
+            <span className={statusClass(row.ownership_classification)}>{row.ownership_classification}</span>
+            <span>{row.quarantine_reason ?? 'not_quarantined'}</span>
+            <span>{valueText(row.missing_attribution_fields)}</span>
+            <span>{valueText(row.allowed_actions)}</span>
+            <span>{valueText(row.blocked_actions)}</span>
+          </div>
+        ))}
+      </div>
+      <DataList title="Risk gateway quarantine rules" rows={payload?.risk_gateway_rules ?? []} empty="No quarantine rules." />
+      <MiniList title="Quarantine data gaps" items={payload?.data_gaps ?? []} />
+    </Section>
+  );
+}
+
 function MonitorCenter({ rows }: { rows: MonitorRow[] }): JSX.Element {
   return (
     <Section id="monitor-center" title="Monitor Center">
@@ -725,6 +791,7 @@ function SimpleCoverageSections({ payload }: { payload: CockpitPayload }): JSX.E
 
 export default function OperatorProofDashboardPage(): JSX.Element {
   const [payload, setPayload] = useState<CockpitPayload | null>(null);
+  const [quarantine, setQuarantine] = useState<ExternalManualPositionQuarantine | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -735,6 +802,13 @@ export default function OperatorProofDashboardPage(): JSX.Element {
       })
       .catch((err: unknown) => {
         if (active) setError(err instanceof Error ? err.message : 'operator cockpit payload unavailable');
+      });
+    fetchJson<ExternalManualPositionQuarantine>(quarantinePath)
+      .then((next) => {
+        if (active) setQuarantine(next);
+      })
+      .catch(() => {
+        if (active) setQuarantine(null);
       });
     return () => {
       active = false;
@@ -798,6 +872,7 @@ export default function OperatorProofDashboardPage(): JSX.Element {
           <FeatureAttribution rows={payload.feature_attribution.rows} />
           <SymbolUniverse rows={payload.symbol_universe.rows} />
           <RiskGateway rows={payload.risk_gateway.rows} />
+          <ExternalManualQuarantine payload={quarantine ?? payload.external_manual_position_quarantine} />
           <TraderFleet paper={payload.trader_fleet_paper_shadow.paper_rows} shadow={payload.trader_fleet_paper_shadow.shadow_rows} />
           <ConfigAdmin rows={payload.config_admin.settings} />
         </div>

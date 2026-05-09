@@ -1,0 +1,26 @@
+{
+  "generated_at": "2026-05-09T00:00:00Z",
+  "model_derived_required_attribution": [
+    "signal_id",
+    "decision_id",
+    "risk_decision_id",
+    "execution_intent_id"
+  ],
+  "ownership_classes": [
+    "v2_owned",
+    "legacy_owned",
+    "manual_external",
+    "exchange_side_protective",
+    "duplicate_accounting",
+    "unknown_unattributed",
+    "quarantined"
+  ],
+  "quarantine_rule": "Any execution missing required attribution or using manual/external/protective/duplicate ownership is quarantined and monitor-only.",
+  "required_attribution": [
+    "account_id",
+    "symbol",
+    "side_action",
+    "source_module",
+    "timestamp"
+  ]
+}
