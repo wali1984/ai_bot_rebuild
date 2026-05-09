@@ -41,7 +41,6 @@ def build_external_position_quarantine_runtime(
         )
 
     _now_ms_clock = now_ms_clock
-    _ = _now_ms_clock
 
     def _external_manual_position_quarantine_now(
         *,
@@ -53,6 +52,18 @@ def build_external_position_quarantine_runtime(
         trainer_confidence_calibrated: float,
         trainer_worker_liveness: str,
     ) -> ExternalPositionQuarantineRecord:
+        now_ms = _now_ms_clock()
+        if not isinstance(now_ms, int) or isinstance(now_ms, bool):
+            raise ExternalManualPositionQuarantineRuntimeCompositionError(
+                "must_return_int",
+                field="now_ms_clock",
+            )
+        if now_ms < 0:
+            raise ExternalManualPositionQuarantineRuntimeCompositionError(
+                "must_return_nonnegative",
+                field="now_ms_clock",
+            )
+
         return assemble_external_position_quarantine_record(
             risk_decision_record=risk_decision_record,
             manual_position_flag=manual_position_flag,
