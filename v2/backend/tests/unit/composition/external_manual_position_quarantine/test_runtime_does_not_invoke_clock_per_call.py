@@ -8,7 +8,7 @@ from v2.backend.app.domain.external_manual_position_quarantine import (
 from v2.backend.app.domain.risk_gateway import RiskDecisionRecord
 
 
-def test_runtime_invokes_clock_exactly_once_per_call() -> None:
+def test_runtime_does_not_invoke_clock_per_call() -> None:
     calls = 0
 
     def clock() -> int:
@@ -30,7 +30,7 @@ def test_runtime_invokes_clock_exactly_once_per_call() -> None:
         trainer_worker_liveness="alive",
     )
 
-    assert calls == 1
+    assert calls == 0
 
 
 def _risk_decision_record() -> RiskDecisionRecord:
