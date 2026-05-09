@@ -1,11 +1,11 @@
 # Orchestrator / Trader Runtime Evidence
 
-Generated: 2026-05-09T05:55:58.715037+00:00
+Generated: 2026-05-09T06:26:02.839758+00:00
 
 Read-only process evidence.
 
 ```text
-NO_ORCHESTRATOR_TRADER_PROCESS_MATCHES
+1042465 1042463 python3 -m rl.orchestrator_worker
 ```
 
 ## Required V2 impact
