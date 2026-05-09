@@ -1,0 +1,69 @@
+{
+  "events": [
+    {
+      "execution_intent_id": "hist_intent_day03_btc_winner_preserved",
+      "ledger_event_type": "close",
+      "live_gate_status": "blocked_human_only",
+      "non_live_only": true,
+      "paper_pnl": "+84.25",
+      "paper_trade_id": "hist_paper_day03_btc_winner_preserved",
+      "reason": "fresh_features_and_positive_regime",
+      "risk_decision_id": "hist_risk_day03_btc_winner_preserved",
+      "symbol": "BTCUSDT"
+    },
+    {
+      "execution_intent_id": "hist_intent_day08_eth_stale_blocked",
+      "ledger_event_type": "block",
+      "live_gate_status": "blocked_human_only",
+      "non_live_only": true,
+      "paper_pnl": "0.00",
+      "paper_trade_id": "hist_paper_day08_eth_stale_blocked",
+      "reason": "stale_feature_snapshot",
+      "risk_decision_id": "hist_risk_day08_eth_stale_blocked",
+      "symbol": "ETHUSDT"
+    },
+    {
+      "execution_intent_id": "hist_intent_day14_sol_duplicate_rejected",
+      "ledger_event_type": "block",
+      "live_gate_status": "blocked_human_only",
+      "non_live_only": true,
+      "paper_pnl": "0.00",
+      "paper_trade_id": "hist_paper_day14_sol_duplicate_rejected",
+      "reason": "duplicate_signal",
+      "risk_decision_id": "hist_risk_day14_sol_duplicate_rejected",
+      "symbol": "SOLUSDT"
+    },
+    {
+      "execution_intent_id": "hist_intent_day21_lab_hedge_unwind_blocked",
+      "ledger_event_type": "reduce",
+      "live_gate_status": "blocked_human_only",
+      "non_live_only": true,
+      "paper_pnl": "0.00",
+      "paper_trade_id": "hist_paper_day21_lab_hedge_unwind_blocked",
+      "reason": "short_squeeze_and_hedge_unwind_residual_exposure",
+      "risk_decision_id": "hist_risk_day21_lab_hedge_unwind_blocked",
+      "symbol": "LABUSDT"
+    },
+    {
+      "execution_intent_id": "hist_intent_day26_bnb_winner_preserved",
+      "ledger_event_type": "reduce",
+      "live_gate_status": "blocked_human_only",
+      "non_live_only": true,
+      "paper_pnl": "+41.35",
+      "paper_trade_id": "hist_paper_day26_bnb_winner_preserved",
+      "reason": "fresh_features_and_risk_within_limits",
+      "risk_decision_id": "hist_risk_day26_bnb_winner_preserved",
+      "symbol": "BNBUSDT"
+    }
+  ],
+  "generated_at": "2026-05-09T00:00:00Z",
+  "ledger_id": "historical_30d_paper_ledger_fixture",
+  "live_gate_status": "blocked_human_only",
+  "period_days": 30,
+  "summary": {
+    "allowed_events": 2,
+    "blocked_or_reduced_events": 3,
+    "event_count": 5,
+    "paper_pnl_fixture_sum": "+125.60"
+  }
+}

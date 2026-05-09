@@ -1,0 +1,30 @@
+{
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/",
+    "v2/frontend/public/historical_30d_replay_and_paper_proof/"
+  ],
+  "evidence_sources": [
+    "claude_worklog/historical_pnl_audit/10_GO_NO_GO.md",
+    "claude_worklog/legacy_readonly_audit/10_GO_NO_GO.md",
+    "claude_worklog/legacy_failure_cases/2026_05_LAB_HEDGE_UNWIND_SHORT_SQUEEZE_FAILURE.md",
+    "claude_worklog/final_readiness/non_live_operational_proof/latest/GO_NO_GO.md"
+  ],
+  "generated_at": "2026-05-09T00:00:00Z",
+  "live_gate_status": "blocked_human_only",
+  "marker": "HISTORICAL_30D_REPLAY_AND_PAPER_PROOF_READY",
+  "operator_dashboard_static_path": "v2/frontend/public/historical_30d_replay_and_paper_proof/latest/",
+  "required_artifacts": [
+    "HISTORICAL_30D_REPLAY_AND_PAPER_PROOF.md",
+    "GO_NO_GO.md",
+    "historical_30d_summary.json",
+    "legacy_vs_v2_decision_comparison.json",
+    "v2_risk_blocks.json",
+    "v2_preserved_winners.json",
+    "v2_reduced_or_rejected_trades.json",
+    "paper_ledger_30d.json",
+    "shadow_comparison_30d.json",
+    "operator_dashboard_payload.json",
+    "evidence_manifest.json",
+    "limitations_and_data_gaps.md"
+  ]
+}

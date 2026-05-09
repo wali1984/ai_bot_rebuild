@@ -176,6 +176,20 @@ a { color: inherit; }
   font-size: 18px;
 }
 
+.operator-proof-section h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.operator-proof-section__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 14px;
+}
+
 .operator-proof-table {
   display: grid;
   gap: 1px;
@@ -192,6 +206,18 @@ a { color: inherit; }
   min-width: 760px;
   padding: 9px 10px;
   background: rgba(255,255,255,0.025);
+}
+
+.operator-proof-table--historical [role="row"] {
+  grid-template-columns:
+    minmax(210px, 1.3fr)
+    minmax(90px, 0.6fr)
+    minmax(210px, 1.2fr)
+    minmax(170px, 1fr)
+    minmax(100px, 0.6fr)
+    minmax(220px, 1.3fr)
+    minmax(120px, 0.7fr);
+  min-width: 1240px;
 }
 
 .operator-proof-table__header {

@@ -69,7 +69,61 @@ interface ProofBundle {
   explainability: ExplainabilityProof;
 }
 
+interface HistoricalTradeRow {
+  trade_id: string;
+  day: string;
+  symbol: string;
+  legacy_action: string;
+  v2_action: string;
+  legacy_realized_pnl: string;
+  v2_paper_pnl: string;
+  risk_decision: string;
+  reason: string;
+  confidence: number;
+  feature_snapshot_id: string;
+  prediction_id: string;
+  decision_id: string;
+  risk_decision_id: string;
+  execution_intent_id: string;
+  paper_trade_id: string;
+  shadow_decision_id: string;
+  live_gate_status: string;
+}
+
+interface Historical30DProof {
+  generated_at: string;
+  go_no_go: string;
+  live_gate_status: string;
+  summary: {
+    period_days: number;
+    scenario_count: number;
+    v2_block_count: number;
+    v2_preserved_winner_count: number;
+    v2_reduced_or_rejected_count: number;
+    legacy_realized_pnl_fixture_sum: string;
+    v2_paper_pnl_fixture_sum: string;
+    estimated_loss_avoided_by_v2: string;
+    lab_hedge_unwind_represented: boolean;
+  };
+  legacy_vs_v2: HistoricalTradeRow[];
+  risk_blocks: HistoricalTradeRow[];
+  preserved_winners: HistoricalTradeRow[];
+  reduced_or_rejected: HistoricalTradeRow[];
+  paper_ledger_summary: {
+    event_count: number;
+    allowed_events: number;
+    blocked_or_reduced_events: number;
+    paper_pnl_fixture_sum: string;
+  };
+  shadow_summary: {
+    comparison_count: number;
+    divergence_count: number;
+  };
+  limitations: string[];
+}
+
 const basePath = '/non_live_operational_proof/latest';
+const historicalBasePath = '/historical_30d_replay_and_paper_proof/latest';
 
 async function fetchText(path: string): Promise<string> {
   const response = await fetch(path, { cache: 'no-store' });
@@ -238,8 +292,112 @@ function Explainability({ explainability }: { explainability: ExplainabilityProo
   );
 }
 
+function Historical30DSection({ historical }: { historical: Historical30DProof }): JSX.Element {
+  return (
+    <section className="operator-proof-section" data-testid="historical-30d-proof">
+      <div className="operator-proof-section__heading">
+        <h2>Historical 30D Replay And Paper Proof</h2>
+        <div className="operator-proof-status">
+          <span className={statusClass(historical.go_no_go)} data-testid="historical-30d-marker">
+            {historical.go_no_go}
+          </span>
+          <span className="proof-pill proof-pill--blocked">{historical.live_gate_status}</span>
+        </div>
+      </div>
+      <section className="operator-proof-grid" aria-label="Historical 30D summary">
+        <Metric label="Days" value={String(historical.summary.period_days)} />
+        <Metric label="Scenarios" value={String(historical.summary.scenario_count)} />
+        <Metric label="V2 Blocks" value={String(historical.summary.v2_block_count)} />
+        <Metric label="Winners Preserved" value={String(historical.summary.v2_preserved_winner_count)} />
+        <Metric label="Reduced/Rejected" value={String(historical.summary.v2_reduced_or_rejected_count)} />
+        <Metric label="Loss Avoided" value={historical.summary.estimated_loss_avoided_by_v2} />
+        <Metric label="Paper PnL" value={historical.summary.v2_paper_pnl_fixture_sum} />
+        <Metric label="Shadow Divergences" value={String(historical.shadow_summary.divergence_count)} />
+      </section>
+      <HistoricalTable
+        title="Legacy vs V2 Decision Comparison"
+        rows={historical.legacy_vs_v2}
+        testId="historical-legacy-vs-v2"
+      />
+      <HistoricalTable title="Blocked Losses" rows={historical.risk_blocks} testId="historical-blocked-losses" />
+      <HistoricalTable
+        title="Preserved Winners"
+        rows={historical.preserved_winners}
+        testId="historical-preserved-winners"
+      />
+      <HistoricalTable
+        title="Reduced Or Rejected Trades"
+        rows={historical.reduced_or_rejected}
+        testId="historical-reduced-rejected"
+      />
+      <div className="operator-proof-detail" data-testid="historical-paper-shadow-summary">
+        <h3>Paper Ledger 30D And Shadow Summary</h3>
+        <dl>
+          <dt>paper ledger events</dt>
+          <dd>{historical.paper_ledger_summary.event_count}</dd>
+          <dt>blocked or reduced</dt>
+          <dd>{historical.paper_ledger_summary.blocked_or_reduced_events}</dd>
+          <dt>shadow comparisons</dt>
+          <dd>{historical.shadow_summary.comparison_count}</dd>
+          <dt>shadow divergences</dt>
+          <dd>{historical.shadow_summary.divergence_count}</dd>
+        </dl>
+      </div>
+      <div className="operator-proof-detail" data-testid="historical-data-gaps">
+        <h3>Limitations And Data Gaps</h3>
+        <ul>
+          {historical.limitations.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function HistoricalTable({
+  title,
+  rows,
+  testId,
+}: {
+  title: string;
+  rows: HistoricalTradeRow[];
+  testId: string;
+}): JSX.Element {
+  return (
+    <section className="operator-proof-section" data-testid={testId}>
+      <h3>{title}</h3>
+      <div className="operator-proof-table operator-proof-table--historical" role="table" aria-label={title}>
+        <div role="row" className="operator-proof-table__header">
+          <span>Trade</span>
+          <span>Symbol</span>
+          <span>Legacy</span>
+          <span>V2</span>
+          <span>Decision</span>
+          <span>Reason</span>
+          <span>PnL</span>
+        </div>
+        {rows.map((row) => (
+          <div role="row" key={`${testId}-${row.trade_id}`}>
+            <span>{row.trade_id}</span>
+            <span>{row.symbol}</span>
+            <span>{row.legacy_action}</span>
+            <span>{row.v2_action}</span>
+            <span className={statusClass(row.risk_decision)}>{row.risk_decision}</span>
+            <span>{row.reason}</span>
+            <span>
+              {row.legacy_realized_pnl} {'->'} {row.v2_paper_pnl}
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function OperatorProofDashboardPage(): JSX.Element {
   const [bundle, setBundle] = useState<ProofBundle | null>(null);
+  const [historical, setHistorical] = useState<Historical30DProof | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -252,10 +410,12 @@ export default function OperatorProofDashboardPage(): JSX.Element {
       fetchJson<ShadowProof>(`${basePath}/shadow_comparison_result.json`),
       fetchJson<RiskProof>(`${basePath}/risk_gateway_result.json`),
       fetchJson<ExplainabilityProof>(`${basePath}/decision_explainability_result.json`),
+      fetchJson<Historical30DProof>(`${historicalBasePath}/operator_dashboard_payload.json`),
     ])
-      .then(([goNoGo, rollup, replay, paper, shadow, risk, explainability]) => {
+      .then(([goNoGo, rollup, replay, paper, shadow, risk, explainability, historicalProof]) => {
         if (!active) return;
         setBundle({ goNoGo: goNoGo.trim(), rollup, replay, paper, shadow, risk, explainability });
+        setHistorical(historicalProof);
       })
       .catch((err: unknown) => {
         if (!active) return;
@@ -287,7 +447,7 @@ export default function OperatorProofDashboardPage(): JSX.Element {
     );
   }
 
-  if (!bundle) {
+  if (!bundle || !historical) {
     return (
       <article {...pageAttrs}>
         <h1>{meta.title}</h1>
@@ -304,6 +464,7 @@ export default function OperatorProofDashboardPage(): JSX.Element {
       <PaperLedger paper={bundle.paper} />
       <ShadowComparison shadow={bundle.shadow} />
       <Explainability explainability={bundle.explainability} />
+      <Historical30DSection historical={historical} />
       <section className="operator-proof-section" data-testid="proof-rollup">
         <h2>Aggregate Rollup</h2>
         <pre>{bundle.rollup}</pre>
