@@ -28,9 +28,9 @@ class OrchestratorDecisionExplainabilityEnvelope:
     input_prediction_freshness_flag: str
     input_worker_health_status: str
     live_blocked: bool
-    legacy_evidence_pointer: str
     source_scenario_slug: str
     step_index: int
+    legacy_evidence_pointer: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,7 +109,7 @@ def _project_envelope(
         input_prediction_freshness_flag=decision_record.input_prediction_freshness_flag,
         input_worker_health_status=decision_record.input_worker_health_status,
         live_blocked=decision_record.live_blocked,
-        legacy_evidence_pointer=input_row.legacy_evidence_pointer,
         source_scenario_slug=input_row.source_scenario_slug,
         step_index=input_row.step_index,
+        legacy_evidence_pointer=input_row.legacy_evidence_pointer,
     )

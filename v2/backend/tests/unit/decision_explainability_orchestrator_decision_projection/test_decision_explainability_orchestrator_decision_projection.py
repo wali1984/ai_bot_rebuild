@@ -38,9 +38,9 @@ ENVELOPE_FIELDS = (
     "input_prediction_freshness_flag",
     "input_worker_health_status",
     "live_blocked",
-    "legacy_evidence_pointer",
     "source_scenario_slug",
     "step_index",
+    "legacy_evidence_pointer",
 )
 
 FORBIDDEN_FIELDS = {
