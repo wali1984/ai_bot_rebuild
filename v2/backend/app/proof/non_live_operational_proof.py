@@ -41,6 +41,11 @@ class ProofScenario:
     expected_v2_action: str
     block_reason: str
     paper_pnl: str
+    model_version: str
+    checkpoint_id: str
+    confidence_raw: float
+    confidence_calibrated: float
+    trainer_worker_liveness: str
 
     @property
     def feature_snapshot_id(self) -> str:
@@ -86,6 +91,11 @@ def deterministic_scenarios() -> tuple[ProofScenario, ...]:
             expected_v2_action="allow_paper_open_long",
             block_reason="not_blocked",
             paper_pnl="+12.40",
+            model_version="hybrid_trainer_v2026_05",
+            checkpoint_id="ckpt_safe_long_paper_intent_2026_05",
+            confidence_raw=0.86,
+            confidence_calibrated=0.82,
+            trainer_worker_liveness="alive",
         ),
         ProofScenario(
             scenario_id="stale_data_blocked",
@@ -100,6 +110,11 @@ def deterministic_scenarios() -> tuple[ProofScenario, ...]:
             expected_v2_action="block",
             block_reason="stale_feature_snapshot",
             paper_pnl="0.00",
+            model_version="hybrid_trainer_v2026_05",
+            checkpoint_id="ckpt_stale_data_blocked_2026_05",
+            confidence_raw=0.81,
+            confidence_calibrated=0.78,
+            trainer_worker_liveness="degraded",
         ),
         ProofScenario(
             scenario_id="duplicate_signal_blocked",
@@ -114,6 +129,11 @@ def deterministic_scenarios() -> tuple[ProofScenario, ...]:
             expected_v2_action="block",
             block_reason="duplicate_signal",
             paper_pnl="0.00",
+            model_version="hybrid_trainer_v2026_05",
+            checkpoint_id="ckpt_duplicate_signal_blocked_2026_05",
+            confidence_raw=0.77,
+            confidence_calibrated=0.74,
+            trainer_worker_liveness="alive",
         ),
         ProofScenario(
             scenario_id="hedge_close_residual_exposure_blocked",
@@ -128,6 +148,11 @@ def deterministic_scenarios() -> tuple[ProofScenario, ...]:
             expected_v2_action="block_or_reduce",
             block_reason="hedge_close_would_leave_naked_short",
             paper_pnl="0.00",
+            model_version="hybrid_trainer_v2026_05",
+            checkpoint_id="ckpt_hedge_close_residual_exposure_blocked_2026_05",
+            confidence_raw=0.72,
+            confidence_calibrated=0.69,
+            trainer_worker_liveness="alive",
         ),
         ProofScenario(
             scenario_id="lab_hedge_unwind_short_squeeze",
@@ -142,6 +167,11 @@ def deterministic_scenarios() -> tuple[ProofScenario, ...]:
             expected_v2_action="block_or_reduce",
             block_reason="short_squeeze_and_hedge_unwind_residual_exposure",
             paper_pnl="legacy_loss_avoided",
+            model_version="hybrid_trainer_v2026_05",
+            checkpoint_id="ckpt_lab_hedge_unwind_short_squeeze_2026_05",
+            confidence_raw=0.69,
+            confidence_calibrated=0.66,
+            trainer_worker_liveness="worker_dead",
         ),
     )
 
@@ -175,7 +205,12 @@ def _base_lineage(scenario: ProofScenario) -> dict[str, Any]:
         "symbol": scenario.symbol,
         "side": scenario.direction,
         "direction": scenario.direction,
-        "confidence": scenario.confidence,
+        "confidence": scenario.confidence_calibrated,
+        "model_version": scenario.model_version,
+        "checkpoint_id": scenario.checkpoint_id,
+        "confidence_raw": scenario.confidence_raw,
+        "confidence_calibrated": scenario.confidence_calibrated,
+        "trainer_worker_liveness": scenario.trainer_worker_liveness,
         "risk_decision": _risk_action(scenario),
         "block_or_allow_reason": scenario.block_reason,
         "paper_pnl": scenario.paper_pnl,

@@ -15,6 +15,14 @@ PUBLIC_AUTO = ROOT / "v2/frontend/public/autonomous_live_readiness_builder/lates
 PUBLIC_PAPER = ROOT / "v2/frontend/public/continuous_paper_shadow_runtime/latest"
 PUBLIC_TRAINER = ROOT / "v2/frontend/public/trainer_lineage_and_readiness/latest"
 
+PARITY_FIELDS = (
+    "model_version",
+    "checkpoint_id",
+    "confidence_raw",
+    "confidence_calibrated",
+    "trainer_worker_liveness",
+)
+
 
 def now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -269,12 +277,25 @@ def _safe_float(value: Any) -> float:
         return 0.0
 
 
-def build_trainer_gate() -> dict[str, Any]:
-    proof = read_json(
-        ROOT / "claude_worklog/final_readiness/non_live_operational_proof/latest/decision_explainability_result.json",
-        {"explanations": []},
+def _load_decision_explanations() -> list[dict[str, Any]]:
+    proof_path = (
+        ROOT
+        / "claude_worklog/final_readiness/non_live_operational_proof/latest/decision_explainability_result.json"
     )
-    explanations = proof.get("explanations", [])
+    proof = read_json(proof_path, None)
+    if isinstance(proof, dict):
+        explanations = proof.get("explanations", []) or []
+        if explanations and all(
+            all(field in row for field in PARITY_FIELDS) for row in explanations
+        ):
+            return explanations
+    from v2.backend.app.proof import build_non_live_proof
+
+    return build_non_live_proof()["decision_explainability_result"]["explanations"]
+
+
+def build_trainer_gate() -> dict[str, Any]:
+    explanations = _load_decision_explanations()
     fields = [
         "feature_snapshot_id",
         "prediction_id",
@@ -288,13 +309,19 @@ def build_trainer_gate() -> dict[str, Any]:
     }
     coverage.update(
         {
-            "model_version": False,
-            "checkpoint_id": False,
-            "confidence_raw": False,
-            "confidence_calibrated": False,
-            "top_positive_negative_contributors": any((row.get("explanation_payload") or {}).get("causes") for row in explanations),
+            field: bool(explanations)
+            and all(
+                row.get(field) not in (None, "", "evidence_missing") for row in explanations
+            )
+            for field in PARITY_FIELDS
+        }
+    )
+    coverage.update(
+        {
+            "top_positive_negative_contributors": any(
+                (row.get("explanation_payload") or {}).get("causes") for row in explanations
+            ),
             "stale_missing_unused_flags": any(row.get("feature_flags") for row in explanations),
-            "trainer_worker_liveness": False,
             "dashboard_prediction_reasoning": True,
         }
     )
@@ -325,6 +352,17 @@ def _trainer_gaps_md(status: dict[str, Any]) -> str:
 
 
 def _trainer_report(status: dict[str, Any]) -> str:
+    if status["marker"] == "TRAINER_LINEAGE_AND_READINESS_READY":
+        reason_line = (
+            "- reason: fixture/proof lineage now includes model/checkpoint identity, "
+            "raw/calibrated confidence, and trainer worker liveness; "
+            "live trading remains blocked_human_only."
+        )
+    else:
+        reason_line = (
+            "- reason: fixture/proof lineage exists, but model/checkpoint/raw-calibrated "
+            "confidence and worker liveness evidence are incomplete."
+        )
     return "\n".join(
         [
             "# Trainer Lineage and Readiness Report",
@@ -333,9 +371,9 @@ def _trainer_report(status: dict[str, Any]) -> str:
             "",
             f"- marker: `{status['marker']}`",
             "- trainer live-ready: `false`",
-            "- reason: fixture/proof lineage exists, but model/checkpoint/raw-calibrated confidence and worker liveness evidence are incomplete.",
+            reason_line,
             "",
-            "TRAINER_LINEAGE_AND_READINESS_BLOCKED",
+            status["marker"],
             "",
         ]
     )

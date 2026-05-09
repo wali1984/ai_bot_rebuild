@@ -82,6 +82,11 @@ def test_required_lineage_fields_are_present(tmp_path: Path) -> None:
         "explanation_payload",
         "feature_flags",
         "live_gate_status",
+        "model_version",
+        "checkpoint_id",
+        "confidence_raw",
+        "confidence_calibrated",
+        "trainer_worker_liveness",
     }
 
     for scenario in payload["scenarios"]:
