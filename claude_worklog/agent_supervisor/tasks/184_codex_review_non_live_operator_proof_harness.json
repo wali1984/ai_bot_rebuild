@@ -1,0 +1,30 @@
+{
+  "task_id": "184_codex_review_non_live_operator_proof_harness",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/non_live_operational_proof/"
+  ],
+  "required_output_files": [
+    "claude_worklog/final_readiness/non_live_operational_proof/14_CODEX_REVIEW_OPERATOR_PROOF_HARNESS.md",
+    "claude_worklog/final_readiness/non_live_operational_proof/15_CODEX_GO_NO_GO_OPERATOR_PROOF_HARNESS.md"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Review the executable non-live operator proof harness. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not place/cancel orders. Do not enable live trading. Verify the CLI runs offline, emits replay/backtest, paper ledger, risk gateway, decision explainability, shadow comparison, and aggregate rollup artifacts. Verify LAB hedge unwind scenario is represented and live gate remains blocked. Output exactly two BEGIN_FILE blocks. GO/NO-GO must contain exactly one line: NON_LIVE_OPERATOR_PROOF_HARNESS_CODEX_PASS or NON_LIVE_OPERATOR_PROOF_HARNESS_CODEX_FAIL.",
+  "lane": "codex_watchdog",
+  "mvp_relevance": "Reviews executable operator proof for V2_BACKTEST_AND_PAPER_MVP_READY.",
+  "blocked_by": [
+    "NON_LIVE_OPERATIONAL_PROOF_CODEX_FAIL missing executable harness outputs"
+  ],
+  "next_gate": "NON_LIVE_OPERATOR_PROOF_HARNESS_CODEX_PASS",
+  "legacy_evidence_consulted": [
+    "legacy_readonly_audit",
+    "historical_pnl_audit",
+    "LAB hedge unwind failure case"
+  ],
+  "legacy_failure_addressed": [
+    "lack of operator-visible replay/paper/shadow proof"
+  ]
+}
