@@ -1,0 +1,110 @@
+{
+  "current_status": {
+    "agent": "claude",
+    "end_time": null,
+    "materialized_files": [],
+    "next_recommended_action": "wait for completion",
+    "risk_level": "L1",
+    "run_pid": 1272960,
+    "start_time": "2026-05-09T18:25:01.941631+00:00",
+    "status": "running",
+    "stderr_path": "claude_worklog/agent_supervisor/runs/069_decision_explainability_2ha0_lineage_inventory/stderr.txt",
+    "stdout_path": "claude_worklog/agent_supervisor/runs/069_decision_explainability_2ha0_lineage_inventory/stdout.txt",
+    "summary": "task execution in progress",
+    "task_id": "069_decision_explainability_2ha0_lineage_inventory"
+  },
+  "progress_clocks": {
+    "last_event_log_update": {
+      "age_seconds": 66,
+      "exists": true,
+      "mtime": "2026-05-09T18:40:00.841126+00:00",
+      "size": 134742077
+    },
+    "last_final_readiness_artifact": {
+      "age_seconds": 82,
+      "mtime": "2026-05-09T18:39:45.456357+00:00",
+      "path": "claude_worklog/final_readiness/operator_gui_real_data_and_explainability/latest/REMAINING_EVIDENCE_GAPS.md"
+    },
+    "last_queue_status_update": {
+      "age_seconds": 965,
+      "exists": true,
+      "mtime": "2026-05-09T18:25:02.062964+00:00",
+      "size": 755
+    }
+  },
+  "queue": {
+    "blocked_quota": null,
+    "counts": {
+      "blocked": 9,
+      "cancelled": 0,
+      "completed": 225,
+      "failed": 1,
+      "human_attention_required": 0,
+      "pending": 15,
+      "retry_scheduled": 12,
+      "running": 1,
+      "skipped": 0,
+      "superseded_by_evidence": 41
+    },
+    "current_running_task": "069_decision_explainability_2ha0_lineage_inventory",
+    "gate": "READY_FOR_CODEX_RERUN",
+    "generated_at": "2026-05-09T18:25:02.058419+00:00",
+    "human_attention_required_count": 0,
+    "human_attention_required_tasks": [],
+    "next_pending_task": "031_codex_review_phase2_symbol_universe",
+    "no_event_count": 0,
+    "no_event_tasks": [],
+    "no_output_growth_count": 0,
+    "no_output_growth_tasks": [],
+    "stale_running_count": 0,
+    "stale_running_tasks": []
+  },
+  "quota_auth_state": {
+    "blocked_auth_tasks": [],
+    "blocked_dependency_tasks": [
+      "059_trainer_parity_2e1b_endfile_marker_remediation",
+      "067_frontend_design_2fa1_spec_author",
+      "068_frontend_design_2fa1_codex_review",
+      "070_decision_explainability_2ha0_codex_review",
+      "093_codex_recovery_2e1d_end_file_marker_leakage_cleanup"
+    ],
+    "blocked_quota": null,
+    "human_attention_required_count": 0
+  },
+  "task_liveness": {
+    "claude_codex_child_present": false,
+    "required_outputs_missing": [
+      "claude_worklog/phase2_core_rebuild/decision_explainability/05_DECISION_LINEAGE_INVENTORY_REPORT.md",
+      "claude_worklog/phase2_core_rebuild/decision_explainability/06_DECISION_LINEAGE_GAP_MATRIX.md",
+      "claude_worklog/phase2_core_rebuild/decision_explainability/07_DECISION_LINEAGE_GO_NO_GO.md"
+    ],
+    "run_pid": 1272960,
+    "start_time": "2026-05-09T18:25:01.941631+00:00",
+    "status": "running",
+    "stderr": {
+      "age_seconds": 965,
+      "exists": true,
+      "mtime": "2026-05-09T18:25:02.027199+00:00",
+      "size": 0
+    },
+    "stdout": {
+      "age_seconds": 965,
+      "exists": true,
+      "mtime": "2026-05-09T18:25:02.027199+00:00",
+      "size": 0
+    },
+    "summary": {
+      "age_seconds": 965,
+      "exists": true,
+      "mtime": "2026-05-09T18:25:02.030564+00:00",
+      "size": 591
+    },
+    "supervisor_task_process_present": true,
+    "task_id": "069_decision_explainability_2ha0_lineage_inventory",
+    "task_process_alive": true,
+    "warnings": [
+      "supervisor_task_running_but_no_claude_codex_child_detected",
+      "active_task_stdout_stderr_zero_bytes"
+    ]
+  }
+}

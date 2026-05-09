@@ -1,9 +1,9 @@
 # Placeholder Removal Report
 
 - marker: `PROFESSIONAL_OPERATOR_GUI_AND_DECISION_EXPLAINABILITY_READY`
-- generated_at: `2026-05-09T18:24:30.839656+00:00`
+- generated_at: `2026-05-09T18:41:07.729018+00:00`
 - live_gate_status: `blocked_human_only`
-- git_head: `c7ef000 Build professional operator GUI decision explainability cockpit`
+- git_head: `55e899a Resolve stale explainability queue state`
 
 ## Evidence
 

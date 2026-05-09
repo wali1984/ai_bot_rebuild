@@ -18,6 +18,9 @@ test.describe('operator proof dashboard historical 30d', () => {
     await expect(page.getByTestId('cockpit-symbol-universe')).toContainText('Universe');
     await expect(page.getByTestId('cockpit-risk-gateway')).toContainText('short_squeeze_and_hedge_unwind_residual_exposure');
     await expect(page.getByTestId('cockpit-config-admin')).toContainText('requires explicit human approval');
+    await expect(page.getByTestId('cockpit-automation-status')).toContainText('Legacy trader down tolerance');
+    await expect(page.getByTestId('cockpit-automation-status')).toContainText('non_blocking');
+    await expect(page.getByTestId('cockpit-automation-status')).toContainText('true');
     await expect(page.getByTestId('cockpit-live-readiness')).toContainText('Dangerous controls enabled');
     await expect(page.getByTestId('cockpit-remaining-blockers')).toContainText('Evidence gaps');
     await expect(page.getByTestId('operator-proof-dashboard').getByRole('button')).toHaveCount(0);

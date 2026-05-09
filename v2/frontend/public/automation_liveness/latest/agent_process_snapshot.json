@@ -1,0 +1,51 @@
+[
+  {
+    "age_seconds": 45240,
+    "cmd": "python3 -m rl.hybrid_trainer --mode hybrid --training-mode live --enhanced-features",
+    "pid": 1039705,
+    "ppid": 1039702,
+    "stat": "Sl"
+  },
+  {
+    "age_seconds": 45175,
+    "cmd": "python3 -m rl.orchestrator_worker",
+    "pid": 1042465,
+    "ppid": 1042463,
+    "stat": "Sl"
+  },
+  {
+    "age_seconds": 966,
+    "cmd": "python3 claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll-seconds 300",
+    "pid": 1272603,
+    "ppid": 1029421,
+    "stat": "Ss+"
+  },
+  {
+    "age_seconds": 966,
+    "cmd": "python3 claude_worklog/tools/parallel_capacity_scheduler.py --daemon --poll-seconds 600",
+    "pid": 1272676,
+    "ppid": 1029421,
+    "stat": "Ss+"
+  },
+  {
+    "age_seconds": 966,
+    "cmd": "python3 claude_worklog/tools/claude_master_rebuild_planner.py --daemon --poll-seconds 120",
+    "pid": 1272846,
+    "ppid": 1029421,
+    "stat": "Ss+"
+  },
+  {
+    "age_seconds": 965,
+    "cmd": "python3 claude_worklog/tools/agent_supervisor.py --task-id 069_decision_explainability_2ha0_lineage_inventory",
+    "pid": 1272958,
+    "ppid": 1272846,
+    "stat": "S+"
+  },
+  {
+    "age_seconds": 965,
+    "cmd": "claude --print [prompt_redacted]",
+    "pid": 1272960,
+    "ppid": 1272958,
+    "stat": "Ssl"
+  }
+]

@@ -16,6 +16,10 @@ interface CockpitPayload {
     current_task: string;
     human_attention_required_count: Primitive;
     stale_running_count: Primitive;
+    automation_assessment?: string;
+    last_event_timestamp?: string;
+    last_artifact_update?: string;
+    legacy_trader_disabled_non_blocking?: boolean;
     proof_marker: string;
     historical_marker: string;
   };
@@ -42,9 +46,42 @@ interface CockpitPayload {
   };
   automation_status: {
     stale_running_tasks: string[];
+    liveness?: AutomationLiveness;
   };
   remaining_blockers_before_live: Array<{ id: string; status: string; detail: string }>;
   data_gaps: string[];
+}
+
+interface AutomationLiveness {
+  marker: string;
+  automation_assessment: string;
+  dashboard_summary: {
+    claude_planner_running: boolean;
+    codex_watchdog_running: boolean;
+    scheduler_running: boolean;
+    current_task_id: string;
+    last_event_timestamp: string;
+    last_artifact_update: string;
+    last_commit: string;
+    stale_running_count: Primitive;
+    human_attention_count: Primitive;
+    legacy_trader_disabled_non_blocking: boolean;
+    next_runnable_task: string;
+    latest_blocker_reason: string;
+  };
+  task_liveness: {
+    status: string;
+    run_pid: Primitive;
+    supervisor_task_process_present: boolean;
+    claude_codex_child_present: boolean;
+    warnings: string[];
+  };
+  legacy_trader_policy: {
+    legacy_trader_status: string;
+    legacy_trader_required_for_v2_build: boolean;
+    legacy_trader_down_should_not_block_non_live_rebuild: boolean;
+    operator_note: string;
+  };
 }
 
 interface LineageRow {
@@ -279,6 +316,8 @@ function MissionControl({ payload }: { payload: CockpitPayload }): JSX.Element {
       <div className="operator-proof-grid">
         <Metric label="Human Attention" value={payload.status.human_attention_required_count} />
         <Metric label="Stale Running" value={payload.status.stale_running_count} />
+        <Metric label="Automation" value={payload.status.automation_assessment ?? 'evidence_missing'} detail={payload.status.last_event_timestamp} />
+        <Metric label="Legacy Trader" value={payload.status.legacy_trader_disabled_non_blocking ? 'disabled_non_blocking' : 'evidence_missing'} />
         <Metric label="Proof Marker" value={payload.status.proof_marker} />
         <Metric label="Historical Marker" value={payload.status.historical_marker} />
       </div>
@@ -534,6 +573,37 @@ function SimpleCoverageSections({ payload }: { payload: CockpitPayload }): JSX.E
         <DataList title="Live blockers" rows={payload.live_readiness.live_blockers} empty="No live blockers." />
       </Section>
       <Section id="automation-status" title="Claude/Codex/Ollama Automation Status">
+        {payload.automation_status.liveness ? (
+          <>
+            <div className="operator-proof-grid">
+              <Metric label="Assessment" value={payload.automation_status.liveness.automation_assessment} />
+              <Metric label="Planner" value={String(payload.automation_status.liveness.dashboard_summary.claude_planner_running)} />
+              <Metric label="Codex Watchdog" value={String(payload.automation_status.liveness.dashboard_summary.codex_watchdog_running)} />
+              <Metric label="Scheduler" value={String(payload.automation_status.liveness.dashboard_summary.scheduler_running)} />
+              <Metric label="Task Run PID" value={payload.automation_status.liveness.task_liveness.run_pid ?? 'none'} />
+              <Metric label="Last Event" value={payload.automation_status.liveness.dashboard_summary.last_event_timestamp} />
+              <Metric label="Last Artifact" value={payload.automation_status.liveness.dashboard_summary.last_artifact_update} />
+              <Metric label="Next Task" value={payload.automation_status.liveness.dashboard_summary.next_runnable_task} />
+            </div>
+            <DataList
+              title="Liveness warnings"
+              rows={payload.automation_status.liveness.task_liveness.warnings.map((warning) => ({ warning }))}
+              empty="No liveness warnings."
+            />
+            <DataList
+              title="Legacy trader down tolerance"
+              rows={[
+                {
+                  status: payload.automation_status.liveness.legacy_trader_policy.legacy_trader_status,
+                  required_for_v2_build: String(payload.automation_status.liveness.legacy_trader_policy.legacy_trader_required_for_v2_build),
+                  non_blocking: String(payload.automation_status.liveness.legacy_trader_policy.legacy_trader_down_should_not_block_non_live_rebuild),
+                  note: payload.automation_status.liveness.legacy_trader_policy.operator_note,
+                },
+              ]}
+              empty="No legacy trader policy evidence."
+            />
+          </>
+        ) : null}
         <DataList title="Stale cleanup status" rows={payload.remaining_blockers_before_live} empty="No stale cleanup blockers." />
       </Section>
       <Section id="remaining-blockers" title="Remaining Blockers Before Live">

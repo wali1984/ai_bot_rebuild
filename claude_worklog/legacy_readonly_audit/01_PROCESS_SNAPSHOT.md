@@ -1,6 +1,6 @@
 # Legacy Runtime Process Snapshot
 
-Generated: 2026-05-09T06:25:58.773821+00:00
+Generated: 2026-05-09T18:27:31.278699+00:00
 
 Read-only process inspection. No services were restarted.
 
@@ -20,4 +20,5 @@ Read-only process inspection. No services were restarted.
 1038859 1038857 python3 ingest/live_technical_analysis.py
 1039705 1039702 python3 -m rl.hybrid_trainer --mode hybrid --training-mode live --enhanced-features
 1042465 1042463 python3 -m rl.orchestrator_worker
+1272469 1272294 python3 Desktop/AI BOT/monitor_portfolio_primary.py
 ```

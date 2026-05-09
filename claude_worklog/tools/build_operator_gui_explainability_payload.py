@@ -71,6 +71,10 @@ def build_payload() -> dict[str, Any]:
         ROOT / "claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/latest/operator_dashboard_payload.json",
         {},
     )
+    automation_liveness = read_json(
+        ROOT / "claude_worklog/final_readiness/automation_liveness/latest/dashboard_liveness_payload.json",
+        {},
+    )
     legacy_process = read_text(ROOT / "claude_worklog/legacy_readonly_audit/01_PROCESS_SNAPSHOT.md")
     trainer_evidence = read_text(ROOT / "claude_worklog/legacy_readonly_audit/06_TRAINER_RUNTIME_EVIDENCE.md")
     orchestrator_evidence = read_text(
@@ -141,6 +145,16 @@ def build_payload() -> dict[str, Any]:
             "current_task": current.get("task_id") or queue.get("current_running_task") or "evidence_missing",
             "human_attention_required_count": queue.get("human_attention_required_count", "evidence_missing"),
             "stale_running_count": queue.get("stale_running_count", "evidence_missing"),
+            "automation_assessment": automation_liveness.get("automation_assessment", "evidence_missing"),
+            "last_event_timestamp": (automation_liveness.get("dashboard_summary") or {}).get(
+                "last_event_timestamp", "evidence_missing"
+            ),
+            "last_artifact_update": (automation_liveness.get("dashboard_summary") or {}).get(
+                "last_artifact_update", "evidence_missing"
+            ),
+            "legacy_trader_disabled_non_blocking": (automation_liveness.get("dashboard_summary") or {}).get(
+                "legacy_trader_disabled_non_blocking", True
+            ),
             "proof_marker": read_text(
                 ROOT / "claude_worklog/final_readiness/non_live_operational_proof/latest/GO_NO_GO.md",
                 "evidence_missing",
@@ -205,6 +219,7 @@ def build_payload() -> dict[str, Any]:
             "queue": queue,
             "current_status": current,
             "stale_running_tasks": queue.get("stale_running_tasks", []),
+            "liveness": automation_liveness,
         },
     }
     payload["remaining_blockers_before_live"] = _remaining_blockers(queue, current) + _live_blockers()
