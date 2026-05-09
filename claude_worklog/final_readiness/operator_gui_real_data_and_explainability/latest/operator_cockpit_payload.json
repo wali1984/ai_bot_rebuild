@@ -20,44 +20,31 @@
   },
   "automation_status": {
     "current_status": {
-      "agent": "codex",
-      "attention_reason": null,
-      "auto_commit": {
-        "attempted": false,
-        "commit_hash": null,
-        "message": "",
-        "ok": false
-      },
-      "end_time": "2026-05-09T18:12:18.583747+00:00",
-      "last_retry_reason": null,
-      "materialized_files": [],
-      "next_recommended_action": "inspect run output",
-      "risk_level": "L1",
-      "start_time": "2026-05-09T18:12:18.563453+00:00",
-      "status": "blocked_dependency",
-      "stderr_path": "claude_worklog/agent_supervisor/runs/182_phase2u_decision_explainability_orchestrator_decision_projection_codex_review/stderr.txt",
-      "stdout_path": "claude_worklog/agent_supervisor/runs/182_phase2u_decision_explainability_orchestrator_decision_projection_codex_review/stdout.txt",
-      "summary": "waiting on dependencies: 181_codex_closed_loop_recover_180_decision_explainability_orchestrator_projection, 181_codex_closed_loop_recover_180_decision_explainability_orchestrator_projection",
-      "task_id": "182_phase2u_decision_explainability_orchestrator_decision_projection_codex_review",
-      "timed_out": false
+      "agent": null,
+      "end_time": "2026-05-09T18:24:08.743702+00:00",
+      "next_recommended_action": "start daemon if queue is valid",
+      "start_time": "2026-05-09T18:24:08.743693+00:00",
+      "status": "pending",
+      "summary": "dry-run queue check completed",
+      "task_id": null
     },
     "queue": {
       "blocked_quota": null,
       "counts": {
-        "blocked": 6,
+        "blocked": 9,
         "cancelled": 0,
-        "completed": 224,
+        "completed": 225,
         "failed": 1,
         "human_attention_required": 0,
-        "pending": 18,
+        "pending": 15,
         "retry_scheduled": 13,
-        "running": 1,
+        "running": 0,
         "skipped": 0,
         "superseded_by_evidence": 41
       },
-      "current_running_task": "069_decision_explainability_2ha0_lineage_inventory",
+      "current_running_task": null,
       "gate": "READY_FOR_CODEX_RERUN",
-      "generated_at": "2026-05-09T18:12:18.632318+00:00",
+      "generated_at": "2026-05-09T18:24:08.763784+00:00",
       "human_attention_required_count": 0,
       "human_attention_required_tasks": [],
       "next_pending_task": "031_codex_review_phase2_symbol_universe",
@@ -65,14 +52,10 @@
       "no_event_tasks": [],
       "no_output_growth_count": 0,
       "no_output_growth_tasks": [],
-      "stale_running_count": 1,
-      "stale_running_tasks": [
-        "069_decision_explainability_2ha0_lineage_inventory"
-      ]
+      "stale_running_count": 0,
+      "stale_running_tasks": []
     },
-    "stale_running_tasks": [
-      "069_decision_explainability_2ha0_lineage_inventory"
-    ]
+    "stale_running_tasks": []
   },
   "config_admin": {
     "settings": [
@@ -377,8 +360,8 @@
       }
     ]
   },
-  "generated_at": "2026-05-09T18:15:31.361068+00:00",
-  "git_head": "09cfe98 Codex watchdog recover dirty non-live automation artifacts",
+  "generated_at": "2026-05-09T18:24:30.839656+00:00",
+  "git_head": "c7ef000 Build professional operator GUI decision explainability cockpit",
   "live_gate_status": "blocked_human_only",
   "live_readiness": {
     "approval_required": true,
@@ -404,44 +387,31 @@
   },
   "mission_control": {
     "current_status": {
-      "agent": "codex",
-      "attention_reason": null,
-      "auto_commit": {
-        "attempted": false,
-        "commit_hash": null,
-        "message": "",
-        "ok": false
-      },
-      "end_time": "2026-05-09T18:12:18.583747+00:00",
-      "last_retry_reason": null,
-      "materialized_files": [],
-      "next_recommended_action": "inspect run output",
-      "risk_level": "L1",
-      "start_time": "2026-05-09T18:12:18.563453+00:00",
-      "status": "blocked_dependency",
-      "stderr_path": "claude_worklog/agent_supervisor/runs/182_phase2u_decision_explainability_orchestrator_decision_projection_codex_review/stderr.txt",
-      "stdout_path": "claude_worklog/agent_supervisor/runs/182_phase2u_decision_explainability_orchestrator_decision_projection_codex_review/stdout.txt",
-      "summary": "waiting on dependencies: 181_codex_closed_loop_recover_180_decision_explainability_orchestrator_projection, 181_codex_closed_loop_recover_180_decision_explainability_orchestrator_projection",
-      "task_id": "182_phase2u_decision_explainability_orchestrator_decision_projection_codex_review",
-      "timed_out": false
+      "agent": null,
+      "end_time": "2026-05-09T18:24:08.743702+00:00",
+      "next_recommended_action": "start daemon if queue is valid",
+      "start_time": "2026-05-09T18:24:08.743693+00:00",
+      "status": "pending",
+      "summary": "dry-run queue check completed",
+      "task_id": null
     },
     "queue": {
       "blocked_quota": null,
       "counts": {
-        "blocked": 6,
+        "blocked": 9,
         "cancelled": 0,
-        "completed": 224,
+        "completed": 225,
         "failed": 1,
         "human_attention_required": 0,
-        "pending": 18,
+        "pending": 15,
         "retry_scheduled": 13,
-        "running": 1,
+        "running": 0,
         "skipped": 0,
         "superseded_by_evidence": 41
       },
-      "current_running_task": "069_decision_explainability_2ha0_lineage_inventory",
+      "current_running_task": null,
       "gate": "READY_FOR_CODEX_RERUN",
-      "generated_at": "2026-05-09T18:12:18.632318+00:00",
+      "generated_at": "2026-05-09T18:24:08.763784+00:00",
       "human_attention_required_count": 0,
       "human_attention_required_tasks": [],
       "next_pending_task": "031_codex_review_phase2_symbol_universe",
@@ -449,23 +419,10 @@
       "no_event_tasks": [],
       "no_output_growth_count": 0,
       "no_output_growth_tasks": [],
-      "stale_running_count": 1,
-      "stale_running_tasks": [
-        "069_decision_explainability_2ha0_lineage_inventory"
-      ]
+      "stale_running_count": 0,
+      "stale_running_tasks": []
     },
-    "remaining_blockers": [
-      {
-        "detail": "069_decision_explainability_2ha0_lineage_inventory",
-        "id": "stale_running_tasks",
-        "status": "open"
-      },
-      {
-        "detail": "waiting on dependencies: 181_codex_closed_loop_recover_180_decision_explainability_orchestrator_projection, 181_codex_closed_loop_recover_180_decision_explainability_orchestrator_projection",
-        "id": "182_phase2u_decision_explainability_orchestrator_decision_projection_codex_review",
-        "status": "open"
-      }
-    ]
+    "remaining_blockers": []
   },
   "monitor_center": {
     "rows": [
@@ -531,14 +488,12 @@
         "status": "observed"
       },
       {
-        "alerts": [
-          "069_decision_explainability_2ha0_lineage_inventory"
-        ],
+        "alerts": [],
         "classification": "active",
         "id": "agent_supervisor_queue",
         "last_failure": "evidence_missing",
-        "last_run": "2026-05-09T18:12:18.632318+00:00",
-        "last_success": "2026-05-09T18:12:18.632318+00:00",
+        "last_run": "2026-05-09T18:24:08.763784+00:00",
+        "last_success": "2026-05-09T18:24:08.763784+00:00",
         "logs_watched": [
           "claude_worklog/agent_supervisor/events.jsonl"
         ],
@@ -661,16 +616,6 @@
     ]
   },
   "remaining_blockers_before_live": [
-    {
-      "detail": "069_decision_explainability_2ha0_lineage_inventory",
-      "id": "stale_running_tasks",
-      "status": "open"
-    },
-    {
-      "detail": "waiting on dependencies: 181_codex_closed_loop_recover_180_decision_explainability_orchestrator_projection, 181_codex_closed_loop_recover_180_decision_explainability_orchestrator_projection",
-      "id": "182_phase2u_decision_explainability_orchestrator_decision_projection_codex_review",
-      "status": "open"
-    },
     {
       "detail": "human-only live approval required",
       "id": "live_gate",
@@ -1735,13 +1680,13 @@
     ]
   },
   "status": {
-    "current_task": "182_phase2u_decision_explainability_orchestrator_decision_projection_codex_review",
+    "current_task": "evidence_missing",
     "go_no_go": "PROFESSIONAL_OPERATOR_GUI_AND_DECISION_EXPLAINABILITY_READY",
     "historical_marker": "HISTORICAL_30D_REPLAY_AND_PAPER_PROOF_READY",
     "human_attention_required_count": 0,
     "proof_marker": "NON_LIVE_OPERATOR_PROOF_HARNESS_READY",
     "queue_gate": "READY_FOR_CODEX_RERUN",
-    "stale_running_count": 1
+    "stale_running_count": 0
   },
   "symbol_universe": {
     "rows": [

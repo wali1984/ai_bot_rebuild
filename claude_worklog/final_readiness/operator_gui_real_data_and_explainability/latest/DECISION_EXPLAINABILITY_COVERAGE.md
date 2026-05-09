@@ -1,9 +1,9 @@
 # Decision Explainability Coverage
 
 - marker: `PROFESSIONAL_OPERATOR_GUI_AND_DECISION_EXPLAINABILITY_READY`
-- generated_at: `2026-05-09T18:15:31.361068+00:00`
+- generated_at: `2026-05-09T18:24:30.839656+00:00`
 - live_gate_status: `blocked_human_only`
-- git_head: `09cfe98 Codex watchdog recover dirty non-live automation artifacts`
+- git_head: `c7ef000 Build professional operator GUI decision explainability cockpit`
 
 ## Evidence
 
