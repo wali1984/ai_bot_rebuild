@@ -1,0 +1,2 @@
+82:- Do not modify `/home/wali/Desktop/AI BOT`.
+88:- Do not enable live trading.
