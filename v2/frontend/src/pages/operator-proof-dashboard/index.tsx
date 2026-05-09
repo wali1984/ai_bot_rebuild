@@ -20,6 +20,7 @@ interface CockpitPayload {
     last_event_timestamp?: string;
     last_artifact_update?: string;
     legacy_trader_disabled_non_blocking?: boolean;
+    task_069_progress_state?: string;
     proof_marker: string;
     historical_marker: string;
   };
@@ -47,9 +48,25 @@ interface CockpitPayload {
   automation_status: {
     stale_running_tasks: string[];
     liveness?: AutomationLiveness;
+    task_069_liveness?: Task069Liveness;
   };
   remaining_blockers_before_live: Array<{ id: string; status: string; detail: string }>;
   data_gaps: string[];
+}
+
+interface Task069Liveness {
+  classification?: string;
+  decision?: string;
+  live_gate_status?: string;
+  legacy_trader_disabled_non_blocking?: boolean;
+  progress_signals?: {
+    active_claude_codex_child_process?: boolean;
+    supervisor_wrapper_process_only?: boolean;
+    stdout_bytes?: number;
+    stderr_bytes?: number;
+    materialized_artifacts?: string[];
+    required_outputs_missing?: string[];
+  };
 }
 
 interface AutomationLiveness {
@@ -318,6 +335,7 @@ function MissionControl({ payload }: { payload: CockpitPayload }): JSX.Element {
         <Metric label="Stale Running" value={payload.status.stale_running_count} />
         <Metric label="Automation" value={payload.status.automation_assessment ?? 'evidence_missing'} detail={payload.status.last_event_timestamp} />
         <Metric label="Legacy Trader" value={payload.status.legacy_trader_disabled_non_blocking ? 'disabled_non_blocking' : 'evidence_missing'} />
+        <Metric label="069 Progress" value={payload.status.task_069_progress_state ?? 'evidence_missing'} />
         <Metric label="Proof Marker" value={payload.status.proof_marker} />
         <Metric label="Historical Marker" value={payload.status.historical_marker} />
       </div>
@@ -602,6 +620,22 @@ function SimpleCoverageSections({ payload }: { payload: CockpitPayload }): JSX.E
               ]}
               empty="No legacy trader policy evidence."
             />
+            {payload.automation_status.task_069_liveness ? (
+              <DataList
+                title="Task 069 progress gate"
+                rows={[
+                  {
+                    classification: payload.automation_status.task_069_liveness.classification ?? 'evidence_missing',
+                    decision: payload.automation_status.task_069_liveness.decision ?? 'evidence_missing',
+                    child_process: String(payload.automation_status.task_069_liveness.progress_signals?.active_claude_codex_child_process ?? false),
+                    stdout_bytes: String(payload.automation_status.task_069_liveness.progress_signals?.stdout_bytes ?? 'evidence_missing'),
+                    stderr_bytes: String(payload.automation_status.task_069_liveness.progress_signals?.stderr_bytes ?? 'evidence_missing'),
+                    missing_outputs: String(payload.automation_status.task_069_liveness.progress_signals?.required_outputs_missing?.length ?? 'evidence_missing'),
+                  },
+                ]}
+                empty="No task 069 liveness evidence."
+              />
+            ) : null}
           </>
         ) : null}
         <DataList title="Stale cleanup status" rows={payload.remaining_blockers_before_live} empty="No stale cleanup blockers." />

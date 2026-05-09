@@ -1,0 +1,36 @@
+{
+  "task_id": "069C_decision_lineage_dashboard_payload_integration",
+  "agent": "claude",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/decision_explainability/"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/decision_explainability/069C_DASHBOARD_PAYLOAD_INTEGRATION_SPEC.md",
+    "claude_worklog/phase2_core_rebuild/decision_explainability/069C_GO_NO_GO.md"
+  ],
+  "predecessor_task_ids": [
+    "069B_decision_lineage_evidence_packet_builder"
+  ],
+  "prompt": "Strict BEGIN_FILE emit-only mode. Documentation only. Do not mutate the legacy bot directory. Do not mutate live data stores. Do not restart services. Do not place/cancel orders. Do not turn on live mode. Do not modify v2/. Do not commit or push. Output only the required Markdown files under the allowed prefix.\n\nSpecify how the operator dashboard payload must expose the lineage fields and missing-evidence warnings. GO file exactly PHASE2HA0_069C_DASHBOARD_INTEGRATION_READY or PHASE2HA0_069C_DASHBOARD_INTEGRATION_BLOCKED.",
+  "lane": "paper_backtest_mvp",
+  "mvp_relevance": "Decision explainability lineage inventory split from stale/no-output task 069.",
+  "blocked_by": [
+    "069B_decision_lineage_evidence_packet_builder"
+  ],
+  "next_gate": "069C_GO_NO_GO.md",
+  "legacy_evidence_consulted": [
+    "legacy_readonly_audit",
+    "historical_pnl_audit",
+    "operator proof artifacts"
+  ],
+  "legacy_failure_addressed": [
+    "decision lineage opacity",
+    "zero-output headless automation failure"
+  ],
+  "next_recommended_action": "Run in order; do not start unrelated work while this split sequence is pending.",
+  "priority": 980
+}

@@ -1,29 +1,29 @@
 # Automation Liveness Report
 
-Generated: 2026-05-09T18:41:07.646803+00:00
+Generated: 2026-05-09T18:53:30.424067+00:00
 
 - marker: `AUTOMATION_LIVENESS_AND_LEGACY_TRADER_DOWN_TOLERANCE_READY`
-- automation_assessment: `running_with_liveness_warnings`
-- current_task: `069_decision_explainability_2ha0_lineage_inventory`
-- next_runnable_task: `031_codex_review_phase2_symbol_universe`
-- last_event_timestamp: `2026-05-09T18:40:00.841126+00:00`
-- last_artifact_update: `2026-05-09T18:39:45.456357+00:00`
-- last_commit: `55e899a Resolve stale explainability queue state`
+- automation_assessment: `idle_ready_for_next_task`
+- current_task: `none`
+- next_runnable_task: `069A_decision_lineage_source_scan`
+- last_event_timestamp: `2026-05-09T18:53:15.764828+00:00`
+- last_artifact_update: `2026-05-09T18:52:55.429251+00:00`
+- last_commit: `5575f8a Add automation liveness and legacy trader tolerance proof`
 - stale_running_count: `0`
 - human_attention_count: `0`
 - quota_blocked: `None`
 
 ## Active Task Liveness
 
-- task_id: `069_decision_explainability_2ha0_lineage_inventory`
-- status: `running`
-- run_pid: `1272960`
-- supervisor_task_process_present: `True`
+- task_id: `None`
+- status: `pending`
+- run_pid: `None`
+- supervisor_task_process_present: `False`
 - claude_codex_child_present: `False`
-- stdout_size: `0`
-- stderr_size: `0`
-- required_outputs_missing: `3`
-- warnings: `supervisor_task_running_but_no_claude_codex_child_detected, active_task_stdout_stderr_zero_bytes`
+- stdout_size: `4096`
+- stderr_size: `4096`
+- required_outputs_missing: `0`
+- warnings: `none`
 
 ## Legacy Trader Policy
 

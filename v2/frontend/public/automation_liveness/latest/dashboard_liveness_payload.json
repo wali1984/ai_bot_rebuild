@@ -11,7 +11,7 @@
     "codex": {
       "ready_marker": true
     },
-    "generated_at": "2026-05-09T18:25:02.064064+00:00",
+    "generated_at": "2026-05-09T18:53:15.763301+00:00",
     "last_auto_commit_hash": null,
     "ollama": {
       "model_count": 1,
@@ -22,40 +22,42 @@
     "supervisor_version": "2.0-reliability-hardened",
     "terminal_operator": "VS Code/Copilot"
   },
-  "automation_assessment": "running_with_liveness_warnings",
+  "automation_assessment": "idle_ready_for_next_task",
   "current_status": {
-    "agent": "claude",
-    "end_time": null,
-    "materialized_files": [],
-    "next_recommended_action": "wait for completion",
-    "risk_level": "L1",
-    "run_pid": 1272960,
-    "start_time": "2026-05-09T18:25:01.941631+00:00",
-    "status": "running",
-    "stderr_path": "claude_worklog/agent_supervisor/runs/069_decision_explainability_2ha0_lineage_inventory/stderr.txt",
-    "stdout_path": "claude_worklog/agent_supervisor/runs/069_decision_explainability_2ha0_lineage_inventory/stdout.txt",
-    "summary": "task execution in progress",
-    "task_id": "069_decision_explainability_2ha0_lineage_inventory"
+    "agent": null,
+    "end_time": "2026-05-09T18:53:15.723163+00:00",
+    "next_recommended_action": "start daemon if queue is valid",
+    "start_time": "2026-05-09T18:53:15.723156+00:00",
+    "status": "pending",
+    "summary": "dry-run queue check completed",
+    "task_id": null
   },
   "dashboard_summary": {
-    "claude_planner_running": true,
-    "codex_watchdog_running": true,
-    "current_task_id": "069_decision_explainability_2ha0_lineage_inventory",
+    "claude_planner_running": false,
+    "codex_watchdog_running": false,
+    "current_task_id": "none",
     "human_attention_count": 0,
-    "last_artifact_update": "2026-05-09T18:39:45.456357+00:00",
-    "last_commit": "55e899a Resolve stale explainability queue state",
-    "last_event_timestamp": "2026-05-09T18:40:00.841126+00:00",
-    "latest_blocker_reason": "supervisor_task_running_but_no_claude_codex_child_detected, active_task_stdout_stderr_zero_bytes",
+    "last_artifact_update": "2026-05-09T18:52:55.429251+00:00",
+    "last_commit": "5575f8a Add automation liveness and legacy trader tolerance proof",
+    "last_event_timestamp": "2026-05-09T18:53:15.764828+00:00",
+    "latest_blocker_reason": "none",
     "legacy_trader_disabled_non_blocking": true,
-    "next_runnable_task": "031_codex_review_phase2_symbol_universe",
-    "scheduler_running": true,
-    "stale_running_count": 0
+    "next_runnable_task": "069A_decision_lineage_source_scan",
+    "scheduler_running": false,
+    "stale_running_count": 0,
+    "task_069_progress_state": "stale_running_no_output"
   },
-  "generated_at": "2026-05-09T18:41:07.646803+00:00",
+  "generated_at": "2026-05-09T18:53:30.424067+00:00",
   "git": {
     "clean": false,
-    "head": "55e899a Resolve stale explainability queue state",
+    "head": "5575f8a Add automation liveness and legacy trader tolerance proof",
     "status": [
+      " M claude_worklog/final_readiness/automation_liveness/latest/AUTOMATION_LIVENESS_REPORT.md",
+      " M claude_worklog/final_readiness/automation_liveness/latest/agent_process_snapshot.json",
+      " M claude_worklog/final_readiness/automation_liveness/latest/dashboard_liveness_payload.json",
+      " M claude_worklog/final_readiness/automation_liveness/latest/legacy_trader_down_tolerance.md",
+      " M claude_worklog/final_readiness/automation_liveness/latest/stale_task_recovery_report.md",
+      " M claude_worklog/final_readiness/automation_liveness/latest/task_queue_liveness.json",
       " M claude_worklog/final_readiness/operator_gui_real_data_and_explainability/latest/CONFIG_ADMIN_COVERAGE.md",
       " M claude_worklog/final_readiness/operator_gui_real_data_and_explainability/latest/DATA_WIRING_MAP.md",
       " M claude_worklog/final_readiness/operator_gui_real_data_and_explainability/latest/DECISION_EXPLAINABILITY_COVERAGE.md",
@@ -64,17 +66,24 @@
       " M claude_worklog/final_readiness/operator_gui_real_data_and_explainability/latest/PLACEHOLDER_REMOVAL_REPORT.md",
       " M claude_worklog/final_readiness/operator_gui_real_data_and_explainability/latest/REMAINING_EVIDENCE_GAPS.md",
       " M claude_worklog/final_readiness/operator_gui_real_data_and_explainability/latest/operator_cockpit_payload.json",
-      " M claude_worklog/legacy_readonly_audit/01_PROCESS_SNAPSHOT.md",
-      " M claude_worklog/legacy_readonly_audit/07_ORCHESTRATOR_TRADER_RUNTIME_EVIDENCE.md",
+      " M claude_worklog/tools/build_automation_liveness_payload.py",
       " M claude_worklog/tools/build_operator_gui_explainability_payload.py",
+      " M v2/frontend/public/automation_liveness/latest/agent_process_snapshot.json",
+      " M v2/frontend/public/automation_liveness/latest/dashboard_liveness_payload.json",
+      " M v2/frontend/public/automation_liveness/latest/task_queue_liveness.json",
       " M v2/frontend/public/operator_gui_real_data_and_explainability/latest/operator_cockpit_payload.json",
       " M v2/frontend/src/pages/operator-proof-dashboard/index.tsx",
-      " M v2/frontend/tests/e2e/operator_proof_dashboard_historical_30d.spec.ts",
-      "?? claude_worklog/final_readiness/automation_liveness/",
-      "?? claude_worklog/tools/build_automation_liveness_payload.py",
-      "?? v2/frontend/public/automation_liveness/"
+      "?? claude_worklog/agent_supervisor/tasks/069A_decision_lineage_source_scan.json",
+      "?? claude_worklog/agent_supervisor/tasks/069B_decision_lineage_evidence_packet_builder.json",
+      "?? claude_worklog/agent_supervisor/tasks/069C_decision_lineage_dashboard_payload_integration.json",
+      "?? claude_worklog/agent_supervisor/tasks/069D_decision_lineage_validation_and_codex_review_packet.json",
+      "?? claude_worklog/final_readiness/automation_liveness/latest/069_GO_NO_GO.md",
+      "?? claude_worklog/final_readiness/automation_liveness/latest/069_PROGRESS_PROOF.md",
+      "?? claude_worklog/final_readiness/automation_liveness/latest/069_STALE_RECOVERY_REPORT.md",
+      "?? claude_worklog/final_readiness/automation_liveness/latest/069_TASK_SPLIT_PLAN.md",
+      "?? claude_worklog/final_readiness/automation_liveness/latest/dashboard_069_liveness_payload.json"
     ],
-    "upstream_head": "55e899a Resolve stale explainability queue state"
+    "upstream_head": "5575f8a Add automation liveness and legacy trader tolerance proof"
   },
   "legacy_trader_policy": {
     "legacy_trader_down_should_not_block_non_live_rebuild": true,
@@ -88,94 +97,66 @@
   "marker": "AUTOMATION_LIVENESS_AND_LEGACY_TRADER_DOWN_TOLERANCE_READY",
   "processes": [
     {
-      "age_seconds": 45240,
+      "age_seconds": 45983,
       "cmd": "python3 -m rl.hybrid_trainer --mode hybrid --training-mode live --enhanced-features",
       "pid": 1039705,
       "ppid": 1039702,
       "stat": "Sl"
     },
     {
-      "age_seconds": 45175,
+      "age_seconds": 45918,
       "cmd": "python3 -m rl.orchestrator_worker",
       "pid": 1042465,
       "ppid": 1042463,
       "stat": "Sl"
     },
     {
-      "age_seconds": 966,
-      "cmd": "python3 claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll-seconds 300",
-      "pid": 1272603,
-      "ppid": 1029421,
-      "stat": "Ss+"
-    },
-    {
-      "age_seconds": 966,
-      "cmd": "python3 claude_worklog/tools/parallel_capacity_scheduler.py --daemon --poll-seconds 600",
-      "pid": 1272676,
-      "ppid": 1029421,
-      "stat": "Ss+"
-    },
-    {
-      "age_seconds": 966,
-      "cmd": "python3 claude_worklog/tools/claude_master_rebuild_planner.py --daemon --poll-seconds 120",
-      "pid": 1272846,
-      "ppid": 1029421,
-      "stat": "Ss+"
-    },
-    {
-      "age_seconds": 965,
-      "cmd": "python3 claude_worklog/tools/agent_supervisor.py --task-id 069_decision_explainability_2ha0_lineage_inventory",
-      "pid": 1272958,
-      "ppid": 1272846,
-      "stat": "S+"
-    },
-    {
-      "age_seconds": 965,
+      "age_seconds": 1708,
       "cmd": "claude --print [prompt_redacted]",
       "pid": 1272960,
-      "ppid": 1272958,
+      "ppid": 1011413,
       "stat": "Ssl"
     }
   ],
   "progress_clocks": {
     "last_event_log_update": {
-      "age_seconds": 66,
+      "age_seconds": 14,
       "exists": true,
-      "mtime": "2026-05-09T18:40:00.841126+00:00",
-      "size": 134742077
+      "mtime": "2026-05-09T18:53:15.764828+00:00",
+      "size": 134918153
     },
     "last_final_readiness_artifact": {
-      "age_seconds": 82,
-      "mtime": "2026-05-09T18:39:45.456357+00:00",
+      "age_seconds": 34,
+      "mtime": "2026-05-09T18:52:55.429251+00:00",
       "path": "claude_worklog/final_readiness/operator_gui_real_data_and_explainability/latest/REMAINING_EVIDENCE_GAPS.md"
     },
     "last_queue_status_update": {
-      "age_seconds": 965,
+      "age_seconds": 14,
       "exists": true,
-      "mtime": "2026-05-09T18:25:02.062964+00:00",
-      "size": 755
+      "mtime": "2026-05-09T18:53:15.749105+00:00",
+      "size": 702
     }
   },
   "queue": {
     "blocked_quota": null,
     "counts": {
-      "blocked": 9,
+      "blocked": 12,
       "cancelled": 0,
       "completed": 225,
       "failed": 1,
       "human_attention_required": 0,
-      "pending": 15,
+      "pending": 16,
       "retry_scheduled": 12,
-      "running": 1,
+      "running": 0,
       "skipped": 0,
-      "superseded_by_evidence": 41
+      "superseded_by_evidence": 42
     },
-    "current_running_task": "069_decision_explainability_2ha0_lineage_inventory",
+    "current_running_task": null,
     "gate": "READY_FOR_CODEX_RERUN",
-    "generated_at": "2026-05-09T18:25:02.058419+00:00",
+    "generated_at": "2026-05-09T18:53:15.745422+00:00",
     "human_attention_required_count": 0,
     "human_attention_required_tasks": [],
-    "next_pending_task": "031_codex_review_phase2_symbol_universe",
+    "next_pending_task": "069A_decision_lineage_source_scan",
     "no_event_count": 0,
     "no_event_tasks": [],
     "no_output_growth_count": 0,
@@ -189,6 +170,9 @@
       "059_trainer_parity_2e1b_endfile_marker_remediation",
       "067_frontend_design_2fa1_spec_author",
       "068_frontend_design_2fa1_codex_review",
+      "069B_decision_lineage_evidence_packet_builder",
+      "069C_decision_lineage_dashboard_payload_integration",
+      "069D_decision_lineage_validation_and_codex_review_packet",
       "070_decision_explainability_2ha0_codex_review",
       "093_codex_recovery_2e1d_end_file_marker_leakage_cleanup"
     ],
@@ -208,7 +192,7 @@
     "claude_lane_status": "planner_waiting",
     "codex_autofix_lane_status": "idle",
     "codex_child_processes": [
-      "1272958 1272846     600 python3 claude_worklog/tools/agent_supervisor.py --task-id 069_decision_explainability_2ha0_lineage_inventory"
+      "1272958 1272846    1201 python3 claude_worklog/tools/agent_supervisor.py --task-id 069_decision_explainability_2ha0_lineage_inventory"
     ],
     "codex_idle_while_work_available": false,
     "codex_review_batch_active": false,
@@ -219,12 +203,9 @@
     "completed_codex_review_count_this_window": 10,
     "current_mvp_milestone": "REPLAY_BACKTEST_RUNNER_MVP",
     "final_live_gate_status": "blocked_human_only",
-    "generated_at": "2026-05-09T18:35:01.988228+00:00",
-    "git_clean": false,
-    "git_status": [
-      " M claude_worklog/legacy_readonly_audit/01_PROCESS_SNAPSHOT.md",
-      " M claude_worklog/legacy_readonly_audit/07_ORCHESTRATOR_TRADER_RUNTIME_EVIDENCE.md"
-    ],
+    "generated_at": "2026-05-09T18:45:02.854333+00:00",
+    "git_clean": true,
+    "git_status": [],
     "last_codex_autofix": {},
     "last_codex_parallel_review": {
       "created": [],
@@ -257,7 +238,7 @@
     "latest_human_attention_task": null,
     "mode": "actions_enabled",
     "next_mvp_milestone": "REPLAY_BACKTEST_RUNNER_MVP",
-    "next_safe_codex_task": "run Codex watchdog dirty-tree recovery",
+    "next_safe_codex_task": "create Codex parallel review batch",
     "parallel_capacity_scheduler_running": true,
     "pending_codex_review_count": 0,
     "planner_running": true,
@@ -272,40 +253,53 @@
     ],
     "running_codex_review_count": 0
   },
+  "task_069_liveness": {
+    "classification": "stale_running_no_output",
+    "decision": "stale_recovered_and_split_into_smaller_non_live_tasks",
+    "generated_at": "2026-05-09T18:52:13.154032+00:00",
+    "legacy_trader_disabled_non_blocking": true,
+    "live_gate_status": "blocked_human_only",
+    "progress_signals": {
+      "active_claude_codex_child_process": false,
+      "materialized_artifacts": [],
+      "required_outputs_missing": [
+        "claude_worklog/phase2_core_rebuild/decision_explainability/05_DECISION_LINEAGE_INVENTORY_REPORT.md",
+        "claude_worklog/phase2_core_rebuild/decision_explainability/06_DECISION_LINEAGE_GAP_MATRIX.md",
+        "claude_worklog/phase2_core_rebuild/decision_explainability/07_DECISION_LINEAGE_GO_NO_GO.md"
+      ],
+      "stderr_bytes": 0,
+      "stdout_bytes": 0,
+      "supervisor_wrapper_process_only": true
+    },
+    "task_id": "069_decision_explainability_2ha0_lineage_inventory"
+  },
   "task_liveness": {
     "claude_codex_child_present": false,
-    "required_outputs_missing": [
-      "claude_worklog/phase2_core_rebuild/decision_explainability/05_DECISION_LINEAGE_INVENTORY_REPORT.md",
-      "claude_worklog/phase2_core_rebuild/decision_explainability/06_DECISION_LINEAGE_GAP_MATRIX.md",
-      "claude_worklog/phase2_core_rebuild/decision_explainability/07_DECISION_LINEAGE_GO_NO_GO.md"
-    ],
-    "run_pid": 1272960,
-    "start_time": "2026-05-09T18:25:01.941631+00:00",
-    "status": "running",
+    "required_outputs_missing": [],
+    "run_pid": null,
+    "start_time": "2026-05-09T18:53:15.723156+00:00",
+    "status": "pending",
     "stderr": {
-      "age_seconds": 965,
+      "age_seconds": 669567,
       "exists": true,
-      "mtime": "2026-05-09T18:25:02.027199+00:00",
-      "size": 0
+      "mtime": "2026-05-02T00:54:03.356176+00:00",
+      "size": 4096
     },
     "stdout": {
-      "age_seconds": 965,
+      "age_seconds": 669567,
       "exists": true,
-      "mtime": "2026-05-09T18:25:02.027199+00:00",
-      "size": 0
+      "mtime": "2026-05-02T00:54:03.356176+00:00",
+      "size": 4096
     },
     "summary": {
-      "age_seconds": 965,
-      "exists": true,
-      "mtime": "2026-05-09T18:25:02.030564+00:00",
-      "size": 591
+      "age_seconds": null,
+      "exists": false,
+      "mtime": null,
+      "size": null
     },
-    "supervisor_task_process_present": true,
-    "task_id": "069_decision_explainability_2ha0_lineage_inventory",
-    "task_process_alive": true,
-    "warnings": [
-      "supervisor_task_running_but_no_claude_codex_child_detected",
-      "active_task_stdout_stderr_zero_bytes"
-    ]
+    "supervisor_task_process_present": false,
+    "task_id": null,
+    "task_process_alive": false,
+    "warnings": []
   }
 }

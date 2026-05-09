@@ -1,9 +1,9 @@
 # Placeholder Removal Report
 
 - marker: `PROFESSIONAL_OPERATOR_GUI_AND_DECISION_EXPLAINABILITY_READY`
-- generated_at: `2026-05-09T18:41:07.729018+00:00`
+- generated_at: `2026-05-09T18:53:30.504225+00:00`
 - live_gate_status: `blocked_human_only`
-- git_head: `55e899a Resolve stale explainability queue state`
+- git_head: `5575f8a Add automation liveness and legacy trader tolerance proof`
 
 ## Evidence
 

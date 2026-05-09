@@ -1,0 +1,34 @@
+{
+  "task_id": "069A_decision_lineage_source_scan",
+  "agent": "claude",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/decision_explainability/"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/decision_explainability/069A_LINEAGE_SOURCE_SCAN.md",
+    "claude_worklog/phase2_core_rebuild/decision_explainability/069A_GO_NO_GO.md"
+  ],
+  "predecessor_task_ids": [],
+  "prompt": "Strict BEGIN_FILE emit-only mode. Documentation only. Do not mutate the legacy bot directory. Do not mutate live data stores. Do not restart services. Do not place/cancel orders. Do not turn on live mode. Do not modify v2/. Do not commit or push. Output only the required Markdown files under the allowed prefix.\n\nInventory source files and exported symbols relevant to decision lineage. GO file exactly PHASE2HA0_069A_SOURCE_SCAN_READY or PHASE2HA0_069A_SOURCE_SCAN_BLOCKED.",
+  "lane": "paper_backtest_mvp",
+  "mvp_relevance": "Decision explainability lineage inventory split from stale/no-output task 069.",
+  "blocked_by": [
+    "original 069 stale_running_no_output"
+  ],
+  "next_gate": "069A_GO_NO_GO.md",
+  "legacy_evidence_consulted": [
+    "legacy_readonly_audit",
+    "historical_pnl_audit",
+    "operator proof artifacts"
+  ],
+  "legacy_failure_addressed": [
+    "decision lineage opacity",
+    "zero-output headless automation failure"
+  ],
+  "next_recommended_action": "Run in order; do not start unrelated work while this split sequence is pending.",
+  "priority": 1000
+}

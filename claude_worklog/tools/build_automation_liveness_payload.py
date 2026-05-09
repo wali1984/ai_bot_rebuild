@@ -162,6 +162,10 @@ def build_payload() -> dict[str, Any]:
     current = read_json(ROOT / "claude_worklog/agent_supervisor/status/current_status.json", {})
     agent_health = read_json(ROOT / "claude_worklog/agent_supervisor/status/agent_health.json", {})
     scheduler = read_json(ROOT / "claude_worklog/agent_supervisor/status/parallel_capacity_scheduler_status.json", {})
+    task_069 = read_json(
+        ROOT / "claude_worklog/final_readiness/automation_liveness/latest/dashboard_069_liveness_payload.json",
+        {},
+    )
 
     task_id = current.get("task_id") or queue.get("current_running_task")
     run_pid = current.get("run_pid")
@@ -246,6 +250,7 @@ def build_payload() -> dict[str, Any]:
             "required_outputs_missing": _required_outputs_missing(str(task_id or "")),
             "warnings": liveness_warnings,
         },
+        "task_069_liveness": task_069,
         "progress_clocks": {
             "last_event_log_update": event_meta,
             "last_queue_status_update": queue_meta,
@@ -271,6 +276,7 @@ def build_payload() -> dict[str, Any]:
             "legacy_trader_disabled_non_blocking": True,
             "next_runnable_task": queue.get("next_pending_task"),
             "latest_blocker_reason": ", ".join(liveness_warnings) if liveness_warnings else "none",
+            "task_069_progress_state": task_069.get("classification", "evidence_missing"),
         },
     }
 

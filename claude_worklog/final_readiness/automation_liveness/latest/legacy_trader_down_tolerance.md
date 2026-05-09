@@ -1,6 +1,6 @@
 # Legacy Trader Down Tolerance
 
-Generated: 2026-05-09T18:41:07.646803+00:00
+Generated: 2026-05-09T18:53:30.424067+00:00
 
 - legacy_trader_intentionally_disabled: `True`
 - legacy_trader_required_for_v2_build: `False`

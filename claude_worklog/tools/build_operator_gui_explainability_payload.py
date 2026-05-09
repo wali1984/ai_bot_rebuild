@@ -155,6 +155,9 @@ def build_payload() -> dict[str, Any]:
             "legacy_trader_disabled_non_blocking": (automation_liveness.get("dashboard_summary") or {}).get(
                 "legacy_trader_disabled_non_blocking", True
             ),
+            "task_069_progress_state": (automation_liveness.get("dashboard_summary") or {}).get(
+                "task_069_progress_state", "evidence_missing"
+            ),
             "proof_marker": read_text(
                 ROOT / "claude_worklog/final_readiness/non_live_operational_proof/latest/GO_NO_GO.md",
                 "evidence_missing",
@@ -220,6 +223,7 @@ def build_payload() -> dict[str, Any]:
             "current_status": current,
             "stale_running_tasks": queue.get("stale_running_tasks", []),
             "liveness": automation_liveness,
+            "task_069_liveness": automation_liveness.get("task_069_liveness", {}),
         },
     }
     payload["remaining_blockers_before_live"] = _remaining_blockers(queue, current) + _live_blockers()
