@@ -1,12 +1,11 @@
 # Orchestrator / Trader Runtime Evidence
 
-Generated: 2026-05-08T19:51:04.117290+00:00
+Generated: 2026-05-09T03:22:07.562256+00:00
 
 Read-only process evidence.
 
 ```text
 1502637 2253730 python3 Desktop/AI BOT/monitor_portfolio_primary.py
-2435672       1 python3 -m rl.orchestrator_worker
 3343513  146556 tail -f Desktop/AI BOT/logs/orchestrator_worker.log
 ```
 

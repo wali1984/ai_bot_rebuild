@@ -1,6 +1,6 @@
 # Legacy Runtime Process Snapshot
 
-Generated: 2026-05-08T19:51:00.085389+00:00
+Generated: 2026-05-09T03:22:03.491756+00:00
 
 Read-only process inspection. No services were restarted.
 
@@ -18,7 +18,6 @@ Read-only process inspection. No services were restarted.
 2434282  130149 python3 ingest/realtime_price_provider.py
 2434939  130149 python3 ohlcv_resampler_hotfix.py
 2435072  130149 python3 feature_pipeline.py
-2435672       1 python3 -m rl.orchestrator_worker
 2435730  130149 python3 ingest/live_technical_analysis.py
 2435742  130149 python3 ingest/live_coinank_global_aggregator.py
 2435747  130149 python3 -m ingest.live_coinapi_wsds
