@@ -1,6 +1,6 @@
 # Data Source Status
 
-Generated: 2026-05-08T23:45:03.981691+00:00
+Generated: 2026-05-09T05:45:04.478721+00:00
 
 - requested_days: 30
 - binance_pull_requested: False
@@ -25,7 +25,6 @@ Generated: 2026-05-08T23:45:03.981691+00:00
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/056_trainer_parity_2e1b_implementation_supervisor_stderr.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/056_trainer_parity_2e1b_implementation_supervisor_stdout.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/060_trainer_parity_2e1c_alpha_implementation_supervisor_stderr.txt",
-    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/060_trainer_parity_2e1c_alpha_implementation_supervisor_stdout.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/060b_trainer_liveness_unit_tests_supervisor_stderr.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/060b_trainer_liveness_unit_tests_supervisor_stdout.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/060c_trainer_liveness_validation_docs_supervisor_stderr.txt",
@@ -33,7 +32,6 @@ Generated: 2026-05-08T23:45:03.981691+00:00
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/061_trainer_parity_2e1c_alpha_local_validation_supervisor_stderr.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/061_trainer_parity_2e1c_alpha_local_validation_supervisor_stdout.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/062_trainer_parity_2e1c_alpha_codex_review_supervisor_stderr.txt",
-    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/062_trainer_parity_2e1c_alpha_codex_review_supervisor_stdout.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/064_trainer_parity_2e1c_beta_implementation_supervisor_stderr.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/064_trainer_parity_2e1c_beta_implementation_supervisor_stdout.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/065_trainer_parity_2e1c_beta_local_validation_supervisor_stderr.txt",
@@ -45,7 +43,6 @@ Generated: 2026-05-08T23:45:03.981691+00:00
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/080_trainer_parity_2e1c_delta_codex_review_supervisor_stderr.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/080_trainer_parity_2e1c_delta_codex_review_supervisor_stdout.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/082_trainer_parity_2e1c_gamma_implementation_supervisor_stderr.txt",
-    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/082_trainer_parity_2e1c_gamma_implementation_supervisor_stdout.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/083_trainer_parity_2e1c_gamma_codex_review_supervisor_stderr.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/083_trainer_parity_2e1c_gamma_codex_review_supervisor_stdout.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/087_trainer_parity_2e1c_gamma_real_implementation_supervisor_stderr.txt",
@@ -74,7 +71,6 @@ Generated: 2026-05-08T23:45:03.981691+00:00
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/099_trainer_parity_2e1e_codex_rereview_after_autofix_supervisor_stdout.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/100_trainer_parity_2e2a_worker_health_domain_implementation_supervisor_stderr.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/100_trainer_parity_2e2a_worker_health_domain_implementation_supervisor_stdout.txt",
-    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/101_trainer_parity_2e2a_worker_health_domain_codex_review_supervisor_stderr.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/101_trainer_parity_2e2a_worker_health_domain_codex_review_supervisor_stdout.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/102_trainer_parity_2e2a_codex_rereview_after_test_plan_addendum_supervisor_stderr.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/102_trainer_parity_2e2a_codex_rereview_after_test_plan_addendum_supervisor_stdout.txt",
@@ -90,7 +86,6 @@ Generated: 2026-05-08T23:45:03.981691+00:00
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/108_trainer_parity_2e2c_worker_health_composition_implementation_supervisor_stdout.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/109_trainer_parity_2e2c_worker_health_composition_codex_review_supervisor_stderr.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/109_trainer_parity_2e2c_worker_health_composition_codex_review_supervisor_stdout.txt",
-    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/110_trainer_parity_2e3a_prediction_output_domain_implementation_supervisor_stderr.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/110_trainer_parity_2e3a_prediction_output_domain_implementation_supervisor_stdout.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/111_trainer_parity_2e3a_prediction_output_domain_codex_review_supervisor_stderr.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/111_trainer_parity_2e3a_prediction_output_domain_codex_review_supervisor_stdout.txt",
@@ -108,12 +103,11 @@ Generated: 2026-05-08T23:45:03.981691+00:00
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/169_phase2p_historical_pnl_replay_wiring_implementation_supervisor_stdout.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/170_phase2p_historical_pnl_replay_wiring_codex_review_supervisor_stderr.txt",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/master_planner/170_phase2p_historical_pnl_replay_wiring_codex_review_supervisor_stdout.txt",
-    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/065_trainer_parity_2e1c_beta_local_validation.json",
-    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/072_codex_parallel_autofix_trainer_liveness_worker_dead.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/169_phase2p_historical_pnl_replay_wiring_implementation.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/170_phase2p_historical_pnl_replay_wiring_codex_review.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/codex_parallel_review_20260508_174323_08_historical_pnl_integration.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/codex_parallel_review_20260508_230322_08_historical_pnl_integration.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/codex_parallel_review_20260509_042332_08_historical_pnl_integration.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/codex_recover_169_phase2p_historical_pnl_replay_wiring_implementation.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/state/tasks/codex_recover_170_phase2p_historical_pnl_replay_wiring_codex_review.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/012d_trainer_liveness_validation_evidence.json",
@@ -138,7 +132,14 @@ Generated: 2026-05-08T23:45:03.981691+00:00
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/065_trainer_parity_2e1c_beta_local_validation.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/066_trainer_parity_2e1c_beta_codex_review.json",
     "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/069_codex_parallel_review_trainer_liveness_stack.json",
-    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/073_codex_parallel_rerevie
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/073_codex_parallel_rereview_trainer_liveness_autofix.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/076_trainer_parity_2e1c_alpha_codex_rereview_after_remediation.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/077_trainer_parity_2e1c_beta_codex_rereview_after_remediation.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/078_trainer_parity_2e1c_beta_final_codex_rereview.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/079_trainer_parity_2e1c_delta_implementation.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/080_trainer_parity_2e1c_delta_codex_review.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/082_trainer_parity_2e1c_gamma_implementation.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/tasks/083_trainer_parity_2e1c_gamma_codex_review.jso
 ```
 
 No secret values are printed.
