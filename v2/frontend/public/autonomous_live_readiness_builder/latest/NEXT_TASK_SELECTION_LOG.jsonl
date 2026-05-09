@@ -1,0 +1,9 @@
+{
+  "blockers": [],
+  "legacy_trader_down_non_blocking": true,
+  "live_gate_status": "blocked_human_only",
+  "queue_gate": "READY_FOR_CODEX_RERUN",
+  "reason": "069A source scan completed; continue split decision-lineage inventory before unrelated work",
+  "selected_task": "069B_decision_lineage_evidence_packet_builder",
+  "ts": "2026-05-09T19:12:41.858885+00:00"
+}

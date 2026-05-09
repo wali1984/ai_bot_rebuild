@@ -1,0 +1,12 @@
+{
+  "continuous_loop_available": true,
+  "exchange_orders": false,
+  "generated_at": "2026-05-09T19:12:41.862206+00:00",
+  "last_paper_event_count": 7,
+  "last_risk_block_count": 3,
+  "last_shadow_decision_count": 5,
+  "legacy_redis_writes": false,
+  "live_gate_status": "blocked_human_only",
+  "runtime": "scheduler_ready",
+  "writes_only_local_v2_artifacts": true
+}

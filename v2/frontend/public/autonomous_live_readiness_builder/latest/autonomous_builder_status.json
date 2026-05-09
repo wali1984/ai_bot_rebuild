@@ -1,0 +1,11 @@
+{
+  "codex_governor_status": "ready",
+  "generated_at": "2026-05-09T19:12:41.858895+00:00",
+  "git_head": "f8fc8c7 Codex watchdog recover dirty non-live automation artifacts",
+  "legacy_trader_down_non_blocking": true,
+  "live_gate_status": "blocked_human_only",
+  "marker": "AUTONOMOUS_LIVE_READINESS_BUILDER_READY",
+  "next_task": "069B_decision_lineage_evidence_packet_builder",
+  "next_task_reason": "069A source scan completed; continue split decision-lineage inventory before unrelated work",
+  "planner_status": "ready"
+}

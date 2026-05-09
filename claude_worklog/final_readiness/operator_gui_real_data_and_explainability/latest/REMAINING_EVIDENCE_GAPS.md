@@ -1,9 +1,9 @@
 # Remaining Evidence Gaps
 
 - marker: `PROFESSIONAL_OPERATOR_GUI_AND_DECISION_EXPLAINABILITY_READY`
-- generated_at: `2026-05-09T18:53:30.504225+00:00`
+- generated_at: `2026-05-09T19:12:41.891856+00:00`
 - live_gate_status: `blocked_human_only`
-- git_head: `5575f8a Add automation liveness and legacy trader tolerance proof`
+- git_head: `f8fc8c7 Codex watchdog recover dirty non-live automation artifacts`
 
 ## Evidence
 

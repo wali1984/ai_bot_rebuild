@@ -23,6 +23,9 @@ test.describe('operator proof dashboard historical 30d', () => {
     await expect(page.getByTestId('cockpit-automation-status')).toContainText('true');
     await expect(page.getByTestId('cockpit-automation-status')).toContainText('Task 069 progress gate');
     await expect(page.getByTestId('cockpit-automation-status')).toContainText('stale_running_no_output');
+    await expect(page.getByTestId('cockpit-automation-status')).toContainText('Autonomous planner and Codex governor');
+    await expect(page.getByTestId('cockpit-continuous-paper-shadow-runtime')).toContainText('Continuous Paper / Shadow Runtime');
+    await expect(page.getByTestId('cockpit-trainer-lineage-readiness')).toContainText('TRAINER_LINEAGE_AND_READINESS_BLOCKED');
     await expect(page.getByTestId('cockpit-live-readiness')).toContainText('Dangerous controls enabled');
     await expect(page.getByTestId('cockpit-remaining-blockers')).toContainText('Evidence gaps');
     await expect(page.getByTestId('operator-proof-dashboard').getByRole('button')).toHaveCount(0);

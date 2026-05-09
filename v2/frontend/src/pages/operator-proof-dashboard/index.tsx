@@ -49,9 +49,46 @@ interface CockpitPayload {
     stale_running_tasks: string[];
     liveness?: AutomationLiveness;
     task_069_liveness?: Task069Liveness;
+    autonomous_builder?: AutonomousBuilder;
   };
+  autonomous_live_readiness_builder?: AutonomousBuilder;
+  continuous_paper_shadow_runtime?: ContinuousPaperRuntime;
+  trainer_lineage_and_readiness?: TrainerReadiness;
   remaining_blockers_before_live: Array<{ id: string; status: string; detail: string }>;
   data_gaps: string[];
+}
+
+interface AutonomousBuilder {
+  marker?: string;
+  planner_status?: string;
+  next_task?: string;
+  next_task_reason?: string;
+  codex_governor_status?: string;
+  live_gate_status?: string;
+  legacy_trader_down_non_blocking?: boolean;
+}
+
+interface ContinuousPaperRuntime {
+  status?: {
+    runtime?: string;
+    continuous_loop_available?: boolean;
+    last_paper_event_count?: number;
+    last_shadow_decision_count?: number;
+    last_risk_block_count?: number;
+    live_gate_status?: string;
+  };
+  positions?: {
+    position_count?: number;
+    paper_pnl?: number;
+    live_gate_status?: string;
+  };
+}
+
+interface TrainerReadiness {
+  marker?: string;
+  gaps?: string[];
+  live_ready?: boolean;
+  coverage?: Record<string, boolean>;
 }
 
 interface Task069Liveness {
@@ -591,6 +628,22 @@ function SimpleCoverageSections({ payload }: { payload: CockpitPayload }): JSX.E
         <DataList title="Live blockers" rows={payload.live_readiness.live_blockers} empty="No live blockers." />
       </Section>
       <Section id="automation-status" title="Claude/Codex/Ollama Automation Status">
+        {payload.autonomous_live_readiness_builder ? (
+          <DataList
+            title="Autonomous planner and Codex governor"
+            rows={[
+              {
+                marker: payload.autonomous_live_readiness_builder.marker ?? 'evidence_missing',
+                planner: payload.autonomous_live_readiness_builder.planner_status ?? 'evidence_missing',
+                next_task: payload.autonomous_live_readiness_builder.next_task ?? 'evidence_missing',
+                reason: payload.autonomous_live_readiness_builder.next_task_reason ?? 'evidence_missing',
+                codex_governor: payload.autonomous_live_readiness_builder.codex_governor_status ?? 'evidence_missing',
+                live_gate: payload.autonomous_live_readiness_builder.live_gate_status ?? 'blocked_human_only',
+              },
+            ]}
+            empty="No autonomous planner evidence."
+          />
+        ) : null}
         {payload.automation_status.liveness ? (
           <>
             <div className="operator-proof-grid">
@@ -639,6 +692,28 @@ function SimpleCoverageSections({ payload }: { payload: CockpitPayload }): JSX.E
           </>
         ) : null}
         <DataList title="Stale cleanup status" rows={payload.remaining_blockers_before_live} empty="No stale cleanup blockers." />
+      </Section>
+      <Section id="continuous-paper-shadow-runtime" title="Continuous Paper / Shadow Runtime">
+        <div className="operator-proof-grid">
+          <Metric label="Runtime" value={payload.continuous_paper_shadow_runtime?.status?.runtime ?? 'evidence_missing'} />
+          <Metric label="Loop Available" value={String(payload.continuous_paper_shadow_runtime?.status?.continuous_loop_available ?? false)} />
+          <Metric label="Paper Events" value={payload.continuous_paper_shadow_runtime?.status?.last_paper_event_count ?? 'evidence_missing'} />
+          <Metric label="Shadow Decisions" value={payload.continuous_paper_shadow_runtime?.status?.last_shadow_decision_count ?? 'evidence_missing'} />
+          <Metric label="Risk Blocks" value={payload.continuous_paper_shadow_runtime?.status?.last_risk_block_count ?? 'evidence_missing'} />
+          <Metric label="Open Paper Positions" value={payload.continuous_paper_shadow_runtime?.positions?.position_count ?? 'evidence_missing'} />
+          <Metric label="Paper PnL" value={payload.continuous_paper_shadow_runtime?.positions?.paper_pnl ?? 'evidence_missing'} />
+        </div>
+      </Section>
+      <Section id="trainer-lineage-readiness" title="Trainer Lineage And Readiness">
+        <div className="operator-proof-grid">
+          <Metric label="Trainer Gate" value={payload.trainer_lineage_and_readiness?.marker ?? 'evidence_missing'} />
+          <Metric label="Live Ready" value={String(payload.trainer_lineage_and_readiness?.live_ready ?? false)} />
+        </div>
+        <DataList
+          title="Trainer evidence gaps"
+          rows={(payload.trainer_lineage_and_readiness?.gaps ?? []).map((gap) => ({ gap }))}
+          empty="No trainer evidence gaps."
+        />
       </Section>
       <Section id="remaining-blockers" title="Remaining Blockers Before Live">
         <DataList title="Blockers" rows={payload.remaining_blockers_before_live} empty="No blocker evidence." />

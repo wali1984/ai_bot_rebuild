@@ -19,11 +19,22 @@
     ]
   },
   "automation_status": {
+    "autonomous_builder": {
+      "codex_governor_status": "ready",
+      "generated_at": "2026-05-09T19:12:41.858895+00:00",
+      "git_head": "f8fc8c7 Codex watchdog recover dirty non-live automation artifacts",
+      "legacy_trader_down_non_blocking": true,
+      "live_gate_status": "blocked_human_only",
+      "marker": "AUTONOMOUS_LIVE_READINESS_BUILDER_READY",
+      "next_task": "069B_decision_lineage_evidence_packet_builder",
+      "next_task_reason": "069A source scan completed; continue split decision-lineage inventory before unrelated work",
+      "planner_status": "ready"
+    },
     "current_status": {
       "agent": null,
-      "end_time": "2026-05-09T18:53:15.723163+00:00",
+      "end_time": "2026-05-09T19:10:28.326873+00:00",
       "next_recommended_action": "start daemon if queue is valid",
-      "start_time": "2026-05-09T18:53:15.723156+00:00",
+      "start_time": "2026-05-09T19:10:28.326866+00:00",
       "status": "pending",
       "summary": "dry-run queue check completed",
       "task_id": null
@@ -336,12 +347,12 @@
     "queue": {
       "blocked_quota": null,
       "counts": {
-        "blocked": 12,
+        "blocked": 11,
         "cancelled": 0,
-        "completed": 225,
+        "completed": 228,
         "failed": 1,
         "human_attention_required": 0,
-        "pending": 16,
+        "pending": 14,
         "retry_scheduled": 12,
         "running": 0,
         "skipped": 0,
@@ -349,10 +360,10 @@
       },
       "current_running_task": null,
       "gate": "READY_FOR_CODEX_RERUN",
-      "generated_at": "2026-05-09T18:53:15.745422+00:00",
+      "generated_at": "2026-05-09T19:10:28.351095+00:00",
       "human_attention_required_count": 0,
       "human_attention_required_tasks": [],
-      "next_pending_task": "069A_decision_lineage_source_scan",
+      "next_pending_task": "069B_decision_lineage_evidence_packet_builder",
       "no_event_count": 0,
       "no_event_tasks": [],
       "no_output_growth_count": 0,
@@ -381,6 +392,17 @@
       },
       "task_id": "069_decision_explainability_2ha0_lineage_inventory"
     }
+  },
+  "autonomous_live_readiness_builder": {
+    "codex_governor_status": "ready",
+    "generated_at": "2026-05-09T19:12:41.858895+00:00",
+    "git_head": "f8fc8c7 Codex watchdog recover dirty non-live automation artifacts",
+    "legacy_trader_down_non_blocking": true,
+    "live_gate_status": "blocked_human_only",
+    "marker": "AUTONOMOUS_LIVE_READINESS_BUILDER_READY",
+    "next_task": "069B_decision_lineage_evidence_packet_builder",
+    "next_task_reason": "069A source scan completed; continue split decision-lineage inventory before unrelated work",
+    "planner_status": "ready"
   },
   "config_admin": {
     "settings": [
@@ -440,6 +462,28 @@
         "value": "live gate blocked"
       }
     ]
+  },
+  "continuous_paper_shadow_runtime": {
+    "positions": {
+      "generated_at": "2026-05-09T19:12:41.862201+00:00",
+      "live_gate_status": "blocked_human_only",
+      "mode": "paper_shadow_non_live",
+      "open_positions": [],
+      "paper_pnl": 12.4,
+      "position_count": 0
+    },
+    "status": {
+      "continuous_loop_available": true,
+      "exchange_orders": false,
+      "generated_at": "2026-05-09T19:12:41.862206+00:00",
+      "last_paper_event_count": 7,
+      "last_risk_block_count": 3,
+      "last_shadow_decision_count": 5,
+      "legacy_redis_writes": false,
+      "live_gate_status": "blocked_human_only",
+      "runtime": "scheduler_ready",
+      "writes_only_local_v2_artifacts": true
+    }
   },
   "data_gaps": [
     "confidence_calibration",
@@ -685,8 +729,8 @@
       }
     ]
   },
-  "generated_at": "2026-05-09T18:53:30.504225+00:00",
-  "git_head": "5575f8a Add automation liveness and legacy trader tolerance proof",
+  "generated_at": "2026-05-09T19:12:41.891856+00:00",
+  "git_head": "f8fc8c7 Codex watchdog recover dirty non-live automation artifacts",
   "live_gate_status": "blocked_human_only",
   "live_readiness": {
     "approval_required": true,
@@ -713,9 +757,9 @@
   "mission_control": {
     "current_status": {
       "agent": null,
-      "end_time": "2026-05-09T18:53:15.723163+00:00",
+      "end_time": "2026-05-09T19:10:28.326873+00:00",
       "next_recommended_action": "start daemon if queue is valid",
-      "start_time": "2026-05-09T18:53:15.723156+00:00",
+      "start_time": "2026-05-09T19:10:28.326866+00:00",
       "status": "pending",
       "summary": "dry-run queue check completed",
       "task_id": null
@@ -723,12 +767,12 @@
     "queue": {
       "blocked_quota": null,
       "counts": {
-        "blocked": 12,
+        "blocked": 11,
         "cancelled": 0,
-        "completed": 225,
+        "completed": 228,
         "failed": 1,
         "human_attention_required": 0,
-        "pending": 16,
+        "pending": 14,
         "retry_scheduled": 12,
         "running": 0,
         "skipped": 0,
@@ -736,10 +780,10 @@
       },
       "current_running_task": null,
       "gate": "READY_FOR_CODEX_RERUN",
-      "generated_at": "2026-05-09T18:53:15.745422+00:00",
+      "generated_at": "2026-05-09T19:10:28.351095+00:00",
       "human_attention_required_count": 0,
       "human_attention_required_tasks": [],
-      "next_pending_task": "069A_decision_lineage_source_scan",
+      "next_pending_task": "069B_decision_lineage_evidence_packet_builder",
       "no_event_count": 0,
       "no_event_tasks": [],
       "no_output_growth_count": 0,
@@ -817,8 +861,8 @@
         "classification": "active",
         "id": "agent_supervisor_queue",
         "last_failure": "evidence_missing",
-        "last_run": "2026-05-09T18:53:15.745422+00:00",
-        "last_success": "2026-05-09T18:53:15.745422+00:00",
+        "last_run": "2026-05-09T19:10:28.351095+00:00",
+        "last_success": "2026-05-09T19:10:28.351095+00:00",
         "logs_watched": [
           "claude_worklog/agent_supervisor/events.jsonl"
         ],
@@ -2257,6 +2301,34 @@
         "v2_action": "allow_paper_reduce"
       }
     ]
+  },
+  "trainer_lineage_and_readiness": {
+    "coverage": {
+      "checkpoint_id": false,
+      "confidence": true,
+      "confidence_calibrated": false,
+      "confidence_raw": false,
+      "dashboard_prediction_reasoning": true,
+      "execution_intent_id": true,
+      "feature_snapshot_id": true,
+      "model_version": false,
+      "prediction_id": true,
+      "risk_decision_id": true,
+      "stale_missing_unused_flags": true,
+      "top_positive_negative_contributors": true,
+      "trainer_worker_liveness": false
+    },
+    "gaps": [
+      "model_version",
+      "checkpoint_id",
+      "confidence_raw",
+      "confidence_calibrated",
+      "trainer_worker_liveness"
+    ],
+    "generated_at": "2026-05-09T19:12:41.862793+00:00",
+    "live_gate_status": "blocked_human_only",
+    "live_ready": false,
+    "marker": "TRAINER_LINEAGE_AND_READINESS_BLOCKED"
   },
   "trainer_prediction_monitor": {
     "evidence_source": "non_live_operational_proof/latest and historical_30d_replay_and_paper_proof/latest",

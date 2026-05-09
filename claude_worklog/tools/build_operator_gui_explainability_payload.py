@@ -75,6 +75,22 @@ def build_payload() -> dict[str, Any]:
         ROOT / "claude_worklog/final_readiness/automation_liveness/latest/dashboard_liveness_payload.json",
         {},
     )
+    autonomous_builder = read_json(
+        ROOT / "claude_worklog/final_readiness/autonomous_live_readiness_builder/latest/autonomous_builder_status.json",
+        {},
+    )
+    continuous_paper = read_json(
+        ROOT / "claude_worklog/final_readiness/continuous_paper_shadow_runtime/latest/paper_runtime_status.json",
+        {},
+    )
+    paper_positions = read_json(
+        ROOT / "claude_worklog/final_readiness/continuous_paper_shadow_runtime/latest/paper_positions.json",
+        {},
+    )
+    trainer_readiness = read_json(
+        ROOT / "claude_worklog/final_readiness/trainer_lineage_and_readiness/latest/trainer_lineage_coverage.json",
+        {},
+    )
     legacy_process = read_text(ROOT / "claude_worklog/legacy_readonly_audit/01_PROCESS_SNAPSHOT.md")
     trainer_evidence = read_text(ROOT / "claude_worklog/legacy_readonly_audit/06_TRAINER_RUNTIME_EVIDENCE.md")
     orchestrator_evidence = read_text(
@@ -224,7 +240,14 @@ def build_payload() -> dict[str, Any]:
             "stale_running_tasks": queue.get("stale_running_tasks", []),
             "liveness": automation_liveness,
             "task_069_liveness": automation_liveness.get("task_069_liveness", {}),
+            "autonomous_builder": autonomous_builder,
         },
+        "autonomous_live_readiness_builder": autonomous_builder,
+        "continuous_paper_shadow_runtime": {
+            "status": continuous_paper,
+            "positions": paper_positions,
+        },
+        "trainer_lineage_and_readiness": trainer_readiness,
     }
     payload["remaining_blockers_before_live"] = _remaining_blockers(queue, current) + _live_blockers()
     payload["data_gaps"] = _data_gaps(payload)
