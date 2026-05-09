@@ -1,0 +1,43 @@
+{
+  "task_id": "183_non_live_operator_proof_harness_implementation",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "v2/backend/app/cli/",
+    "v2/backend/app/proof/",
+    "v2/backend/tests/unit/proof/",
+    "v2/backend/tests/fixtures/non_live_operational_proof/",
+    "claude_worklog/final_readiness/non_live_operational_proof/"
+  ],
+  "required_output_files": [
+    "v2/backend/app/cli/non_live_operational_proof.py",
+    "v2/backend/app/proof/non_live_operational_proof.py",
+    "v2/backend/app/proof/__init__.py",
+    "v2/backend/tests/unit/proof/test_non_live_operational_proof_cli.py",
+    "v2/backend/tests/unit/proof/test_non_live_operational_proof_artifacts.py",
+    "v2/backend/tests/fixtures/non_live_operational_proof/lab_hedge_unwind_fixture.json",
+    "claude_worklog/final_readiness/non_live_operational_proof/12_OPERATOR_PROOF_HARNESS_IMPLEMENTATION_REPORT.md",
+    "claude_worklog/final_readiness/non_live_operational_proof/13_OPERATOR_PROOF_HARNESS_GO_NO_GO.md"
+  ],
+  "prompt": "Build an executable non-live operator proof harness for V2_BACKTEST_AND_PAPER_MVP_READY. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not place/cancel orders. Do not enable live trading. Implement a deterministic offline proof harness using local fixtures only. The CLI should run as PYTHONPATH=. python3 -m v2.backend.app.cli.non_live_operational_proof --output-dir claude_worklog/final_readiness/non_live_operational_proof/latest and emit replay/backtest, paper ledger, risk gateway, decision explainability, shadow comparison, aggregate rollup, and GO_NO_GO artifacts. Include a LAB-like hedge unwind / short squeeze fixture where closing a protective long leaves a dangerous short exposure and V2 blocks/reduces it. Add tests. The GO_NO_GO file for implementation must contain exactly NON_LIVE_OPERATOR_PROOF_HARNESS_READY_FOR_CODEX_REVIEW.",
+  "lane": "paper_backtest_mvp",
+  "mvp_relevance": "Provides executable operator proof for replay/backtest, paper mode, shadow readiness, and V2_BACKTEST_AND_PAPER_MVP_READY.",
+  "blocked_by": [
+    "NON_LIVE_OPERATIONAL_PROOF_CODEX_FAIL missing executable harness outputs"
+  ],
+  "next_gate": "NON_LIVE_OPERATOR_PROOF_HARNESS_READY_FOR_CODEX_REVIEW",
+  "legacy_evidence_consulted": [
+    "legacy_readonly_audit",
+    "historical_pnl_audit",
+    "legacy_failure_cases/LAB hedge unwind"
+  ],
+  "legacy_failure_addressed": [
+    "LAB hedge unwind residual short exposure",
+    "lack of operator-visible replay/paper/shadow proof",
+    "paper/backtest readiness uncertainty"
+  ],
+  "next_recommended_action": "Run local validation, execute proof harness, then run Codex review."
+}

@@ -1,0 +1,9 @@
+{
+  "scenario_id": "lab_hedge_unwind_short_squeeze",
+  "symbol": "LABUSDT",
+  "legacy_action": "close_long_leave_short_exposed",
+  "v2_action": "block_or_reduce",
+  "required_reason": "short_squeeze_and_hedge_unwind_residual_exposure",
+  "price_move_against_short_percent": 80,
+  "live_gate_status": "blocked_human_only"
+}
