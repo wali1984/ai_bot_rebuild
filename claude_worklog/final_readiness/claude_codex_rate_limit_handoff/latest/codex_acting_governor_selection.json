@@ -3,6 +3,13 @@
   "can_codex_review_now": true,
   "can_ollama_prepare_evidence": true,
   "claude_rate_limited": true,
+  "dispatch_requested": true,
+  "dispatch_result": {
+    "returncode": 0,
+    "stderr_tail": "",
+    "stdout_tail": "{\n  \"task_id\": \"codex_takeover_069B_decision_lineage_evidence_packet_builder\",\n  \"agent\": \"codex\",\n  \"risk_level\": \"L1\",\n  \"start_time\": \"2026-05-10T22:43:07.508394+00:00\",\n  \"end_time\": \"2026-05-10T22:46:16.129582+00:00\",\n  \"status\": \"completed\",\n  \"stdout_path\": \"claude_worklog/agent_supervisor/runs/codex_takeover_069B_decision_lineage_evidence_packet_builder/stdout.txt\",\n  \"stderr_path\": \"claude_worklog/agent_supervisor/runs/codex_takeover_069B_decision_lineage_evidence_packet_builder/stderr.txt\",\n  \"summary\": \"agent run status: completed\",\n  \"next_recommended_action\": \"inspect run output\",\n  \"materialized_files\": [],\n  \"auto_commit\": {\n    \"attempted\": false,\n    \"ok\": false,\n    \"message\": \"\",\n    \"commit_hash\": null\n  },\n  \"timed_out\": false,\n  \"attention_reason\": null,\n  \"last_retry_reason\": null,\n  \"run_pid\": 2269000\n}\n",
+    "task_id": "codex_takeover_069B_decision_lineage_evidence_packet_builder"
+  },
   "final_live_gate_required": false,
   "forbidden_actions": [
     "legacy mutation",
@@ -12,9 +19,11 @@
     "live trading enablement",
     "secret exposure"
   ],
-  "generated_at": "2026-05-10T21:20:09.071701+00:00",
+  "generated_at": "2026-05-10T22:46:16.175500+00:00",
   "live_gate_status": "blocked_human_only",
   "mode": "codex_acting_governor",
-  "requires_claude_after_reset": true,
-  "selected_task": "Codex takeover: review/remediate safe non-live blockers until Claude quota reset"
+  "requires_claude_after_reset": false,
+  "selected_task": "codex_takeover_069B_decision_lineage_evidence_packet_builder",
+  "selection_reason": "safe non-live Claude task eligible for Codex takeover",
+  "source_queue_task": "069B_decision_lineage_evidence_packet_builder"
 }

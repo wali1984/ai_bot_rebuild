@@ -1,0 +1,39 @@
+{
+  "agent": "codex",
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/decision_explainability/"
+  ],
+  "auto_commit": false,
+  "blocked_by": [
+    "069A_decision_lineage_source_scan"
+  ],
+  "commit_message": "Codex takeover outputs for 069B_decision_lineage_evidence_packet_builder",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "description": "Codex acting-governor takeover for 069B_decision_lineage_evidence_packet_builder while Claude is rate-limited.",
+  "emit_files": true,
+  "lane": "paper_backtest_mvp",
+  "legacy_evidence_consulted": [
+    "legacy_readonly_audit",
+    "historical_pnl_audit",
+    "operator proof artifacts"
+  ],
+  "legacy_failure_addressed": [
+    "decision lineage opacity",
+    "zero-output headless automation failure"
+  ],
+  "mvp_relevance": "Decision explainability lineage inventory split from stale/no-output task 069.",
+  "next_gate": "069B_GO_NO_GO.md",
+  "next_recommended_action": "Run in order; do not start unrelated work while this split sequence is pending.",
+  "predecessor_task_ids": [
+    "069A_decision_lineage_source_scan"
+  ],
+  "priority": 991,
+  "prompt": "You are Codex acting-governor because Claude Code is rate-limited. Complete the safe non-live source task 069B_decision_lineage_evidence_packet_builder through the supervisor. Respect the source task output contract exactly. Do not modify legacy. Do not write Redis. Do not restart services. Do not place/cancel exchange orders. Do not change leverage or margin. Do not enable live trading. Do not expose secrets. Human input is required only for final live/capital gate.\n\nStrict BEGIN_FILE emit-only mode. Documentation only. Do not mutate the legacy bot directory. Do not mutate live data stores. Do not restart services. Do not place/cancel orders. Do not turn on live mode. Do not modify v2/. Do not commit or push. Output only the required Markdown files under the allowed prefix.\n\nBuild the lineage evidence packet mapping raw source data through feature snapshot, trainer prediction, signal, orchestrator, risk gateway, execution intent, and paper/shadow action. GO file exactly PHASE2HA0_069B_EVIDENCE_PACKET_READY or PHASE2HA0_069B_EVIDENCE_PACKET_BLOCKED.",
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/decision_explainability/069B_LINEAGE_EVIDENCE_PACKET.md",
+    "claude_worklog/phase2_core_rebuild/decision_explainability/069B_GO_NO_GO.md"
+  ],
+  "risk_level": "L1",
+  "status": "pending",
+  "task_id": "codex_takeover_069B_decision_lineage_evidence_packet_builder"
+}

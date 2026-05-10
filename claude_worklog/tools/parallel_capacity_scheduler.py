@@ -18,6 +18,7 @@ STATE_DIR = WORKSPACE / "claude_worklog/agent_supervisor/state/tasks"
 PHASE2_DIR = WORKSPACE / "claude_worklog/phase2_core_rebuild"
 CODEX_PARALLEL_REVIEWS_DIR = WORKSPACE / "claude_worklog/codex_parallel_reviews"
 CODEX_BATCH_GENERATOR = WORKSPACE / "claude_worklog/tools/create_codex_parallel_review_batch.py"
+CODEX_ACTING_GOVERNOR = WORKSPACE / "claude_worklog/tools/codex_acting_governor.py"
 CODEX_REVIEW_WINDOW_SECONDS = 5 * 60 * 60
 CODEX_UTILIZATION_TARGET_PERCENT = 50
 
@@ -480,6 +481,23 @@ def run_watchdog_once() -> int:
     return proc.returncode
 
 
+def run_codex_acting_governor(dispatch: bool = False) -> dict[str, Any]:
+    if not CODEX_ACTING_GOVERNOR.exists():
+        return {"returncode": 1, "error": "codex_acting_governor_missing"}
+    cmd = ["python3", str(CODEX_ACTING_GOVERNOR.relative_to(WORKSPACE))]
+    if dispatch:
+        cmd.append("--dispatch")
+    append_event({"event": "parallel_capacity_scheduler_invoking_codex_acting_governor", "dispatch": dispatch})
+    proc = run(cmd)
+    result = {
+        "returncode": proc.returncode,
+        "stdout_tail": proc.stdout[-2000:],
+        "stderr_tail": proc.stderr[-2000:],
+    }
+    append_event({"event": "parallel_capacity_scheduler_codex_acting_governor_finished", **result})
+    return result
+
+
 def start_service(script: str) -> None:
     run([f"./claude_worklog/tools/{script}"])
 
@@ -573,6 +591,12 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
 
         codex_review_batch_counts = codex_review_counts()
         codex_batch_active = codex_review_batch_active(codex_review_batch_counts)
+        if claude_rate_limited and git_clean and not claude_children and not active_codex_children():
+            takeover = run_codex_acting_governor(dispatch=True)
+            actions.append({"action": "ran_codex_acting_governor_takeover", **takeover})
+            git_status = git_status_lines()
+            git_clean = not git_status
+
         if git_clean and not claude_children and not active_codex_children() and not (human_attention or fail_marker):
             if not codex_batch_active:
                 batch = create_codex_review_batch()
