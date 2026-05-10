@@ -8,13 +8,13 @@ test.describe('enterprise trading cockpit', () => {
     await expect(page.getByTestId('page-mission-control')).toContainText('AI BOT V2 Mission Control');
     await expect(page.getByTestId('page-mission-control')).toContainText('LIVE TRADING: blocked_human_only');
     await expect(page.getByTestId('cockpit-topbar')).toContainText('blocked_human_only');
-    await expect(page.getByTestId('cockpit-charting-market-data')).toContainText('STATIC_PROOF_FIXTURE');
+    await expect(page.getByTestId('cockpit-charting-market-data')).toContainText(/READONLY_MARKET_FEED|STATIC_PROOF_FIXTURE/);
     await expect(page.getByTestId('cockpit-market-pulse')).toContainText('BTCUSDT');
     await expect(page.getByTestId('cockpit-market-pulse')).toContainText('Funding');
     await expect(page.getByTestId('cockpit-decision-explainability')).toContainText('feature_snapshot_id');
     await expect(page.getByTestId('cockpit-decision-explainability')).toContainText('Evidence missing - cannot explain without guessing');
     await expect(page.getByTestId('cockpit-exchange-manager')).toContainText('Binance USD-M');
-    await expect(page.getByTestId('cockpit-exchange-manager')).toContainText('disabled_no_order_methods');
+    await expect(page.getByTestId('cockpit-exchange-manager')).toContainText('BLOCKED');
     await expect(page.getByTestId('cockpit-external-manual-position-quarantine')).toContainText('2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_READY');
     await expect(page.getByTestId('cockpit-freshness-and-live-readiness-blockers')).toContainText('real_time_market_feed');
     await expect(page.getByTestId('page-mission-control').getByRole('button')).toHaveCount(0);
@@ -35,7 +35,7 @@ test.describe('enterprise trading cockpit', () => {
 
     await gotoAs(page, '/admin/exchange-manager', 'admin');
     await expect(page.getByTestId('page-exchange-manager')).toContainText('KuCoin');
-    await expect(page.getByTestId('page-exchange-manager')).toContainText('blocked_no_sandbox');
+    await expect(page.getByTestId('page-exchange-manager')).toContainText('read_only_required_no_sandbox_assumption');
 
     await gotoAs(page, '/admin/config-admin', 'admin');
     await expect(page.getByTestId('page-config-admin')).toContainText('live_trading_enabled');

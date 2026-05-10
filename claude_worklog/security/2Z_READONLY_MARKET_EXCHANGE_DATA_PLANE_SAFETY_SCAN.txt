@@ -1,0 +1,21 @@
+v2/backend/app/proof/readonly_market_exchange_data_plane.py:40:        "create_order",
+v2/backend/app/proof/readonly_market_exchange_data_plane.py:41:        "cancel_order",
+v2/backend/app/proof/readonly_market_exchange_data_plane.py:42:        "change_leverage",
+v2/backend/app/proof/readonly_market_exchange_data_plane.py:43:        "change_margin",
+v2/backend/app/proof/readonly_market_exchange_data_plane.py:95:    def create_order(self, *_args: Any, **_kwargs: Any) -> None:
+v2/backend/app/proof/readonly_market_exchange_data_plane.py:96:        self.forbidden_mutation("create_order")
+v2/backend/app/proof/readonly_market_exchange_data_plane.py:98:    def cancel_order(self, *_args: Any, **_kwargs: Any) -> None:
+v2/backend/app/proof/readonly_market_exchange_data_plane.py:99:        self.forbidden_mutation("cancel_order")
+v2/backend/app/proof/readonly_market_exchange_data_plane.py:101:    def change_leverage(self, *_args: Any, **_kwargs: Any) -> None:
+v2/backend/app/proof/readonly_market_exchange_data_plane.py:102:        self.forbidden_mutation("change_leverage")
+v2/backend/app/proof/readonly_market_exchange_data_plane.py:104:    def change_margin(self, *_args: Any, **_kwargs: Any) -> None:
+v2/backend/app/proof/readonly_market_exchange_data_plane.py:105:        self.forbidden_mutation("change_margin")
+v2/backend/app/proof/readonly_market_exchange_data_plane.py:354:    return f"# Exchange Connector Read-Only Policy\n\nAllowed methods: {', '.join(sorted(READONLY_METHODS))}.\n\nForbidden mutation methods fail closed: {forbidden}.\n\nNo connector may place/cancel orders, change leverage, change margin, change position mode, withdraw, transfer, or enable live trading.\n\nEXCHANGE_CONNECTOR_READONLY_POLICY_READY\n"
+v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py:21:        "create_order",
+v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py:22:        "cancel_order",
+v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py:23:        "change_leverage",
+v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py:24:        "change_margin",
+v2/frontend/public/readonly_market_exchange_data_plane/latest/EXCHANGE_CONNECTOR_READONLY_POLICY.md:5:Forbidden mutation methods fail closed: cancel_order, change_leverage, change_margin, change_position_mode, create_order, enable_live_trading, transfer, withdraw.
+v2/frontend/public/readonly_market_exchange_data_plane/latest/EXCHANGE_CONNECTOR_READONLY_POLICY.md:7:No connector may place/cancel orders, change leverage, change margin, change position mode, withdraw, transfer, or enable live trading.
+claude_worklog/final_readiness/readonly_market_exchange_data_plane/latest/EXCHANGE_CONNECTOR_READONLY_POLICY.md:5:Forbidden mutation methods fail closed: cancel_order, change_leverage, change_margin, change_position_mode, create_order, enable_live_trading, transfer, withdraw.
+claude_worklog/final_readiness/readonly_market_exchange_data_plane/latest/EXCHANGE_CONNECTOR_READONLY_POLICY.md:7:No connector may place/cancel orders, change leverage, change margin, change position mode, withdraw, transfer, or enable live trading.

@@ -15,6 +15,7 @@ export default function MissionControlPage(): JSX.Element {
       </article>
     );
   }
+  const marketFeedSource = payload.analytics_cards.find((card) => card.label === 'Market Feed')?.value;
 
   return (
     <article className="enterprise-cockpit-page" data-testid="page-mission-control" data-page-id={meta.id} data-page-path={route.path} data-page-min-role={rbac.minRole}>
@@ -29,7 +30,7 @@ export default function MissionControlPage(): JSX.Element {
       <SafetyTopBar payload={payload} />
       <div className="enterprise-cockpit-grid">
         <div className="enterprise-cockpit-main">
-          <ChartPanel candles={payload.candles} decisions={payload.decisions} />
+          <ChartPanel candles={payload.candles} decisions={payload.decisions} sourceType={marketFeedSource} />
           <MarketPulse payload={payload} />
           <DecisionDrawers rows={payload.decisions} />
           <QuarantinePanel payload={quarantine} />

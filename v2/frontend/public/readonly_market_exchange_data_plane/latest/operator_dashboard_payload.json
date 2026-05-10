@@ -1,0 +1,1243 @@
+{
+  "generated_at": "2026-05-10T00:00:00Z",
+  "go_no_go": "PHASE2Z_READONLY_MARKET_AND_EXCHANGE_DATA_PLANE_READY",
+  "live_gate_status": "blocked_human_only",
+  "selected_symbol": "BTCUSDT",
+  "feed_health": {
+    "source_type": "READONLY_MARKET_FEED",
+    "freshness_state": "fresh",
+    "errors": [],
+    "order_capability": "BLOCKED"
+  },
+  "market_candles": [
+    {
+      "time": "1778360700",
+      "open": 80790.0,
+      "high": 80830.4,
+      "low": 80789.9,
+      "close": 80799.9,
+      "volume": 119.838,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778360700",
+        "age_seconds": 17953,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778361000",
+      "open": 80800.0,
+      "high": 80856.9,
+      "low": 80796.9,
+      "close": 80813.7,
+      "volume": 127.916,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778361000",
+        "age_seconds": 17653,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778361300",
+      "open": 80813.7,
+      "high": 80834.8,
+      "low": 80810.1,
+      "close": 80810.1,
+      "volume": 33.735,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778361300",
+        "age_seconds": 17353,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778361600",
+      "open": 80810.1,
+      "high": 80810.2,
+      "low": 80762.0,
+      "close": 80762.1,
+      "volume": 52.443,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778361600",
+        "age_seconds": 17053,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778361900",
+      "open": 80762.0,
+      "high": 80777.8,
+      "low": 80738.2,
+      "close": 80777.8,
+      "volume": 64.031,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778361900",
+        "age_seconds": 16753,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778362200",
+      "open": 80777.8,
+      "high": 80777.8,
+      "low": 80754.4,
+      "close": 80754.4,
+      "volume": 37.638,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778362200",
+        "age_seconds": 16453,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778362500",
+      "open": 80754.4,
+      "high": 80754.7,
+      "low": 80725.8,
+      "close": 80725.8,
+      "volume": 44.34,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778362500",
+        "age_seconds": 16153,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778362800",
+      "open": 80725.9,
+      "high": 80750.0,
+      "low": 80703.3,
+      "close": 80703.3,
+      "volume": 60.91,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778362800",
+        "age_seconds": 15853,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778363100",
+      "open": 80703.3,
+      "high": 80750.0,
+      "low": 80700.0,
+      "close": 80741.3,
+      "volume": 75.923,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778363100",
+        "age_seconds": 15553,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778363400",
+      "open": 80741.2,
+      "high": 80779.1,
+      "low": 80721.0,
+      "close": 80759.3,
+      "volume": 65.681,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778363400",
+        "age_seconds": 15253,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778363700",
+      "open": 80759.1,
+      "high": 80779.2,
+      "low": 80735.8,
+      "close": 80735.8,
+      "volume": 98.669,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778363700",
+        "age_seconds": 14953,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778364000",
+      "open": 80735.9,
+      "high": 80760.4,
+      "low": 80714.9,
+      "close": 80735.0,
+      "volume": 62.156,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778364000",
+        "age_seconds": 14653,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778364300",
+      "open": 80735.0,
+      "high": 80742.4,
+      "low": 80682.5,
+      "close": 80701.4,
+      "volume": 74.24,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778364300",
+        "age_seconds": 14353,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778364600",
+      "open": 80701.4,
+      "high": 80724.7,
+      "low": 80694.5,
+      "close": 80712.4,
+      "volume": 48.015,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778364600",
+        "age_seconds": 14053,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778364900",
+      "open": 80712.5,
+      "high": 80756.7,
+      "low": 80709.9,
+      "close": 80736.6,
+      "volume": 93.191,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778364900",
+        "age_seconds": 13753,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778365200",
+      "open": 80736.6,
+      "high": 80740.7,
+      "low": 80715.5,
+      "close": 80730.0,
+      "volume": 62.071,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778365200",
+        "age_seconds": 13453,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778365500",
+      "open": 80730.1,
+      "high": 80747.2,
+      "low": 80724.0,
+      "close": 80724.0,
+      "volume": 51.298,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778365500",
+        "age_seconds": 13153,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778365800",
+      "open": 80724.0,
+      "high": 80724.0,
+      "low": 80632.2,
+      "close": 80715.2,
+      "volume": 270.522,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778365800",
+        "age_seconds": 12853,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778366100",
+      "open": 80715.1,
+      "high": 80724.0,
+      "low": 80690.8,
+      "close": 80723.9,
+      "volume": 42.563,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778366100",
+        "age_seconds": 12553,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778366400",
+      "open": 80723.9,
+      "high": 80788.0,
+      "low": 80715.6,
+      "close": 80771.1,
+      "volume": 229.784,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778366400",
+        "age_seconds": 12253,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778366700",
+      "open": 80771.2,
+      "high": 80777.2,
+      "low": 80736.9,
+      "close": 80736.9,
+      "volume": 67.36,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778366700",
+        "age_seconds": 11953,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778367000",
+      "open": 80736.9,
+      "high": 80751.4,
+      "low": 80713.0,
+      "close": 80713.0,
+      "volume": 163.553,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778367000",
+        "age_seconds": 11653,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778367300",
+      "open": 80713.0,
+      "high": 80737.7,
+      "low": 80702.8,
+      "close": 80731.0,
+      "volume": 82.351,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778367300",
+        "age_seconds": 11353,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778367600",
+      "open": 80730.9,
+      "high": 80817.0,
+      "low": 80713.9,
+      "close": 80735.6,
+      "volume": 173.743,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778367600",
+        "age_seconds": 11053,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778367900",
+      "open": 80735.6,
+      "high": 80755.4,
+      "low": 80672.2,
+      "close": 80679.1,
+      "volume": 70.646,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778367900",
+        "age_seconds": 10753,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778368200",
+      "open": 80679.1,
+      "high": 80700.7,
+      "low": 80653.8,
+      "close": 80692.4,
+      "volume": 92.464,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778368200",
+        "age_seconds": 10453,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778368500",
+      "open": 80692.4,
+      "high": 80692.5,
+      "low": 80656.0,
+      "close": 80668.3,
+      "volume": 43.272,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778368500",
+        "age_seconds": 10153,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778368800",
+      "open": 80668.3,
+      "high": 80668.3,
+      "low": 80648.3,
+      "close": 80648.4,
+      "volume": 46.884,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778368800",
+        "age_seconds": 9853,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778369100",
+      "open": 80648.3,
+      "high": 80648.4,
+      "low": 80610.6,
+      "close": 80629.4,
+      "volume": 112.202,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778369100",
+        "age_seconds": 9553,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778369400",
+      "open": 80629.3,
+      "high": 80648.0,
+      "low": 80569.0,
+      "close": 80638.4,
+      "volume": 298.015,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778369400",
+        "age_seconds": 9253,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778369700",
+      "open": 80638.4,
+      "high": 80658.8,
+      "low": 80604.8,
+      "close": 80604.8,
+      "volume": 73.139,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778369700",
+        "age_seconds": 8953,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778370000",
+      "open": 80604.8,
+      "high": 80622.9,
+      "low": 80588.8,
+      "close": 80622.9,
+      "volume": 81.277,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778370000",
+        "age_seconds": 8653,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778370300",
+      "open": 80622.8,
+      "high": 80659.6,
+      "low": 80609.7,
+      "close": 80659.6,
+      "volume": 115.515,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778370300",
+        "age_seconds": 8353,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778370600",
+      "open": 80659.5,
+      "high": 80663.6,
+      "low": 80640.0,
+      "close": 80656.7,
+      "volume": 76.482,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778370600",
+        "age_seconds": 8053,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778370900",
+      "open": 80656.8,
+      "high": 80662.0,
+      "low": 80633.9,
+      "close": 80634.0,
+      "volume": 54.45,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778370900",
+        "age_seconds": 7753,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778371200",
+      "open": 80634.0,
+      "high": 80684.3,
+      "low": 80608.0,
+      "close": 80610.3,
+      "volume": 138.326,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778371200",
+        "age_seconds": 7453,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778371500",
+      "open": 80610.3,
+      "high": 80654.2,
+      "low": 80588.1,
+      "close": 80630.7,
+      "volume": 292.038,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778371500",
+        "age_seconds": 7153,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778371800",
+      "open": 80630.7,
+      "high": 80696.3,
+      "low": 80630.7,
+      "close": 80671.2,
+      "volume": 151.234,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778371800",
+        "age_seconds": 6853,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778372100",
+      "open": 80671.1,
+      "high": 80710.7,
+      "low": 80660.1,
+      "close": 80707.2,
+      "volume": 169.802,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778372100",
+        "age_seconds": 6553,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778372400",
+      "open": 80707.1,
+      "high": 80739.9,
+      "low": 80700.0,
+      "close": 80700.1,
+      "volume": 110.36,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778372400",
+        "age_seconds": 6253,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778372700",
+      "open": 80700.1,
+      "high": 80700.1,
+      "low": 80658.3,
+      "close": 80671.8,
+      "volume": 73.093,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778372700",
+        "age_seconds": 5953,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778373000",
+      "open": 80671.7,
+      "high": 80690.0,
+      "low": 80617.3,
+      "close": 80690.0,
+      "volume": 113.663,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778373000",
+        "age_seconds": 5653,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778373300",
+      "open": 80689.9,
+      "high": 80711.0,
+      "low": 80650.0,
+      "close": 80700.2,
+      "volume": 207.461,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778373300",
+        "age_seconds": 5353,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778373600",
+      "open": 80700.1,
+      "high": 80732.4,
+      "low": 80680.2,
+      "close": 80696.0,
+      "volume": 376.597,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778373600",
+        "age_seconds": 5053,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778373900",
+      "open": 80696.0,
+      "high": 80704.3,
+      "low": 80650.0,
+      "close": 80654.1,
+      "volume": 108.1,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778373900",
+        "age_seconds": 4753,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778374200",
+      "open": 80654.1,
+      "high": 80654.1,
+      "low": 80610.0,
+      "close": 80625.7,
+      "volume": 196.822,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778374200",
+        "age_seconds": 4453,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778374500",
+      "open": 80625.6,
+      "high": 80635.1,
+      "low": 80588.8,
+      "close": 80634.9,
+      "volume": 80.031,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778374500",
+        "age_seconds": 4153,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778374800",
+      "open": 80635.0,
+      "high": 80635.0,
+      "low": 80535.2,
+      "close": 80591.9,
+      "volume": 336.695,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778374800",
+        "age_seconds": 3853,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778375100",
+      "open": 80591.9,
+      "high": 80618.7,
+      "low": 80555.0,
+      "close": 80615.5,
+      "volume": 132.903,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778375100",
+        "age_seconds": 3553,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778375400",
+      "open": 80615.4,
+      "high": 80617.5,
+      "low": 80586.4,
+      "close": 80600.0,
+      "volume": 88.482,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778375400",
+        "age_seconds": 3253,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778375700",
+      "open": 80599.9,
+      "high": 80632.4,
+      "low": 80572.2,
+      "close": 80585.6,
+      "volume": 130.542,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778375700",
+        "age_seconds": 2953,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778376000",
+      "open": 80585.7,
+      "high": 80605.0,
+      "low": 80537.8,
+      "close": 80544.9,
+      "volume": 137.345,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778376000",
+        "age_seconds": 2653,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778376300",
+      "open": 80545.0,
+      "high": 80575.9,
+      "low": 80545.0,
+      "close": 80571.1,
+      "volume": 204.42,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778376300",
+        "age_seconds": 2353,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778376600",
+      "open": 80571.2,
+      "high": 80614.1,
+      "low": 80566.4,
+      "close": 80566.4,
+      "volume": 135.159,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778376600",
+        "age_seconds": 2053,
+        "freshness_state": "stale",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778376900",
+      "open": 80566.4,
+      "high": 80591.0,
+      "low": 80533.7,
+      "close": 80550.1,
+      "volume": 211.036,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778376900",
+        "age_seconds": 1753,
+        "freshness_state": "warn",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778377200",
+      "open": 80550.0,
+      "high": 80600.0,
+      "low": 80550.0,
+      "close": 80596.9,
+      "volume": 100.27,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778377200",
+        "age_seconds": 1453,
+        "freshness_state": "warn",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778377500",
+      "open": 80596.8,
+      "high": 80609.2,
+      "low": 80588.7,
+      "close": 80602.2,
+      "volume": 79.051,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778377500",
+        "age_seconds": 1153,
+        "freshness_state": "warn",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778377800",
+      "open": 80602.1,
+      "high": 80660.2,
+      "low": 80602.1,
+      "close": 80659.5,
+      "volume": 152.918,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778377800",
+        "age_seconds": 853,
+        "freshness_state": "warn",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778378100",
+      "open": 80659.5,
+      "high": 80660.0,
+      "low": 80628.5,
+      "close": 80654.0,
+      "volume": 107.729,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778378100",
+        "age_seconds": 553,
+        "freshness_state": "warn",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "time": "1778378400",
+      "open": 80653.9,
+      "high": 80653.9,
+      "low": 80585.3,
+      "close": 80604.8,
+      "volume": 115.387,
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778378400",
+        "age_seconds": 253,
+        "freshness_state": "fresh",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    }
+  ],
+  "market_tickers": [
+    {
+      "symbol": "BTCUSDT",
+      "price": "80604.90",
+      "change_24h": "0.326",
+      "source_type": "READONLY_MARKET_FEED",
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778378400",
+        "age_seconds": 253,
+        "freshness_state": "fresh",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    }
+  ],
+  "market_funding": [
+    {
+      "symbol": "BTCUSDT",
+      "funding_rate": "0.00000090",
+      "source_type": "READONLY_MARKET_FEED",
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778378400",
+        "age_seconds": 253,
+        "freshness_state": "fresh",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    }
+  ],
+  "market_open_interest": [
+    {
+      "symbol": "BTCUSDT",
+      "open_interest": "99935.447",
+      "source_type": "READONLY_MARKET_FEED",
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778378400",
+        "age_seconds": 253,
+        "freshness_state": "fresh",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    }
+  ],
+  "market_orderbook_depth": [
+    {
+      "symbol": "BTCUSDT",
+      "source_type": "MISSING",
+      "freshness": {
+        "source": "local_secret_provider",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "missing",
+        "age_seconds": 0,
+        "freshness_state": "missing",
+        "source_type": "MISSING",
+        "source_pointer": "local-only API key provider not configured in committed artifacts"
+      },
+      "reason": "read-only orderbook depth connector not configured"
+    }
+  ],
+  "exchange_account_status": [
+    {
+      "exchange": "Binance USD-M",
+      "key_status": "not_configured",
+      "account_read_status": "missing",
+      "market_data_status": "ready",
+      "order_capability": "BLOCKED",
+      "permission_status": "order_methods_absent",
+      "freshness": {
+        "source": "binance_usdm_public_klines",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "1778378400",
+        "age_seconds": 253,
+        "freshness_state": "fresh",
+        "source_type": "READONLY_MARKET_FEED",
+        "source_pointer": "/fapi/v1/klines"
+      }
+    },
+    {
+      "exchange": "KuCoin",
+      "key_status": "not_configured",
+      "account_read_status": "missing",
+      "market_data_status": "design_only",
+      "order_capability": "BLOCKED",
+      "permission_status": "read_only_required",
+      "freshness": {
+        "source": "local_secret_provider",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "missing",
+        "age_seconds": 0,
+        "freshness_state": "missing",
+        "source_type": "MISSING",
+        "source_pointer": "local-only API key provider not configured in committed artifacts"
+      }
+    },
+    {
+      "exchange": "MEXC",
+      "key_status": "not_configured",
+      "account_read_status": "missing",
+      "market_data_status": "design_only",
+      "order_capability": "BLOCKED",
+      "permission_status": "read_only_required_no_sandbox_assumption",
+      "freshness": {
+        "source": "local_secret_provider",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "missing",
+        "age_seconds": 0,
+        "freshness_state": "missing",
+        "source_type": "MISSING",
+        "source_pointer": "local-only API key provider not configured in committed artifacts"
+      }
+    }
+  ],
+  "exchange_balances_readonly": [
+    {
+      "exchange": "Binance USD-M",
+      "source_type": "MISSING",
+      "reason": "read-only account key not configured",
+      "freshness": {
+        "source": "local_secret_provider",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "missing",
+        "age_seconds": 0,
+        "freshness_state": "missing",
+        "source_type": "MISSING",
+        "source_pointer": "local-only API key provider not configured in committed artifacts"
+      }
+    }
+  ],
+  "exchange_positions_readonly": [
+    {
+      "exchange": "Binance USD-M",
+      "source_type": "MISSING",
+      "reason": "read-only account key not configured",
+      "freshness": {
+        "source": "local_secret_provider",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "missing",
+        "age_seconds": 0,
+        "freshness_state": "missing",
+        "source_type": "MISSING",
+        "source_pointer": "local-only API key provider not configured in committed artifacts"
+      }
+    }
+  ],
+  "exchange_open_orders_readonly": [
+    {
+      "exchange": "Binance USD-M",
+      "source_type": "MISSING",
+      "reason": "read-only account key not configured",
+      "freshness": {
+        "source": "local_secret_provider",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "missing",
+        "age_seconds": 0,
+        "freshness_state": "missing",
+        "source_type": "MISSING",
+        "source_pointer": "local-only API key provider not configured in committed artifacts"
+      }
+    }
+  ],
+  "exchange_fills_readonly": [
+    {
+      "exchange": "Binance USD-M",
+      "source_type": "MISSING",
+      "reason": "read-only account key not configured",
+      "freshness": {
+        "source": "local_secret_provider",
+        "generated_at": "2026-05-10T00:00:00Z",
+        "last_event_at": "missing",
+        "age_seconds": 0,
+        "freshness_state": "missing",
+        "source_type": "MISSING",
+        "source_pointer": "local-only API key provider not configured in committed artifacts"
+      }
+    }
+  ],
+  "api_key_permission_status": [
+    {
+      "exchange": "Binance USD-M",
+      "status": "not_configured",
+      "trade_permission_detected": false,
+      "order_capability": "BLOCKED"
+    },
+    {
+      "exchange": "KuCoin",
+      "status": "not_configured",
+      "trade_permission_detected": false,
+      "order_capability": "BLOCKED"
+    },
+    {
+      "exchange": "MEXC",
+      "status": "not_configured",
+      "trade_permission_detected": false,
+      "order_capability": "BLOCKED"
+    }
+  ],
+  "paper_runtime_market_feed": {
+    "can_consume_feed": true,
+    "source_type": "READONLY_MARKET_FEED",
+    "writes_legacy_redis": false,
+    "places_orders": false,
+    "records_source_freshness": true
+  }
+}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 export interface Freshness {
+  source?: string;
   data_source: string;
   generated_at: string;
   last_event_at: string;
@@ -8,7 +9,8 @@ export interface Freshness {
   freshness_state: 'fresh' | 'warn' | 'stale' | 'missing';
   source_pointer: string;
   evidence_link: string;
-  mode: 'STATIC_PROOF_FIXTURE' | 'CONTINUOUS_NON_LIVE' | 'EVIDENCE_GAP';
+  source_type?: 'READONLY_MARKET_FEED' | 'READONLY_ACCOUNT_FEED' | 'STATIC_PROOF_FIXTURE' | 'MISSING';
+  mode: 'STATIC_PROOF_FIXTURE' | 'CONTINUOUS_NON_LIVE' | 'EVIDENCE_GAP' | 'READONLY_MARKET_FEED' | 'READONLY_ACCOUNT_FEED' | 'MISSING';
 }
 
 export interface MarketRow {
@@ -131,6 +133,7 @@ export interface CockpitPayload {
 
 const cockpitPayloadPath = '/enterprise_trading_cockpit/latest/operator_cockpit_payload.json';
 const quarantinePayloadPath = '/external_manual_position_quarantine/latest/operator_dashboard_payload.json';
+const readonlyDataPlanePayloadPath = '/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json';
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: 'no-store' });
@@ -150,8 +153,9 @@ export function useCockpitPayload(): {
   useEffect(() => {
     let active = true;
     fetchJson<CockpitPayload>(cockpitPayloadPath)
-      .then((next) => {
-        if (active) setPayload(next);
+      .then(async (next) => {
+        const readonlyPayload = await fetchJson<ReadonlyDataPlanePayload>(readonlyDataPlanePayloadPath).catch(() => null);
+        if (active) setPayload(readonlyPayload ? mergeReadonlyDataPlane(next, readonlyPayload) : next);
       })
       .catch((err: unknown) => {
         if (active) setError(err instanceof Error ? err.message : 'cockpit payload unavailable');
@@ -169,6 +173,106 @@ export function useCockpitPayload(): {
   }, []);
 
   return { payload, quarantine, error };
+}
+
+interface ReadonlyDataPlanePayload {
+  generated_at: string;
+  live_gate_status: string;
+  selected_symbol: string;
+  feed_health: { source_type: Freshness['mode']; freshness_state: Freshness['freshness_state']; errors: string[]; order_capability: string };
+  market_candles: Array<{ time: string; open: number; high: number; low: number; close: number; volume: number; freshness: ReadonlyFreshness }>;
+  market_tickers: Array<{ symbol: string; price: string; change_24h: string; source_type: Freshness['mode']; freshness: ReadonlyFreshness }>;
+  market_funding: Array<{ symbol: string; funding_rate: string; source_type: Freshness['mode']; freshness: ReadonlyFreshness }>;
+  market_open_interest: Array<{ symbol: string; open_interest: string; source_type: Freshness['mode']; freshness: ReadonlyFreshness }>;
+  exchange_account_status: Array<{
+    exchange: string;
+    key_status: string;
+    account_read_status: string;
+    market_data_status: string;
+    order_capability: string;
+    permission_status: string;
+    freshness: ReadonlyFreshness;
+  }>;
+}
+
+interface ReadonlyFreshness {
+  source: string;
+  generated_at: string;
+  last_event_at: string;
+  age_seconds: number;
+  freshness_state: Freshness['freshness_state'];
+  source_type: Freshness['mode'];
+  source_pointer: string;
+}
+
+function normalizeFreshness(freshness: ReadonlyFreshness): Freshness {
+  return {
+    source: freshness.source,
+    data_source: freshness.source,
+    generated_at: freshness.generated_at,
+    last_event_at: freshness.last_event_at,
+    age_seconds: freshness.age_seconds,
+    freshness_state: freshness.freshness_state,
+    source_pointer: freshness.source_pointer,
+    evidence_link: readonlyDataPlanePayloadPath,
+    source_type: freshness.source_type as Freshness['source_type'],
+    mode: freshness.source_type,
+  };
+}
+
+function mergeReadonlyDataPlane(base: CockpitPayload, readonlyPayload: ReadonlyDataPlanePayload): CockpitPayload {
+  const ticker = readonlyPayload.market_tickers[0];
+  const funding = readonlyPayload.market_funding[0];
+  const oi = readonlyPayload.market_open_interest[0];
+  const freshness = ticker ? normalizeFreshness(ticker.freshness) : base.market_rows[0]?.freshness;
+  const marketRows = base.market_rows.map((row, index) => {
+    if (index !== 0 || !ticker) return row;
+    return {
+      ...row,
+      price: ticker.price ?? row.price,
+      change_24h: ticker.change_24h ? `${ticker.change_24h}%` : row.change_24h,
+      funding_rate: funding?.funding_rate ?? row.funding_rate,
+      open_interest: oi?.open_interest ?? row.open_interest,
+      freshness,
+    };
+  });
+  return {
+    ...base,
+    generated_at: readonlyPayload.generated_at,
+    selected_symbol: readonlyPayload.selected_symbol,
+    candles: readonlyPayload.market_candles.length
+      ? readonlyPayload.market_candles.map((row) => ({
+          time: row.time,
+          open: Number(row.open),
+          high: Number(row.high),
+          low: Number(row.low),
+          close: Number(row.close),
+          volume: Number(row.volume),
+        }))
+      : base.candles,
+    market_rows: marketRows,
+    analytics_cards: [
+      {
+        label: 'Market Feed',
+        value: readonlyPayload.feed_health.source_type,
+        detail: readonlyPayload.feed_health.errors.length ? readonlyPayload.feed_health.errors.join(', ') : 'Read-only feed path active or fixture fallback explicit',
+        freshness: freshness ?? base.analytics_cards[0].freshness,
+      },
+      ...base.analytics_cards,
+    ],
+    exchanges: readonlyPayload.exchange_account_status.map((row) => ({
+      exchange: row.exchange,
+      status: row.market_data_status,
+      read_only_key_status: row.key_status,
+      trade_permission: row.permission_status,
+      ip_restriction_status: row.account_read_status,
+      market_data_enabled: row.market_data_status === 'ready',
+      account_read_enabled: row.account_read_status === 'ready',
+      order_capability: row.order_capability,
+      notes: 'Read-only data-plane status. No order/cancel/leverage/margin method is available.',
+      freshness: normalizeFreshness(row.freshness),
+    })),
+  };
 }
 
 export function valueText(value: unknown): string {

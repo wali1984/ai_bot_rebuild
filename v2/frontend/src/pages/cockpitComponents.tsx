@@ -79,7 +79,7 @@ export function MarketPulse({ payload }: { payload: CockpitPayload }): JSX.Eleme
   );
 }
 
-export function ChartPanel({ candles, decisions }: { candles: Candle[]; decisions: DecisionRow[] }): JSX.Element {
+export function ChartPanel({ candles, decisions, sourceType }: { candles: Candle[]; decisions: DecisionRow[]; sourceType?: string }): JSX.Element {
   const width = 760;
   const height = 260;
   const prices = candles.flatMap((c) => [c.high, c.low]);
@@ -115,7 +115,11 @@ export function ChartPanel({ candles, decisions }: { candles: Candle[]; decision
           </g>
         ))}
       </svg>
-      <p className="cockpit-evidence-note">STATIC_PROOF_FIXTURE: chart uses deterministic static proof candles until Binance USD-M `/fapi/v1/klines` read-only market data is wired. It cannot place orders.</p>
+      <p className="cockpit-evidence-note">
+        {sourceType === 'READONLY_MARKET_FEED'
+          ? 'READONLY_MARKET_FEED: chart uses Binance USD-M public GET-only market data. It cannot place orders.'
+          : 'STATIC_PROOF_FIXTURE: chart uses deterministic static proof candles until Binance USD-M `/fapi/v1/klines` read-only market data is wired. It cannot place orders.'}
+      </p>
     </Panel>
   );
 }

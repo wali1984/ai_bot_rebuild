@@ -15,6 +15,7 @@ const artifactSets = [
   'trainer_lineage_and_readiness',
   'external_manual_position_quarantine',
   'enterprise_trading_cockpit',
+  'readonly_market_exchange_data_plane',
   'post_mvp_non_live_gap_audit',
 ];
 
