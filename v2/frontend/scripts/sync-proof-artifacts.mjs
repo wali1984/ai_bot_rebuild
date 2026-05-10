@@ -23,6 +23,7 @@ const artifactSets = [
   'redis_memory_human_approval',
   'redis_export_capacity_remediation',
   'redis_liquidations_full_export',
+  'redis_safe_trim_packet',
   'post_mvp_non_live_gap_audit',
 ];
 
@@ -66,6 +67,11 @@ for (const name of artifactSets) {
       cpSync(resolve(source, file), resolve(target, file));
     }
   } else if (name === 'redis_liquidations_full_export') {
+    mkdirSync(target, { recursive: true });
+    for (const file of ['operator_dashboard_payload.json']) {
+      cpSync(resolve(source, file), resolve(target, file));
+    }
+  } else if (name === 'redis_safe_trim_packet') {
     mkdirSync(target, { recursive: true });
     for (const file of ['operator_dashboard_payload.json']) {
       cpSync(resolve(source, file), resolve(target, file));
