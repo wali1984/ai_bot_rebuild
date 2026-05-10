@@ -2900,6 +2900,9 @@ def main() -> int:
 
     if args.reconcile:
         n = reconcile_stale_running_tasks()
+        current = load_json(CURRENT_STATUS_FILE)
+        if current:
+            write_health_and_queue(current)
         print(json.dumps({"reconciled": n}))
         return 0
 
