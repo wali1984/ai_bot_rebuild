@@ -1,0 +1,46 @@
+{
+  "active_codex_children": [],
+  "active_planner_children": [],
+  "current_task": {
+    "agent": "claude",
+    "status": "running",
+    "summary": "task execution in progress",
+    "task_id": "197_phase2z_degraded_state_fail_closed_gates_domain_implementation"
+  },
+  "daemon_processes": [
+    "2142277 1029421 9135 python3 claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll-seconds 300",
+    "2142285 1029421 9135 python3 claude_worklog/tools/parallel_capacity_scheduler.py --daemon --poll-seconds 600"
+  ],
+  "generated_at": "2026-05-10T20:47:51.164937+00:00",
+  "git_clean": true,
+  "git_head": "a7494fe Add autonomous governor status generator",
+  "live_gate_status": "blocked_human_only",
+  "manual_copilot_replacement": {
+    "codex_reviews_without_manual_prompt": true,
+    "copilot_role": "status_terminal_operator_only",
+    "enabled": true,
+    "manual_step_by_step_prompts_required": false,
+    "planner_selects_next_safe_task": true,
+    "watchdog_recovers_dirty_non_live_state": true
+  },
+  "marker": "AUTONOMOUS_GOVERNOR_REPLACES_MANUAL_COPILOT_UNTIL_LIVE_GATE_READY",
+  "queue": {
+    "current_running_task": "197_phase2z_degraded_state_fail_closed_gates_domain_implementation",
+    "gate": "READY_FOR_CODEX_RERUN",
+    "human_attention_required_count": 0,
+    "next_pending_task": "069B_decision_lineage_evidence_packet_builder",
+    "stale_running_count": 0
+  },
+  "redis_trim_hold": {
+    "approval_file_present": false,
+    "go_no_go": "PHASE3G2_REDIS_TRIM_APPROVAL_HOLD_AND_BACKUP_DURABILITY_REVIEW_READY",
+    "next_safe_milestone": "REDIS_EXPORT_BACKUP_DURABILITY_REVIEW_REQUIRED",
+    "phase3h_allowed": false
+  },
+  "scheduler": {
+    "codex_idle_while_work_available": true,
+    "final_live_gate_status": "blocked_human_only",
+    "mode": "actions_enabled",
+    "next_safe_codex_task": "read-only review already committed milestone; do not patch dirty current work"
+  }
+}
