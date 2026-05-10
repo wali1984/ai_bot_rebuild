@@ -10,6 +10,8 @@ Reviewed points:
 - Local Phase 3F archive is present with 710 chunks and 1.601 GiB compressed size.
 - Secondary backup is not verified, so the dashboard and next milestone do not
   imply Phase 3H should proceed automatically.
+- Next safe milestone is `REDIS_EXPORT_BACKUP_DURABILITY_REVIEW_REQUIRED`, not
+  Phase 3H.
 - Live trading remains blocked/human-only.
 
 Residual risk:

@@ -35,7 +35,7 @@ was created, and no Redis mutation was performed.
 
 Do not proceed to Phase 3H automatically. The next safe decision is:
 
-`BACKUP_DURABILITY_OPERATOR_DECISION_REQUIRED`
+`REDIS_EXPORT_BACKUP_DURABILITY_REVIEW_REQUIRED`
 
 The conservative path is to copy the Phase 3F export archive and manifest to a
 secondary backup location, verify bytes and hashes, then decide whether to
