@@ -16,6 +16,7 @@ const artifactSets = [
   'external_manual_position_quarantine',
   'enterprise_trading_cockpit',
   'readonly_market_exchange_data_plane',
+  'system_atlas_runtime_coverage',
   'post_mvp_non_live_gap_audit',
 ];
 
@@ -28,6 +29,13 @@ for (const name of artifactSets) {
   }
   mkdirSync(resolve(frontendRoot, 'public', name), { recursive: true });
   rmSync(target, { recursive: true, force: true });
-  cpSync(source, target, { recursive: true });
+  if (name === 'system_atlas_runtime_coverage') {
+    mkdirSync(target, { recursive: true });
+    for (const file of ['operator_dashboard_payload.json', 'SCRIPT_REGISTRY.json']) {
+      cpSync(resolve(source, file), resolve(target, file));
+    }
+  } else {
+    cpSync(source, target, { recursive: true });
+  }
   console.log(`SYNCED ${name}`);
 }

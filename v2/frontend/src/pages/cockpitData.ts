@@ -131,9 +131,41 @@ export interface CockpitPayload {
   proof_freshness: Array<{ artifact: string; source_generated_at: string; public_copied_at: string; state: string }>;
 }
 
+export interface SystemAtlasPayload {
+  generated_at: string;
+  live_gate_status: string;
+  go_no_go: string;
+  counts: {
+    files: number;
+    scripts: number;
+    unsafe_unknown: number;
+    exchange_action_paths: number;
+    unmapped_exchange_action_paths: number;
+    redis_keys: number;
+    redis_writer_paths: number;
+    runtime_processes: number;
+    unmapped_runtime_processes: number;
+    trainer_lineage_gaps: number;
+    monitor_scripts: number;
+    blocking_gaps: number;
+    deferred_large_file_hashes?: number;
+  };
+  runtime_monitor: {
+    monitor_prepared: boolean;
+    monitor_started: boolean;
+    monitor_completed_12h: boolean;
+    status: string;
+    allowed_write_dir: string;
+    live_gate_status: string;
+  };
+  top_gaps: string[];
+  artifact_paths: Record<string, string>;
+}
+
 const cockpitPayloadPath = '/enterprise_trading_cockpit/latest/operator_cockpit_payload.json';
 const quarantinePayloadPath = '/external_manual_position_quarantine/latest/operator_dashboard_payload.json';
 const readonlyDataPlanePayloadPath = '/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json';
+const systemAtlasPayloadPath = '/system_atlas_runtime_coverage/latest/operator_dashboard_payload.json';
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: 'no-store' });
@@ -144,10 +176,12 @@ async function fetchJson<T>(path: string): Promise<T> {
 export function useCockpitPayload(): {
   payload: CockpitPayload | null;
   quarantine: QuarantinePayload | null;
+  systemAtlas: SystemAtlasPayload | null;
   error: string | null;
 } {
   const [payload, setPayload] = useState<CockpitPayload | null>(null);
   const [quarantine, setQuarantine] = useState<QuarantinePayload | null>(null);
+  const [systemAtlas, setSystemAtlas] = useState<SystemAtlasPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -167,12 +201,19 @@ export function useCockpitPayload(): {
       .catch(() => {
         if (active) setQuarantine(null);
       });
+    fetchJson<SystemAtlasPayload>(systemAtlasPayloadPath)
+      .then((next) => {
+        if (active) setSystemAtlas(next);
+      })
+      .catch(() => {
+        if (active) setSystemAtlas(null);
+      });
     return () => {
       active = false;
     };
   }, []);
 
-  return { payload, quarantine, error };
+  return { payload, quarantine, systemAtlas, error };
 }
 
 interface ReadonlyDataPlanePayload {

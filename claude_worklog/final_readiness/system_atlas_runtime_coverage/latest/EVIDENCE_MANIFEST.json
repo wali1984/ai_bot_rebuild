@@ -1,0 +1,40 @@
+{
+  "evidence": [
+    {
+      "claim": "File manifest generated",
+      "confidence": "high",
+      "missing_evidence": "",
+      "raw_evidence_pointer": "FILE_MANIFEST.json",
+      "verification_command": "python3 claude_worklog/tools/build_system_atlas_runtime_coverage.py"
+    },
+    {
+      "claim": "Runtime process map generated from ps",
+      "confidence": "high",
+      "missing_evidence": "",
+      "raw_evidence_pointer": "RUNTIME_PROCESS_MAP.json",
+      "verification_command": "ps -eo pid,ppid,etimes,cmd"
+    },
+    {
+      "claim": "Redis map uses read-only redis-cli commands only when available",
+      "confidence": "medium",
+      "missing_evidence": "",
+      "raw_evidence_pointer": "REDIS_KEY_STREAM_MAP.json",
+      "verification_command": "redis-cli PING && redis-cli --scan"
+    },
+    {
+      "claim": "Exchange mutation tokens are mapped for raw review",
+      "confidence": "medium",
+      "missing_evidence": "",
+      "raw_evidence_pointer": "EXCHANGE_ACTION_MAP.json",
+      "verification_command": "regex scan over code-like files"
+    },
+    {
+      "claim": "12-hour monitor not completed",
+      "confidence": "high",
+      "missing_evidence": "12-hour collection must run before READY",
+      "raw_evidence_pointer": "runtime_monitor/runtime_monitor_status.json",
+      "verification_command": "read runtime monitor status"
+    }
+  ],
+  "generated_at": "2026-05-10T03:05:07.454277+00:00"
+}

@@ -1,0 +1,9 @@
+{
+  "allowed_write_dir": "claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/runtime_monitor",
+  "generated_at": "2026-05-10T03:05:07.454277+00:00",
+  "live_gate_status": "blocked_human_only",
+  "monitor_completed_12h": false,
+  "monitor_prepared": true,
+  "monitor_started": false,
+  "status": "prepared_not_run"
+}

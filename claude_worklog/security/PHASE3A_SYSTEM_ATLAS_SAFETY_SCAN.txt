@@ -1,0 +1,1097 @@
+claude_worklog/tools/build_system_atlas_runtime_coverage.py:74:    "create_order",
+claude_worklog/tools/build_system_atlas_runtime_coverage.py:75:    "cancel_order",
+claude_worklog/tools/build_system_atlas_runtime_coverage.py:76:    "change_leverage",
+claude_worklog/tools/build_system_atlas_runtime_coverage.py:77:    "change_margin",
+claude_worklog/tools/build_system_atlas_runtime_coverage.py:78:    "change_margin_type",
+claude_worklog/tools/build_system_atlas_runtime_coverage.py:79:    "change_position_mode",
+claude_worklog/tools/build_system_atlas_runtime_coverage.py:92:REDIS_WRITE_TOKENS = ["xadd", "set(", "hset", "delete(", "xdel", "xtrim", "flushall", "flushdb", "redis-cli set", "redis-cli xadd"]
+claude_worklog/tools/build_system_atlas_runtime_coverage.py:93:REDIS_READ_TOKENS = ["xread", "xrange", "xrevrange", "get(", "hgetall", "scan_iter", "redis-cli get", "redis-cli scan"]
+claude_worklog/tools/build_system_atlas_runtime_coverage.py:438:        ping = run(["redis-cli", "PING"], timeout=3)
+claude_worklog/tools/build_system_atlas_runtime_coverage.py:443:        scan = run(["redis-cli", "--scan"], timeout=15)
+claude_worklog/tools/build_system_atlas_runtime_coverage.py:448:            type_proc = run(["redis-cli", "TYPE", key], timeout=3)
+claude_worklog/tools/build_system_atlas_runtime_coverage.py:452:                length = run(["redis-cli", "XLEN", key], timeout=3).stdout.strip()
+claude_worklog/tools/build_system_atlas_runtime_coverage.py:454:                length = run(["redis-cli", "LLEN", key], timeout=3).stdout.strip()
+claude_worklog/tools/build_system_atlas_runtime_coverage.py:638:        asdict(Evidence("Redis map uses read-only redis-cli commands only when available", "REDIS_KEY_STREAM_MAP.json", "redis-cli PING && redis-cli --scan", "medium", "" if redis_keys else "Redis unavailable or empty")),
+claude_worklog/tools/build_system_atlas_runtime_coverage.py:668:            "It must not use DEL/XDEL/XTRIM/SET/HSET/XADD/FLUSHALL/FLUSHDB.",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/MONITOR_SCRIPT_MAP.json:743:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/MONITOR_SCRIPT_MAP.json:1693:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/runtime_monitor/12H_RUNTIME_MONITOR_PLAN.md:6:It must not use DEL/XDEL/XTRIM/SET/HSET/XADD/FLUSHALL/FLUSHDB.
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:603:- unmapped exchange action path: .claude/hooks/block_dangerous.sh token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:604:- unmapped exchange action path: .claude/hooks/block_dangerous.sh token=cancel_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:605:- unmapped exchange action path: .claude/hooks/block_dangerous.sh token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:606:- unmapped exchange action path: .claude/hooks/block_dangerous.sh token=change_margin
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:607:- unmapped exchange action path: .claude/hooks/block_dangerous.sh token=change_margin_type
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:608:- unmapped exchange action path: .claude/hooks/block_dangerous.sh token=change_position_mode
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:609:- unmapped exchange action path: claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:610:- unmapped exchange action path: claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=cancel_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:611:- unmapped exchange action path: claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:612:- unmapped exchange action path: claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=change_margin
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:615:- unmapped exchange action path: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:616:- unmapped exchange action path: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=cancel_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:617:- unmapped exchange action path: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:618:- unmapped exchange action path: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_margin
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:619:- unmapped exchange action path: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_margin_type
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:620:- unmapped exchange action path: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_position_mode
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:631:- unmapped exchange action path: claude_worklog/tools/claude_master_rebuild_planner.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:632:- unmapped exchange action path: claude_worklog/tools/claude_master_rebuild_planner.py token=cancel_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:633:- unmapped exchange action path: claude_worklog/tools/claude_master_rebuild_planner.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:634:- unmapped exchange action path: claude_worklog/tools/claude_master_rebuild_planner.py token=change_margin
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:635:- unmapped exchange action path: claude_worklog/tools/codex_non_live_watchdog.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:636:- unmapped exchange action path: claude_worklog/tools/codex_non_live_watchdog.py token=cancel_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:637:- unmapped exchange action path: claude_worklog/tools/codex_non_live_watchdog.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:638:- unmapped exchange action path: claude_worklog/tools/codex_non_live_watchdog.py token=change_margin
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:639:- unmapped exchange action path: claude_worklog/tools/collect_non_live_operational_proof.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:640:- unmapped exchange action path: claude_worklog/tools/collect_non_live_operational_proof.py token=cancel_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:641:- unmapped exchange action path: claude_worklog/tools/collect_non_live_operational_proof.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:642:- unmapped exchange action path: claude_worklog/tools/collect_non_live_operational_proof.py token=change_margin
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:652:- unmapped exchange action path: legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:653:- unmapped exchange action path: legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:654:- unmapped exchange action path: legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=change_position_mode
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:664:- unmapped exchange action path: legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:665:- unmapped exchange action path: legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:666:- unmapped exchange action path: legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=change_position_mode
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:675:- unmapped exchange action path: legacy_reference/ADAPTIVE_TRADING_COMPLETE.md token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:677:- unmapped exchange action path: legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:678:- unmapped exchange action path: legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_margin
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:679:- unmapped exchange action path: legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_margin_type
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:690:- unmapped exchange action path: legacy_reference/Documentation/GPT DEEP Implementation guide.md token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:696:- unmapped exchange action path: legacy_reference/Documentation/Trainer Enahancement Plan2.md token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:710:- unmapped exchange action path: legacy_reference/Documentation/wma ai bot 1.md token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:711:- unmapped exchange action path: legacy_reference/Documentation/wma ai bot 1.md token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:714:- unmapped exchange action path: legacy_reference/LATENCY_OPTIMIZATIONS.md token=cancel_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:721:- unmapped exchange action path: legacy_reference/api/routes/trading_routes.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:722:- unmapped exchange action path: legacy_reference/api/routes/trading_routes.py token=cancel_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:723:- unmapped exchange action path: legacy_reference/api/routes/trading_routes.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:744:- unmapped exchange action path: legacy_reference/docs/GPT DEEP Implementation guide.md token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:750:- unmapped exchange action path: legacy_reference/docs/OLD/Final Trainer guide 7.md token=change_position_mode
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:767:- unmapped exchange action path: legacy_reference/docs/Trainer Enahancement Plan2.md token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:781:- unmapped exchange action path: legacy_reference/docs/wma ai bot 1.md token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:782:- unmapped exchange action path: legacy_reference/docs/wma ai bot 1.md token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:784:- unmapped exchange action path: legacy_reference/enhanced_startup.py token=cancel_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:927:- unmapped exchange action path: legacy_reference/scripts/audit_binance_leverage_config.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:937:- unmapped exchange action path: legacy_reference/scripts/close_all_positions.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:956:- unmapped exchange action path: legacy_reference/scripts/manage_limit_orders.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:972:- unmapped exchange action path: legacy_reference/scripts/test_hedge_build.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:5:| .claude/hooks/block_dangerous.sh | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:6:| .claude/hooks/block_dangerous.sh | cancel_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:7:| .claude/hooks/block_dangerous.sh | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:8:| .claude/hooks/block_dangerous.sh | change_margin | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:9:| .claude/hooks/block_dangerous.sh | change_margin_type | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:10:| .claude/hooks/block_dangerous.sh | change_position_mode | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:11:| claude_worklog/tools/autonomous_non_live_rebuild_controller.py | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:12:| claude_worklog/tools/autonomous_non_live_rebuild_controller.py | cancel_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:13:| claude_worklog/tools/autonomous_non_live_rebuild_controller.py | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:14:| claude_worklog/tools/autonomous_non_live_rebuild_controller.py | change_margin | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:17:| claude_worklog/tools/build_system_atlas_runtime_coverage.py | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:18:| claude_worklog/tools/build_system_atlas_runtime_coverage.py | cancel_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:19:| claude_worklog/tools/build_system_atlas_runtime_coverage.py | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:20:| claude_worklog/tools/build_system_atlas_runtime_coverage.py | change_margin | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:21:| claude_worklog/tools/build_system_atlas_runtime_coverage.py | change_margin_type | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:22:| claude_worklog/tools/build_system_atlas_runtime_coverage.py | change_position_mode | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:33:| claude_worklog/tools/claude_master_rebuild_planner.py | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:34:| claude_worklog/tools/claude_master_rebuild_planner.py | cancel_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:35:| claude_worklog/tools/claude_master_rebuild_planner.py | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:36:| claude_worklog/tools/claude_master_rebuild_planner.py | change_margin | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:37:| claude_worklog/tools/codex_non_live_watchdog.py | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:38:| claude_worklog/tools/codex_non_live_watchdog.py | cancel_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:39:| claude_worklog/tools/codex_non_live_watchdog.py | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:40:| claude_worklog/tools/codex_non_live_watchdog.py | change_margin | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:41:| claude_worklog/tools/collect_non_live_operational_proof.py | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:42:| claude_worklog/tools/collect_non_live_operational_proof.py | cancel_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:43:| claude_worklog/tools/collect_non_live_operational_proof.py | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:44:| claude_worklog/tools/collect_non_live_operational_proof.py | change_margin | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:54:| legacy_reference/.backups/fix_signals_20251012_191010/trader.py | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:55:| legacy_reference/.backups/fix_signals_20251012_191010/trader.py | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:56:| legacy_reference/.backups/fix_signals_20251012_191010/trader.py | change_position_mode | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:66:| legacy_reference/.backups/fix_signals_20251012_191330/trader.py | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:67:| legacy_reference/.backups/fix_signals_20251012_191330/trader.py | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:68:| legacy_reference/.backups/fix_signals_20251012_191330/trader.py | change_position_mode | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:77:| legacy_reference/ADAPTIVE_TRADING_COMPLETE.md | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:79:| legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:80:| legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md | change_margin | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:81:| legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md | change_margin_type | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:92:| legacy_reference/Documentation/GPT DEEP Implementation guide.md | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:98:| legacy_reference/Documentation/Trainer Enahancement Plan2.md | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:112:| legacy_reference/Documentation/wma ai bot 1.md | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:113:| legacy_reference/Documentation/wma ai bot 1.md | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:116:| legacy_reference/LATENCY_OPTIMIZATIONS.md | cancel_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:123:| legacy_reference/api/routes/trading_routes.py | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:124:| legacy_reference/api/routes/trading_routes.py | cancel_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:125:| legacy_reference/api/routes/trading_routes.py | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:146:| legacy_reference/docs/GPT DEEP Implementation guide.md | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:152:| legacy_reference/docs/OLD/Final Trainer guide 7.md | change_position_mode | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.json:7:        "python .*live\"\n  \"redis-cli DEL\"\n  \"redis-cli XDEL\"\n  \"redis-cli XTRIM\"\n  \"redis-cli FLUSHALL\"\n  \"redis-cli FLUSHDB\"\n  \"../AI BOT/\"\n  \"chmod .*../AI BOT\"\n  \"rm -rf .*AI BOT\"\n)\n\nfor patter",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.json:665:        "systemctl restart\",\n    \"pkill\",\n    \"kill \",\n    \"place order\",\n    \"ca"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.json:688:        "systemctl restart"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.json:790:        "systemctl restart\",\n    \"sudo systemctl\",\n    \"deploy\",\n    \"productio"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.json:802:        "systemctl restart"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.json:43838:        "docker exec \"$REDIS_CONTAINER_NAME\" redis-cli i",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.json:43839:        "docker exec \"$REDIS_CONTAINER_NAME\" redis-cli pi",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:3:- .claude/hooks/block_dangerous.sh :: create_order :: .claude/hooks/block_dangerous.sh token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:4:- .claude/hooks/block_dangerous.sh :: cancel_order :: .claude/hooks/block_dangerous.sh token=cancel_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:5:- .claude/hooks/block_dangerous.sh :: change_leverage :: .claude/hooks/block_dangerous.sh token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:6:- .claude/hooks/block_dangerous.sh :: change_margin :: .claude/hooks/block_dangerous.sh token=change_margin
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:7:- .claude/hooks/block_dangerous.sh :: change_margin_type :: .claude/hooks/block_dangerous.sh token=change_margin_type
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:8:- .claude/hooks/block_dangerous.sh :: change_position_mode :: .claude/hooks/block_dangerous.sh token=change_position_mode
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:9:- claude_worklog/tools/autonomous_non_live_rebuild_controller.py :: create_order :: claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:10:- claude_worklog/tools/autonomous_non_live_rebuild_controller.py :: cancel_order :: claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=cancel_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:11:- claude_worklog/tools/autonomous_non_live_rebuild_controller.py :: change_leverage :: claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:12:- claude_worklog/tools/autonomous_non_live_rebuild_controller.py :: change_margin :: claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=change_margin
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:15:- claude_worklog/tools/build_system_atlas_runtime_coverage.py :: create_order :: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:16:- claude_worklog/tools/build_system_atlas_runtime_coverage.py :: cancel_order :: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=cancel_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:17:- claude_worklog/tools/build_system_atlas_runtime_coverage.py :: change_leverage :: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:18:- claude_worklog/tools/build_system_atlas_runtime_coverage.py :: change_margin :: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_margin
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:19:- claude_worklog/tools/build_system_atlas_runtime_coverage.py :: change_margin_type :: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_margin_type
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:20:- claude_worklog/tools/build_system_atlas_runtime_coverage.py :: change_position_mode :: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_position_mode
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:31:- claude_worklog/tools/claude_master_rebuild_planner.py :: create_order :: claude_worklog/tools/claude_master_rebuild_planner.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:32:- claude_worklog/tools/claude_master_rebuild_planner.py :: cancel_order :: claude_worklog/tools/claude_master_rebuild_planner.py token=cancel_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:33:- claude_worklog/tools/claude_master_rebuild_planner.py :: change_leverage :: claude_worklog/tools/claude_master_rebuild_planner.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:34:- claude_worklog/tools/claude_master_rebuild_planner.py :: change_margin :: claude_worklog/tools/claude_master_rebuild_planner.py token=change_margin
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:35:- claude_worklog/tools/codex_non_live_watchdog.py :: create_order :: claude_worklog/tools/codex_non_live_watchdog.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:36:- claude_worklog/tools/codex_non_live_watchdog.py :: cancel_order :: claude_worklog/tools/codex_non_live_watchdog.py token=cancel_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:37:- claude_worklog/tools/codex_non_live_watchdog.py :: change_leverage :: claude_worklog/tools/codex_non_live_watchdog.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:38:- claude_worklog/tools/codex_non_live_watchdog.py :: change_margin :: claude_worklog/tools/codex_non_live_watchdog.py token=change_margin
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:39:- claude_worklog/tools/collect_non_live_operational_proof.py :: create_order :: claude_worklog/tools/collect_non_live_operational_proof.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:40:- claude_worklog/tools/collect_non_live_operational_proof.py :: cancel_order :: claude_worklog/tools/collect_non_live_operational_proof.py token=cancel_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:41:- claude_worklog/tools/collect_non_live_operational_proof.py :: change_leverage :: claude_worklog/tools/collect_non_live_operational_proof.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:42:- claude_worklog/tools/collect_non_live_operational_proof.py :: change_margin :: claude_worklog/tools/collect_non_live_operational_proof.py token=change_margin
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:52:- legacy_reference/.backups/fix_signals_20251012_191010/trader.py :: create_order :: legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:53:- legacy_reference/.backups/fix_signals_20251012_191010/trader.py :: change_leverage :: legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:54:- legacy_reference/.backups/fix_signals_20251012_191010/trader.py :: change_position_mode :: legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=change_position_mode
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:64:- legacy_reference/.backups/fix_signals_20251012_191330/trader.py :: create_order :: legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:65:- legacy_reference/.backups/fix_signals_20251012_191330/trader.py :: change_leverage :: legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:66:- legacy_reference/.backups/fix_signals_20251012_191330/trader.py :: change_position_mode :: legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=change_position_mode
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:75:- legacy_reference/ADAPTIVE_TRADING_COMPLETE.md :: change_leverage :: legacy_reference/ADAPTIVE_TRADING_COMPLETE.md token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:77:- legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md :: change_leverage :: legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:78:- legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md :: change_margin :: legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_margin
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:79:- legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md :: change_margin_type :: legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_margin_type
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:90:- legacy_reference/Documentation/GPT DEEP Implementation guide.md :: create_order :: legacy_reference/Documentation/GPT DEEP Implementation guide.md token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:96:- legacy_reference/Documentation/Trainer Enahancement Plan2.md :: create_order :: legacy_reference/Documentation/Trainer Enahancement Plan2.md token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:110:- legacy_reference/Documentation/wma ai bot 1.md :: create_order :: legacy_reference/Documentation/wma ai bot 1.md token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:111:- legacy_reference/Documentation/wma ai bot 1.md :: change_leverage :: legacy_reference/Documentation/wma ai bot 1.md token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:114:- legacy_reference/LATENCY_OPTIMIZATIONS.md :: cancel_order :: legacy_reference/LATENCY_OPTIMIZATIONS.md token=cancel_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:121:- legacy_reference/api/routes/trading_routes.py :: create_order :: legacy_reference/api/routes/trading_routes.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:122:- legacy_reference/api/routes/trading_routes.py :: cancel_order :: legacy_reference/api/routes/trading_routes.py token=cancel_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:123:- legacy_reference/api/routes/trading_routes.py :: change_leverage :: legacy_reference/api/routes/trading_routes.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:144:- legacy_reference/docs/GPT DEEP Implementation guide.md :: create_order :: legacy_reference/docs/GPT DEEP Implementation guide.md token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:150:- legacy_reference/docs/OLD/Final Trainer guide 7.md :: change_position_mode :: legacy_reference/docs/OLD/Final Trainer guide 7.md token=change_position_mode
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:167:- legacy_reference/docs/Trainer Enahancement Plan2.md :: create_order :: legacy_reference/docs/Trainer Enahancement Plan2.md token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:181:- legacy_reference/docs/wma ai bot 1.md :: create_order :: legacy_reference/docs/wma ai bot 1.md token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:182:- legacy_reference/docs/wma ai bot 1.md :: change_leverage :: legacy_reference/docs/wma ai bot 1.md token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:184:- legacy_reference/enhanced_startup.py :: cancel_order :: legacy_reference/enhanced_startup.py token=cancel_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:327:- legacy_reference/scripts/audit_binance_leverage_config.py :: change_leverage :: legacy_reference/scripts/audit_binance_leverage_config.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:337:- legacy_reference/scripts/close_all_positions.py :: create_order :: legacy_reference/scripts/close_all_positions.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:356:- legacy_reference/scripts/manage_limit_orders.py :: create_order :: legacy_reference/scripts/manage_limit_orders.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:372:- legacy_reference/scripts/test_hedge_build.py :: create_order :: legacy_reference/scripts/test_hedge_build.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:405:- legacy_reference/test_binance_connections.py :: create_order :: legacy_reference/test_binance_connections.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:406:- legacy_reference/test_binance_connections.py :: change_position_mode :: legacy_reference/test_binance_connections.py token=change_position_mode
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:408:- legacy_reference/test_binance_direct.py :: create_order :: legacy_reference/test_binance_direct.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:410:- legacy_reference/test_binance_hedge_mode.py :: create_order :: legacy_reference/test_binance_hedge_mode.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:411:- legacy_reference/test_binance_hedge_mode.py :: change_leverage :: legacy_reference/test_binance_hedge_mode.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:412:- legacy_reference/test_binance_hedge_mode.py :: change_position_mode :: legacy_reference/test_binance_hedge_mode.py token=change_position_mode
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:414:- legacy_reference/test_binance_testnet_orders.py :: create_order :: legacy_reference/test_binance_testnet_orders.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:415:- legacy_reference/test_binance_testnet_orders.py :: change_leverage :: legacy_reference/test_binance_testnet_orders.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:416:- legacy_reference/test_binance_testnet_orders.py :: change_position_mode :: legacy_reference/test_binance_testnet_orders.py token=change_position_mode
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:422:- legacy_reference/test_hedge_trading.py :: change_position_mode :: legacy_reference/test_hedge_trading.py token=change_position_mode
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:427:- legacy_reference/test_ltc_trading.py :: create_order :: legacy_reference/test_ltc_trading.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:430:- legacy_reference/test_production_api.py :: create_order :: legacy_reference/test_production_api.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:431:- legacy_reference/test_production_api.py :: cancel_order :: legacy_reference/test_production_api.py token=cancel_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:432:- legacy_reference/test_production_api.py :: change_leverage :: legacy_reference/test_production_api.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:433:- legacy_reference/test_production_api.py :: change_margin :: legacy_reference/test_production_api.py token=change_margin
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:434:- legacy_reference/test_production_api.py :: change_margin_type :: legacy_reference/test_production_api.py token=change_margin_type
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:438:- legacy_reference/test_production_trading.py :: create_order :: legacy_reference/test_production_trading.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:439:- legacy_reference/test_production_trading.py :: change_leverage :: legacy_reference/test_production_trading.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:440:- legacy_reference/test_real_trading.py :: create_order :: legacy_reference/test_real_trading.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:471:- legacy_reference/trading/base_executor.py :: create_order :: legacy_reference/trading/base_executor.py token=create_order
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:472:- legacy_reference/trading/base_executor.py :: change_leverage :: legacy_reference/trading/base_executor.py token=change_leverage
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:473:- legacy_reference/trading/base_executor.py :: change_margin :: legacy_reference/trading/base_executor.py token=change_margin
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:474:- legacy_reference/trading/base_executor.py :: change_margin_type :: legacy_reference/trading/base_executor.py token=change_margin_type
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:475:- legacy_reference/trading/base_executor.py :: change_position_mode :: legacy_reference/trading/base_executor.py token=change_position_mode
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EVIDENCE_MANIFEST.json:18:      "claim": "Redis map uses read-only redis-cli commands only when available",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EVIDENCE_MANIFEST.json:22:      "verification_command": "redis-cli PING && redis-cli --scan"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.md:5:| .claude/hooks/block_dangerous.sh | ['python .*hybrid_trai', 'python .*live"\n  "redis-cli DEL"\n  "redis-cli XDEL"\n  "redis-cli XTRIM"\n  "redis-cli FLUSHALL"\n  "redis-cli FLUSHDB"\n  "../AI BOT/"\n  "chmod .*../AI BOT"\n  "rm -rf .*AI BOT"\n)\n\nfor pa | .claude/hooks/block_dangerous.sh |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.md:77:| claude_worklog/tools/agent_supervisor.py | ['npm i', 'python', 'python3\n"""Age', 'systemctl restart",\n    "pkill",\n    "kill ",\n    "place order",\n    "ca'] | claude_worklog/tools/agent_supervisor.py |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.md:90:| claude_worklog/tools/codex_non_live_watchdog.py | ['python3\nfrom __future__ import a', 'python3", "claude_worklog/tools/age', 'python3", "claude_worklog/tools/reco', 'systemctl restart",\n    "sudo systemctl",\n    "deploy",\n    "productio'] | claude_worklog/tools/codex_non_live_watchdog.py |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.md:91:| claude_worklog/tools/collect_non_live_operational_proof.py | ['python3\nfrom __future__ import a', 'python3 -m compileall -q v2/backe', 'python3 -m v2.backe', 'python3 v2/backe', 'systemctl', 'systemctl restart'] | claude_worklog/tools/collect_non_live_operational_proof.py |
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:9:      "raw_evidence_pointer": ".claude/hooks/block_dangerous.sh token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:14:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:19:      "raw_evidence_pointer": ".claude/hooks/block_dangerous.sh token=cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:24:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:29:      "raw_evidence_pointer": ".claude/hooks/block_dangerous.sh token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:34:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:39:      "raw_evidence_pointer": ".claude/hooks/block_dangerous.sh token=change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:44:      "action_type": "change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:49:      "raw_evidence_pointer": ".claude/hooks/block_dangerous.sh token=change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:54:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:59:      "raw_evidence_pointer": ".claude/hooks/block_dangerous.sh token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:64:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:69:      "raw_evidence_pointer": "claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:74:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:79:      "raw_evidence_pointer": "claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:84:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:89:      "raw_evidence_pointer": "claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:94:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:99:      "raw_evidence_pointer": "claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:124:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:129:      "raw_evidence_pointer": "claude_worklog/tools/build_system_atlas_runtime_coverage.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:134:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:139:      "raw_evidence_pointer": "claude_worklog/tools/build_system_atlas_runtime_coverage.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:144:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:149:      "raw_evidence_pointer": "claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:154:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:159:      "raw_evidence_pointer": "claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:164:      "action_type": "change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:169:      "raw_evidence_pointer": "claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:174:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:179:      "raw_evidence_pointer": "claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:284:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:289:      "raw_evidence_pointer": "claude_worklog/tools/claude_master_rebuild_planner.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:294:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:299:      "raw_evidence_pointer": "claude_worklog/tools/claude_master_rebuild_planner.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:304:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:309:      "raw_evidence_pointer": "claude_worklog/tools/claude_master_rebuild_planner.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:314:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:319:      "raw_evidence_pointer": "claude_worklog/tools/claude_master_rebuild_planner.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:324:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:329:      "raw_evidence_pointer": "claude_worklog/tools/codex_non_live_watchdog.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:334:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:339:      "raw_evidence_pointer": "claude_worklog/tools/codex_non_live_watchdog.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:344:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:349:      "raw_evidence_pointer": "claude_worklog/tools/codex_non_live_watchdog.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:354:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:359:      "raw_evidence_pointer": "claude_worklog/tools/codex_non_live_watchdog.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:364:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:369:      "raw_evidence_pointer": "claude_worklog/tools/collect_non_live_operational_proof.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:374:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:379:      "raw_evidence_pointer": "claude_worklog/tools/collect_non_live_operational_proof.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:384:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:389:      "raw_evidence_pointer": "claude_worklog/tools/collect_non_live_operational_proof.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:394:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:399:      "raw_evidence_pointer": "claude_worklog/tools/collect_non_live_operational_proof.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:494:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:499:      "raw_evidence_pointer": "legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:504:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:509:      "raw_evidence_pointer": "legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:514:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:519:      "raw_evidence_pointer": "legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:614:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:619:      "raw_evidence_pointer": "legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:624:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:629:      "raw_evidence_pointer": "legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:634:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:639:      "raw_evidence_pointer": "legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:724:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:729:      "raw_evidence_pointer": "legacy_reference/ADAPTIVE_TRADING_COMPLETE.md token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:744:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:749:      "raw_evidence_pointer": "legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:754:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:759:      "raw_evidence_pointer": "legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:764:      "action_type": "change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:769:      "raw_evidence_pointer": "legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:874:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:879:      "raw_evidence_pointer": "legacy_reference/Documentation/GPT DEEP Implementation guide.md token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:934:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:939:      "raw_evidence_pointer": "legacy_reference/Documentation/Trainer Enahancement Plan2.md token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1116:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1121:      "raw_evidence_pointer": "legacy_reference/Documentation/wma ai bot 1.md token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1126:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1131:      "raw_evidence_pointer": "legacy_reference/Documentation/wma ai bot 1.md token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1156:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1161:      "raw_evidence_pointer": "legacy_reference/LATENCY_OPTIMIZATIONS.md token=cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1268:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1273:      "raw_evidence_pointer": "legacy_reference/api/routes/trading_routes.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1278:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1283:      "raw_evidence_pointer": "legacy_reference/api/routes/trading_routes.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1288:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1293:      "raw_evidence_pointer": "legacy_reference/api/routes/trading_routes.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1582:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1587:      "raw_evidence_pointer": "legacy_reference/docs/GPT DEEP Implementation guide.md token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1642:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1647:      "raw_evidence_pointer": "legacy_reference/docs/OLD/Final Trainer guide 7.md token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1833:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1838:      "raw_evidence_pointer": "legacy_reference/docs/Trainer Enahancement Plan2.md token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:2015:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:2020:      "raw_evidence_pointer": "legacy_reference/docs/wma ai bot 1.md token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:2025:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:2030:      "raw_evidence_pointer": "legacy_reference/docs/wma ai bot 1.md token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:2045:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:2050:      "raw_evidence_pointer": "legacy_reference/enhanced_startup.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:3475:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:3480:      "raw_evidence_pointer": "legacy_reference/scripts/audit_binance_leverage_config.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:3575:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:3580:      "raw_evidence_pointer": "legacy_reference/scripts/close_all_positions.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:3765:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:3770:      "raw_evidence_pointer": "legacy_reference/scripts/manage_limit_orders.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:3925:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:3930:      "raw_evidence_pointer": "legacy_reference/scripts/test_hedge_build.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4276:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4281:      "raw_evidence_pointer": "legacy_reference/test_binance_connections.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4286:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4291:      "raw_evidence_pointer": "legacy_reference/test_binance_connections.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4306:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4311:      "raw_evidence_pointer": "legacy_reference/test_binance_direct.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4326:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4331:      "raw_evidence_pointer": "legacy_reference/test_binance_hedge_mode.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4336:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4341:      "raw_evidence_pointer": "legacy_reference/test_binance_hedge_mode.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4346:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4351:      "raw_evidence_pointer": "legacy_reference/test_binance_hedge_mode.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4366:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4371:      "raw_evidence_pointer": "legacy_reference/test_binance_testnet_orders.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4376:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4381:      "raw_evidence_pointer": "legacy_reference/test_binance_testnet_orders.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4386:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4391:      "raw_evidence_pointer": "legacy_reference/test_binance_testnet_orders.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4446:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4451:      "raw_evidence_pointer": "legacy_reference/test_hedge_trading.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4496:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4501:      "raw_evidence_pointer": "legacy_reference/test_ltc_trading.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4526:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4531:      "raw_evidence_pointer": "legacy_reference/test_production_api.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4536:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4541:      "raw_evidence_pointer": "legacy_reference/test_production_api.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4546:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4551:      "raw_evidence_pointer": "legacy_reference/test_production_api.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4556:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4561:      "raw_evidence_pointer": "legacy_reference/test_production_api.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4566:      "action_type": "change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4571:      "raw_evidence_pointer": "legacy_reference/test_production_api.py token=change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4606:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4611:      "raw_evidence_pointer": "legacy_reference/test_production_trading.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4616:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4621:      "raw_evidence_pointer": "legacy_reference/test_production_trading.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4626:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4631:      "raw_evidence_pointer": "legacy_reference/test_real_trading.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4936:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4941:      "raw_evidence_pointer": "legacy_reference/trading/base_executor.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4946:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4951:      "raw_evidence_pointer": "legacy_reference/trading/base_executor.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4956:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4961:      "raw_evidence_pointer": "legacy_reference/trading/base_executor.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4966:      "action_type": "change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4971:      "raw_evidence_pointer": "legacy_reference/trading/base_executor.py token=change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4976:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4981:      "raw_evidence_pointer": "legacy_reference/trading/base_executor.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5256:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5261:      "raw_evidence_pointer": "legacy_reference/trading/stealth_stops.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5266:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5271:      "raw_evidence_pointer": "legacy_reference/trading/stealth_stops.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5316:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5321:      "raw_evidence_pointer": "legacy_reference/trading/trader.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5326:      "action_type": "change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5331:      "raw_evidence_pointer": "legacy_reference/trading/trader.py token=change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5336:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5341:      "raw_evidence_pointer": "legacy_reference/trading/trader.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5496:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5501:      "raw_evidence_pointer": "tools/collect_exchange_actions.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5506:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5511:      "raw_evidence_pointer": "tools/collect_exchange_actions.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5516:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5521:      "raw_evidence_pointer": "tools/collect_exchange_actions.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5526:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5531:      "raw_evidence_pointer": "tools/collect_exchange_actions.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5536:      "action_type": "change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5541:      "raw_evidence_pointer": "tools/collect_exchange_actions.py token=change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5635:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5640:      "raw_evidence_pointer": "v2/backend/app/proof/readonly_market_exchange_data_plane.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5649:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5654:      "raw_evidence_pointer": "v2/backend/app/proof/readonly_market_exchange_data_plane.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5663:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5668:      "raw_evidence_pointer": "v2/backend/app/proof/readonly_market_exchange_data_plane.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5677:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5682:      "raw_evidence_pointer": "v2/backend/app/proof/readonly_market_exchange_data_plane.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5691:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5696:      "raw_evidence_pointer": "v2/backend/app/proof/readonly_market_exchange_data_plane.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6074:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6079:      "raw_evidence_pointer": "v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py token=create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6088:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6093:      "raw_evidence_pointer": "v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6102:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6107:      "raw_evidence_pointer": "v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6116:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6121:      "raw_evidence_pointer": "v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6130:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6135:      "raw_evidence_pointer": "v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/RAW_EVIDENCE_POINTERS.md:5:- Redis map uses read-only redis-cli commands only when available: REDIS_KEY_STREAM_MAP.json via `redis-cli PING && redis-cli --scan`
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:11:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:12:        "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:13:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:14:        "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:15:        "change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:16:        "change_position_mode"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:109:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:110:        "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:111:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:112:        "change_margin"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:310:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:311:        "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:312:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:313:        "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:314:        "change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:315:        "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:353:        "redis-cli get",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:354:        "redis-cli scan"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:365:        "redis-cli set",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:366:        "redis-cli xadd"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:446:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:447:        "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:448:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:449:        "change_margin"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:490:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:491:        "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:492:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:493:        "change_margin"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:533:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:534:        "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:535:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:536:        "change_margin"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:1646:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:1647:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:1648:        "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:1781:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:1782:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:1783:        "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:30158:        "change_leverage"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:30210:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:30211:        "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:30212:        "change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:30644:        "create_order"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:30654:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:30850:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:30878:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:30881:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:31035:        "create_order"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:31617:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:31618:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:31631:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:32501:        "cancel_order"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:32758:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:33588:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:33589:        "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:33590:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:35121:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:36228:        "create_order"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:36238:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:36434:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:36655:        "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:36710:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:36761:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:36885:        "redis-cli scan"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:36888:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:36949:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:37352:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:37375:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:37398:        "redis-cli get",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:37399:        "redis-cli scan"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:37422:        "redis-cli get",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:37423:        "redis-cli scan"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:37446:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:37870:        "redis-cli get",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:37871:        "redis-cli scan"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:38247:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:38509:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:38535:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:38538:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:38692:        "create_order"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:39337:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:39338:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:39351:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:39403:        "cancel_order"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:43069:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:44587:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:50334:        "change_leverage"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:50985:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:51929:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:53097:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:53387:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:53819:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:54472:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:57017:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:57018:        "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:57053:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:57087:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:57088:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:57089:        "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:57207:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:57208:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:57209:        "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:58174:        "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:58576:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:59309:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:59310:        "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:59311:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:59312:        "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:59313:        "change_margin_type"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:59430:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:59431:        "change_leverage"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:59561:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:62549:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:62550:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:62551:        "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:62552:        "change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:62553:        "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:63498:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:63499:        "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:63579:        "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:63580:        "change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:63581:        "change_position_mode",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:65888:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:65889:        "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:65890:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:65891:        "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:65892:        "change_margin_type",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:77021:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:77022:        "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:77023:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:77024:        "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:77025:        "change_position_mode"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:103759:        "create_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:103760:        "cancel_order",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:103761:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:103762:        "change_margin",
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:103763:        "change_position_mode"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:121203:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/MONITOR_CENTER_DASHBOARD_PAYLOAD.json:743:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/MONITOR_CENTER_DASHBOARD_PAYLOAD.json:1693:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/MONITOR_SCRIPT_MAP.json:743:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/MONITOR_SCRIPT_MAP.json:1693:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/runtime_monitor/12H_RUNTIME_MONITOR_PLAN.md:6:It must not use DEL/XDEL/XTRIM/SET/HSET/XADD/FLUSHALL/FLUSHDB.
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:603:- unmapped exchange action path: .claude/hooks/block_dangerous.sh token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:604:- unmapped exchange action path: .claude/hooks/block_dangerous.sh token=cancel_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:605:- unmapped exchange action path: .claude/hooks/block_dangerous.sh token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:606:- unmapped exchange action path: .claude/hooks/block_dangerous.sh token=change_margin
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:607:- unmapped exchange action path: .claude/hooks/block_dangerous.sh token=change_margin_type
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:608:- unmapped exchange action path: .claude/hooks/block_dangerous.sh token=change_position_mode
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:609:- unmapped exchange action path: claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:610:- unmapped exchange action path: claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=cancel_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:611:- unmapped exchange action path: claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:612:- unmapped exchange action path: claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=change_margin
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:615:- unmapped exchange action path: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:616:- unmapped exchange action path: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=cancel_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:617:- unmapped exchange action path: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:618:- unmapped exchange action path: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_margin
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:619:- unmapped exchange action path: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_margin_type
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:620:- unmapped exchange action path: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_position_mode
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:631:- unmapped exchange action path: claude_worklog/tools/claude_master_rebuild_planner.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:632:- unmapped exchange action path: claude_worklog/tools/claude_master_rebuild_planner.py token=cancel_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:633:- unmapped exchange action path: claude_worklog/tools/claude_master_rebuild_planner.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:634:- unmapped exchange action path: claude_worklog/tools/claude_master_rebuild_planner.py token=change_margin
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:635:- unmapped exchange action path: claude_worklog/tools/codex_non_live_watchdog.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:636:- unmapped exchange action path: claude_worklog/tools/codex_non_live_watchdog.py token=cancel_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:637:- unmapped exchange action path: claude_worklog/tools/codex_non_live_watchdog.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:638:- unmapped exchange action path: claude_worklog/tools/codex_non_live_watchdog.py token=change_margin
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:639:- unmapped exchange action path: claude_worklog/tools/collect_non_live_operational_proof.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:640:- unmapped exchange action path: claude_worklog/tools/collect_non_live_operational_proof.py token=cancel_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:641:- unmapped exchange action path: claude_worklog/tools/collect_non_live_operational_proof.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:642:- unmapped exchange action path: claude_worklog/tools/collect_non_live_operational_proof.py token=change_margin
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:652:- unmapped exchange action path: legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:653:- unmapped exchange action path: legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:654:- unmapped exchange action path: legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=change_position_mode
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:664:- unmapped exchange action path: legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:665:- unmapped exchange action path: legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:666:- unmapped exchange action path: legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=change_position_mode
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:675:- unmapped exchange action path: legacy_reference/ADAPTIVE_TRADING_COMPLETE.md token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:677:- unmapped exchange action path: legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:678:- unmapped exchange action path: legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_margin
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:679:- unmapped exchange action path: legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_margin_type
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:690:- unmapped exchange action path: legacy_reference/Documentation/GPT DEEP Implementation guide.md token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:696:- unmapped exchange action path: legacy_reference/Documentation/Trainer Enahancement Plan2.md token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:710:- unmapped exchange action path: legacy_reference/Documentation/wma ai bot 1.md token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:711:- unmapped exchange action path: legacy_reference/Documentation/wma ai bot 1.md token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:714:- unmapped exchange action path: legacy_reference/LATENCY_OPTIMIZATIONS.md token=cancel_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:721:- unmapped exchange action path: legacy_reference/api/routes/trading_routes.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:722:- unmapped exchange action path: legacy_reference/api/routes/trading_routes.py token=cancel_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:723:- unmapped exchange action path: legacy_reference/api/routes/trading_routes.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:744:- unmapped exchange action path: legacy_reference/docs/GPT DEEP Implementation guide.md token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:750:- unmapped exchange action path: legacy_reference/docs/OLD/Final Trainer guide 7.md token=change_position_mode
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:767:- unmapped exchange action path: legacy_reference/docs/Trainer Enahancement Plan2.md token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:781:- unmapped exchange action path: legacy_reference/docs/wma ai bot 1.md token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:782:- unmapped exchange action path: legacy_reference/docs/wma ai bot 1.md token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:784:- unmapped exchange action path: legacy_reference/enhanced_startup.py token=cancel_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:927:- unmapped exchange action path: legacy_reference/scripts/audit_binance_leverage_config.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:937:- unmapped exchange action path: legacy_reference/scripts/close_all_positions.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:956:- unmapped exchange action path: legacy_reference/scripts/manage_limit_orders.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/UNKNOWN_GAPS.md:972:- unmapped exchange action path: legacy_reference/scripts/test_hedge_build.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:5:| .claude/hooks/block_dangerous.sh | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:6:| .claude/hooks/block_dangerous.sh | cancel_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:7:| .claude/hooks/block_dangerous.sh | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:8:| .claude/hooks/block_dangerous.sh | change_margin | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:9:| .claude/hooks/block_dangerous.sh | change_margin_type | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:10:| .claude/hooks/block_dangerous.sh | change_position_mode | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:11:| claude_worklog/tools/autonomous_non_live_rebuild_controller.py | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:12:| claude_worklog/tools/autonomous_non_live_rebuild_controller.py | cancel_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:13:| claude_worklog/tools/autonomous_non_live_rebuild_controller.py | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:14:| claude_worklog/tools/autonomous_non_live_rebuild_controller.py | change_margin | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:17:| claude_worklog/tools/build_system_atlas_runtime_coverage.py | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:18:| claude_worklog/tools/build_system_atlas_runtime_coverage.py | cancel_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:19:| claude_worklog/tools/build_system_atlas_runtime_coverage.py | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:20:| claude_worklog/tools/build_system_atlas_runtime_coverage.py | change_margin | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:21:| claude_worklog/tools/build_system_atlas_runtime_coverage.py | change_margin_type | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:22:| claude_worklog/tools/build_system_atlas_runtime_coverage.py | change_position_mode | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:33:| claude_worklog/tools/claude_master_rebuild_planner.py | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:34:| claude_worklog/tools/claude_master_rebuild_planner.py | cancel_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:35:| claude_worklog/tools/claude_master_rebuild_planner.py | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:36:| claude_worklog/tools/claude_master_rebuild_planner.py | change_margin | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:37:| claude_worklog/tools/codex_non_live_watchdog.py | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:38:| claude_worklog/tools/codex_non_live_watchdog.py | cancel_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:39:| claude_worklog/tools/codex_non_live_watchdog.py | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:40:| claude_worklog/tools/codex_non_live_watchdog.py | change_margin | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:41:| claude_worklog/tools/collect_non_live_operational_proof.py | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:42:| claude_worklog/tools/collect_non_live_operational_proof.py | cancel_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:43:| claude_worklog/tools/collect_non_live_operational_proof.py | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:44:| claude_worklog/tools/collect_non_live_operational_proof.py | change_margin | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:54:| legacy_reference/.backups/fix_signals_20251012_191010/trader.py | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:55:| legacy_reference/.backups/fix_signals_20251012_191010/trader.py | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:56:| legacy_reference/.backups/fix_signals_20251012_191010/trader.py | change_position_mode | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:66:| legacy_reference/.backups/fix_signals_20251012_191330/trader.py | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:67:| legacy_reference/.backups/fix_signals_20251012_191330/trader.py | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:68:| legacy_reference/.backups/fix_signals_20251012_191330/trader.py | change_position_mode | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:77:| legacy_reference/ADAPTIVE_TRADING_COMPLETE.md | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:79:| legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:80:| legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md | change_margin | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:81:| legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md | change_margin_type | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:92:| legacy_reference/Documentation/GPT DEEP Implementation guide.md | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:98:| legacy_reference/Documentation/Trainer Enahancement Plan2.md | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:112:| legacy_reference/Documentation/wma ai bot 1.md | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:113:| legacy_reference/Documentation/wma ai bot 1.md | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:116:| legacy_reference/LATENCY_OPTIMIZATIONS.md | cancel_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:123:| legacy_reference/api/routes/trading_routes.py | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:124:| legacy_reference/api/routes/trading_routes.py | cancel_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:125:| legacy_reference/api/routes/trading_routes.py | change_leverage | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:146:| legacy_reference/docs/GPT DEEP Implementation guide.md | create_order | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.md:152:| legacy_reference/docs/OLD/Final Trainer guide 7.md | change_position_mode | TIER_A_EXCHANGE_ACTION | False | forbidden_by_policy_or_requires_raw_review |
+v2/frontend/public/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.json:7:        "python .*live\"\n  \"redis-cli DEL\"\n  \"redis-cli XDEL\"\n  \"redis-cli XTRIM\"\n  \"redis-cli FLUSHALL\"\n  \"redis-cli FLUSHDB\"\n  \"../AI BOT/\"\n  \"chmod .*../AI BOT\"\n  \"rm -rf .*AI BOT\"\n)\n\nfor patter",
+v2/frontend/public/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.json:665:        "systemctl restart\",\n    \"pkill\",\n    \"kill \",\n    \"place order\",\n    \"ca"
+v2/frontend/public/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.json:688:        "systemctl restart"
+v2/frontend/public/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.json:790:        "systemctl restart\",\n    \"sudo systemctl\",\n    \"deploy\",\n    \"productio"
+v2/frontend/public/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.json:802:        "systemctl restart"
+v2/frontend/public/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.json:43838:        "docker exec \"$REDIS_CONTAINER_NAME\" redis-cli i",
+v2/frontend/public/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.json:43839:        "docker exec \"$REDIS_CONTAINER_NAME\" redis-cli pi",
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:3:- .claude/hooks/block_dangerous.sh :: create_order :: .claude/hooks/block_dangerous.sh token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:4:- .claude/hooks/block_dangerous.sh :: cancel_order :: .claude/hooks/block_dangerous.sh token=cancel_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:5:- .claude/hooks/block_dangerous.sh :: change_leverage :: .claude/hooks/block_dangerous.sh token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:6:- .claude/hooks/block_dangerous.sh :: change_margin :: .claude/hooks/block_dangerous.sh token=change_margin
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:7:- .claude/hooks/block_dangerous.sh :: change_margin_type :: .claude/hooks/block_dangerous.sh token=change_margin_type
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:8:- .claude/hooks/block_dangerous.sh :: change_position_mode :: .claude/hooks/block_dangerous.sh token=change_position_mode
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:9:- claude_worklog/tools/autonomous_non_live_rebuild_controller.py :: create_order :: claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:10:- claude_worklog/tools/autonomous_non_live_rebuild_controller.py :: cancel_order :: claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=cancel_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:11:- claude_worklog/tools/autonomous_non_live_rebuild_controller.py :: change_leverage :: claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:12:- claude_worklog/tools/autonomous_non_live_rebuild_controller.py :: change_margin :: claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=change_margin
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:15:- claude_worklog/tools/build_system_atlas_runtime_coverage.py :: create_order :: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:16:- claude_worklog/tools/build_system_atlas_runtime_coverage.py :: cancel_order :: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=cancel_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:17:- claude_worklog/tools/build_system_atlas_runtime_coverage.py :: change_leverage :: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:18:- claude_worklog/tools/build_system_atlas_runtime_coverage.py :: change_margin :: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_margin
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:19:- claude_worklog/tools/build_system_atlas_runtime_coverage.py :: change_margin_type :: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_margin_type
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:20:- claude_worklog/tools/build_system_atlas_runtime_coverage.py :: change_position_mode :: claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_position_mode
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:31:- claude_worklog/tools/claude_master_rebuild_planner.py :: create_order :: claude_worklog/tools/claude_master_rebuild_planner.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:32:- claude_worklog/tools/claude_master_rebuild_planner.py :: cancel_order :: claude_worklog/tools/claude_master_rebuild_planner.py token=cancel_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:33:- claude_worklog/tools/claude_master_rebuild_planner.py :: change_leverage :: claude_worklog/tools/claude_master_rebuild_planner.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:34:- claude_worklog/tools/claude_master_rebuild_planner.py :: change_margin :: claude_worklog/tools/claude_master_rebuild_planner.py token=change_margin
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:35:- claude_worklog/tools/codex_non_live_watchdog.py :: create_order :: claude_worklog/tools/codex_non_live_watchdog.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:36:- claude_worklog/tools/codex_non_live_watchdog.py :: cancel_order :: claude_worklog/tools/codex_non_live_watchdog.py token=cancel_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:37:- claude_worklog/tools/codex_non_live_watchdog.py :: change_leverage :: claude_worklog/tools/codex_non_live_watchdog.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:38:- claude_worklog/tools/codex_non_live_watchdog.py :: change_margin :: claude_worklog/tools/codex_non_live_watchdog.py token=change_margin
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:39:- claude_worklog/tools/collect_non_live_operational_proof.py :: create_order :: claude_worklog/tools/collect_non_live_operational_proof.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:40:- claude_worklog/tools/collect_non_live_operational_proof.py :: cancel_order :: claude_worklog/tools/collect_non_live_operational_proof.py token=cancel_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:41:- claude_worklog/tools/collect_non_live_operational_proof.py :: change_leverage :: claude_worklog/tools/collect_non_live_operational_proof.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:42:- claude_worklog/tools/collect_non_live_operational_proof.py :: change_margin :: claude_worklog/tools/collect_non_live_operational_proof.py token=change_margin
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:52:- legacy_reference/.backups/fix_signals_20251012_191010/trader.py :: create_order :: legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:53:- legacy_reference/.backups/fix_signals_20251012_191010/trader.py :: change_leverage :: legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:54:- legacy_reference/.backups/fix_signals_20251012_191010/trader.py :: change_position_mode :: legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=change_position_mode
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:64:- legacy_reference/.backups/fix_signals_20251012_191330/trader.py :: create_order :: legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:65:- legacy_reference/.backups/fix_signals_20251012_191330/trader.py :: change_leverage :: legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:66:- legacy_reference/.backups/fix_signals_20251012_191330/trader.py :: change_position_mode :: legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=change_position_mode
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:75:- legacy_reference/ADAPTIVE_TRADING_COMPLETE.md :: change_leverage :: legacy_reference/ADAPTIVE_TRADING_COMPLETE.md token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:77:- legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md :: change_leverage :: legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:78:- legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md :: change_margin :: legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_margin
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:79:- legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md :: change_margin_type :: legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_margin_type
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:90:- legacy_reference/Documentation/GPT DEEP Implementation guide.md :: create_order :: legacy_reference/Documentation/GPT DEEP Implementation guide.md token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:96:- legacy_reference/Documentation/Trainer Enahancement Plan2.md :: create_order :: legacy_reference/Documentation/Trainer Enahancement Plan2.md token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:110:- legacy_reference/Documentation/wma ai bot 1.md :: create_order :: legacy_reference/Documentation/wma ai bot 1.md token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:111:- legacy_reference/Documentation/wma ai bot 1.md :: change_leverage :: legacy_reference/Documentation/wma ai bot 1.md token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:114:- legacy_reference/LATENCY_OPTIMIZATIONS.md :: cancel_order :: legacy_reference/LATENCY_OPTIMIZATIONS.md token=cancel_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:121:- legacy_reference/api/routes/trading_routes.py :: create_order :: legacy_reference/api/routes/trading_routes.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:122:- legacy_reference/api/routes/trading_routes.py :: cancel_order :: legacy_reference/api/routes/trading_routes.py token=cancel_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:123:- legacy_reference/api/routes/trading_routes.py :: change_leverage :: legacy_reference/api/routes/trading_routes.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:144:- legacy_reference/docs/GPT DEEP Implementation guide.md :: create_order :: legacy_reference/docs/GPT DEEP Implementation guide.md token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:150:- legacy_reference/docs/OLD/Final Trainer guide 7.md :: change_position_mode :: legacy_reference/docs/OLD/Final Trainer guide 7.md token=change_position_mode
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:167:- legacy_reference/docs/Trainer Enahancement Plan2.md :: create_order :: legacy_reference/docs/Trainer Enahancement Plan2.md token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:181:- legacy_reference/docs/wma ai bot 1.md :: create_order :: legacy_reference/docs/wma ai bot 1.md token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:182:- legacy_reference/docs/wma ai bot 1.md :: change_leverage :: legacy_reference/docs/wma ai bot 1.md token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:184:- legacy_reference/enhanced_startup.py :: cancel_order :: legacy_reference/enhanced_startup.py token=cancel_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:327:- legacy_reference/scripts/audit_binance_leverage_config.py :: change_leverage :: legacy_reference/scripts/audit_binance_leverage_config.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:337:- legacy_reference/scripts/close_all_positions.py :: create_order :: legacy_reference/scripts/close_all_positions.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:356:- legacy_reference/scripts/manage_limit_orders.py :: create_order :: legacy_reference/scripts/manage_limit_orders.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:372:- legacy_reference/scripts/test_hedge_build.py :: create_order :: legacy_reference/scripts/test_hedge_build.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:405:- legacy_reference/test_binance_connections.py :: create_order :: legacy_reference/test_binance_connections.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:406:- legacy_reference/test_binance_connections.py :: change_position_mode :: legacy_reference/test_binance_connections.py token=change_position_mode
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:408:- legacy_reference/test_binance_direct.py :: create_order :: legacy_reference/test_binance_direct.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:410:- legacy_reference/test_binance_hedge_mode.py :: create_order :: legacy_reference/test_binance_hedge_mode.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:411:- legacy_reference/test_binance_hedge_mode.py :: change_leverage :: legacy_reference/test_binance_hedge_mode.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:412:- legacy_reference/test_binance_hedge_mode.py :: change_position_mode :: legacy_reference/test_binance_hedge_mode.py token=change_position_mode
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:414:- legacy_reference/test_binance_testnet_orders.py :: create_order :: legacy_reference/test_binance_testnet_orders.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:415:- legacy_reference/test_binance_testnet_orders.py :: change_leverage :: legacy_reference/test_binance_testnet_orders.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:416:- legacy_reference/test_binance_testnet_orders.py :: change_position_mode :: legacy_reference/test_binance_testnet_orders.py token=change_position_mode
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:422:- legacy_reference/test_hedge_trading.py :: change_position_mode :: legacy_reference/test_hedge_trading.py token=change_position_mode
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:427:- legacy_reference/test_ltc_trading.py :: create_order :: legacy_reference/test_ltc_trading.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:430:- legacy_reference/test_production_api.py :: create_order :: legacy_reference/test_production_api.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:431:- legacy_reference/test_production_api.py :: cancel_order :: legacy_reference/test_production_api.py token=cancel_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:432:- legacy_reference/test_production_api.py :: change_leverage :: legacy_reference/test_production_api.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:433:- legacy_reference/test_production_api.py :: change_margin :: legacy_reference/test_production_api.py token=change_margin
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:434:- legacy_reference/test_production_api.py :: change_margin_type :: legacy_reference/test_production_api.py token=change_margin_type
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:438:- legacy_reference/test_production_trading.py :: create_order :: legacy_reference/test_production_trading.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:439:- legacy_reference/test_production_trading.py :: change_leverage :: legacy_reference/test_production_trading.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:440:- legacy_reference/test_real_trading.py :: create_order :: legacy_reference/test_real_trading.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:471:- legacy_reference/trading/base_executor.py :: create_order :: legacy_reference/trading/base_executor.py token=create_order
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:472:- legacy_reference/trading/base_executor.py :: change_leverage :: legacy_reference/trading/base_executor.py token=change_leverage
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:473:- legacy_reference/trading/base_executor.py :: change_margin :: legacy_reference/trading/base_executor.py token=change_margin
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:474:- legacy_reference/trading/base_executor.py :: change_margin_type :: legacy_reference/trading/base_executor.py token=change_margin_type
+v2/frontend/public/system_atlas_runtime_coverage/latest/TIER_A_EXCHANGE_ACTION_RAW_REVIEW.md:475:- legacy_reference/trading/base_executor.py :: change_position_mode :: legacy_reference/trading/base_executor.py token=change_position_mode
+v2/frontend/public/system_atlas_runtime_coverage/latest/EVIDENCE_MANIFEST.json:18:      "claim": "Redis map uses read-only redis-cli commands only when available",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EVIDENCE_MANIFEST.json:22:      "verification_command": "redis-cli PING && redis-cli --scan"
+v2/frontend/public/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.md:5:| .claude/hooks/block_dangerous.sh | ['python .*hybrid_trai', 'python .*live"\n  "redis-cli DEL"\n  "redis-cli XDEL"\n  "redis-cli XTRIM"\n  "redis-cli FLUSHALL"\n  "redis-cli FLUSHDB"\n  "../AI BOT/"\n  "chmod .*../AI BOT"\n  "rm -rf .*AI BOT"\n)\n\nfor pa | .claude/hooks/block_dangerous.sh |
+v2/frontend/public/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.md:77:| claude_worklog/tools/agent_supervisor.py | ['npm i', 'python', 'python3\n"""Age', 'systemctl restart",\n    "pkill",\n    "kill ",\n    "place order",\n    "ca'] | claude_worklog/tools/agent_supervisor.py |
+v2/frontend/public/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.md:90:| claude_worklog/tools/codex_non_live_watchdog.py | ['python3\nfrom __future__ import a', 'python3", "claude_worklog/tools/age', 'python3", "claude_worklog/tools/reco', 'systemctl restart",\n    "sudo systemctl",\n    "deploy",\n    "productio'] | claude_worklog/tools/codex_non_live_watchdog.py |
+v2/frontend/public/system_atlas_runtime_coverage/latest/STARTUP_PATH_MAP.md:91:| claude_worklog/tools/collect_non_live_operational_proof.py | ['python3\nfrom __future__ import a', 'python3 -m compileall -q v2/backe', 'python3 -m v2.backe', 'python3 v2/backe', 'systemctl', 'systemctl restart'] | claude_worklog/tools/collect_non_live_operational_proof.py |
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:9:      "raw_evidence_pointer": ".claude/hooks/block_dangerous.sh token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:14:      "action_type": "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:19:      "raw_evidence_pointer": ".claude/hooks/block_dangerous.sh token=cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:24:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:29:      "raw_evidence_pointer": ".claude/hooks/block_dangerous.sh token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:34:      "action_type": "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:39:      "raw_evidence_pointer": ".claude/hooks/block_dangerous.sh token=change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:44:      "action_type": "change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:49:      "raw_evidence_pointer": ".claude/hooks/block_dangerous.sh token=change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:54:      "action_type": "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:59:      "raw_evidence_pointer": ".claude/hooks/block_dangerous.sh token=change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:64:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:69:      "raw_evidence_pointer": "claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:74:      "action_type": "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:79:      "raw_evidence_pointer": "claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:84:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:89:      "raw_evidence_pointer": "claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:94:      "action_type": "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:99:      "raw_evidence_pointer": "claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:124:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:129:      "raw_evidence_pointer": "claude_worklog/tools/build_system_atlas_runtime_coverage.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:134:      "action_type": "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:139:      "raw_evidence_pointer": "claude_worklog/tools/build_system_atlas_runtime_coverage.py token=cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:144:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:149:      "raw_evidence_pointer": "claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:154:      "action_type": "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:159:      "raw_evidence_pointer": "claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:164:      "action_type": "change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:169:      "raw_evidence_pointer": "claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:174:      "action_type": "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:179:      "raw_evidence_pointer": "claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:284:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:289:      "raw_evidence_pointer": "claude_worklog/tools/claude_master_rebuild_planner.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:294:      "action_type": "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:299:      "raw_evidence_pointer": "claude_worklog/tools/claude_master_rebuild_planner.py token=cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:304:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:309:      "raw_evidence_pointer": "claude_worklog/tools/claude_master_rebuild_planner.py token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:314:      "action_type": "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:319:      "raw_evidence_pointer": "claude_worklog/tools/claude_master_rebuild_planner.py token=change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:324:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:329:      "raw_evidence_pointer": "claude_worklog/tools/codex_non_live_watchdog.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:334:      "action_type": "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:339:      "raw_evidence_pointer": "claude_worklog/tools/codex_non_live_watchdog.py token=cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:344:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:349:      "raw_evidence_pointer": "claude_worklog/tools/codex_non_live_watchdog.py token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:354:      "action_type": "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:359:      "raw_evidence_pointer": "claude_worklog/tools/codex_non_live_watchdog.py token=change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:364:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:369:      "raw_evidence_pointer": "claude_worklog/tools/collect_non_live_operational_proof.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:374:      "action_type": "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:379:      "raw_evidence_pointer": "claude_worklog/tools/collect_non_live_operational_proof.py token=cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:384:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:389:      "raw_evidence_pointer": "claude_worklog/tools/collect_non_live_operational_proof.py token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:394:      "action_type": "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:399:      "raw_evidence_pointer": "claude_worklog/tools/collect_non_live_operational_proof.py token=change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:494:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:499:      "raw_evidence_pointer": "legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:504:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:509:      "raw_evidence_pointer": "legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:514:      "action_type": "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:519:      "raw_evidence_pointer": "legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:614:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:619:      "raw_evidence_pointer": "legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:624:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:629:      "raw_evidence_pointer": "legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:634:      "action_type": "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:639:      "raw_evidence_pointer": "legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:724:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:729:      "raw_evidence_pointer": "legacy_reference/ADAPTIVE_TRADING_COMPLETE.md token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:744:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:749:      "raw_evidence_pointer": "legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:754:      "action_type": "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:759:      "raw_evidence_pointer": "legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:764:      "action_type": "change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:769:      "raw_evidence_pointer": "legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:874:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:879:      "raw_evidence_pointer": "legacy_reference/Documentation/GPT DEEP Implementation guide.md token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:934:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:939:      "raw_evidence_pointer": "legacy_reference/Documentation/Trainer Enahancement Plan2.md token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1116:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1121:      "raw_evidence_pointer": "legacy_reference/Documentation/wma ai bot 1.md token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1126:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1131:      "raw_evidence_pointer": "legacy_reference/Documentation/wma ai bot 1.md token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1156:      "action_type": "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1161:      "raw_evidence_pointer": "legacy_reference/LATENCY_OPTIMIZATIONS.md token=cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1268:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1273:      "raw_evidence_pointer": "legacy_reference/api/routes/trading_routes.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1278:      "action_type": "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1283:      "raw_evidence_pointer": "legacy_reference/api/routes/trading_routes.py token=cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1288:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1293:      "raw_evidence_pointer": "legacy_reference/api/routes/trading_routes.py token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1582:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1587:      "raw_evidence_pointer": "legacy_reference/docs/GPT DEEP Implementation guide.md token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1642:      "action_type": "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1647:      "raw_evidence_pointer": "legacy_reference/docs/OLD/Final Trainer guide 7.md token=change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1833:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:1838:      "raw_evidence_pointer": "legacy_reference/docs/Trainer Enahancement Plan2.md token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:2015:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:2020:      "raw_evidence_pointer": "legacy_reference/docs/wma ai bot 1.md token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:2025:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:2030:      "raw_evidence_pointer": "legacy_reference/docs/wma ai bot 1.md token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:2045:      "action_type": "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:2050:      "raw_evidence_pointer": "legacy_reference/enhanced_startup.py token=cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:3475:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:3480:      "raw_evidence_pointer": "legacy_reference/scripts/audit_binance_leverage_config.py token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:3575:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:3580:      "raw_evidence_pointer": "legacy_reference/scripts/close_all_positions.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:3765:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:3770:      "raw_evidence_pointer": "legacy_reference/scripts/manage_limit_orders.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:3925:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:3930:      "raw_evidence_pointer": "legacy_reference/scripts/test_hedge_build.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4276:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4281:      "raw_evidence_pointer": "legacy_reference/test_binance_connections.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4286:      "action_type": "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4291:      "raw_evidence_pointer": "legacy_reference/test_binance_connections.py token=change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4306:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4311:      "raw_evidence_pointer": "legacy_reference/test_binance_direct.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4326:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4331:      "raw_evidence_pointer": "legacy_reference/test_binance_hedge_mode.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4336:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4341:      "raw_evidence_pointer": "legacy_reference/test_binance_hedge_mode.py token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4346:      "action_type": "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4351:      "raw_evidence_pointer": "legacy_reference/test_binance_hedge_mode.py token=change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4366:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4371:      "raw_evidence_pointer": "legacy_reference/test_binance_testnet_orders.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4376:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4381:      "raw_evidence_pointer": "legacy_reference/test_binance_testnet_orders.py token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4386:      "action_type": "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4391:      "raw_evidence_pointer": "legacy_reference/test_binance_testnet_orders.py token=change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4446:      "action_type": "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4451:      "raw_evidence_pointer": "legacy_reference/test_hedge_trading.py token=change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4496:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4501:      "raw_evidence_pointer": "legacy_reference/test_ltc_trading.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4526:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4531:      "raw_evidence_pointer": "legacy_reference/test_production_api.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4536:      "action_type": "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4541:      "raw_evidence_pointer": "legacy_reference/test_production_api.py token=cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4546:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4551:      "raw_evidence_pointer": "legacy_reference/test_production_api.py token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4556:      "action_type": "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4561:      "raw_evidence_pointer": "legacy_reference/test_production_api.py token=change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4566:      "action_type": "change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4571:      "raw_evidence_pointer": "legacy_reference/test_production_api.py token=change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4606:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4611:      "raw_evidence_pointer": "legacy_reference/test_production_trading.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4616:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4621:      "raw_evidence_pointer": "legacy_reference/test_production_trading.py token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4626:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4631:      "raw_evidence_pointer": "legacy_reference/test_real_trading.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4936:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4941:      "raw_evidence_pointer": "legacy_reference/trading/base_executor.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4946:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4951:      "raw_evidence_pointer": "legacy_reference/trading/base_executor.py token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4956:      "action_type": "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4961:      "raw_evidence_pointer": "legacy_reference/trading/base_executor.py token=change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4966:      "action_type": "change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4971:      "raw_evidence_pointer": "legacy_reference/trading/base_executor.py token=change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4976:      "action_type": "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:4981:      "raw_evidence_pointer": "legacy_reference/trading/base_executor.py token=change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5256:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5261:      "raw_evidence_pointer": "legacy_reference/trading/stealth_stops.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5266:      "action_type": "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5271:      "raw_evidence_pointer": "legacy_reference/trading/stealth_stops.py token=cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5316:      "action_type": "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5321:      "raw_evidence_pointer": "legacy_reference/trading/trader.py token=change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5326:      "action_type": "change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5331:      "raw_evidence_pointer": "legacy_reference/trading/trader.py token=change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5336:      "action_type": "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5341:      "raw_evidence_pointer": "legacy_reference/trading/trader.py token=change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5496:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5501:      "raw_evidence_pointer": "tools/collect_exchange_actions.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5506:      "action_type": "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5511:      "raw_evidence_pointer": "tools/collect_exchange_actions.py token=cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5516:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5521:      "raw_evidence_pointer": "tools/collect_exchange_actions.py token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5526:      "action_type": "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5531:      "raw_evidence_pointer": "tools/collect_exchange_actions.py token=change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5536:      "action_type": "change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5541:      "raw_evidence_pointer": "tools/collect_exchange_actions.py token=change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5635:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5640:      "raw_evidence_pointer": "v2/backend/app/proof/readonly_market_exchange_data_plane.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5649:      "action_type": "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5654:      "raw_evidence_pointer": "v2/backend/app/proof/readonly_market_exchange_data_plane.py token=cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5663:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5668:      "raw_evidence_pointer": "v2/backend/app/proof/readonly_market_exchange_data_plane.py token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5677:      "action_type": "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5682:      "raw_evidence_pointer": "v2/backend/app/proof/readonly_market_exchange_data_plane.py token=change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5691:      "action_type": "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:5696:      "raw_evidence_pointer": "v2/backend/app/proof/readonly_market_exchange_data_plane.py token=change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6074:      "action_type": "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6079:      "raw_evidence_pointer": "v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py token=create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6088:      "action_type": "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6093:      "raw_evidence_pointer": "v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py token=cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6102:      "action_type": "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6107:      "raw_evidence_pointer": "v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py token=change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6116:      "action_type": "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6121:      "raw_evidence_pointer": "v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py token=change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6130:      "action_type": "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/EXCHANGE_ACTION_MAP.json:6135:      "raw_evidence_pointer": "v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py token=change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/RAW_EVIDENCE_POINTERS.md:5:- Redis map uses read-only redis-cli commands only when available: REDIS_KEY_STREAM_MAP.json via `redis-cli PING && redis-cli --scan`
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:11:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:12:        "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:13:        "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:14:        "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:15:        "change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:16:        "change_position_mode"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:109:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:110:        "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:111:        "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:112:        "change_margin"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:310:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:311:        "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:312:        "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:313:        "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:314:        "change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:315:        "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:353:        "redis-cli get",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:354:        "redis-cli scan"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:365:        "redis-cli set",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:366:        "redis-cli xadd"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:446:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:447:        "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:448:        "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:449:        "change_margin"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:490:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:491:        "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:492:        "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:493:        "change_margin"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:533:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:534:        "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:535:        "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:536:        "change_margin"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:1646:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:1647:        "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:1648:        "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:1781:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:1782:        "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:1783:        "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:30158:        "change_leverage"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:30210:        "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:30211:        "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:30212:        "change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:30644:        "create_order"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:30654:        "redis-cli set"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:30850:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:30878:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:30881:        "redis-cli set"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:31035:        "create_order"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:31617:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:31618:        "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:31631:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:32501:        "cancel_order"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:32758:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:33588:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:33589:        "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:33590:        "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:35121:        "redis-cli set"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:36228:        "create_order"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:36238:        "redis-cli set"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:36434:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:36655:        "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:36710:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:36761:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:36885:        "redis-cli scan"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:36888:        "redis-cli set"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:36949:        "redis-cli set"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:37352:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:37375:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:37398:        "redis-cli get",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:37399:        "redis-cli scan"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:37422:        "redis-cli get",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:37423:        "redis-cli scan"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:37446:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:37870:        "redis-cli get",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:37871:        "redis-cli scan"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:38247:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:38509:        "redis-cli set"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:38535:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:38538:        "redis-cli set"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:38692:        "create_order"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:39337:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:39338:        "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:39351:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:39403:        "cancel_order"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:43069:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:44587:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:50334:        "change_leverage"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:50985:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:51929:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:53097:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:53387:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:53819:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:54472:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:57017:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:57018:        "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:57053:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:57087:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:57088:        "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:57089:        "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:57207:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:57208:        "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:57209:        "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:58174:        "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:58576:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:59309:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:59310:        "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:59311:        "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:59312:        "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:59313:        "change_margin_type"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:59430:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:59431:        "change_leverage"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:59561:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:62549:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:62550:        "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:62551:        "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:62552:        "change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:62553:        "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:63498:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:63499:        "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:63579:        "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:63580:        "change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:63581:        "change_position_mode",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:65888:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:65889:        "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:65890:        "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:65891:        "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:65892:        "change_margin_type",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:77021:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:77022:        "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:77023:        "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:77024:        "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:77025:        "change_position_mode"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:103759:        "create_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:103760:        "cancel_order",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:103761:        "change_leverage",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:103762:        "change_margin",
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:103763:        "change_position_mode"
+v2/frontend/public/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json:121203:        "redis-cli set"
+v2/frontend/public/system_atlas_runtime_coverage/latest/MONITOR_CENTER_DASHBOARD_PAYLOAD.json:743:        "redis-cli get"
+v2/frontend/public/system_atlas_runtime_coverage/latest/MONITOR_CENTER_DASHBOARD_PAYLOAD.json:1693:        "redis-cli get"

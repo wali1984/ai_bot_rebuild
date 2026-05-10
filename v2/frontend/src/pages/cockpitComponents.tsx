@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, QuarantinePayload, SettingRow } from './cockpitData';
+import type { Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, QuarantinePayload, SettingRow, SystemAtlasPayload } from './cockpitData';
 import { statusClass, valueText } from './cockpitData';
 
 export function CockpitLoading({ error }: { error: string | null }): JSX.Element | null {
@@ -256,6 +256,35 @@ export function QuarantinePanel({ payload }: { payload: QuarantinePayload | null
             <span>{valueText(row.allowed_actions)}</span>
             <span>{valueText(row.blocked_actions)}</span>
           </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+export function SystemAtlasPanel({ payload }: { payload: SystemAtlasPayload | null }): JSX.Element {
+  if (!payload) {
+    return (
+      <Panel id="system-atlas-runtime-coverage" title="System Atlas / Runtime Coverage">
+        <p className="cockpit-evidence-gap">Evidence missing - system atlas payload unavailable.</p>
+      </Panel>
+    );
+  }
+  return (
+    <Panel id="system-atlas-runtime-coverage" title="System Atlas / Runtime Coverage">
+      <div className="cockpit-analytics-grid">
+        <Metric label="Gate" value={payload.go_no_go} />
+        <Metric label="Files" value={payload.counts.files} />
+        <Metric label="Scripts" value={payload.counts.scripts} />
+        <Metric label="Unsafe unknown" value={payload.counts.unsafe_unknown} />
+        <Metric label="Exchange paths" value={payload.counts.unmapped_exchange_action_paths} />
+        <Metric label="Redis writers" value={payload.counts.redis_writer_paths} />
+        <Metric label="Runtime unmapped" value={payload.counts.unmapped_runtime_processes} />
+        <Metric label="12h monitor" value={payload.runtime_monitor.status} />
+      </div>
+      <div className="cockpit-card-grid">
+        {payload.top_gaps.slice(0, 8).map((gap) => (
+          <div className="cockpit-evidence-gap" key={gap}>{gap}</div>
         ))}
       </div>
     </Panel>
