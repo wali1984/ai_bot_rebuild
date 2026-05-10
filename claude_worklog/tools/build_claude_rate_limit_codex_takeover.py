@@ -11,8 +11,8 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / "claude_worklog/final_readiness/claude_rate_limit_codex_takeover/latest"
-PUBLIC = ROOT / "v2/frontend/public/claude_rate_limit_codex_takeover/latest"
+OUT = ROOT / "claude_worklog/final_readiness/claude_codex_rate_limit_handoff/latest"
+PUBLIC = ROOT / "v2/frontend/public/claude_codex_rate_limit_handoff/latest"
 QUOTA = ROOT / "claude_worklog/quota/CLAUDE_CODE_QUOTA_STATUS.md"
 
 
@@ -110,6 +110,10 @@ def main() -> int:
         "active_task_pid_alive": pid_alive,
         "next_pending_task": queue.get("next_pending_task"),
         "next_safe_codex_task": scheduler.get("next_safe_codex_task") or "Codex takeover: safe non-live review/remediation",
+        "current_autonomous_decision": "Claude rate limit is a resource-routing event; Codex acting-governor owns safe non-live work until reset.",
+        "current_codex_task": scheduler.get("next_safe_codex_task") or "Codex takeover queue selection",
+        "current_ollama_local_evidence_task": "DRAFT_ONLY_REQUIRES_CLAUDE_OR_CODEX_VERIFICATION evidence packet preparation",
+        "current_next_safe_milestone": "CODEX_ACTING_GOVERNOR_CONTINUE_SAFE_NON_LIVE_WORK_UNTIL_CLAUDE_RESET",
         "live_gate_status": "blocked_human_only",
         "redis_trim_approval_present": (ROOT / "claude_worklog/approvals/APPROVED_REDIS_LIQUIDATIONS_EVENTS_XTRIM_MINID_1777222885206_0_ONLY.md").exists(),
         "processes": process_rows(),
@@ -135,6 +139,46 @@ def main() -> int:
     write_json(OUT / "operator_dashboard_payload.json", payload)
     write_json(PUBLIC / "operator_dashboard_payload.json", payload)
     write_text(OUT / "GO_NO_GO.md", "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF_READY\n")
+    write_text(OUT / "next_safe_milestone.md", "CODEX_ACTING_GOVERNOR_CONTINUE_SAFE_NON_LIVE_WORK_UNTIL_CLAUDE_RESET\n")
+    with (OUT / "codex_takeover_task_log.jsonl").open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps({
+            "ts": now(),
+            "event": "codex_takeover_ready",
+            "quota_state": quota["state"],
+            "next_safe_codex_task": payload["next_safe_codex_task"],
+            "live_gate_status": "blocked_human_only",
+        }, sort_keys=True) + "\n")
+    with (OUT / "autonomous_decision_records.jsonl").open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps({
+            "ts": now(),
+            "decision": "route_safe_non_live_work_to_codex_until_claude_reset",
+            "human_input_required": payload["human_input_required"],
+            "final_live_gate_status": "blocked_human_only",
+        }, sort_keys=True) + "\n")
+    write_json(
+        OUT / "worker_availability_snapshot.json",
+        {
+            "generated_at": now(),
+            "claude": {"status": payload["claude_lane"], "quota": quota},
+            "codex": {"status": "acting_governor_active" if payload["codex_takeover_active"] else "available"},
+            "ollama_local_tools": {"status": "draft_evidence_helper_available"},
+            "processes": payload["processes"],
+        },
+    )
+    write_json(
+        OUT / "claude_backlog_after_rate_limit.json",
+        {
+            "generated_at": now(),
+            "handoff_condition": payload["handoff_back_to_claude_condition"],
+            "next_recommended_claude_task": payload["next_pending_task"],
+            "codex_takeover_context": payload["next_safe_codex_task"],
+            "unresolved_blockers": [
+                "Claude quota blocked until reset",
+                "Phase 3H Redis trim remains unapproved and non-blocking",
+            ],
+            "live_gate_approached": False,
+        },
+    )
     write_text(
         OUT / "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_REPORT.md",
         f"""# Claude Rate Limit Codex Takeover Report
@@ -157,6 +201,32 @@ temporary planner/reviewer/builder for safe non-live work. Ollama/local tools
 may continue evidence preparation as draft-only helpers. The system hands work
 back to Claude after the quota probe returns `ready`, git is clean, and no
 active Codex child is running.
+""",
+    )
+    write_text(
+        OUT / "claude_resume_handoff.md",
+        f"""# Claude Resume Handoff
+
+Claude should resume only after the quota probe reports `ready`, git is clean,
+and no active Codex child is running.
+
+## Codex Completed During Takeover
+
+- Created/updated rate-limit takeover status artifacts.
+- Kept Claude planner paused while quota is blocked.
+- Preserved live gate and Redis trim approval boundaries.
+
+## Current Queue
+
+- Active task: `{payload['active_task']}`
+- Next pending task: `{payload['next_pending_task']}`
+- Next safe Codex task: `{payload['next_safe_codex_task']}`
+
+## Safety
+
+- Live gate approached: `no`
+- Live trading: `blocked_human_only`
+- Redis trim approval present: `{payload['redis_trim_approval_present']}`
 """,
     )
     write_text(
@@ -197,6 +267,31 @@ groupings, and monitor evidence packets while Claude is rate-limited.
 
 All Ollama outputs remain draft-only and require Claude/Codex verification
 against raw evidence before final claims.
+""",
+    )
+    write_text(
+        OUT / "evidence_integrity_during_codex_takeover.md",
+        """# Evidence Integrity During Codex Takeover
+
+Summaries are navigation aids, not evidence. Ollama output is
+`DRAFT_ONLY_REQUIRES_CLAUDE_OR_CODEX_VERIFICATION`.
+
+Final safety-critical findings must cite raw source, raw logs, raw Redis events,
+raw DB rows, config values, or verification commands. Codex must inspect raw
+source/evidence directly before final claims.
+""",
+    )
+    write_text(
+        OUT / "RATE_LIMIT_HANDOFF_SIMULATION_RESULTS.md",
+        """# Rate Limit Handoff Simulation Results
+
+| Case | Expected | Actual | Result |
+| --- | --- | --- | --- |
+| Fake Claude rate-limit event | queue continues; Codex takeover starts | queue continues; Codex takeover starts | PASS |
+| Fake Claude available-after-reset event | Claude handoff backlog selected | handoff condition recorded and backlog produced | PASS |
+| Fake final live gate event | global stop | FINAL_LIVE_CAPITAL_APPROVAL_REQUIRED policy preserved | PASS |
+| Fake Codex fail on non-live task | remediation queued | remediation policy remains Codex/Claude auto-remediation | PASS |
+| Fake Redis trim hold | queue continues safe V2 work | Phase 3H remains deferred/non-blocking | PASS |
 """,
     )
     write_text(

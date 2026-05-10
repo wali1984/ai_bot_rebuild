@@ -1501,14 +1501,14 @@ def run_planner_once(
             if timed_out:
                 classified = classified or "blocked"
                 blocked_reason = "planner subprocess timeout"
-            if classified == "blocked_quota":
-                planner_status = "blocked_quota"
-                blocked_reason = "claude quota blocked"
+            if classified in {"blocked_quota", "claude_rate_limited_resume_scheduled"}:
+                planner_status = "claude_rate_limited_resume_scheduled"
+                blocked_reason = "claude rate limited; Codex takeover active"
                 ollama_summary = run_ollama_local_summary(packet_path)
                 write_planner_fallback_files(
                     "PLANNER_BLOCKED",
-                    "# Planner Decision\n\nClaude quota blocked. Ollama fallback summary:\n\n" + ollama_summary,
-                    human_action_required=True,
+                    "# Planner Decision\n\nClaude rate limited. Codex takeover continues safe non-live work. Ollama fallback summary:\n\n" + ollama_summary,
+                    human_action_required=False,
                     next_tasks=[],
                 )
             elif classified == "blocked_auth":
@@ -2598,7 +2598,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                                         "task_id": task_id,
                                         "agent": agent,
                                     })
-                                if classified_status == "blocked_quota":
+                                if classified_status in {"blocked_quota", "claude_rate_limited_resume_scheduled"}:
                                     resume = parse_iso_utc(classifier_detail)
                                     if resume is None:
                                         resume = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=30)
@@ -2634,7 +2634,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                                     extra = f"missing required output files: {', '.join(missing_required)}"
                                     result["summary"] = f"{prior}; {extra}".strip("; ")
 
-                        if result["status"] == "blocked_quota" and agent == "claude":
+                        if result["status"] in {"blocked_quota", "claude_rate_limited_resume_scheduled"} and agent == "claude":
                             resume_at = parse_iso_utc(task.get("resume_after_utc"))
                             if resume_at is not None and dt.datetime.now(dt.timezone.utc) >= resume_at:
                                 if run_claude_readiness_check():
@@ -2970,7 +2970,7 @@ def main() -> int:
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0 if result.get("status") in {
         "completed", "skipped", "pending",
-        "retry_scheduled", "blocked_dependency", "blocked_quota",
+        "retry_scheduled", "blocked_dependency", "blocked_quota", "claude_rate_limited_resume_scheduled",
         "blocked_auth", "blocked_approval", "superseded_by_evidence",
     } else 1
 

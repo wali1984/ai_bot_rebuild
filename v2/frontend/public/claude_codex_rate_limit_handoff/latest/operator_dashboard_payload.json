@@ -1,0 +1,46 @@
+{
+  "active_task": null,
+  "active_task_pid": null,
+  "active_task_pid_alive": false,
+  "allowed_codex_takeover_work": [
+    "read-only milestone review",
+    "safe non-live implementation/remediation inside AI BOT REBUILD",
+    "test hardening",
+    "dashboard payload repair",
+    "stale/fake-running recovery",
+    "evidence packet generation",
+    "Git commit/push of validated non-live artifacts"
+  ],
+  "claude_lane": "paused_rate_limited",
+  "codex_takeover_active": true,
+  "current_autonomous_decision": "Claude rate limit is a resource-routing event; Codex acting-governor owns safe non-live work until reset.",
+  "current_codex_task": "Codex takeover: review/remediate safe non-live blockers until Claude quota reset",
+  "current_next_safe_milestone": "CODEX_ACTING_GOVERNOR_CONTINUE_SAFE_NON_LIVE_WORK_UNTIL_CLAUDE_RESET",
+  "current_ollama_local_evidence_task": "DRAFT_ONLY_REQUIRES_CLAUDE_OR_CODEX_VERIFICATION evidence packet preparation",
+  "forbidden_actions": [
+    "modify /home/wali/Desktop/AI BOT",
+    "Redis write/delete/trim without exact approval",
+    "live service restart",
+    "real exchange action",
+    "leverage/margin/position-mode change",
+    "live trading enablement",
+    "secret exposure"
+  ],
+  "generated_at": "2026-05-10T21:20:09.032418+00:00",
+  "git_head": "bde8bac Codex watchdog recover dirty non-live automation artifacts",
+  "go_no_go": "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF_READY",
+  "handoff_back_to_claude_condition": "quota probe reports ready, git is clean, and no active Codex child is running",
+  "human_input_required": "NO unless selected task is final live/capital gate",
+  "live_gate_status": "blocked_human_only",
+  "marker": "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF_READY",
+  "next_pending_task": "069B_decision_lineage_evidence_packet_builder",
+  "next_safe_codex_task": "Codex takeover: review/remediate safe non-live blockers until Claude quota reset",
+  "ollama_evidence_helper_active": true,
+  "processes": [],
+  "quota": {
+    "path": "claude_worklog/quota/CLAUDE_CODE_QUOTA_STATUS.md",
+    "reset_hint": "You've hit your limit \u00b7 resets 1am (America/New_York)",
+    "state": "blocked_or_limited"
+  },
+  "redis_trim_approval_present": false
+}

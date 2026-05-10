@@ -1,0 +1,20 @@
+{
+  "can_codex_execute_now": true,
+  "can_codex_review_now": true,
+  "can_ollama_prepare_evidence": true,
+  "claude_rate_limited": true,
+  "final_live_gate_required": false,
+  "forbidden_actions": [
+    "legacy mutation",
+    "Redis mutation without exact approval",
+    "real exchange action",
+    "live leverage/margin/position-mode changes",
+    "live trading enablement",
+    "secret exposure"
+  ],
+  "generated_at": "2026-05-10T21:20:09.071701+00:00",
+  "live_gate_status": "blocked_human_only",
+  "mode": "codex_acting_governor",
+  "requires_claude_after_reset": true,
+  "selected_task": "Codex takeover: review/remediate safe non-live blockers until Claude quota reset"
+}

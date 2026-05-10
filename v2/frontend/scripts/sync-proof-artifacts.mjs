@@ -28,6 +28,7 @@ const artifactSets = [
   'autonomous_governor_manual_replacement',
   'autonomous_governor',
   'claude_rate_limit_codex_takeover',
+  'claude_codex_rate_limit_handoff',
   'post_mvp_non_live_gap_audit',
 ];
 
@@ -96,6 +97,11 @@ for (const name of artifactSets) {
       cpSync(resolve(source, file), resolve(target, file));
     }
   } else if (name === 'claude_rate_limit_codex_takeover') {
+    mkdirSync(target, { recursive: true });
+    for (const file of ['operator_dashboard_payload.json']) {
+      cpSync(resolve(source, file), resolve(target, file));
+    }
+  } else if (name === 'claude_codex_rate_limit_handoff') {
     mkdirSync(target, { recursive: true });
     for (const file of ['operator_dashboard_payload.json']) {
       cpSync(resolve(source, file), resolve(target, file));
