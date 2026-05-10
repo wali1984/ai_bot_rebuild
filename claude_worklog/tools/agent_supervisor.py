@@ -102,7 +102,8 @@ STATE_FIELDS = {
 
 STATUS_VALUES = {
     "pending", "running", "completed", "failed",
-    "blocked_quota", "blocked_auth", "blocked_approval", "blocked_dependency",
+    "blocked_quota", "claude_rate_limited_resume_scheduled",
+    "blocked_auth", "blocked_approval", "blocked_dependency",
     "retry_scheduled", "skipped", "cancelled", "human_attention_required",
     "waiting_decision_packet", "delegated_decision_pending",
     "superseded_by_evidence",
@@ -936,13 +937,15 @@ def parse_iso_utc(value: Optional[str]) -> Optional[dt.datetime]:
 
 
 def parse_claude_reset_to_utc(raw: str) -> Optional[str]:
-    match = re.search(r"resets\s+([0-9]{1,2}:[0-9]{2}\s*[ap]m)\s*\(([^)]+)\)", raw, re.IGNORECASE)
+    match = re.search(r"resets\s+([0-9]{1,2}(?::[0-9]{2})?\s*[ap]m)\s*\(([^)]+)\)", raw, re.IGNORECASE)
     if not match or ZoneInfo is None:
         return None
     try:
         time_str = match.group(1).lower().replace(" ", "")
         tz_name = match.group(2).strip()
-        hh, mm = time_str[:-2].split(":")
+        parts = time_str[:-2].split(":")
+        hh = parts[0]
+        mm = parts[1] if len(parts) > 1 else "00"
         ap = time_str[-2:]
         hour = int(hh) % 12
         if ap == "pm":
@@ -1008,7 +1011,7 @@ def classify_agent_block(agent: str, stdout_path: pathlib.Path, stderr_path: pat
         return "failed", "prompt_permission_model_error"
     if agent == "claude":
         if any(k in raw for k in ["usage limit", "hit your limit", "resets", "quota"]):
-            return "blocked_quota", parse_claude_reset_to_utc(read_text(stdout_path) + "\n" + read_text(stderr_path))
+            return "claude_rate_limited_resume_scheduled", parse_claude_reset_to_utc(read_text(stdout_path) + "\n" + read_text(stderr_path))
         if is_auth_failure(raw):
             return "blocked_auth", None
     if agent == "codex":
@@ -1929,8 +1932,8 @@ def reconcile_stale_running_tasks() -> int:
             reason = "required_outputs_present_no_active_process"
             materialized = [str(x) for x in task.get("required_output_files", []) if str(x).strip()]
         elif quota_blocked and not active:
-            status = "blocked_quota"
-            summary = f"{agent} blocked_quota detected during stale-running reconciliation"
+            status = "claude_rate_limited_resume_scheduled" if agent == "claude" else "blocked_quota"
+            summary = f"{agent} rate limit detected during stale-running reconciliation"
             reason = "quota_detected"
             resume = parse_iso_utc(reset_iso)
             if resume is None:
@@ -1990,7 +1993,7 @@ def reconcile_stale_running_tasks() -> int:
             "stdout_path": str(stdout_path),
             "stderr_path": str(stderr_path),
             "summary": summary,
-            "next_recommended_action": "continue queue if completed; retry later if blocked_quota/retry_scheduled; human review if human_attention_required",
+            "next_recommended_action": "continue queue if completed; Codex takeover while Claude is rate-limited; retry later if blocked_quota/retry_scheduled; human review only if final live gate",
             "materialized_files": materialized,
             "run_pid": None,
         }
@@ -2093,6 +2096,8 @@ def derive_gate(tasks: List[Tuple[pathlib.Path, Dict[str, Any]]]) -> str:
         return "CODEX_RERUN_RUNNING"
     if any(v == "blocked_quota" for v in status_map.values()):
         return "WAITING_FOR_CLAUDE_QUOTA"
+    if any(v == "claude_rate_limited_resume_scheduled" for v in status_map.values()):
+        return "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_ACTIVE"
     if any(v == "human_attention_required" for v in status_map.values()):
         return "NON_LIVE_DECISION_PACKETS_PRESENT_QUEUE_CONTINUES"
     if status_map.get("010_actual_codex_architecture_rerun_after_remediation") == "completed":
@@ -2125,7 +2130,7 @@ def task_priority(task: Dict[str, Any]) -> int:
 
 def should_defer_resume(task: Dict[str, Any]) -> bool:
     st = task_effective_status(task)
-    if st not in {"blocked_quota", "retry_scheduled"}:
+    if st not in {"blocked_quota", "claude_rate_limited_resume_scheduled", "retry_scheduled"}:
         return False
     resume = parse_iso_utc(task.get("resume_after_utc"))
     if resume is None:
@@ -2141,6 +2146,7 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
     counts = {
         "pending": 0, "running": 0, "completed": 0, "failed": 0, "blocked": 0,
         "retry_scheduled": 0, "skipped": 0, "cancelled": 0,
+        "claude_rate_limited_resume_scheduled": 0,
         "human_attention_required": 0, "superseded_by_evidence": 0,
         "waiting_decision_packet": 0, "delegated_decision_pending": 0,
     }
@@ -2177,12 +2183,14 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
                 no_output_growth_tasks.append(tid)
         elif st == "completed":
             counts["completed"] += 1
-        elif st in {"failed", "blocked_auth", "blocked_approval", "blocked_dependency", "blocked_quota"}:
+        elif st in {"failed", "blocked_auth", "blocked_approval", "blocked_dependency", "blocked_quota", "claude_rate_limited_resume_scheduled"}:
             if st == "failed":
                 counts["failed"] += 1
+            elif st == "claude_rate_limited_resume_scheduled":
+                counts["claude_rate_limited_resume_scheduled"] += 1
             else:
                 counts["blocked"] += 1
-            if st == "blocked_quota" and blocked_quota is None:
+            if st in {"blocked_quota", "claude_rate_limited_resume_scheduled"} and blocked_quota is None:
                 blocked_quota = {
                     "task_id": tid,
                     "agent": t.get("agent"),
@@ -2220,6 +2228,7 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
 
         if st in {"completed", "running", "cancelled", "failed",
                   "blocked_auth", "blocked_approval", "human_attention_required",
+                  "claude_rate_limited_resume_scheduled",
                   "waiting_decision_packet", "delegated_decision_pending",
                   "superseded_by_evidence"}:
             continue
