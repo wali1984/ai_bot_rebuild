@@ -5,7 +5,7 @@ The governor should continue non-live queued work through the supervisor.
 Current next pending task from queue status:
 
 ```text
-069B_decision_lineage_evidence_packet_builder
+069C_decision_lineage_dashboard_payload_integration
 ```
 
 Current Redis approval hold:

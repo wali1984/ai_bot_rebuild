@@ -7,8 +7,8 @@ Result: `CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF_READY`
 - Codex takeover active: `True`
 - Active task: `None`
 - Active task PID alive: `False`
-- Next pending task: `069B_decision_lineage_evidence_packet_builder`
-- Next safe Codex task: `Codex takeover: review/remediate safe non-live blockers until Claude quota reset`
+- Next pending task: `069C_decision_lineage_dashboard_payload_integration`
+- Next safe Codex task: `create Codex parallel review batch`
 - Human input required: `NO unless selected task is final live/capital gate`
 - Live gate: `blocked_human_only`
 - Redis trim approval present: `False`

@@ -9,11 +9,11 @@ safe rebuild work without Copilot manually authoring every next prompt.
 
 ## Current Runtime Truth
 
-- Git head: `a7494fe Add autonomous governor status generator`
-- Git clean: `True`
+- Git head: `4ebb540 Add Codex parallel review batch results`
+- Git clean: `False`
 - Live gate: `blocked_human_only`
-- Current running task: `197_phase2z_degraded_state_fail_closed_gates_domain_implementation`
-- Next pending task: `069B_decision_lineage_evidence_packet_builder`
+- Current running task: `None`
+- Next pending task: `069C_decision_lineage_dashboard_payload_integration`
 - Human attention count: `0`
 - Stale running count: `0`
 - Redis trim approval file present: `False`

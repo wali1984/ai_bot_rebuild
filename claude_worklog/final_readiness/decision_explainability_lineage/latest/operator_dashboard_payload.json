@@ -1,0 +1,14 @@
+{
+  "codex_069b_go_no_go": "CODEX_PARALLEL_READONLY_REVIEW_READY",
+  "codex_review_marker_path": "claude_worklog/phase2_core_rebuild/decision_explainability/parallel_capacity_readonly_review_phase2ha0_069b_evidence_packet_ready_GO_NO_GO.md",
+  "generated_at": "2026-05-10T23:26:20Z",
+  "go_no_go": "PHASE2HA0_069B_EVIDENCE_PACKET_READY",
+  "human_input_required": "NO unless selected task is final live/capital gate",
+  "live_gate_status": "blocked_human_only",
+  "next_pending_task": "069C_decision_lineage_dashboard_payload_integration",
+  "redis_trim_blocks_global_queue": false,
+  "source_marker_path": "claude_worklog/phase2_core_rebuild/decision_explainability/069B_GO_NO_GO.md",
+  "source_task_status": "superseded_by_evidence",
+  "takeover_task_id": "codex_takeover_069B_decision_lineage_evidence_packet_builder",
+  "takeover_task_status": "completed"
+}

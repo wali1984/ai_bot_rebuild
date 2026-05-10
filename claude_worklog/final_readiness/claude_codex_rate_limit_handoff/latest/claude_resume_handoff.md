@@ -12,8 +12,8 @@ and no active Codex child is running.
 ## Current Queue
 
 - Active task: `None`
-- Next pending task: `069B_decision_lineage_evidence_packet_builder`
-- Next safe Codex task: `Codex takeover: review/remediate safe non-live blockers until Claude quota reset`
+- Next pending task: `069C_decision_lineage_dashboard_payload_integration`
+- Next safe Codex task: `create Codex parallel review batch`
 
 ## Safety
 
