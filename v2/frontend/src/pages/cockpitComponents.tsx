@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, Phase3cRuntimeMonitorPayload, QuarantinePayload, RedisExportCapacityPayload, RedisFullExportPayload, RedisHumanApprovalPayload, RedisMemoryPressurePayload, SettingRow, SystemAtlasGapRemediationPayload, SystemAtlasPayload } from './cockpitData';
+import type { Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, Phase3cRuntimeMonitorPayload, QuarantinePayload, RedisExportCapacityPayload, RedisFullExportPayload, RedisHumanApprovalPayload, RedisMemoryPressurePayload, RedisSafeTrimPacketPayload, SettingRow, SystemAtlasGapRemediationPayload, SystemAtlasPayload } from './cockpitData';
 import { statusClass, valueText } from './cockpitData';
 
 export function CockpitLoading({ error }: { error: string | null }): JSX.Element | null {
@@ -530,6 +530,56 @@ export function RedisFullExportPanel({ payload }: { payload: RedisFullExportPayl
           <p>Duration: {payload.duration_seconds}s</p>
           <p>Consumer safety: {payload.consumer_safety_status}</p>
           <p>Live gate: {payload.live_gate_status}</p>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+export function RedisSafeTrimPacketPanel({ payload }: { payload: RedisSafeTrimPacketPayload | null }): JSX.Element {
+  if (!payload) {
+    return (
+      <Panel id="redis-safe-trim-packet" title="Redis Safe Trim Packet">
+        <p className="cockpit-evidence-gap">Evidence missing - Redis safe trim packet payload unavailable.</p>
+      </Panel>
+    );
+  }
+  return (
+    <Panel id="redis-safe-trim-packet" title="Redis Safe Trim Packet">
+      <div className="cockpit-analytics-grid">
+        <Metric label="Gate" value={payload.go_no_go} />
+        <Metric label="Next milestone" value={payload.next_safe_milestone} />
+        <Metric label="Target key" value={payload.target_key} />
+        <Metric label="Current length" value={payload.current_stream_length} />
+        <Metric label="Current memory" value={`${payload.current_memory_usage_mib} MiB`} />
+        <Metric label="Redis used" value={`${payload.current_total_redis_used_memory_pct}%`} />
+        <Metric label="Consumer" value={payload.consumer_group_status} />
+        <Metric label="Approval required" value={payload.human_approval_required ? 'yes' : 'no'} />
+      </div>
+      <div className="cockpit-card-grid">
+        <div className="cockpit-evidence-gap">
+          Trim packet prepared only. Redis mutation performed: {payload.redis_mutation_performed ? 'yes' : 'no'}. Trim executed: {payload.trim_executed ? 'yes' : 'no'}.
+        </div>
+        <div className="cockpit-exchange-card">
+          <h3>Verified Export Anchor</h3>
+          <p>Export verified: {payload.export_verified ? 'yes' : 'no'}</p>
+          <p>Exported entries: {payload.exported_count}</p>
+          <p>Anchor last ID: {payload.export_anchor_last_id}</p>
+        </div>
+        <div className="cockpit-exchange-card">
+          <h3>Proposed Retention</h3>
+          <p>Cutoff ID: {payload.proposed_cutoff_id}</p>
+          <p>Estimated savings: {payload.estimated_memory_reduction_mib ?? 'Evidence missing'} MiB</p>
+          <p>Estimated post-trim Redis used: {payload.estimated_post_trim_total_used_memory_pct}%</p>
+        </div>
+        <div className="cockpit-evidence-gap">
+          DO NOT RUN without explicit approval: {payload.proposed_command_documented_only}
+        </div>
+        <div className="cockpit-evidence-gap">
+          Required approval file: {payload.approval_path}
+        </div>
+        <div className="cockpit-evidence-gap">
+          Approval token: {payload.approval_token}
         </div>
       </div>
     </Panel>

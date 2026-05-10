@@ -1,0 +1,43 @@
+{
+  "codex_go_no_go": "PHASE3F_REDIS_LIQUIDATIONS_FULL_EXPORT_CODEX_PASS",
+  "consumer_safety_report": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/redis_liquidations_full_export/latest/consumer_group_post_export_safety_review.md",
+  "generated_at": "2026-05-10T18:49:04.517113+00:00",
+  "go_no_go": "PHASE3F_REDIS_LIQUIDATIONS_FULL_EXPORT_APPROVED_AND_VERIFIED_READY",
+  "integrity_report": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/redis_liquidations_full_export/latest/export_integrity_check.md",
+  "phase3f_export_anchor": {
+    "batch_size": 10000,
+    "chunk_entries": 100000,
+    "consumer_group_status": {
+      "groups": [
+        {
+          "entries_read": 254892621,
+          "lag": 0,
+          "last_delivered_id": "1778432485206-24",
+          "name": "liq_levels",
+          "pending": 0,
+          "xpending": [
+            0,
+            null,
+            null,
+            null
+          ]
+        }
+      ],
+      "pending_total": 0,
+      "status": "acceptable"
+    },
+    "export_started_at": "2026-05-10T17:56:59.279567+00:00",
+    "pre_export_first_id": "1772952007223-4",
+    "pre_export_last_id": "1778432485206-24",
+    "pre_export_xlen": 70930810
+  },
+  "phase3f_export_manifest_summary": {
+    "anchor_last_id": "1778432485206-24",
+    "chunk_count": 710,
+    "compressed_total_bytes": 1719357383,
+    "compressed_total_gib": 1.601,
+    "duration_seconds": 973.744,
+    "export_completed_at": "2026-05-10T18:13:13.024426+00:00",
+    "exported_count": 70930810
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-05-10T18:49:04.517189+00:00",
+  "groups": [
+    {
+      "consumers": 1,
+      "entries_read": 254892687,
+      "lag": 0,
+      "last_delivered_id": "1778436058746-7",
+      "name": "liq_levels",
+      "pending": 0
+    }
+  ],
+  "key": "liquidations:events",
+  "note": "This is a read-only pre-trim check. It must be repeated immediately before any approved trim execution.",
+  "status": "acceptable_for_packet_only",
+  "xpending": {
+    "highest_id": null,
+    "lowest_id": null,
+    "pending": 0,
+    "raw": [
+      "0",
+      "",
+      "",
+      ""
+    ]
+  }
+}

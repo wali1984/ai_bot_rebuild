@@ -341,6 +341,33 @@ export interface RedisFullExportPayload {
   consumer_safety_status: string;
 }
 
+export interface RedisSafeTrimPacketPayload {
+  generated_at: string;
+  go_no_go: string;
+  live_trading: string;
+  redis_mutation_performed: boolean;
+  trim_executed: boolean;
+  target_key: string;
+  current_stream_length: number;
+  current_memory_usage_mib: number;
+  current_total_redis_used_memory_pct: number;
+  export_verified: boolean;
+  exported_count: number;
+  export_anchor_last_id: string;
+  consumer_group_status: string;
+  consumer_pending: number;
+  consumer_lag: number;
+  proposed_cutoff_id: string;
+  proposed_command_documented_only: string;
+  human_approval_required: boolean;
+  approval_path: string;
+  approval_token: string;
+  estimated_memory_reduction_mib: number | null;
+  estimated_post_trim_total_used_memory_pct: number;
+  next_safe_milestone: string;
+  evidence_links: string[];
+}
+
 const cockpitPayloadPath = '/enterprise_trading_cockpit/latest/operator_cockpit_payload.json';
 const quarantinePayloadPath = '/external_manual_position_quarantine/latest/operator_dashboard_payload.json';
 const readonlyDataPlanePayloadPath = '/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json';
@@ -351,6 +378,7 @@ const redisMemoryPressurePayloadPath = '/redis_memory_pressure_remediation/lates
 const redisHumanApprovalPayloadPath = '/redis_memory_human_approval/latest/operator_dashboard_payload.json';
 const redisExportCapacityPayloadPath = '/redis_export_capacity_remediation/latest/operator_dashboard_payload.json';
 const redisFullExportPayloadPath = '/redis_liquidations_full_export/latest/operator_dashboard_payload.json';
+const redisSafeTrimPacketPayloadPath = '/redis_safe_trim_packet/latest/operator_dashboard_payload.json';
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: 'no-store' });
@@ -368,6 +396,7 @@ export function useCockpitPayload(): {
   redisHumanApproval: RedisHumanApprovalPayload | null;
   redisExportCapacity: RedisExportCapacityPayload | null;
   redisFullExport: RedisFullExportPayload | null;
+  redisSafeTrimPacket: RedisSafeTrimPacketPayload | null;
   error: string | null;
 } {
   const [payload, setPayload] = useState<CockpitPayload | null>(null);
@@ -379,6 +408,7 @@ export function useCockpitPayload(): {
   const [redisHumanApproval, setRedisHumanApproval] = useState<RedisHumanApprovalPayload | null>(null);
   const [redisExportCapacity, setRedisExportCapacity] = useState<RedisExportCapacityPayload | null>(null);
   const [redisFullExport, setRedisFullExport] = useState<RedisFullExportPayload | null>(null);
+  const [redisSafeTrimPacket, setRedisSafeTrimPacket] = useState<RedisSafeTrimPacketPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -447,12 +477,19 @@ export function useCockpitPayload(): {
       .catch(() => {
         if (active) setRedisFullExport(null);
       });
+    fetchJson<RedisSafeTrimPacketPayload>(redisSafeTrimPacketPayloadPath)
+      .then((next) => {
+        if (active) setRedisSafeTrimPacket(next);
+      })
+      .catch(() => {
+        if (active) setRedisSafeTrimPacket(null);
+      });
     return () => {
       active = false;
     };
   }, []);
 
-  return { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, redisExportCapacity, redisFullExport, error };
+  return { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, redisExportCapacity, redisFullExport, redisSafeTrimPacket, error };
 }
 
 interface ReadonlyDataPlanePayload {

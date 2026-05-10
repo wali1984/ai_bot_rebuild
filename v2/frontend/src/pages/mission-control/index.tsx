@@ -2,11 +2,11 @@ import meta from './meta';
 import rbac from './rbac';
 import route from './route';
 import type { PageMeta } from '../../types/page';
-import { ChartPanel, CockpitLoading, ConfigTable, DecisionDrawers, ExchangeManager, MarketPulse, MonitorTable, Panel, Phase3cRuntimeMonitorPanel, QuarantinePanel, RedisExportCapacityPanel, RedisFullExportPanel, RedisHumanApprovalPanel, RedisMemoryPressurePanel, SafetyTopBar, SystemAtlasGapRemediationPanel, SystemAtlasPanel } from '../cockpitComponents';
+import { ChartPanel, CockpitLoading, ConfigTable, DecisionDrawers, ExchangeManager, MarketPulse, MonitorTable, Panel, Phase3cRuntimeMonitorPanel, QuarantinePanel, RedisExportCapacityPanel, RedisFullExportPanel, RedisHumanApprovalPanel, RedisMemoryPressurePanel, RedisSafeTrimPacketPanel, SafetyTopBar, SystemAtlasGapRemediationPanel, SystemAtlasPanel } from '../cockpitComponents';
 import { useCockpitPayload } from '../cockpitData';
 
 export default function MissionControlPage(): JSX.Element {
-  const { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, redisExportCapacity, redisFullExport, error } = useCockpitPayload();
+  const { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, redisExportCapacity, redisFullExport, redisSafeTrimPacket, error } = useCockpitPayload();
 
   if (!payload) {
     return (
@@ -41,6 +41,7 @@ export default function MissionControlPage(): JSX.Element {
           <RedisHumanApprovalPanel payload={redisHumanApproval} />
           <RedisExportCapacityPanel payload={redisExportCapacity} />
           <RedisFullExportPanel payload={redisFullExport} />
+          <RedisSafeTrimPacketPanel payload={redisSafeTrimPacket} />
           <Panel id="freshness-and-live-readiness-blockers" title="Freshness, Sync, And Live-Readiness Blockers">
             <div className="cockpit-card-grid">
               {payload.proof_freshness.map((row) => (
