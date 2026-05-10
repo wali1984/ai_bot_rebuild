@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, QuarantinePayload, SettingRow, SystemAtlasPayload } from './cockpitData';
+import type { Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, QuarantinePayload, SettingRow, SystemAtlasGapRemediationPayload, SystemAtlasPayload } from './cockpitData';
 import { statusClass, valueText } from './cockpitData';
 
 export function CockpitLoading({ error }: { error: string | null }): JSX.Element | null {
@@ -286,6 +286,42 @@ export function SystemAtlasPanel({ payload }: { payload: SystemAtlasPayload | nu
         {payload.top_gaps.slice(0, 8).map((gap) => (
           <div className="cockpit-evidence-gap" key={gap}>{gap}</div>
         ))}
+      </div>
+    </Panel>
+  );
+}
+
+export function SystemAtlasGapRemediationPanel({ payload }: { payload: SystemAtlasGapRemediationPayload | null }): JSX.Element {
+  if (!payload) {
+    return (
+      <Panel id="system-atlas-gap-remediation" title="Phase 3B System Atlas Gap Remediation">
+        <p className="cockpit-evidence-gap">Evidence missing - Phase 3B remediation payload unavailable.</p>
+      </Panel>
+    );
+  }
+  const blockers = [
+    ...payload.remaining_blockers.unsafe_unknown.map((row) => `unsafe_unknown: ${row}`),
+    ...payload.remaining_blockers.exchange.map((row) => `exchange: ${row}`),
+    ...payload.remaining_blockers.redis.map((row) => `redis: ${row}`),
+    ...payload.remaining_blockers.runtime.map((row) => `runtime: ${row}`),
+  ];
+  return (
+    <Panel id="system-atlas-gap-remediation" title="Phase 3B System Atlas Gap Remediation">
+      <div className="cockpit-analytics-grid">
+        <Metric label="Gate" value={payload.go_no_go} />
+        <Metric label="Codex" value={payload.codex_go_no_go} />
+        <Metric label="Unsafe unknown remaining" value={payload.counts.unsafe_unknown_remaining} />
+        <Metric label="Exchange unmapped" value={payload.counts.unmapped_exchange_action_paths} />
+        <Metric label="Redis writers unmapped" value={payload.counts.unmapped_redis_writer_paths} />
+        <Metric label="Unknown bot-like processes" value={payload.counts.unknown_bot_like_process_count} />
+        <Metric label="Bot-scope runtime unmapped" value={payload.counts.unmapped_runtime_processes_in_bot_scope} />
+        <Metric label="Non-bot host processes" value={payload.counts.host_or_non_bot_processes} />
+      </div>
+      <div className="cockpit-card-grid">
+        {blockers.slice(0, 16).map((gap) => (
+          <div className="cockpit-evidence-gap" key={gap}>{gap}</div>
+        ))}
+        {blockers.length === 0 ? <div className="cockpit-evidence-gap">No Phase 3B blockers recorded.</div> : null}
       </div>
     </Panel>
   );

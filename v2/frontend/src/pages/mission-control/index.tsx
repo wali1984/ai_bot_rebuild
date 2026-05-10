@@ -2,11 +2,11 @@ import meta from './meta';
 import rbac from './rbac';
 import route from './route';
 import type { PageMeta } from '../../types/page';
-import { ChartPanel, CockpitLoading, ConfigTable, DecisionDrawers, ExchangeManager, MarketPulse, MonitorTable, Panel, QuarantinePanel, SafetyTopBar, SystemAtlasPanel } from '../cockpitComponents';
+import { ChartPanel, CockpitLoading, ConfigTable, DecisionDrawers, ExchangeManager, MarketPulse, MonitorTable, Panel, QuarantinePanel, SafetyTopBar, SystemAtlasGapRemediationPanel, SystemAtlasPanel } from '../cockpitComponents';
 import { useCockpitPayload } from '../cockpitData';
 
 export default function MissionControlPage(): JSX.Element {
-  const { payload, quarantine, systemAtlas, error } = useCockpitPayload();
+  const { payload, quarantine, systemAtlas, systemAtlasGapRemediation, error } = useCockpitPayload();
 
   if (!payload) {
     return (
@@ -35,6 +35,7 @@ export default function MissionControlPage(): JSX.Element {
           <DecisionDrawers rows={payload.decisions} />
           <QuarantinePanel payload={quarantine} />
           <SystemAtlasPanel payload={systemAtlas} />
+          <SystemAtlasGapRemediationPanel payload={systemAtlasGapRemediation} />
           <Panel id="freshness-and-live-readiness-blockers" title="Freshness, Sync, And Live-Readiness Blockers">
             <div className="cockpit-card-grid">
               {payload.proof_freshness.map((row) => (

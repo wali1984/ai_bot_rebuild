@@ -17,6 +17,7 @@ const artifactSets = [
   'enterprise_trading_cockpit',
   'readonly_market_exchange_data_plane',
   'system_atlas_runtime_coverage',
+  'system_atlas_gap_remediation',
   'post_mvp_non_live_gap_audit',
 ];
 
@@ -32,6 +33,11 @@ for (const name of artifactSets) {
   if (name === 'system_atlas_runtime_coverage') {
     mkdirSync(target, { recursive: true });
     for (const file of ['operator_dashboard_payload.json', 'SCRIPT_REGISTRY.json']) {
+      cpSync(resolve(source, file), resolve(target, file));
+    }
+  } else if (name === 'system_atlas_gap_remediation') {
+    mkdirSync(target, { recursive: true });
+    for (const file of ['operator_dashboard_payload.json']) {
       cpSync(resolve(source, file), resolve(target, file));
     }
   } else {

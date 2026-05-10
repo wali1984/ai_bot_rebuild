@@ -1,0 +1,475 @@
+claude_worklog/tools/build_system_atlas_gap_remediation.py:12:ROOT = Path("/home/wali/Desktop/AI BOT REBUILD")
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.md:12:| claude_worklog/tools/build_system_atlas_runtime_coverage.py | docs_test_comment_only | ['xadd', 'set(', 'hset', 'delete(', 'xdel', 'xtrim', 'flushall', 'flushdb', 'redis-cli set', 'redis-cli xadd'] | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.md:37:| legacy_reference/Documentation/GPT DEEP Implementation guide.md | docs_test_comment_only | ['redis-cli set'] | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.md:39:| legacy_reference/Documentation/OPERATOR_RUNBOOK.md | docs_test_comment_only | ['redis-cli set'] | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.md:72:| legacy_reference/config.py | legacy_writer | ['redis-cli set'] | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.md:79:| legacy_reference/docs/GPT DEEP Implementation guide.md | docs_test_comment_only | ['redis-cli set'] | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.md:85:| legacy_reference/docs/OLD/Final trainer pytest fix.md | docs_test_comment_only | ['redis-cli set'] | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.md:86:| legacy_reference/docs/OLD/PRODUCTION_DEPLOYMENT_GUIDE.md | docs_test_comment_only | ['set(', 'flushdb', 'redis-cli set'] | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.md:96:| legacy_reference/docs/OLD/unit test.md | docs_test_comment_only | ['hset', 'redis-cli set'] | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.md:97:| legacy_reference/docs/OPERATOR_RUNBOOK.md | docs_test_comment_only | ['redis-cli set'] | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:17:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:24:      "raw_evidence_pointer": ".claude/hooks/block_dangerous.sh token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:28:      "verification_command": "rg -n create_order .claude/hooks/block_dangerous.sh"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:31:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:38:      "raw_evidence_pointer": ".claude/hooks/block_dangerous.sh token=cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:42:      "verification_command": "rg -n cancel_order .claude/hooks/block_dangerous.sh"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:45:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:52:      "raw_evidence_pointer": ".claude/hooks/block_dangerous.sh token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:56:      "verification_command": "rg -n change_leverage .claude/hooks/block_dangerous.sh"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:59:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:66:      "raw_evidence_pointer": ".claude/hooks/block_dangerous.sh token=change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:70:      "verification_command": "rg -n change_margin .claude/hooks/block_dangerous.sh"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:73:      "action_type": "change_margin_type",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:80:      "raw_evidence_pointer": ".claude/hooks/block_dangerous.sh token=change_margin_type",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:84:      "verification_command": "rg -n change_margin_type .claude/hooks/block_dangerous.sh"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:87:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:94:      "raw_evidence_pointer": ".claude/hooks/block_dangerous.sh token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:98:      "verification_command": "rg -n change_position_mode .claude/hooks/block_dangerous.sh"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:101:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:108:      "raw_evidence_pointer": "claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:112:      "verification_command": "rg -n create_order claude_worklog/tools/autonomous_non_live_rebuild_controller.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:115:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:122:      "raw_evidence_pointer": "claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:126:      "verification_command": "rg -n cancel_order claude_worklog/tools/autonomous_non_live_rebuild_controller.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:129:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:136:      "raw_evidence_pointer": "claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:140:      "verification_command": "rg -n change_leverage claude_worklog/tools/autonomous_non_live_rebuild_controller.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:143:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:150:      "raw_evidence_pointer": "claude_worklog/tools/autonomous_non_live_rebuild_controller.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:154:      "verification_command": "rg -n change_margin claude_worklog/tools/autonomous_non_live_rebuild_controller.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:185:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:192:      "raw_evidence_pointer": "claude_worklog/tools/build_system_atlas_runtime_coverage.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:196:      "verification_command": "rg -n create_order claude_worklog/tools/build_system_atlas_runtime_coverage.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:199:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:206:      "raw_evidence_pointer": "claude_worklog/tools/build_system_atlas_runtime_coverage.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:210:      "verification_command": "rg -n cancel_order claude_worklog/tools/build_system_atlas_runtime_coverage.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:213:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:220:      "raw_evidence_pointer": "claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:224:      "verification_command": "rg -n change_leverage claude_worklog/tools/build_system_atlas_runtime_coverage.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:227:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:234:      "raw_evidence_pointer": "claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:238:      "verification_command": "rg -n change_margin claude_worklog/tools/build_system_atlas_runtime_coverage.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:241:      "action_type": "change_margin_type",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:248:      "raw_evidence_pointer": "claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_margin_type",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:252:      "verification_command": "rg -n change_margin_type claude_worklog/tools/build_system_atlas_runtime_coverage.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:255:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:262:      "raw_evidence_pointer": "claude_worklog/tools/build_system_atlas_runtime_coverage.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:266:      "verification_command": "rg -n change_position_mode claude_worklog/tools/build_system_atlas_runtime_coverage.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:409:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:416:      "raw_evidence_pointer": "claude_worklog/tools/claude_master_rebuild_planner.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:420:      "verification_command": "rg -n create_order claude_worklog/tools/claude_master_rebuild_planner.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:423:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:430:      "raw_evidence_pointer": "claude_worklog/tools/claude_master_rebuild_planner.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:434:      "verification_command": "rg -n cancel_order claude_worklog/tools/claude_master_rebuild_planner.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:437:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:444:      "raw_evidence_pointer": "claude_worklog/tools/claude_master_rebuild_planner.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:448:      "verification_command": "rg -n change_leverage claude_worklog/tools/claude_master_rebuild_planner.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:451:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:458:      "raw_evidence_pointer": "claude_worklog/tools/claude_master_rebuild_planner.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:462:      "verification_command": "rg -n change_margin claude_worklog/tools/claude_master_rebuild_planner.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:465:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:472:      "raw_evidence_pointer": "claude_worklog/tools/codex_non_live_watchdog.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:476:      "verification_command": "rg -n create_order claude_worklog/tools/codex_non_live_watchdog.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:479:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:486:      "raw_evidence_pointer": "claude_worklog/tools/codex_non_live_watchdog.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:490:      "verification_command": "rg -n cancel_order claude_worklog/tools/codex_non_live_watchdog.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:493:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:500:      "raw_evidence_pointer": "claude_worklog/tools/codex_non_live_watchdog.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:504:      "verification_command": "rg -n change_leverage claude_worklog/tools/codex_non_live_watchdog.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:507:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:514:      "raw_evidence_pointer": "claude_worklog/tools/codex_non_live_watchdog.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:518:      "verification_command": "rg -n change_margin claude_worklog/tools/codex_non_live_watchdog.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:521:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:528:      "raw_evidence_pointer": "claude_worklog/tools/collect_non_live_operational_proof.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:532:      "verification_command": "rg -n create_order claude_worklog/tools/collect_non_live_operational_proof.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:535:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:542:      "raw_evidence_pointer": "claude_worklog/tools/collect_non_live_operational_proof.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:546:      "verification_command": "rg -n cancel_order claude_worklog/tools/collect_non_live_operational_proof.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:549:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:556:      "raw_evidence_pointer": "claude_worklog/tools/collect_non_live_operational_proof.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:560:      "verification_command": "rg -n change_leverage claude_worklog/tools/collect_non_live_operational_proof.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:563:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:570:      "raw_evidence_pointer": "claude_worklog/tools/collect_non_live_operational_proof.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:574:      "verification_command": "rg -n change_margin claude_worklog/tools/collect_non_live_operational_proof.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:703:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:710:      "raw_evidence_pointer": "legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:714:      "verification_command": "rg -n create_order legacy_reference/.backups/fix_signals_20251012_191010/trader.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:717:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:724:      "raw_evidence_pointer": "legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:728:      "verification_command": "rg -n change_leverage legacy_reference/.backups/fix_signals_20251012_191010/trader.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:731:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:738:      "raw_evidence_pointer": "legacy_reference/.backups/fix_signals_20251012_191010/trader.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:742:      "verification_command": "rg -n change_position_mode legacy_reference/.backups/fix_signals_20251012_191010/trader.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:871:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:878:      "raw_evidence_pointer": "legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:882:      "verification_command": "rg -n create_order legacy_reference/.backups/fix_signals_20251012_191330/trader.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:885:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:892:      "raw_evidence_pointer": "legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:896:      "verification_command": "rg -n change_leverage legacy_reference/.backups/fix_signals_20251012_191330/trader.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:899:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:906:      "raw_evidence_pointer": "legacy_reference/.backups/fix_signals_20251012_191330/trader.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:910:      "verification_command": "rg -n change_position_mode legacy_reference/.backups/fix_signals_20251012_191330/trader.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1025:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1032:      "raw_evidence_pointer": "legacy_reference/ADAPTIVE_TRADING_COMPLETE.md token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1036:      "verification_command": "rg -n change_leverage legacy_reference/ADAPTIVE_TRADING_COMPLETE.md"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1053:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1060:      "raw_evidence_pointer": "legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1064:      "verification_command": "rg -n change_leverage legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1067:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1074:      "raw_evidence_pointer": "legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1078:      "verification_command": "rg -n change_margin legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1081:      "action_type": "change_margin_type",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1088:      "raw_evidence_pointer": "legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md token=change_margin_type",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1092:      "verification_command": "rg -n change_margin_type legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1235:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1242:      "raw_evidence_pointer": "legacy_reference/Documentation/GPT DEEP Implementation guide.md token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1246:      "verification_command": "rg -n create_order legacy_reference/Documentation/GPT DEEP Implementation guide.md"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1319:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1326:      "raw_evidence_pointer": "legacy_reference/Documentation/Trainer Enahancement Plan2.md token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1330:      "verification_command": "rg -n create_order legacy_reference/Documentation/Trainer Enahancement Plan2.md"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1557:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1564:      "raw_evidence_pointer": "legacy_reference/Documentation/wma ai bot 1.md token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1568:      "verification_command": "rg -n create_order legacy_reference/Documentation/wma ai bot 1.md"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1571:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1578:      "raw_evidence_pointer": "legacy_reference/Documentation/wma ai bot 1.md token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1582:      "verification_command": "rg -n change_leverage legacy_reference/Documentation/wma ai bot 1.md"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1613:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1620:      "raw_evidence_pointer": "legacy_reference/LATENCY_OPTIMIZATIONS.md token=cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1624:      "verification_command": "rg -n cancel_order legacy_reference/LATENCY_OPTIMIZATIONS.md"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1753:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1760:      "raw_evidence_pointer": "legacy_reference/api/routes/trading_routes.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1764:      "verification_command": "rg -n create_order legacy_reference/api/routes/trading_routes.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1767:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1774:      "raw_evidence_pointer": "legacy_reference/api/routes/trading_routes.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1778:      "verification_command": "rg -n cancel_order legacy_reference/api/routes/trading_routes.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1781:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1788:      "raw_evidence_pointer": "legacy_reference/api/routes/trading_routes.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:1792:      "verification_command": "rg -n change_leverage legacy_reference/api/routes/trading_routes.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:2159:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:2166:      "raw_evidence_pointer": "legacy_reference/docs/GPT DEEP Implementation guide.md token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:2170:      "verification_command": "rg -n create_order legacy_reference/docs/GPT DEEP Implementation guide.md"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:2243:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:2250:      "raw_evidence_pointer": "legacy_reference/docs/OLD/Final Trainer guide 7.md token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:2254:      "verification_command": "rg -n change_position_mode legacy_reference/docs/OLD/Final Trainer guide 7.md"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:2502:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:2509:      "raw_evidence_pointer": "legacy_reference/docs/Trainer Enahancement Plan2.md token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:2513:      "verification_command": "rg -n create_order legacy_reference/docs/Trainer Enahancement Plan2.md"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:2740:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:2747:      "raw_evidence_pointer": "legacy_reference/docs/wma ai bot 1.md token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:2751:      "verification_command": "rg -n create_order legacy_reference/docs/wma ai bot 1.md"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:2754:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:2761:      "raw_evidence_pointer": "legacy_reference/docs/wma ai bot 1.md token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:2765:      "verification_command": "rg -n change_leverage legacy_reference/docs/wma ai bot 1.md"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:2782:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:2789:      "raw_evidence_pointer": "legacy_reference/enhanced_startup.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:2793:      "verification_command": "rg -n cancel_order legacy_reference/enhanced_startup.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:4784:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:4791:      "raw_evidence_pointer": "legacy_reference/scripts/audit_binance_leverage_config.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:4795:      "verification_command": "rg -n change_leverage legacy_reference/scripts/audit_binance_leverage_config.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:4924:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:4931:      "raw_evidence_pointer": "legacy_reference/scripts/close_all_positions.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:4935:      "verification_command": "rg -n create_order legacy_reference/scripts/close_all_positions.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5190:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5197:      "raw_evidence_pointer": "legacy_reference/scripts/manage_limit_orders.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5201:      "verification_command": "rg -n create_order legacy_reference/scripts/manage_limit_orders.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5414:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5421:      "raw_evidence_pointer": "legacy_reference/scripts/test_hedge_build.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5425:      "verification_command": "rg -n create_order legacy_reference/scripts/test_hedge_build.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5897:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5904:      "raw_evidence_pointer": "legacy_reference/test_binance_connections.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5908:      "verification_command": "rg -n create_order legacy_reference/test_binance_connections.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5911:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5918:      "raw_evidence_pointer": "legacy_reference/test_binance_connections.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5922:      "verification_command": "rg -n change_position_mode legacy_reference/test_binance_connections.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5939:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5946:      "raw_evidence_pointer": "legacy_reference/test_binance_direct.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5950:      "verification_command": "rg -n create_order legacy_reference/test_binance_direct.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5967:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5974:      "raw_evidence_pointer": "legacy_reference/test_binance_hedge_mode.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5978:      "verification_command": "rg -n create_order legacy_reference/test_binance_hedge_mode.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5981:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5988:      "raw_evidence_pointer": "legacy_reference/test_binance_hedge_mode.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5992:      "verification_command": "rg -n change_leverage legacy_reference/test_binance_hedge_mode.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:5995:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6002:      "raw_evidence_pointer": "legacy_reference/test_binance_hedge_mode.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6006:      "verification_command": "rg -n change_position_mode legacy_reference/test_binance_hedge_mode.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6023:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6030:      "raw_evidence_pointer": "legacy_reference/test_binance_testnet_orders.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6034:      "verification_command": "rg -n create_order legacy_reference/test_binance_testnet_orders.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6037:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6044:      "raw_evidence_pointer": "legacy_reference/test_binance_testnet_orders.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6048:      "verification_command": "rg -n change_leverage legacy_reference/test_binance_testnet_orders.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6051:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6058:      "raw_evidence_pointer": "legacy_reference/test_binance_testnet_orders.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6062:      "verification_command": "rg -n change_position_mode legacy_reference/test_binance_testnet_orders.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6135:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6142:      "raw_evidence_pointer": "legacy_reference/test_hedge_trading.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6146:      "verification_command": "rg -n change_position_mode legacy_reference/test_hedge_trading.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6205:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6212:      "raw_evidence_pointer": "legacy_reference/test_ltc_trading.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6216:      "verification_command": "rg -n create_order legacy_reference/test_ltc_trading.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6247:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6254:      "raw_evidence_pointer": "legacy_reference/test_production_api.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6258:      "verification_command": "rg -n create_order legacy_reference/test_production_api.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6261:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6268:      "raw_evidence_pointer": "legacy_reference/test_production_api.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6272:      "verification_command": "rg -n cancel_order legacy_reference/test_production_api.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6275:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6282:      "raw_evidence_pointer": "legacy_reference/test_production_api.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6286:      "verification_command": "rg -n change_leverage legacy_reference/test_production_api.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6289:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6296:      "raw_evidence_pointer": "legacy_reference/test_production_api.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6300:      "verification_command": "rg -n change_margin legacy_reference/test_production_api.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6303:      "action_type": "change_margin_type",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6310:      "raw_evidence_pointer": "legacy_reference/test_production_api.py token=change_margin_type",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6314:      "verification_command": "rg -n change_margin_type legacy_reference/test_production_api.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6359:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6366:      "raw_evidence_pointer": "legacy_reference/test_production_trading.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6370:      "verification_command": "rg -n create_order legacy_reference/test_production_trading.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6373:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6380:      "raw_evidence_pointer": "legacy_reference/test_production_trading.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6384:      "verification_command": "rg -n change_leverage legacy_reference/test_production_trading.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6387:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6394:      "raw_evidence_pointer": "legacy_reference/test_real_trading.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6398:      "verification_command": "rg -n create_order legacy_reference/test_real_trading.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6821:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6828:      "raw_evidence_pointer": "legacy_reference/trading/base_executor.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6832:      "verification_command": "rg -n create_order legacy_reference/trading/base_executor.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6835:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6842:      "raw_evidence_pointer": "legacy_reference/trading/base_executor.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6846:      "verification_command": "rg -n change_leverage legacy_reference/trading/base_executor.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6849:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6856:      "raw_evidence_pointer": "legacy_reference/trading/base_executor.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6860:      "verification_command": "rg -n change_margin legacy_reference/trading/base_executor.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6863:      "action_type": "change_margin_type",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6870:      "raw_evidence_pointer": "legacy_reference/trading/base_executor.py token=change_margin_type",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6874:      "verification_command": "rg -n change_margin_type legacy_reference/trading/base_executor.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6877:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6884:      "raw_evidence_pointer": "legacy_reference/trading/base_executor.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:6888:      "verification_command": "rg -n change_position_mode legacy_reference/trading/base_executor.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7269:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7276:      "raw_evidence_pointer": "legacy_reference/trading/stealth_stops.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7280:      "verification_command": "rg -n create_order legacy_reference/trading/stealth_stops.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7283:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7290:      "raw_evidence_pointer": "legacy_reference/trading/stealth_stops.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7294:      "verification_command": "rg -n cancel_order legacy_reference/trading/stealth_stops.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7353:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7360:      "raw_evidence_pointer": "legacy_reference/trading/trader.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7364:      "verification_command": "rg -n change_margin legacy_reference/trading/trader.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7367:      "action_type": "change_margin_type",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7374:      "raw_evidence_pointer": "legacy_reference/trading/trader.py token=change_margin_type",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7378:      "verification_command": "rg -n change_margin_type legacy_reference/trading/trader.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7381:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7388:      "raw_evidence_pointer": "legacy_reference/trading/trader.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7392:      "verification_command": "rg -n change_position_mode legacy_reference/trading/trader.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7605:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7612:      "raw_evidence_pointer": "tools/collect_exchange_actions.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7616:      "verification_command": "rg -n create_order tools/collect_exchange_actions.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7619:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7626:      "raw_evidence_pointer": "tools/collect_exchange_actions.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7630:      "verification_command": "rg -n cancel_order tools/collect_exchange_actions.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7633:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7640:      "raw_evidence_pointer": "tools/collect_exchange_actions.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7644:      "verification_command": "rg -n change_leverage tools/collect_exchange_actions.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7647:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7654:      "raw_evidence_pointer": "tools/collect_exchange_actions.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7658:      "verification_command": "rg -n change_margin tools/collect_exchange_actions.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7661:      "action_type": "change_margin_type",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7668:      "raw_evidence_pointer": "tools/collect_exchange_actions.py token=change_margin_type",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7672:      "verification_command": "rg -n change_margin_type tools/collect_exchange_actions.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7792:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7799:      "raw_evidence_pointer": "v2/backend/app/proof/readonly_market_exchange_data_plane.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7807:      "verification_command": "rg -n create_order v2/backend/app/proof/readonly_market_exchange_data_plane.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7810:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7817:      "raw_evidence_pointer": "v2/backend/app/proof/readonly_market_exchange_data_plane.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7825:      "verification_command": "rg -n cancel_order v2/backend/app/proof/readonly_market_exchange_data_plane.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7828:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7835:      "raw_evidence_pointer": "v2/backend/app/proof/readonly_market_exchange_data_plane.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7843:      "verification_command": "rg -n change_leverage v2/backend/app/proof/readonly_market_exchange_data_plane.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7846:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7853:      "raw_evidence_pointer": "v2/backend/app/proof/readonly_market_exchange_data_plane.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7861:      "verification_command": "rg -n change_margin v2/backend/app/proof/readonly_market_exchange_data_plane.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7864:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7871:      "raw_evidence_pointer": "v2/backend/app/proof/readonly_market_exchange_data_plane.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:7879:      "verification_command": "rg -n change_position_mode v2/backend/app/proof/readonly_market_exchange_data_plane.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:8327:      "action_type": "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:8334:      "raw_evidence_pointer": "v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py token=create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:8342:      "verification_command": "rg -n create_order v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:8345:      "action_type": "cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:8352:      "raw_evidence_pointer": "v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py token=cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:8360:      "verification_command": "rg -n cancel_order v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:8363:      "action_type": "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:8370:      "raw_evidence_pointer": "v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py token=change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:8378:      "verification_command": "rg -n change_leverage v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:8381:      "action_type": "change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:8388:      "raw_evidence_pointer": "v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py token=change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:8396:      "verification_command": "rg -n change_margin v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:8399:      "action_type": "change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:8406:      "raw_evidence_pointer": "v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py token=change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.json:8414:      "verification_command": "rg -n change_position_mode v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:22:        "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:23:        "cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:24:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:25:        "change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:26:        "change_margin_type",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:27:        "change_position_mode"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:37:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=.claude/hooks/block_dangerous.sh; risk=TIER_A_EXCHANGE_REVIEW_REQUIRED; tokens exchange=['create_order', 'cancel_order', 'change_leverage', 'change_margin', 'change_margin_type', 'change_position_mode']; redis=['xdel', 'xtrim', 'flushall', 'flushdb']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:32923:        "change_leverage"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:32933:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/ADAPTIVE_TRADING_COMPLETE.md; risk=L2_EXECUTABLE_REVIEW_REQUIRED; tokens exchange=['change_leverage']; redis=[]",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:32983:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:32984:        "change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:32985:        "change_margin_type",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:32998:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md; risk=L2_EXECUTABLE_REVIEW_REQUIRED; tokens exchange=['change_leverage', 'change_margin', 'change_margin_type', 'stop_market', 'take_profit', 'hedge']; redis=[]",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:33336:        "create_order"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:33346:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/Documentation/GPT DEEP Implementation guide.md; risk=L2_EXECUTABLE_REVIEW_REQUIRED; tokens exchange=['create_order']; redis=['redis-cli set']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:33349:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:33550:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:33578:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/Documentation/OPERATOR_RUNBOOK.md; risk=L2_EXECUTABLE_REVIEW_REQUIRED; tokens exchange=['close_position', 'hedge']; redis=['redis-cli set']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:33582:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:33585:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:34168:        "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:34169:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:34180:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/Documentation/wma ai bot 1.md; risk=L2_EXECUTABLE_REVIEW_REQUIRED; tokens exchange=['create_order', 'change_leverage', 'take_profit']; redis=['xadd']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:34185:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:34316:        "cancel_order"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:34326:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/LATENCY_OPTIMIZATIONS.md; risk=L2_EXECUTABLE_REVIEW_REQUIRED; tokens exchange=['cancel_order']; redis=[]",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:34533:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:35343:        "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:35344:        "cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:35345:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:35367:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/api/routes/trading_routes.py; risk=TIER_A_EXCHANGE_REVIEW_REQUIRED; tokens exchange=['create_order', 'cancel_order', 'change_leverage', 'close_position', 'stop_market']; redis=[]",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:36760:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/config.py; risk=TIER_A_EXCHANGE_REVIEW_REQUIRED; tokens exchange=['hedge', 'dca', 'rebalance']; redis=['redis-cli set']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:36765:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:37805:        "create_order"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:37815:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/docs/GPT DEEP Implementation guide.md; risk=L2_EXECUTABLE_REVIEW_REQUIRED; tokens exchange=['create_order']; redis=['redis-cli set']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:37818:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:38019:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:38135:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/docs/OLD/PRODUCTION_DEPLOYMENT_GUIDE.md; risk=L2_EXECUTABLE_REVIEW_REQUIRED; tokens exchange=['take_profit', 'hedge']; redis=['set(', 'flushdb', 'redis-cli set']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:38143:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:38541:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:38568:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:38595:        "redis-cli get",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:38596:        "redis-cli scan"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:38623:        "redis-cli get",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:38624:        "redis-cli scan"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:38651:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:39143:        "redis-cli get",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:39144:        "redis-cli scan"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:39588:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:39613:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/docs/OLD/unit test.md; risk=L2_EXECUTABLE_REVIEW_REQUIRED; tokens exchange=[]; redis=['hset', 'redis-cli set']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:39619:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:39646:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/docs/OPERATOR_RUNBOOK.md; risk=L2_EXECUTABLE_REVIEW_REQUIRED; tokens exchange=['close_position', 'hedge']; redis=['redis-cli set']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:39649:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:39652:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:40260:        "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:40261:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:40272:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/docs/wma ai bot 1.md; risk=L2_EXECUTABLE_REVIEW_REQUIRED; tokens exchange=['create_order', 'change_leverage', 'take_profit']; redis=['xadd']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:40277:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:40334:        "cancel_order"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:40352:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/enhanced_startup.py; risk=TIER_A_EXCHANGE_REVIEW_REQUIRED; tokens exchange=['cancel_order']; redis=['set(']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:43987:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:49216:        "change_leverage"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:49237:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/scripts/audit_binance_leverage_config.py; risk=TIER_A_EXCHANGE_REVIEW_REQUIRED; tokens exchange=['change_leverage']; redis=[]",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:49863:        "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:49885:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/scripts/close_all_positions.py; risk=TIER_A_EXCHANGE_REVIEW_REQUIRED; tokens exchange=['create_order', 'close_position', 'hedge']; redis=[]",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:50746:        "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:50767:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/scripts/manage_limit_orders.py; risk=TIER_A_EXCHANGE_REVIEW_REQUIRED; tokens exchange=['create_order', 'reduce_only', 'hedge']; redis=[]",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:51700:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:51856:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:52663:        "redis-cli get"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:55792:        "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:55793:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:55794:        "change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:55795:        "change_margin_type",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:55796:        "change_position_mode",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:55808:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/trading/base_executor.py; risk=TIER_A_EXCHANGE_REVIEW_REQUIRED; tokens exchange=['create_order', 'change_leverage', 'change_margin', 'change_margin_type', 'change_position_mode', 'reduce_only', 'hedge']; redis=['set(', 'delete(']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:56804:        "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:56805:        "cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:56818:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/trading/stealth_stops.py; risk=TIER_A_EXCHANGE_REVIEW_REQUIRED; tokens exchange=['create_order', 'cancel_order', 'stop_market', 'take_profit', 'hedge']; redis=['set(']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:60077:        "create_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:60078:        "cancel_order",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:60079:        "change_leverage",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:60080:        "change_margin",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:60081:        "change_position_mode"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:60102:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=v2/backend/app/proof/readonly_market_exchange_data_plane.py; risk=TIER_A_EXCHANGE_REVIEW_REQUIRED; tokens exchange=['create_order', 'cancel_order', 'change_leverage', 'change_margin', 'change_position_mode']; redis=['set(']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:60978:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=v2/secrets/legacy_config.local.py; risk=TIER_A_EXCHANGE_REVIEW_REQUIRED; tokens exchange=['hedge', 'dca', 'rebalance']; redis=['redis-cli set']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/unsafe_unknown_resolution.json:60983:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/runtime_process_scope_resolution.json:5971:      "cmd": "tmux new-session -d -s ai_bot_legacy_readonly_audit_sentinel cd '/home/wali/Desktop/AI BOT REBUILD' && while true; do python3 claude_worklog/tools/legacy_readonly_audit_sentinel.py; sleep 1800; done",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/runtime_process_scope_resolution.json:5983:      "cmd": "bash -c cd '/home/wali/Desktop/AI BOT REBUILD' && while true; do python3 claude_worklog/tools/legacy_readonly_audit_sentinel.py; sleep 1800; done",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/runtime_process_scope_resolution.json:5995:      "cmd": "bash -c cd '/home/wali/Desktop/AI BOT REBUILD' && while true; do DAYS=30 BINANCE_FLAG=${BINANCE_FLAG:-0} SYMBOLS=\"${SYMBOLS:-}\" ./claude_worklog/tools/run_historical_pnl_trade_audit_once.sh; sleep 21600; done",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/runtime_process_scope_resolution.json:6619:      "cmd": "node /home/wali/Desktop/AI BOT REBUILD/v2/node_modules/.bin/vite --host 127.0.0.1",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/runtime_process_scope_resolution.json:6631:      "cmd": "/home/wali/Desktop/AI BOT REBUILD/v2/node_modules/@esbuild/linux-x64/bin/esbuild --service=0.21.5 --ping",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:7:| .claude/hooks/block_dangerous.sh | create_order | fail_closed_safety_hook | fail_closed | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:8:| .claude/hooks/block_dangerous.sh | cancel_order | fail_closed_safety_hook | fail_closed | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:9:| .claude/hooks/block_dangerous.sh | change_leverage | fail_closed_safety_hook | fail_closed | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:10:| .claude/hooks/block_dangerous.sh | change_margin | fail_closed_safety_hook | fail_closed | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:11:| .claude/hooks/block_dangerous.sh | change_margin_type | fail_closed_safety_hook | fail_closed | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:12:| .claude/hooks/block_dangerous.sh | change_position_mode | fail_closed_safety_hook | fail_closed | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:13:| claude_worklog/tools/autonomous_non_live_rebuild_controller.py | create_order | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:14:| claude_worklog/tools/autonomous_non_live_rebuild_controller.py | cancel_order | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:15:| claude_worklog/tools/autonomous_non_live_rebuild_controller.py | change_leverage | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:16:| claude_worklog/tools/autonomous_non_live_rebuild_controller.py | change_margin | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:19:| claude_worklog/tools/build_system_atlas_runtime_coverage.py | create_order | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:20:| claude_worklog/tools/build_system_atlas_runtime_coverage.py | cancel_order | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:21:| claude_worklog/tools/build_system_atlas_runtime_coverage.py | change_leverage | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:22:| claude_worklog/tools/build_system_atlas_runtime_coverage.py | change_margin | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:23:| claude_worklog/tools/build_system_atlas_runtime_coverage.py | change_margin_type | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:24:| claude_worklog/tools/build_system_atlas_runtime_coverage.py | change_position_mode | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:35:| claude_worklog/tools/claude_master_rebuild_planner.py | create_order | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:36:| claude_worklog/tools/claude_master_rebuild_planner.py | cancel_order | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:37:| claude_worklog/tools/claude_master_rebuild_planner.py | change_leverage | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:38:| claude_worklog/tools/claude_master_rebuild_planner.py | change_margin | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:39:| claude_worklog/tools/codex_non_live_watchdog.py | create_order | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:40:| claude_worklog/tools/codex_non_live_watchdog.py | cancel_order | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:41:| claude_worklog/tools/codex_non_live_watchdog.py | change_leverage | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:42:| claude_worklog/tools/codex_non_live_watchdog.py | change_margin | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:43:| claude_worklog/tools/collect_non_live_operational_proof.py | create_order | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:44:| claude_worklog/tools/collect_non_live_operational_proof.py | cancel_order | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:45:| claude_worklog/tools/collect_non_live_operational_proof.py | change_leverage | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:46:| claude_worklog/tools/collect_non_live_operational_proof.py | change_margin | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:56:| legacy_reference/.backups/fix_signals_20251012_191010/trader.py | create_order | actual_legacy_mutation_path | blocked_from_v2 | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:57:| legacy_reference/.backups/fix_signals_20251012_191010/trader.py | change_leverage | actual_legacy_mutation_path | blocked_from_v2 | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:58:| legacy_reference/.backups/fix_signals_20251012_191010/trader.py | change_position_mode | actual_legacy_mutation_path | blocked_from_v2 | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:68:| legacy_reference/.backups/fix_signals_20251012_191330/trader.py | create_order | actual_legacy_mutation_path | blocked_from_v2 | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:69:| legacy_reference/.backups/fix_signals_20251012_191330/trader.py | change_leverage | actual_legacy_mutation_path | blocked_from_v2 | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:70:| legacy_reference/.backups/fix_signals_20251012_191330/trader.py | change_position_mode | actual_legacy_mutation_path | blocked_from_v2 | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:79:| legacy_reference/ADAPTIVE_TRADING_COMPLETE.md | change_leverage | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:81:| legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md | change_leverage | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:82:| legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md | change_margin | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:83:| legacy_reference/BINANCE_IMPLEMENTATION_COMPLETE.md | change_margin_type | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:94:| legacy_reference/Documentation/GPT DEEP Implementation guide.md | create_order | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:100:| legacy_reference/Documentation/Trainer Enahancement Plan2.md | create_order | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:114:| legacy_reference/Documentation/wma ai bot 1.md | create_order | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:115:| legacy_reference/Documentation/wma ai bot 1.md | change_leverage | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:118:| legacy_reference/LATENCY_OPTIMIZATIONS.md | cancel_order | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:125:| legacy_reference/api/routes/trading_routes.py | create_order | actual_legacy_mutation_path | blocked_from_v2 | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:126:| legacy_reference/api/routes/trading_routes.py | cancel_order | actual_legacy_mutation_path | blocked_from_v2 | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:127:| legacy_reference/api/routes/trading_routes.py | change_leverage | actual_legacy_mutation_path | blocked_from_v2 | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:148:| legacy_reference/docs/GPT DEEP Implementation guide.md | create_order | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:154:| legacy_reference/docs/OLD/Final Trainer guide 7.md | change_position_mode | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:171:| legacy_reference/docs/Trainer Enahancement Plan2.md | create_order | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:185:| legacy_reference/docs/wma ai bot 1.md | create_order | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:186:| legacy_reference/docs/wma ai bot 1.md | change_leverage | documentation_or_report_only | not_callable | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/exchange_action_path_resolution.md:188:| legacy_reference/enhanced_startup.py | cancel_order | actual_legacy_mutation_path | blocked_from_v2 | False |
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:85:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=claude_worklog/tools/build_system_atlas_runtime_coverage.py; redis_writes=['xadd', 'set(', 'hset', 'delete(', 'xdel', 'xtrim', 'flushall', 'flushdb', 'redis-cli set', 'redis-cli xadd']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:95:        "redis-cli set",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:96:        "redis-cli xadd"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:388:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/Documentation/GPT DEEP Implementation guide.md; redis_writes=['redis-cli set']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:390:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:410:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/Documentation/OPERATOR_RUNBOOK.md; redis_writes=['redis-cli set']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:412:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:784:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/config.py; redis_writes=['redis-cli set']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:786:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:861:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/docs/GPT DEEP Implementation guide.md; redis_writes=['redis-cli set']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:863:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:927:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/docs/OLD/Final trainer pytest fix.md; redis_writes=['redis-cli set']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:929:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:938:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/docs/OLD/PRODUCTION_DEPLOYMENT_GUIDE.md; redis_writes=['set(', 'flushdb', 'redis-cli set']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:942:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:1052:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/docs/OLD/unit test.md; redis_writes=['hset', 'redis-cli set']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:1055:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:1064:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=legacy_reference/docs/OPERATOR_RUNBOOK.md; redis_writes=['redis-cli set']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:1066:        "redis-cli set"
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:5089:      "raw_evidence_pointer": "Phase3A SCRIPT_REGISTRY path=v2/secrets/legacy_config.local.py; redis_writes=['redis-cli set']",
+claude_worklog/final_readiness/system_atlas_gap_remediation/latest/redis_writer_path_resolution.json:5091:        "redis-cli set"

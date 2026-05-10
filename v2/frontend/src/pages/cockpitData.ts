@@ -162,10 +162,37 @@ export interface SystemAtlasPayload {
   artifact_paths: Record<string, string>;
 }
 
+export interface SystemAtlasGapRemediationPayload {
+  generated_at: string;
+  live_gate_status: string;
+  go_no_go: string;
+  codex_go_no_go: string;
+  counts: {
+    unsafe_unknown_input: number;
+    unsafe_unknown_remaining: number;
+    exchange_action_paths: number;
+    unmapped_exchange_action_paths: number;
+    redis_writer_paths: number;
+    unmapped_redis_writer_paths: number;
+    runtime_processes: number;
+    host_or_non_bot_processes: number;
+    unknown_bot_like_process_count: number;
+    unmapped_runtime_processes_in_bot_scope: number;
+  };
+  remaining_blockers: {
+    exchange: string[];
+    redis: string[];
+    runtime: string[];
+    unsafe_unknown: string[];
+  };
+  artifact_paths: Record<string, string>;
+}
+
 const cockpitPayloadPath = '/enterprise_trading_cockpit/latest/operator_cockpit_payload.json';
 const quarantinePayloadPath = '/external_manual_position_quarantine/latest/operator_dashboard_payload.json';
 const readonlyDataPlanePayloadPath = '/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json';
 const systemAtlasPayloadPath = '/system_atlas_runtime_coverage/latest/operator_dashboard_payload.json';
+const systemAtlasGapRemediationPayloadPath = '/system_atlas_gap_remediation/latest/operator_dashboard_payload.json';
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: 'no-store' });
@@ -177,11 +204,13 @@ export function useCockpitPayload(): {
   payload: CockpitPayload | null;
   quarantine: QuarantinePayload | null;
   systemAtlas: SystemAtlasPayload | null;
+  systemAtlasGapRemediation: SystemAtlasGapRemediationPayload | null;
   error: string | null;
 } {
   const [payload, setPayload] = useState<CockpitPayload | null>(null);
   const [quarantine, setQuarantine] = useState<QuarantinePayload | null>(null);
   const [systemAtlas, setSystemAtlas] = useState<SystemAtlasPayload | null>(null);
+  const [systemAtlasGapRemediation, setSystemAtlasGapRemediation] = useState<SystemAtlasGapRemediationPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -208,12 +237,19 @@ export function useCockpitPayload(): {
       .catch(() => {
         if (active) setSystemAtlas(null);
       });
+    fetchJson<SystemAtlasGapRemediationPayload>(systemAtlasGapRemediationPayloadPath)
+      .then((next) => {
+        if (active) setSystemAtlasGapRemediation(next);
+      })
+      .catch(() => {
+        if (active) setSystemAtlasGapRemediation(null);
+      });
     return () => {
       active = false;
     };
   }, []);
 
-  return { payload, quarantine, systemAtlas, error };
+  return { payload, quarantine, systemAtlas, systemAtlasGapRemediation, error };
 }
 
 interface ReadonlyDataPlanePayload {
