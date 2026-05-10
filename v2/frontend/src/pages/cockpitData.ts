@@ -368,6 +368,44 @@ export interface RedisSafeTrimPacketPayload {
   evidence_links: string[];
 }
 
+export interface AutonomousGovernorPayload {
+  generated_at: string;
+  marker: string;
+  go_no_go: string;
+  standing_governor_approval_created: boolean;
+  supervisor_patched: boolean;
+  non_live_approvals_now_non_blocking: boolean;
+  final_live_gate_hard_stop: boolean;
+  redis_trim_no_longer_blocks_entire_queue: boolean;
+  task_auto_selection_working: boolean;
+  codex_auto_governor_working: boolean;
+  ollama_helper_policy_ready: boolean;
+  dashboard_updated: boolean;
+  simulation_passed: boolean;
+  git_head: string;
+  current_selected_next_task: string;
+  human_input_required: string;
+  queue: {
+    current_running_task?: string | null;
+    next_pending_task?: string | null;
+    gate?: string | null;
+    human_attention_required_count?: number | null;
+    final_live_gate_required_count?: number | null;
+    non_blocking_decision_packet_count?: number | null;
+  };
+  redis_decision_status: {
+    phase3h_approval_file_present: boolean;
+    phase3h_allowed: boolean;
+    global_queue_blocked_by_phase3h: boolean;
+  };
+  next_task_selection: {
+    selected_task_id: string;
+    why_selected: string;
+    safety_classification: string;
+    redis_decision: string;
+  };
+}
+
 const cockpitPayloadPath = '/enterprise_trading_cockpit/latest/operator_cockpit_payload.json';
 const quarantinePayloadPath = '/external_manual_position_quarantine/latest/operator_dashboard_payload.json';
 const readonlyDataPlanePayloadPath = '/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json';
@@ -379,6 +417,7 @@ const redisHumanApprovalPayloadPath = '/redis_memory_human_approval/latest/opera
 const redisExportCapacityPayloadPath = '/redis_export_capacity_remediation/latest/operator_dashboard_payload.json';
 const redisFullExportPayloadPath = '/redis_liquidations_full_export/latest/operator_dashboard_payload.json';
 const redisSafeTrimPacketPayloadPath = '/redis_safe_trim_packet/latest/operator_dashboard_payload.json';
+const autonomousGovernorPayloadPath = '/autonomous_governor/latest/operator_dashboard_payload.json';
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: 'no-store' });
@@ -397,6 +436,7 @@ export function useCockpitPayload(): {
   redisExportCapacity: RedisExportCapacityPayload | null;
   redisFullExport: RedisFullExportPayload | null;
   redisSafeTrimPacket: RedisSafeTrimPacketPayload | null;
+  autonomousGovernor: AutonomousGovernorPayload | null;
   error: string | null;
 } {
   const [payload, setPayload] = useState<CockpitPayload | null>(null);
@@ -409,6 +449,7 @@ export function useCockpitPayload(): {
   const [redisExportCapacity, setRedisExportCapacity] = useState<RedisExportCapacityPayload | null>(null);
   const [redisFullExport, setRedisFullExport] = useState<RedisFullExportPayload | null>(null);
   const [redisSafeTrimPacket, setRedisSafeTrimPacket] = useState<RedisSafeTrimPacketPayload | null>(null);
+  const [autonomousGovernor, setAutonomousGovernor] = useState<AutonomousGovernorPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -484,12 +525,19 @@ export function useCockpitPayload(): {
       .catch(() => {
         if (active) setRedisSafeTrimPacket(null);
       });
+    fetchJson<AutonomousGovernorPayload>(autonomousGovernorPayloadPath)
+      .then((next) => {
+        if (active) setAutonomousGovernor(next);
+      })
+      .catch(() => {
+        if (active) setAutonomousGovernor(null);
+      });
     return () => {
       active = false;
     };
   }, []);
 
-  return { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, redisExportCapacity, redisFullExport, redisSafeTrimPacket, error };
+  return { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, redisExportCapacity, redisFullExport, redisSafeTrimPacket, autonomousGovernor, error };
 }
 
 interface ReadonlyDataPlanePayload {

@@ -1,0 +1,96 @@
+{
+  "codex_auto_governor_working": true,
+  "current_selected_next_task": "197_phase2z_degraded_state_fail_closed_gates_domain_implementation",
+  "dashboard_updated": true,
+  "final_live_gate_hard_stop": true,
+  "generated_at": "2026-05-10T21:01:12.712327+00:00",
+  "git_clean_ignoring_generated_outputs": true,
+  "git_head": "873bc42 Add autonomous governor live-gate control plane",
+  "go_no_go": "AUTONOMOUS_GOVERNOR_REPLACES_MANUAL_COPILOT_UNTIL_LIVE_GATE_READY",
+  "human_input_required": "NO unless selected task is final live gate",
+  "marker": "AUTONOMOUS_GOVERNOR_REPLACES_MANUAL_COPILOT_UNTIL_LIVE_GATE_READY",
+  "next_task_selection": {
+    "allowed_actions": [
+      "create safe non-live task JSON",
+      "run Claude/Codex/Ollama through supervisor",
+      "validate, commit, push safe V2 artifacts",
+      "create non-blocking decision packets"
+    ],
+    "codex_review_criteria": [
+      "hidden live path",
+      "fake-ready marker",
+      "missing tests",
+      "Redis/exchange mutation",
+      "stale dashboard payload",
+      "lineage/evidence gaps"
+    ],
+    "current_task": "197_phase2z_degraded_state_fail_closed_gates_domain_implementation",
+    "forbidden_actions": [
+      "live trading enablement",
+      "real exchange order/cancel/close",
+      "real leverage/margin/position-mode changes",
+      "legacy bot mutation",
+      "Redis mutation without exact approval",
+      "secret exposure"
+    ],
+    "generated_at": "2026-05-10T21:01:12.695125+00:00",
+    "next_milestone": "continue_safe_non_live_queue_until_final_live_gate",
+    "next_pending_task": "069B_decision_lineage_evidence_packet_builder",
+    "priority": 1,
+    "redis_decision": "phase3h_deferred_continue_safe_work",
+    "safety_classification": "non_live_autonomous",
+    "selected_task_id": "197_phase2z_degraded_state_fail_closed_gates_domain_implementation",
+    "why_higher_priority_items_are_not_selected": [
+      {
+        "item": "final_live_gate",
+        "priority": 0,
+        "reason": "human-only real capital boundary",
+        "selected": false
+      },
+      {
+        "item": "stale_fake_running_recovery",
+        "priority": 0,
+        "reason": "task liveness safety",
+        "selected": false
+      },
+      {
+        "item": "redis_memory_path",
+        "priority": 1,
+        "reason": "REDIS_EXPORT_BACKUP_DURABILITY_REVIEW_REQUIRED",
+        "selected": true
+      },
+      {
+        "item": "v2_data_plane_independence",
+        "priority": 2,
+        "reason": "continues through queue after active task/redis decision handling",
+        "selected": false
+      }
+    ],
+    "why_selected": "A supervisor task is already active; do not race it. Monitor liveness and let it complete or recover."
+  },
+  "non_live_approvals_now_non_blocking": true,
+  "ollama_helper_policy_ready": true,
+  "processes": [],
+  "queue": {
+    "current_running_task": "197_phase2z_degraded_state_fail_closed_gates_domain_implementation",
+    "final_live_gate_required_count": 0,
+    "gate": "READY_FOR_CODEX_RERUN",
+    "human_attention_required_count": 0,
+    "next_pending_task": "069B_decision_lineage_evidence_packet_builder",
+    "non_blocking_decision_packet_count": 0
+  },
+  "redis_decision_status": {
+    "global_queue_blocked_by_phase3h": false,
+    "phase3h_allowed": false,
+    "phase3h_approval_file_present": false
+  },
+  "redis_trim_no_longer_blocks_entire_queue": true,
+  "scheduler": {
+    "final_live_gate_status": "blocked_human_only",
+    "next_safe_codex_task": "run Codex watchdog dirty-tree recovery"
+  },
+  "simulation_passed": true,
+  "standing_governor_approval_created": true,
+  "supervisor_patched": true,
+  "task_auto_selection_working": true
+}

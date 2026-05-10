@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, Phase3cRuntimeMonitorPayload, QuarantinePayload, RedisExportCapacityPayload, RedisFullExportPayload, RedisHumanApprovalPayload, RedisMemoryPressurePayload, RedisSafeTrimPacketPayload, SettingRow, SystemAtlasGapRemediationPayload, SystemAtlasPayload } from './cockpitData';
+import type { AutonomousGovernorPayload, Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, Phase3cRuntimeMonitorPayload, QuarantinePayload, RedisExportCapacityPayload, RedisFullExportPayload, RedisHumanApprovalPayload, RedisMemoryPressurePayload, RedisSafeTrimPacketPayload, SettingRow, SystemAtlasGapRemediationPayload, SystemAtlasPayload } from './cockpitData';
 import { statusClass, valueText } from './cockpitData';
 
 export function CockpitLoading({ error }: { error: string | null }): JSX.Element | null {
@@ -580,6 +580,53 @@ export function RedisSafeTrimPacketPanel({ payload }: { payload: RedisSafeTrimPa
         </div>
         <div className="cockpit-evidence-gap">
           Approval token: {payload.approval_token}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+export function AutonomousGovernorPanel({ payload }: { payload: AutonomousGovernorPayload | null }): JSX.Element {
+  if (!payload) {
+    return (
+      <Panel id="autonomous-governor" title="Autonomous Governor">
+        <p className="cockpit-evidence-gap">Evidence missing - autonomous governor payload unavailable.</p>
+      </Panel>
+    );
+  }
+  return (
+    <Panel id="autonomous-governor" title="Autonomous Governor">
+      <div className="cockpit-analytics-grid">
+        <Metric label="Gate" value={payload.go_no_go} />
+        <Metric label="Standing delegation" value={payload.standing_governor_approval_created ? 'active' : 'missing'} />
+        <Metric label="Manual Copilot" value="NOT REQUIRED" />
+        <Metric label="Human stop" value={payload.human_input_required} />
+        <Metric label="Selected task" value={payload.current_selected_next_task} />
+        <Metric label="Queue gate" value={payload.queue.gate ?? 'Evidence missing'} />
+        <Metric label="Live gate tasks" value={payload.queue.final_live_gate_required_count ?? 0} />
+        <Metric label="Decision packets" value={payload.queue.non_blocking_decision_packet_count ?? 0} />
+      </div>
+      <div className="cockpit-card-grid">
+        <div className="cockpit-exchange-card">
+          <h3>Task Selection</h3>
+          <p>{payload.next_task_selection.why_selected}</p>
+          <p>Safety: {payload.next_task_selection.safety_classification}</p>
+          <p>Redis: {payload.next_task_selection.redis_decision}</p>
+        </div>
+        <div className="cockpit-exchange-card">
+          <h3>Automation Model</h3>
+          <p>Claude plans, builds, and remediates.</p>
+          <p>Codex reviews and challenges each safe milestone.</p>
+          <p>Ollama drafts evidence only; Claude/Codex verify raw facts.</p>
+        </div>
+        <div className="cockpit-evidence-gap">
+          Phase 3H Redis trim approval present: {payload.redis_decision_status.phase3h_approval_file_present ? 'yes' : 'no'}.
+          Phase 3H allowed: {payload.redis_decision_status.phase3h_allowed ? 'yes' : 'no'}.
+          Global queue blocked by Phase 3H: {payload.redis_decision_status.global_queue_blocked_by_phase3h ? 'yes' : 'no'}.
+        </div>
+        <div className="cockpit-evidence-gap">
+          Simulation passed: {payload.simulation_passed ? 'yes' : 'no'}.
+          Final live trading remains blocked_human_only.
         </div>
       </div>
     </Panel>

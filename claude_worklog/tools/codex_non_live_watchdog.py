@@ -352,6 +352,9 @@ def normalize_task_completed_after_recovery(task_id: str, reason: str) -> bool:
 
 
 def create_codex_recovery_task(blocked_task: str) -> str:
+    if "final_live_gate" in blocked_task.lower():
+        append_event({"event": "codex_watchdog_final_live_gate_not_recovered", "blocked_task": blocked_task})
+        return ""
     task_id = f"codex_recover_{blocked_task}"
     path = TASKS_DIR / f"{task_id}.json"
     if path.exists():
@@ -677,6 +680,9 @@ def cycle() -> int:
     blocked = latest_human_attention_task()
     if blocked:
         recovery = create_codex_recovery_task(blocked)
+        if not recovery:
+            print(f"FINAL_LIVE_GATE_REQUIRES_HUMAN {blocked}")
+            return 0
         commit_all(f"Add Codex watchdog recovery task for {blocked}")
         if not recovery_attempt_allowed(recovery):
             print(f"RECOVERY_ATTEMPT_LIMIT_REACHED {recovery}")

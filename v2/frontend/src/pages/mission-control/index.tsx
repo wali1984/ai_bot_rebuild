@@ -2,11 +2,11 @@ import meta from './meta';
 import rbac from './rbac';
 import route from './route';
 import type { PageMeta } from '../../types/page';
-import { ChartPanel, CockpitLoading, ConfigTable, DecisionDrawers, ExchangeManager, MarketPulse, MonitorTable, Panel, Phase3cRuntimeMonitorPanel, QuarantinePanel, RedisExportCapacityPanel, RedisFullExportPanel, RedisHumanApprovalPanel, RedisMemoryPressurePanel, RedisSafeTrimPacketPanel, SafetyTopBar, SystemAtlasGapRemediationPanel, SystemAtlasPanel } from '../cockpitComponents';
+import { AutonomousGovernorPanel, ChartPanel, CockpitLoading, ConfigTable, DecisionDrawers, ExchangeManager, MarketPulse, MonitorTable, Panel, Phase3cRuntimeMonitorPanel, QuarantinePanel, RedisExportCapacityPanel, RedisFullExportPanel, RedisHumanApprovalPanel, RedisMemoryPressurePanel, RedisSafeTrimPacketPanel, SafetyTopBar, SystemAtlasGapRemediationPanel, SystemAtlasPanel } from '../cockpitComponents';
 import { useCockpitPayload } from '../cockpitData';
 
 export default function MissionControlPage(): JSX.Element {
-  const { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, redisExportCapacity, redisFullExport, redisSafeTrimPacket, error } = useCockpitPayload();
+  const { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, redisExportCapacity, redisFullExport, redisSafeTrimPacket, autonomousGovernor, error } = useCockpitPayload();
 
   if (!payload) {
     return (
@@ -31,6 +31,7 @@ export default function MissionControlPage(): JSX.Element {
       <div className="enterprise-cockpit-grid">
         <div className="enterprise-cockpit-main">
           <ChartPanel candles={payload.candles} decisions={payload.decisions} sourceType={marketFeedSource} />
+          <AutonomousGovernorPanel payload={autonomousGovernor} />
           <MarketPulse payload={payload} />
           <DecisionDrawers rows={payload.decisions} />
           <QuarantinePanel payload={quarantine} />

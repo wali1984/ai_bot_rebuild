@@ -67,6 +67,10 @@ STANDING_NON_LIVE_APPROVAL_FILE = pathlib.Path(
     "claude_worklog/approvals/STANDING_APPROVAL_NON_LIVE_V2_REBUILD_UNTIL_LIVE_GATE.md"
 )
 STANDING_NON_LIVE_APPROVAL_MARKER = "STANDING_APPROVAL_NON_LIVE_V2_REBUILD_UNTIL_LIVE_GATE"
+STANDING_AUTONOMOUS_GOVERNOR_FILE = pathlib.Path(
+    "claude_worklog/approvals/STANDING_AUTONOMOUS_GOVERNOR_UNTIL_LIVE_GATE.md"
+)
+STANDING_AUTONOMOUS_GOVERNOR_MARKER = "STANDING_AUTONOMOUS_GOVERNOR_UNTIL_LIVE_GATE"
 
 SUPPORTED_AGENTS = {"claude", "codex", "ollama", "system_check"}
 ALLOWED_AUTORUN = {"L0", "L1", "L2"}
@@ -100,6 +104,7 @@ STATUS_VALUES = {
     "pending", "running", "completed", "failed",
     "blocked_quota", "blocked_auth", "blocked_approval", "blocked_dependency",
     "retry_scheduled", "skipped", "cancelled", "human_attention_required",
+    "waiting_decision_packet", "delegated_decision_pending",
     "superseded_by_evidence",
 }
 
@@ -440,6 +445,61 @@ def has_standing_non_live_v2_rebuild_approval() -> bool:
     return ok
 
 
+def has_standing_autonomous_governor_approval() -> bool:
+    approval_path = WORKSPACE_ROOT / STANDING_AUTONOMOUS_GOVERNOR_FILE
+    ok = approval_path.exists() and STANDING_AUTONOMOUS_GOVERNOR_MARKER in read_text(approval_path)
+    if ok:
+        append_event({
+            "event": "standing_autonomous_governor_approval_detected",
+            "approval_file": str(STANDING_AUTONOMOUS_GOVERNOR_FILE),
+        })
+    return ok
+
+
+def final_live_gate_text(text: str) -> bool:
+    lowered = text.lower()
+    live_terms = (
+        "enable live trading",
+        "switch paper",
+        "switch shadow",
+        "live execution",
+        "activate live trading api",
+        "real exchange order",
+        "place real order",
+        "cancel real order",
+        "change real exchange leverage",
+        "change real exchange margin",
+        "disable kill switch",
+        "final live gate",
+        "real capital",
+    )
+    return any(term in lowered for term in live_terms)
+
+
+def task_requires_final_live_gate(task: Dict[str, Any]) -> bool:
+    if str(task.get("risk_level", "")).upper() == "L5":
+        return True
+    joined = "\n".join(str(task.get(k, "")) for k in ("task_id", "description", "prompt", "command", "next_recommended_action"))
+    return final_live_gate_text(joined)
+
+
+def task_requires_non_live_decision_packet(task: Dict[str, Any]) -> bool:
+    if task_requires_final_live_gate(task):
+        return False
+    joined = "\n".join(str(task.get(k, "")) for k in ("task_id", "description", "prompt", "command", "attention_reason", "next_recommended_action"))
+    decision_terms = (
+        "human approval",
+        "approval_file",
+        "approval file",
+        "backup durability",
+        "decision packet",
+        "non-live approval",
+        "redis trim hold",
+        "operator reviews",
+    )
+    return any(term in joined.lower() for term in decision_terms)
+
+
 def non_live_v2_task_safety_block(task: Dict[str, Any]) -> Optional[str]:
     risk = str(task.get("risk_level", "L0")).upper()
     if risk in {"L4", "L5"}:
@@ -501,7 +561,10 @@ def task_approved_v2(task: Dict[str, Any]) -> Tuple[bool, str]:
     preapproved = bool(task.get("preapproved", False))
     task_id = str(task.get("task_id", ""))
 
-    if risk in {"L1", "L2", "L3"} and has_standing_non_live_v2_rebuild_approval():
+    if risk in {"L1", "L2", "L3"} and (
+        has_standing_non_live_v2_rebuild_approval()
+        or has_standing_autonomous_governor_approval()
+    ):
         safety_block = non_live_v2_task_safety_block(task)
         if safety_block:
             append_event({
@@ -515,7 +578,11 @@ def task_approved_v2(task: Dict[str, Any]) -> Tuple[bool, str]:
             "event": "non_live_v2_task_auto_unblocked",
             "task_id": task_id,
             "risk_level": risk,
-            "approval_file": str(STANDING_NON_LIVE_APPROVAL_FILE),
+            "approval_file": str(
+                STANDING_AUTONOMOUS_GOVERNOR_FILE
+                if has_standing_autonomous_governor_approval()
+                else STANDING_NON_LIVE_APPROVAL_FILE
+            ),
         })
         return True, ""
 
@@ -2016,12 +2083,18 @@ def auto_commit_task_outputs(task_path: pathlib.Path, task: Dict[str, Any], resu
 def derive_gate(tasks: List[Tuple[pathlib.Path, Dict[str, Any]]]) -> str:
     status_map = task_status_map(tasks)
 
+    final_live_attention = [
+        t for _, t in tasks
+        if task_effective_status(t) == "human_attention_required" and task_requires_final_live_gate(t)
+    ]
+    if final_live_attention:
+        return "BLOCKED_FINAL_LIVE_GATE"
     if status_map.get("010_actual_codex_architecture_rerun_after_remediation") == "running":
         return "CODEX_RERUN_RUNNING"
     if any(v == "blocked_quota" for v in status_map.values()):
         return "WAITING_FOR_CLAUDE_QUOTA"
     if any(v == "human_attention_required" for v in status_map.values()):
-        return "BLOCKED_HUMAN_ATTENTION_REQUIRED"
+        return "NON_LIVE_DECISION_PACKETS_PRESENT_QUEUE_CONTINUES"
     if status_map.get("010_actual_codex_architecture_rerun_after_remediation") == "completed":
         gate_file = WORKSPACE_ROOT / "claude_worklog/v2_architecture_codex_review/16_ACTUAL_CODEX_RERUN_GO_NO_GO.md"
         txt = read_text(gate_file)
@@ -2069,6 +2142,7 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
         "pending": 0, "running": 0, "completed": 0, "failed": 0, "blocked": 0,
         "retry_scheduled": 0, "skipped": 0, "cancelled": 0,
         "human_attention_required": 0, "superseded_by_evidence": 0,
+        "waiting_decision_packet": 0, "delegated_decision_pending": 0,
     }
     next_pending = None
     running = None
@@ -2079,6 +2153,8 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
     no_event_tasks: List[str] = []
     no_output_growth_tasks: List[str] = []
     human_attention_tasks: List[Dict[str, Any]] = []
+    final_live_gate_tasks: List[Dict[str, Any]] = []
+    non_blocking_decision_packets: List[Dict[str, Any]] = []
 
     for _, t in tasks:
         tid = str(t.get("task_id", ""))
@@ -2120,17 +2196,31 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
             counts["cancelled"] += 1
         elif st == "human_attention_required":
             counts["human_attention_required"] += 1
-            human_attention_tasks.append({
+            attention_row = {
+                "task_id": tid,
+                "agent": t.get("agent"),
+                "attention_reason": t.get("attention_reason"),
+                "last_summary": t.get("last_summary"),
+            }
+            human_attention_tasks.append(attention_row)
+            if task_requires_final_live_gate(t):
+                final_live_gate_tasks.append(attention_row)
+            else:
+                non_blocking_decision_packets.append(attention_row)
+        elif st == "superseded_by_evidence":
+            counts["superseded_by_evidence"] += 1
+        elif st in {"waiting_decision_packet", "delegated_decision_pending"}:
+            counts[st] += 1
+            non_blocking_decision_packets.append({
                 "task_id": tid,
                 "agent": t.get("agent"),
                 "attention_reason": t.get("attention_reason"),
                 "last_summary": t.get("last_summary"),
             })
-        elif st == "superseded_by_evidence":
-            counts["superseded_by_evidence"] += 1
 
         if st in {"completed", "running", "cancelled", "failed",
                   "blocked_auth", "blocked_approval", "human_attention_required",
+                  "waiting_decision_packet", "delegated_decision_pending",
                   "superseded_by_evidence"}:
             continue
         if should_defer_resume(t):
@@ -2158,6 +2248,12 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
         "no_output_growth_tasks": no_output_growth_tasks,
         "human_attention_required_count": len(human_attention_tasks),
         "human_attention_required_tasks": human_attention_tasks,
+        "final_live_gate_required_count": len(final_live_gate_tasks),
+        "final_live_gate_required_tasks": final_live_gate_tasks,
+        "non_blocking_decision_packet_count": len(non_blocking_decision_packets),
+        "non_blocking_decision_packets": non_blocking_decision_packets,
+        "human_attention_global_blocking": bool(final_live_gate_tasks),
+        "manual_copilot_prompting_required": False,
         "counts": counts,
         "gate": derive_gate(tasks),
     }
@@ -2351,9 +2447,18 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
         else:
             approved, reason = task_approved_v2(task)
             if not approved:
-                result["status"] = "blocked_approval"
+                if task_requires_final_live_gate(task):
+                    result["status"] = "human_attention_required"
+                    result["attention_reason"] = "final_live_gate_required"
+                    result["next_recommended_action"] = "operator final live/capital approval required"
+                elif task_requires_non_live_decision_packet(task):
+                    result["status"] = "waiting_decision_packet"
+                    result["attention_reason"] = "non_live_decision_packet_created"
+                    result["next_recommended_action"] = "continue unrelated safe V2 work; this subtask waits on a decision packet"
+                else:
+                    result["status"] = "blocked_approval"
+                    result["next_recommended_action"] = "add approval and rerun"
                 result["summary"] = reason
-                result["next_recommended_action"] = "add approval and rerun"
             else:
                 status_map = task_status_map(list_tasks())
                 blockers = dependency_blockers(task, status_map)
