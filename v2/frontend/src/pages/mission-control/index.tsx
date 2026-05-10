@@ -2,11 +2,11 @@ import meta from './meta';
 import rbac from './rbac';
 import route from './route';
 import type { PageMeta } from '../../types/page';
-import { ChartPanel, CockpitLoading, ConfigTable, DecisionDrawers, ExchangeManager, MarketPulse, MonitorTable, Panel, Phase3cRuntimeMonitorPanel, QuarantinePanel, RedisHumanApprovalPanel, RedisMemoryPressurePanel, SafetyTopBar, SystemAtlasGapRemediationPanel, SystemAtlasPanel } from '../cockpitComponents';
+import { ChartPanel, CockpitLoading, ConfigTable, DecisionDrawers, ExchangeManager, MarketPulse, MonitorTable, Panel, Phase3cRuntimeMonitorPanel, QuarantinePanel, RedisExportCapacityPanel, RedisHumanApprovalPanel, RedisMemoryPressurePanel, SafetyTopBar, SystemAtlasGapRemediationPanel, SystemAtlasPanel } from '../cockpitComponents';
 import { useCockpitPayload } from '../cockpitData';
 
 export default function MissionControlPage(): JSX.Element {
-  const { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, error } = useCockpitPayload();
+  const { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, redisExportCapacity, error } = useCockpitPayload();
 
   if (!payload) {
     return (
@@ -39,6 +39,7 @@ export default function MissionControlPage(): JSX.Element {
           <Phase3cRuntimeMonitorPanel payload={phase3cRuntimeMonitor} />
           <RedisMemoryPressurePanel payload={redisMemoryPressure} />
           <RedisHumanApprovalPanel payload={redisHumanApproval} />
+          <RedisExportCapacityPanel payload={redisExportCapacity} />
           <Panel id="freshness-and-live-readiness-blockers" title="Freshness, Sync, And Live-Readiness Blockers">
             <div className="cockpit-card-grid">
               {payload.proof_freshness.map((row) => (

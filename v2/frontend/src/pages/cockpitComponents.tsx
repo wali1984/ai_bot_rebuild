@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, Phase3cRuntimeMonitorPayload, QuarantinePayload, RedisHumanApprovalPayload, RedisMemoryPressurePayload, SettingRow, SystemAtlasGapRemediationPayload, SystemAtlasPayload } from './cockpitData';
+import type { Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, Phase3cRuntimeMonitorPayload, QuarantinePayload, RedisExportCapacityPayload, RedisHumanApprovalPayload, RedisMemoryPressurePayload, SettingRow, SystemAtlasGapRemediationPayload, SystemAtlasPayload } from './cockpitData';
 import { statusClass, valueText } from './cockpitData';
 
 export function CockpitLoading({ error }: { error: string | null }): JSX.Element | null {
@@ -453,6 +453,47 @@ export function RedisHumanApprovalPanel({ payload }: { payload: RedisHumanApprov
         </div>
         <div className="cockpit-evidence-gap">
           Alternate DO NOT RUN: {payload.proposed_trim.alternate_command_do_not_run}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+export function RedisExportCapacityPanel({ payload }: { payload: RedisExportCapacityPayload | null }): JSX.Element {
+  if (!payload) {
+    return (
+      <Panel id="redis-export-capacity-remediation" title="Redis Export Capacity Remediation">
+        <p className="cockpit-evidence-gap">Evidence missing - Redis export capacity payload unavailable.</p>
+      </Panel>
+    );
+  }
+  return (
+    <Panel id="redis-export-capacity-remediation" title="Redis Export Capacity Remediation">
+      <div className="cockpit-analytics-grid">
+        <Metric label="Gate" value={payload.go_no_go} />
+        <Metric label="Codex" value={payload.codex_go_no_go} />
+        <Metric label="Next milestone" value={payload.next_safe_milestone} />
+        <Metric label="Target key" value={payload.target_key} />
+        <Metric label="Stream length" value={payload.stream.xlen} />
+        <Metric label="Best entries/sec" value={payload.best_benchmark.entries_per_second} />
+        <Metric label="Runtime estimate" value={`${payload.export_estimate.estimated_runtime_hours} h`} />
+        <Metric label="Compressed estimate" value={`${payload.export_estimate.estimated_compressed_gib} GiB`} />
+      </div>
+      <div className="cockpit-card-grid">
+        <div className="cockpit-evidence-gap">
+          Full export appears feasible from bounded benchmark, but still requires human approval before running. No Redis trim or mutation has occurred.
+        </div>
+        <div className="cockpit-exchange-card">
+          <h3>Benchmark</h3>
+          <p>Batch: {valueText(payload.best_benchmark.batch_size)}</p>
+          <p>Elapsed: {valueText(payload.best_benchmark.elapsed_seconds)}s</p>
+          <p>Compression ratio: {valueText(payload.best_benchmark.compression_ratio)}</p>
+        </div>
+        <div className="cockpit-exchange-card">
+          <h3>Safety</h3>
+          <p>Consumer safety: {payload.consumer_safety.status}</p>
+          <p>Pending: {payload.consumer_safety.pending_total}</p>
+          <p>{payload.snapshot_recommendation}</p>
         </div>
       </div>
     </Panel>

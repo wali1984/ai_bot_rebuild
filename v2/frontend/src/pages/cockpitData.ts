@@ -296,6 +296,33 @@ export interface RedisHumanApprovalPayload {
   };
 }
 
+export interface RedisExportCapacityPayload {
+  generated_at: string;
+  live_gate_status: string;
+  go_no_go: string;
+  codex_go_no_go: string;
+  next_safe_milestone: string;
+  target_key: string;
+  redis_mutation_performed: boolean;
+  stream: {
+    xlen: number;
+    memory_usage_mb: number;
+  };
+  best_benchmark: Record<string, unknown>;
+  export_estimate: {
+    estimated_compressed_gib: number;
+    estimated_runtime_hours: number;
+    disk_feasible: boolean;
+    full_export_feasible_with_human_approval: boolean;
+  };
+  consumer_safety: {
+    status: string;
+    reason: string;
+    pending_total: number;
+  };
+  snapshot_recommendation: string;
+}
+
 const cockpitPayloadPath = '/enterprise_trading_cockpit/latest/operator_cockpit_payload.json';
 const quarantinePayloadPath = '/external_manual_position_quarantine/latest/operator_dashboard_payload.json';
 const readonlyDataPlanePayloadPath = '/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json';
@@ -304,6 +331,7 @@ const systemAtlasGapRemediationPayloadPath = '/system_atlas_gap_remediation/late
 const phase3cRuntimeMonitorPayloadPath = '/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json';
 const redisMemoryPressurePayloadPath = '/redis_memory_pressure_remediation/latest/operator_dashboard_payload.json';
 const redisHumanApprovalPayloadPath = '/redis_memory_human_approval/latest/operator_dashboard_payload.json';
+const redisExportCapacityPayloadPath = '/redis_export_capacity_remediation/latest/operator_dashboard_payload.json';
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: 'no-store' });
@@ -319,6 +347,7 @@ export function useCockpitPayload(): {
   phase3cRuntimeMonitor: Phase3cRuntimeMonitorPayload | null;
   redisMemoryPressure: RedisMemoryPressurePayload | null;
   redisHumanApproval: RedisHumanApprovalPayload | null;
+  redisExportCapacity: RedisExportCapacityPayload | null;
   error: string | null;
 } {
   const [payload, setPayload] = useState<CockpitPayload | null>(null);
@@ -328,6 +357,7 @@ export function useCockpitPayload(): {
   const [phase3cRuntimeMonitor, setPhase3cRuntimeMonitor] = useState<Phase3cRuntimeMonitorPayload | null>(null);
   const [redisMemoryPressure, setRedisMemoryPressure] = useState<RedisMemoryPressurePayload | null>(null);
   const [redisHumanApproval, setRedisHumanApproval] = useState<RedisHumanApprovalPayload | null>(null);
+  const [redisExportCapacity, setRedisExportCapacity] = useState<RedisExportCapacityPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -382,12 +412,19 @@ export function useCockpitPayload(): {
       .catch(() => {
         if (active) setRedisHumanApproval(null);
       });
+    fetchJson<RedisExportCapacityPayload>(redisExportCapacityPayloadPath)
+      .then((next) => {
+        if (active) setRedisExportCapacity(next);
+      })
+      .catch(() => {
+        if (active) setRedisExportCapacity(null);
+      });
     return () => {
       active = false;
     };
   }, []);
 
-  return { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, error };
+  return { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, redisExportCapacity, error };
 }
 
 interface ReadonlyDataPlanePayload {
