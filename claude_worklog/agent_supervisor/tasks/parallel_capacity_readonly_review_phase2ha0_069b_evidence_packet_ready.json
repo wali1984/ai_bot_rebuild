@@ -1,0 +1,30 @@
+{
+  "task_id": "parallel_capacity_readonly_review_phase2ha0_069b_evidence_packet_ready",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "lane": "codex_watchdog",
+  "mvp_relevance": "Parallel read-only review of the latest committed milestone while builder capacity continues on the paper/backtest MVP path.",
+  "blocked_by": [],
+  "next_gate": "CODEX_PARALLEL_READONLY_REVIEW_READY",
+  "legacy_evidence_consulted": [
+    "latest committed milestone evidence",
+    "runtime task states",
+    "paper/backtest MVP requirement set"
+  ],
+  "legacy_failure_addressed": [
+    "serial review bottleneck",
+    "late discovery of paper/backtest compatibility gaps"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/decision_explainability/"
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/decision_explainability/parallel_capacity_readonly_review_phase2ha0_069b_evidence_packet_ready_REPORT.md",
+    "claude_worklog/phase2_core_rebuild/decision_explainability/parallel_capacity_readonly_review_phase2ha0_069b_evidence_packet_ready_GO_NO_GO.md"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Run a read-only parallel review of committed milestone PHASE2HA0_069B_EVIDENCE_PACKET_READY from claude_worklog/phase2_core_rebuild/decision_explainability/069B_GO_NO_GO.md. Do not patch source files. Do not modify current dirty work. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not place/cancel orders. Do not enable live trading. Review for paper/backtest MVP compatibility, risk-gateway handoff completeness, lineage/explainability gaps, stale evidence, and missing test-hardening recommendations. Output exactly two BEGIN_FILE blocks using these exact paths: claude_worklog/phase2_core_rebuild/decision_explainability/parallel_capacity_readonly_review_phase2ha0_069b_evidence_packet_ready_REPORT.md and claude_worklog/phase2_core_rebuild/decision_explainability/parallel_capacity_readonly_review_phase2ha0_069b_evidence_packet_ready_GO_NO_GO.md. Do not emit any other file path. The GO/NO-GO file must contain exactly one line: CODEX_PARALLEL_READONLY_REVIEW_READY or CODEX_PARALLEL_READONLY_REVIEW_BLOCKED.",
+  "next_recommended_action": "If READY, planner may consume recommendations without blocking current build. If BLOCKED, Codex watchdog may open a non-live autofix when no builder child is active."
+}
