@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, Phase3cRuntimeMonitorPayload, QuarantinePayload, SettingRow, SystemAtlasGapRemediationPayload, SystemAtlasPayload } from './cockpitData';
+import type { Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, Phase3cRuntimeMonitorPayload, QuarantinePayload, RedisMemoryPressurePayload, SettingRow, SystemAtlasGapRemediationPayload, SystemAtlasPayload } from './cockpitData';
 import { statusClass, valueText } from './cockpitData';
 
 export function CockpitLoading({ error }: { error: string | null }): JSX.Element | null {
@@ -363,6 +363,48 @@ export function Phase3cRuntimeMonitorPanel({ payload }: { payload: Phase3cRuntim
         {payload.gaps.slice(0, 12).map((gap) => (
           <div className="cockpit-evidence-gap" key={`${gap.gap}-${gap.evidence}`}>
             {gap.severity}: {gap.gap} ({gap.evidence})
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+export function RedisMemoryPressurePanel({ payload }: { payload: RedisMemoryPressurePayload | null }): JSX.Element {
+  if (!payload) {
+    return (
+      <Panel id="redis-memory-pressure-remediation" title="Redis Memory Pressure Remediation">
+        <p className="cockpit-evidence-gap">Evidence missing - Redis memory pressure remediation payload unavailable.</p>
+      </Panel>
+    );
+  }
+  return (
+    <Panel id="redis-memory-pressure-remediation" title="Redis Memory Pressure Remediation">
+      <div className="cockpit-analytics-grid">
+        <Metric label="Gate" value={payload.go_no_go} />
+        <Metric label="Codex" value={payload.codex_go_no_go} />
+        <Metric label="Next milestone" value={payload.next_safe_milestone} />
+        <Metric label="Used memory" value={payload.redis_info.used_memory_human} />
+        <Metric label="Max memory" value={payload.redis_info.maxmemory_human} />
+        <Metric label="Policy" value={payload.redis_info.maxmemory_policy} />
+        <Metric label="Keys scanned" value={payload.counts.keys_scanned} />
+        <Metric label="Dry-run actions" value={payload.counts.dry_run_action_count} />
+      </div>
+      <div className="cockpit-card-grid">
+        <div className="cockpit-evidence-gap">
+          Redis mutation requires explicit human approval. This plan does not execute DEL, XDEL, XTRIM, SET, HSET, XADD, FLUSHALL, or FLUSHDB.
+        </div>
+        {payload.top_consumers.slice(0, 8).map((row) => (
+          <div className="cockpit-exchange-card" key={valueText(row.key)}>
+            <h3>{valueText(row.key)}</h3>
+            <p>Type: {valueText(row.type)} / Namespace: {valueText(row.namespace)}</p>
+            <p>Memory: {valueText(row.memory_mb)} MB / Stream length: {valueText(row.stream_length)}</p>
+            <p>Criticality: {valueText(row.criticality)}</p>
+          </div>
+        ))}
+        {payload.dry_run_actions.slice(0, 8).map((row) => (
+          <div className="cockpit-evidence-gap" key={`${valueText(row.key)}-${valueText(row.proposed_action)}`}>
+            {valueText(row.proposed_action)}: {valueText(row.key)} saves approx {valueText(row.estimated_memory_reduction_mb)} MB; approval: {valueText(row.required_approval)}
           </div>
         ))}
       </div>

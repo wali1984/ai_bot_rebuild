@@ -221,12 +221,44 @@ export interface Phase3cRuntimeMonitorPayload {
   gaps: Array<{ gap: string; severity: string; evidence: string }>;
 }
 
+export interface RedisMemoryPressurePayload {
+  generated_at: string;
+  live_gate_status: string;
+  go_no_go: string;
+  codex_go_no_go: string;
+  next_safe_milestone: string;
+  redis_info: {
+    used_memory_human?: string;
+    used_memory_peak_human?: string;
+    maxmemory_human?: string;
+    maxmemory_policy?: string;
+    evicted_keys?: number | null;
+    expired_keys?: number | null;
+  };
+  phase3c_reference: {
+    go_no_go?: string;
+    redis_memory_max_pct?: number;
+    redis_memory_avg_pct?: number;
+    next_safe_milestone?: string;
+  };
+  counts: {
+    keys_scanned: number;
+    top_consumers_reported: number;
+    namespaces: number;
+    dry_run_action_count: number;
+    estimated_savings_mb: number;
+  };
+  top_consumers: Array<Record<string, unknown>>;
+  dry_run_actions: Array<Record<string, unknown>>;
+}
+
 const cockpitPayloadPath = '/enterprise_trading_cockpit/latest/operator_cockpit_payload.json';
 const quarantinePayloadPath = '/external_manual_position_quarantine/latest/operator_dashboard_payload.json';
 const readonlyDataPlanePayloadPath = '/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json';
 const systemAtlasPayloadPath = '/system_atlas_runtime_coverage/latest/operator_dashboard_payload.json';
 const systemAtlasGapRemediationPayloadPath = '/system_atlas_gap_remediation/latest/operator_dashboard_payload.json';
 const phase3cRuntimeMonitorPayloadPath = '/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json';
+const redisMemoryPressurePayloadPath = '/redis_memory_pressure_remediation/latest/operator_dashboard_payload.json';
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: 'no-store' });
@@ -240,6 +272,7 @@ export function useCockpitPayload(): {
   systemAtlas: SystemAtlasPayload | null;
   systemAtlasGapRemediation: SystemAtlasGapRemediationPayload | null;
   phase3cRuntimeMonitor: Phase3cRuntimeMonitorPayload | null;
+  redisMemoryPressure: RedisMemoryPressurePayload | null;
   error: string | null;
 } {
   const [payload, setPayload] = useState<CockpitPayload | null>(null);
@@ -247,6 +280,7 @@ export function useCockpitPayload(): {
   const [systemAtlas, setSystemAtlas] = useState<SystemAtlasPayload | null>(null);
   const [systemAtlasGapRemediation, setSystemAtlasGapRemediation] = useState<SystemAtlasGapRemediationPayload | null>(null);
   const [phase3cRuntimeMonitor, setPhase3cRuntimeMonitor] = useState<Phase3cRuntimeMonitorPayload | null>(null);
+  const [redisMemoryPressure, setRedisMemoryPressure] = useState<RedisMemoryPressurePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -287,12 +321,19 @@ export function useCockpitPayload(): {
       .catch(() => {
         if (active) setPhase3cRuntimeMonitor(null);
       });
+    fetchJson<RedisMemoryPressurePayload>(redisMemoryPressurePayloadPath)
+      .then((next) => {
+        if (active) setRedisMemoryPressure(next);
+      })
+      .catch(() => {
+        if (active) setRedisMemoryPressure(null);
+      });
     return () => {
       active = false;
     };
   }, []);
 
-  return { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, error };
+  return { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, error };
 }
 
 interface ReadonlyDataPlanePayload {
