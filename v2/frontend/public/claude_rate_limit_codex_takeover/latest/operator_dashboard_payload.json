@@ -1,5 +1,5 @@
 {
-  "active_task": "197_phase2z_degraded_state_fail_closed_gates_domain_implementation",
+  "active_task": null,
   "active_task_pid": null,
   "active_task_pid_alive": false,
   "allowed_codex_takeover_work": [
@@ -22,8 +22,8 @@
     "live trading enablement",
     "secret exposure"
   ],
-  "generated_at": "2026-05-10T21:14:56.699574+00:00",
-  "git_head": "8ca563c Codex watchdog recover dirty non-live automation artifacts",
+  "generated_at": "2026-05-10T21:16:16.250972+00:00",
+  "git_head": "356c22f Codex watchdog recover dirty non-live automation artifacts",
   "go_no_go": "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF_READY",
   "handoff_back_to_claude_condition": "quota probe reports ready, git is clean, and no active Codex child is running",
   "human_input_required": "NO unless selected task is final live/capital gate",

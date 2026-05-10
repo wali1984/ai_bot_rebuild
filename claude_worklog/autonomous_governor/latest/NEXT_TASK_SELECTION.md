@@ -1,9 +1,9 @@
 # Next Task Selection
 
-Selected task: `197_phase2z_degraded_state_fail_closed_gates_domain_implementation`
+Selected task: `CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF`
 
-Reason: A supervisor task is already active; do not race it. Monitor liveness and let it complete or recover.
+Reason: Claude is quota-limited; Codex temporarily owns safe non-live planning/review/remediation until quota reset.
 
-Safety classification: `non_live_autonomous`
+Safety classification: `non_live_codex_takeover`
 
 Redis decision: `phase3h_deferred_continue_safe_work`

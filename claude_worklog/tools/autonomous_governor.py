@@ -24,6 +24,7 @@ PUBLIC = ROOT / "v2/frontend/public/autonomous_governor/latest"
 APPROVAL = ROOT / "claude_worklog/approvals/STANDING_AUTONOMOUS_GOVERNOR_UNTIL_LIVE_GATE.md"
 APPROVAL_MARKER = "STANDING_AUTONOMOUS_GOVERNOR_UNTIL_LIVE_GATE"
 REDIS_TRIM_APPROVAL = ROOT / "claude_worklog/approvals/APPROVED_REDIS_LIQUIDATIONS_EVENTS_XTRIM_MINID_1777222885206_0_ONLY.md"
+QUOTA_STATUS = ROOT / "claude_worklog/quota/CLAUDE_CODE_QUOTA_STATUS.md"
 
 
 def now() -> str:
@@ -76,6 +77,10 @@ def git_status() -> list[str]:
 
 def latest_commit() -> str:
     return run(["git", "log", "--oneline", "-1"]).stdout.strip()
+
+
+def claude_quota_blocked() -> bool:
+    return "blocked_or_limited" in read_text(QUOTA_STATUS)
 
 
 def process_summary() -> list[str]:
@@ -149,10 +154,15 @@ def choose_next_task(queue: dict[str, Any], current: dict[str, Any]) -> dict[str
     stale = int(queue.get("stale_running_count") or 0)
     no_output = int(queue.get("no_output_growth_count") or 0)
     human_final = int(queue.get("final_live_gate_required_count") or 0)
+    quota_blocked = claude_quota_blocked()
 
     if human_final:
         selected = "BLOCKED_FINAL_LIVE_GATE"
         reason = "A final live/capital gate is present; human approval is required."
+        priority = 0
+    elif quota_blocked:
+        selected = "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF"
+        reason = "Claude is quota-limited; Codex temporarily owns safe non-live planning/review/remediation until quota reset."
         priority = 0
     elif stale or no_output:
         selected = "AUTONOMOUS_STALE_RUNNING_RECOVERY"
@@ -173,6 +183,7 @@ def choose_next_task(queue: dict[str, Any], current: dict[str, Any]) -> dict[str
 
     higher = [
         {"priority": 0, "item": "final_live_gate", "selected": bool(human_final), "reason": "human-only real capital boundary"},
+        {"priority": 0, "item": "claude_rate_limit", "selected": quota_blocked, "reason": "Codex takeover while Claude quota is blocked"},
         {"priority": 0, "item": "stale_fake_running_recovery", "selected": bool(stale or no_output), "reason": "task liveness safety"},
         {"priority": 1, "item": "redis_memory_path", "selected": bool(redis_hold_next), "reason": redis_hold_next or "no active redis hold marker"},
         {"priority": 2, "item": "v2_data_plane_independence", "selected": False, "reason": "continues through queue after active task/redis decision handling"},
@@ -186,7 +197,7 @@ def choose_next_task(queue: dict[str, Any], current: dict[str, Any]) -> dict[str
         "next_pending_task": next_pending,
         "redis_decision": "phase3h_deferred_continue_safe_work" if redis_hold_next and not phase3h_allowed else "no_redis_hold_blocking_global_queue",
         "why_higher_priority_items_are_not_selected": higher,
-        "safety_classification": "non_live_autonomous" if selected != "BLOCKED_FINAL_LIVE_GATE" else "final_live_human_only",
+        "safety_classification": "non_live_codex_takeover" if quota_blocked else ("non_live_autonomous" if selected != "BLOCKED_FINAL_LIVE_GATE" else "final_live_human_only"),
         "allowed_actions": [
             "create safe non-live task JSON",
             "run Claude/Codex/Ollama through supervisor",

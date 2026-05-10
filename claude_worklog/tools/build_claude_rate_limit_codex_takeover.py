@@ -86,7 +86,10 @@ def main() -> int:
     current = read_json(ROOT / "claude_worklog/agent_supervisor/status/current_status.json")
     scheduler = read_json(ROOT / "claude_worklog/agent_supervisor/status/parallel_capacity_scheduler_status.json")
     quota = quota_state()
-    active_task = current.get("task_id") or queue.get("current_running_task")
+    current_status = str(current.get("status") or "")
+    active_task = queue.get("current_running_task")
+    if not active_task and current_status == "running":
+        active_task = current.get("task_id")
     active_pid = current.get("run_pid")
     pid_alive = False
     if active_pid:

@@ -22,19 +22,25 @@
     "Redis mutation without exact approval",
     "secret exposure"
   ],
-  "generated_at": "2026-05-10T21:03:22.634336+00:00",
+  "generated_at": "2026-05-10T21:16:33.340286+00:00",
   "next_milestone": "continue_safe_non_live_queue_until_final_live_gate",
   "next_pending_task": "069B_decision_lineage_evidence_packet_builder",
-  "priority": 1,
+  "priority": 0,
   "redis_decision": "phase3h_deferred_continue_safe_work",
-  "safety_classification": "non_live_autonomous",
-  "selected_task_id": "197_phase2z_degraded_state_fail_closed_gates_domain_implementation",
+  "safety_classification": "non_live_codex_takeover",
+  "selected_task_id": "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF",
   "why_higher_priority_items_are_not_selected": [
     {
       "item": "final_live_gate",
       "priority": 0,
       "reason": "human-only real capital boundary",
       "selected": false
+    },
+    {
+      "item": "claude_rate_limit",
+      "priority": 0,
+      "reason": "Codex takeover while Claude quota is blocked",
+      "selected": true
     },
     {
       "item": "stale_fake_running_recovery",
@@ -55,5 +61,5 @@
       "selected": false
     }
   ],
-  "why_selected": "A supervisor task is already active; do not race it. Monitor liveness and let it complete or recover."
+  "why_selected": "Claude is quota-limited; Codex temporarily owns safe non-live planning/review/remediation until quota reset."
 }
