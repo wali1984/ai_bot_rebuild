@@ -7,8 +7,8 @@
   "dispatch_result": {
     "returncode": 0,
     "stderr_tail": "",
-    "stdout_tail": "{\n  \"task_id\": \"codex_takeover_069B_decision_lineage_evidence_packet_builder\",\n  \"agent\": \"codex\",\n  \"risk_level\": \"L1\",\n  \"start_time\": \"2026-05-10T22:43:07.508394+00:00\",\n  \"end_time\": \"2026-05-10T22:46:16.129582+00:00\",\n  \"status\": \"completed\",\n  \"stdout_path\": \"claude_worklog/agent_supervisor/runs/codex_takeover_069B_decision_lineage_evidence_packet_builder/stdout.txt\",\n  \"stderr_path\": \"claude_worklog/agent_supervisor/runs/codex_takeover_069B_decision_lineage_evidence_packet_builder/stderr.txt\",\n  \"summary\": \"agent run status: completed\",\n  \"next_recommended_action\": \"inspect run output\",\n  \"materialized_files\": [],\n  \"auto_commit\": {\n    \"attempted\": false,\n    \"ok\": false,\n    \"message\": \"\",\n    \"commit_hash\": null\n  },\n  \"timed_out\": false,\n  \"attention_reason\": null,\n  \"last_retry_reason\": null,\n  \"run_pid\": 2269000\n}\n",
-    "task_id": "codex_takeover_069B_decision_lineage_evidence_packet_builder"
+    "stdout_tail": "{\n  \"task_id\": \"codex_takeover_069C_decision_lineage_dashboard_payload_integration\",\n  \"agent\": \"codex\",\n  \"risk_level\": \"L1\",\n  \"start_time\": \"2026-05-10T23:28:13.693418+00:00\",\n  \"end_time\": \"2026-05-10T23:31:26.016896+00:00\",\n  \"status\": \"completed\",\n  \"stdout_path\": \"claude_worklog/agent_supervisor/runs/codex_takeover_069C_decision_lineage_dashboard_payload_integration/stdout.txt\",\n  \"stderr_path\": \"claude_worklog/agent_supervisor/runs/codex_takeover_069C_decision_lineage_dashboard_payload_integration/stderr.txt\",\n  \"summary\": \"agent run status: completed\",\n  \"next_recommended_action\": \"inspect run output\",\n  \"materialized_files\": [\n    \"claude_worklog/phase2_core_rebuild/decision_explainability/069C_DASHBOARD_PAYLOAD_INTEGRATION_SPEC.md\",\n    \"claude_worklog/phase2_core_rebuild/decision_explainability/069C_GO_NO_GO.md\"\n  ],\n  \"auto_commit\": {\n    \"attempted\": false,\n    \"ok\": false,\n    \"message\": \"\",\n    \"commit_hash\": null\n  },\n  \"timed_out\": false,\n  \"attention_reason\": null,\n  \"last_retry_reason\": null,\n  \"run_pid\": 2287823\n}\n",
+    "task_id": "codex_takeover_069C_decision_lineage_dashboard_payload_integration"
   },
   "final_live_gate_required": false,
   "forbidden_actions": [
@@ -19,11 +19,11 @@
     "live trading enablement",
     "secret exposure"
   ],
-  "generated_at": "2026-05-10T22:46:16.175500+00:00",
+  "generated_at": "2026-05-10T23:31:26.064064+00:00",
   "live_gate_status": "blocked_human_only",
   "mode": "codex_acting_governor",
   "requires_claude_after_reset": false,
-  "selected_task": "codex_takeover_069B_decision_lineage_evidence_packet_builder",
+  "selected_task": "codex_takeover_069C_decision_lineage_dashboard_payload_integration",
   "selection_reason": "safe non-live Claude task eligible for Codex takeover",
-  "source_queue_task": "069B_decision_lineage_evidence_packet_builder"
+  "source_queue_task": "069C_decision_lineage_dashboard_payload_integration"
 }
