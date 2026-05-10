@@ -17,8 +17,8 @@ from v2.backend.app.domain.risk_gateway import (
 TRAINER_FIELDS = {
     "model_version": "hybrid_trainer_v2026_05",
     "checkpoint_id": "ckpt_duplicate_signal_blocked_2026_05",
-    "confidence_raw": 0.71,
-    "confidence_calibrated": 0.68,
+    "confidence_raw": 0.77,
+    "confidence_calibrated": 0.74,
     "trainer_worker_liveness": "alive",
 }
 
