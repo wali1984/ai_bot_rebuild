@@ -1,0 +1,21 @@
+{
+  "claims": [
+    {
+      "claim": "Phase 3H approval file is absent",
+      "evidence": "test -f claude_worklog/approvals/APPROVED_REDIS_LIQUIDATIONS_EVENTS_XTRIM_MINID_1777222885206_0_ONLY.md && echo ERROR_APPROVAL_FILE_EXISTS || echo APPROVAL_FILE_NOT_PRESENT_OK"
+    },
+    {
+      "claim": "Local export archive exists with 710 chunks",
+      "evidence": "claude_worklog/final_readiness/redis_trim_approval_hold/latest/phase3f_export_archive_inventory.json"
+    },
+    {
+      "claim": "Consumer group remains caught up",
+      "evidence": "claude_worklog/final_readiness/redis_trim_approval_hold/latest/current_readonly_redis_state.json"
+    },
+    {
+      "claim": "No Redis mutation was performed",
+      "evidence": "No approval file was created and no XTRIM/DEL/XDEL/SET/HSET/XADD/FLUSH/CONFIG/BGSAVE command was executed in this hold review."
+    }
+  ],
+  "generated_at": "2026-05-10T20:06:00Z"
+}

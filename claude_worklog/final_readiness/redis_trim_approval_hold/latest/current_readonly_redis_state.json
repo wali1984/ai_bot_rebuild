@@ -1,0 +1,28 @@
+{
+  "consumer_group": {
+    "entries_read": 254892810,
+    "lag": 0,
+    "last_delivered_id": "1778443235655-25",
+    "name": "liq_levels",
+    "pending": 0
+  },
+  "generated_at": "2026-05-10T20:06:00Z",
+  "redis_memory": {
+    "maxmemory": 17179869184,
+    "maxmemory_human": "16.00G",
+    "maxmemory_policy": "allkeys-lru",
+    "used_memory": 13518541392,
+    "used_memory_human": "12.59G",
+    "used_memory_pct": 78.69
+  },
+  "redis_mutation_performed": false,
+  "target_stream": {
+    "first_id": "1772952007223-4",
+    "key": "liquidations:events",
+    "last_id": "1778443235655-25",
+    "memory_usage_bytes": 13347963371,
+    "memory_usage_mib": 12729.61,
+    "type": "stream",
+    "xlen": 70930999
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "approval_file_present": false,
+  "backup_durability": "LOCAL_ONLY_EXPORT_PRESENT_BUT_SECONDARY_BACKUP_NOT_VERIFIED",
+  "consumer_group_status": "pending_0_lag_0",
+  "export_archive_chunks": 710,
+  "export_archive_local_only": true,
+  "export_anchor_last_id": "1778432485206-24",
+  "exported_count": 70930810,
+  "generated_at": "2026-05-10T20:06:00Z",
+  "go_no_go": "PHASE3G2_REDIS_TRIM_APPROVAL_HOLD_AND_BACKUP_DURABILITY_REVIEW_READY",
+  "live_trading": "blocked_human_only",
+  "next_safe_milestone": "BACKUP_DURABILITY_OPERATOR_DECISION_REQUIRED",
+  "phase3h_approved": false,
+  "proposed_command": "redis-cli XTRIM liquidations:events MINID ~ 1777222885206-0",
+  "redis_mutation_performed": false,
+  "secondary_backup_verified": false,
+  "target_key": "liquidations:events",
+  "trim_executed": false
+}

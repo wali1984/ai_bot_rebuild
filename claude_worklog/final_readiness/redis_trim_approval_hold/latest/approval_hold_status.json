@@ -1,0 +1,12 @@
+{
+  "approval_file_present": false,
+  "approval_file_path": "claude_worklog/approvals/APPROVED_REDIS_LIQUIDATIONS_EVENTS_XTRIM_MINID_1777222885206_0_ONLY.md",
+  "approval_token": "APPROVED_REDIS_LIQUIDATIONS_EVENTS_XTRIM_MINID_1777222885206_0_ONLY",
+  "approved_command": "redis-cli XTRIM liquidations:events MINID ~ 1777222885206-0",
+  "generated_at": "2026-05-10T20:06:00Z",
+  "live_trading": "blocked_human_only",
+  "phase3h_approved": false,
+  "redis_mutation_performed": false,
+  "status": "approval_hold",
+  "trim_executed": false
+}
