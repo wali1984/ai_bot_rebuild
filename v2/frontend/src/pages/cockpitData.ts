@@ -323,6 +323,24 @@ export interface RedisExportCapacityPayload {
   snapshot_recommendation: string;
 }
 
+export interface RedisFullExportPayload {
+  generated_at: string;
+  live_gate_status: string;
+  go_no_go: string;
+  codex_go_no_go: string;
+  next_safe_milestone: string;
+  target_key: string;
+  redis_mutation_performed: boolean;
+  trim_approved: boolean;
+  pre_export_xlen: number;
+  exported_count: number;
+  chunk_count: number;
+  duration_seconds: number;
+  compressed_total_gib: number;
+  integrity_status: string;
+  consumer_safety_status: string;
+}
+
 const cockpitPayloadPath = '/enterprise_trading_cockpit/latest/operator_cockpit_payload.json';
 const quarantinePayloadPath = '/external_manual_position_quarantine/latest/operator_dashboard_payload.json';
 const readonlyDataPlanePayloadPath = '/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json';
@@ -332,6 +350,7 @@ const phase3cRuntimeMonitorPayloadPath = '/phase3c_runtime_monitor_verification/
 const redisMemoryPressurePayloadPath = '/redis_memory_pressure_remediation/latest/operator_dashboard_payload.json';
 const redisHumanApprovalPayloadPath = '/redis_memory_human_approval/latest/operator_dashboard_payload.json';
 const redisExportCapacityPayloadPath = '/redis_export_capacity_remediation/latest/operator_dashboard_payload.json';
+const redisFullExportPayloadPath = '/redis_liquidations_full_export/latest/operator_dashboard_payload.json';
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: 'no-store' });
@@ -348,6 +367,7 @@ export function useCockpitPayload(): {
   redisMemoryPressure: RedisMemoryPressurePayload | null;
   redisHumanApproval: RedisHumanApprovalPayload | null;
   redisExportCapacity: RedisExportCapacityPayload | null;
+  redisFullExport: RedisFullExportPayload | null;
   error: string | null;
 } {
   const [payload, setPayload] = useState<CockpitPayload | null>(null);
@@ -358,6 +378,7 @@ export function useCockpitPayload(): {
   const [redisMemoryPressure, setRedisMemoryPressure] = useState<RedisMemoryPressurePayload | null>(null);
   const [redisHumanApproval, setRedisHumanApproval] = useState<RedisHumanApprovalPayload | null>(null);
   const [redisExportCapacity, setRedisExportCapacity] = useState<RedisExportCapacityPayload | null>(null);
+  const [redisFullExport, setRedisFullExport] = useState<RedisFullExportPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -419,12 +440,19 @@ export function useCockpitPayload(): {
       .catch(() => {
         if (active) setRedisExportCapacity(null);
       });
+    fetchJson<RedisFullExportPayload>(redisFullExportPayloadPath)
+      .then((next) => {
+        if (active) setRedisFullExport(next);
+      })
+      .catch(() => {
+        if (active) setRedisFullExport(null);
+      });
     return () => {
       active = false;
     };
   }, []);
 
-  return { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, redisExportCapacity, error };
+  return { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, redisExportCapacity, redisFullExport, error };
 }
 
 interface ReadonlyDataPlanePayload {

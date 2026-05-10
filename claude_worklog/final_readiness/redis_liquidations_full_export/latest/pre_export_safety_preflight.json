@@ -1,0 +1,128 @@
+{
+  "approval_file": "claude_worklog/approvals/APPROVED_REDIS_LIQUIDATIONS_EVENTS_FULL_EXPORT_ONLY.md",
+  "approval_text": "APPROVED_REDIS_LIQUIDATIONS_EVENTS_FULL_EXPORT_ONLY",
+  "disk": {
+    "free_bytes": 818329006080,
+    "safety_floor_bytes": 53687091200,
+    "total_bytes": 1966736678912
+  },
+  "generated_at": "2026-05-10T17:56:59.267655+00:00",
+  "redis_memory": {
+    "config_maxmemory": [
+      "maxmemory",
+      "17179869184"
+    ],
+    "config_maxmemory_policy": [
+      "maxmemory-policy",
+      "allkeys-lru"
+    ],
+    "evicted_keys": 189283,
+    "maxmemory": 17179869184,
+    "maxmemory_human": "16.00G",
+    "maxmemory_policy": "allkeys-lru",
+    "used_memory": 13454999640,
+    "used_memory_human": "12.53G"
+  },
+  "selected": {
+    "batch_size": 10000,
+    "chunk_entries": 100000,
+    "destination": "claude_worklog/final_readiness/redis_liquidations_full_export/latest/export"
+  },
+  "target": {
+    "consumer_safety": {
+      "groups": [
+        {
+          "entries_read": 254892621,
+          "lag": 0,
+          "last_delivered_id": "1778432485206-24",
+          "name": "liq_levels",
+          "pending": 0,
+          "xpending": [
+            0,
+            null,
+            null,
+            null
+          ]
+        }
+      ],
+      "pending_total": 0,
+      "status": "acceptable"
+    },
+    "key": "liquidations:events",
+    "memory_usage_bytes": 13347924863,
+    "memory_usage_mb": 12729.573,
+    "ttl": -1,
+    "type": "stream",
+    "xinfo_groups": [
+      {
+        "consumers": 1,
+        "entries-read": 254892621,
+        "lag": 0,
+        "last-delivered-id": "1778432485206-24",
+        "name": "liq_levels",
+        "pending": 0
+      }
+    ],
+    "xinfo_stream": {
+      "entries-added": 254892621,
+      "first-entry": [
+        "1772952007223-4",
+        [
+          "ts",
+          "1772945647166",
+          "symbol",
+          "RIVERUSDT",
+          "side",
+          "LONG_LIQ",
+          "price",
+          "14.882091",
+          "qty",
+          "18.5",
+          "notional",
+          "275.3186835",
+          "source",
+          "binance",
+          "src_key",
+          "binance:force:raw",
+          "src_id",
+          "idx:1952:RIVERUSDT:1772945647166:SELL:14.882091:18.5",
+          "ingest_ts",
+          "1772952007223"
+        ]
+      ],
+      "groups": 1,
+      "last-entry": [
+        "1778432485206-24",
+        [
+          "ts",
+          "1775837621118",
+          "symbol",
+          "RIVERUSDT",
+          "side",
+          "LONG_LIQ",
+          "price",
+          "8.906",
+          "qty",
+          "2.4",
+          "notional",
+          "21.708",
+          "source",
+          "coinank",
+          "src_key",
+          "raw:coinank:liquidation_orders:global",
+          "src_id",
+          "RIVERUSDT:1775837621118:LONG_LIQ:8.906:2.4",
+          "ingest_ts",
+          "1778432485206"
+        ]
+      ],
+      "last-generated-id": "1778432485206-24",
+      "length": 70930810,
+      "max-deleted-entry-id": "0-0",
+      "radix-tree-keys": 2867338,
+      "radix-tree-nodes": 6382911,
+      "recorded-first-entry-id": "1772952007223-4"
+    },
+    "xlen": 70930810
+  }
+}

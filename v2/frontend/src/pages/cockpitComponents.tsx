@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, Phase3cRuntimeMonitorPayload, QuarantinePayload, RedisExportCapacityPayload, RedisHumanApprovalPayload, RedisMemoryPressurePayload, SettingRow, SystemAtlasGapRemediationPayload, SystemAtlasPayload } from './cockpitData';
+import type { Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, Phase3cRuntimeMonitorPayload, QuarantinePayload, RedisExportCapacityPayload, RedisFullExportPayload, RedisHumanApprovalPayload, RedisMemoryPressurePayload, SettingRow, SystemAtlasGapRemediationPayload, SystemAtlasPayload } from './cockpitData';
 import { statusClass, valueText } from './cockpitData';
 
 export function CockpitLoading({ error }: { error: string | null }): JSX.Element | null {
@@ -494,6 +494,42 @@ export function RedisExportCapacityPanel({ payload }: { payload: RedisExportCapa
           <p>Consumer safety: {payload.consumer_safety.status}</p>
           <p>Pending: {payload.consumer_safety.pending_total}</p>
           <p>{payload.snapshot_recommendation}</p>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+export function RedisFullExportPanel({ payload }: { payload: RedisFullExportPayload | null }): JSX.Element {
+  if (!payload) {
+    return (
+      <Panel id="redis-liquidations-full-export" title="Redis Liquidations Full Export">
+        <p className="cockpit-evidence-gap">Evidence missing - Redis full export payload unavailable.</p>
+      </Panel>
+    );
+  }
+  return (
+    <Panel id="redis-liquidations-full-export" title="Redis Liquidations Full Export">
+      <div className="cockpit-analytics-grid">
+        <Metric label="Gate" value={payload.go_no_go} />
+        <Metric label="Codex" value={payload.codex_go_no_go} />
+        <Metric label="Next milestone" value={payload.next_safe_milestone} />
+        <Metric label="Target key" value={payload.target_key} />
+        <Metric label="Exported entries" value={payload.exported_count} />
+        <Metric label="Chunks" value={payload.chunk_count} />
+        <Metric label="Compressed size" value={`${payload.compressed_total_gib} GiB`} />
+        <Metric label="Integrity" value={payload.integrity_status} />
+      </div>
+      <div className="cockpit-card-grid">
+        <div className="cockpit-evidence-gap">
+          Full export verified. Redis trim is still not approved and no Redis mutation has occurred.
+        </div>
+        <div className="cockpit-exchange-card">
+          <h3>Export Anchor</h3>
+          <p>Pre-export length: {payload.pre_export_xlen}</p>
+          <p>Duration: {payload.duration_seconds}s</p>
+          <p>Consumer safety: {payload.consumer_safety_status}</p>
+          <p>Live gate: {payload.live_gate_status}</p>
         </div>
       </div>
     </Panel>
