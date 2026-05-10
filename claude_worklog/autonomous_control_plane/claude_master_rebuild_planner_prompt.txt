@@ -36,9 +36,9 @@ REQ_0018/REQ_0020 planner lane lock is enforced until V2_BACKTEST_AND_PAPER_MVP_
 - Every V2 build milestone must state the legacy evidence consulted, the legacy behavior preserved, the legacy failure addressed, and the V2 proof gate that validates the fix.
 - If a proposed task cannot state its approved lane, concrete MVP relevance, next gate, legacy evidence consulted, and legacy failure addressed, do not emit it.
 - Current near-term MVP target: V2_BACKTEST_AND_PAPER_MVP_READY.
-- Current MVP milestone: PAPER_EXECUTION_LEDGER_MVP.
-- Next paper/backtest milestone: PAPER_EXECUTION_LEDGER_MVP.
-- Distance to V2_BACKTEST_AND_PAPER_MVP_READY: 4 milestones remaining.
+- Current MVP milestone: REPLAY_BACKTEST_RUNNER_MVP.
+- Next paper/backtest milestone: REPLAY_BACKTEST_RUNNER_MVP.
+- Distance to V2_BACKTEST_AND_PAPER_MVP_READY: 3 milestones remaining.
 
 Read the repo evidence roots:
 - claude_worklog/requirements_inbox
@@ -2178,6 +2178,201 @@ Codex must review the audit and verify:
 - V2 requirements are derived from actual PnL/trade evidence
 
 REQ_HISTORICAL_PNL_TRADE_TRAINER_AUDIT_READY
+
+
+## REQ_0025_CODEX_HIGH_UTILIZATION_REVIEW_QUEUE.md
+# Requirement 0025 - Codex High-Utilization Review Queue
+
+## Objective
+
+Use Codex Pro/Max capacity aggressively and safely. Codex must not sit idle while non-live V2 work remains.
+
+## Target behavior
+
+Codex should continuously run useful non-live work:
+
+- parallel read-only reviews
+- test-hardening audits
+- safety audits
+- evidence-reconciliation audits
+- legacy-evidence usage audits
+- historical PnL/trade integration audits
+- autofix tasks when safe
+- Codex re-reviews after autofix
+
+## Utilization target
+
+If Codex usage is below 50% in a 5-hour build window and work remains, the scheduler should create more safe Codex review/audit tasks.
+
+This is a target, not permission to bypass safety.
+
+## Codex task types
+
+### Read-only review tasks
+
+Allowed while Claude is active.
+
+Must write only to isolated report paths:
+
+- `claude_worklog/codex_parallel_reviews/`
+
+Must not modify:
+
+- `v2/`
+- task definitions
+- planner/supervisor code
+- active dirty files
+
+### Autofix tasks
+
+Allowed only when:
+
+- no Claude/Codex child is active
+- Git is clean or dirty state is fully classified
+- blocker is non-live
+- patch paths are inside AI BOT REBUILD
+
+### Re-review tasks
+
+Allowed after autofix or milestone completion.
+
+## Review backlog
+
+Codex should maintain a backlog for:
+
+- trainer prediction output
+- orchestrator decision
+- risk gateway
+- paper execution ledger
+- replay/backtest runner
+- paper mode
+- shadow readiness
+- decision explainability
+- historical PnL/trade audit
+- legacy read-only audit usage
+- website/data-contract readiness
+- stale evidence reconciliation
+- no-live-side-effect safety
+
+## Hard safety
+
+Codex may never:
+
+- modify `/home/wali/Desktop/AI BOT`
+- write/delete Redis keys
+- restart live services
+- place/cancel orders
+- change leverage/margin
+- enable live trading
+- deploy
+- run production migrations
+- expose or commit secrets
+
+REQ_CODEX_HIGH_UTILIZATION_REVIEW_QUEUE_READY
+
+
+## REQ_0026_NON_LIVE_OPERATOR_PROOF_HARNESS.md
+# Requirement 0026 - Non-Live Operator Proof Harness
+
+## Objective
+
+Create an executable non-live proof harness that produces operator-inspectable
+evidence for the V2 backtest, paper, and shadow MVP.
+
+The system already has MVP markers and unit tests. The missing piece is a
+deterministic command that produces concrete proof artifacts.
+
+## Required Command
+
+```bash
+PYTHONPATH=. python3 -m v2.backend.app.cli.non_live_operational_proof --output-dir claude_worklog/final_readiness/non_live_operational_proof/latest
+```
+
+## Required Behavior
+
+The harness must run entirely offline and non-live using local deterministic
+fixtures.
+
+It must not:
+
+- write Redis
+- read or write live Redis keys
+- touch `/home/wali/Desktop/AI BOT`
+- restart live services
+- call live trading endpoints
+- place or cancel orders
+- change leverage or margin
+- enable live trading
+- deploy
+
+## Required Proof Artifacts
+
+The harness must emit:
+
+- `replay_backtest_result.json`
+- `replay_backtest_result.md`
+- `paper_ledger_result.json`
+- `paper_ledger_result.md`
+- `shadow_comparison_result.json`
+- `shadow_comparison_result.md`
+- `risk_gateway_result.json`
+- `risk_gateway_result.md`
+- `decision_explainability_result.json`
+- `decision_explainability_result.md`
+- `aggregate_non_live_proof_rollup.md`
+- `GO_NO_GO.md`
+
+The `GO_NO_GO.md` file must contain exactly:
+
+`NON_LIVE_OPERATOR_PROOF_HARNESS_READY`
+
+## Required Proof Scenarios
+
+At minimum, include deterministic fixture scenarios for:
+
+1. safe long paper intent
+2. stale data blocked by risk gateway
+3. duplicate signal blocked
+4. hedge-close residual exposure blocked
+5. LAB-like short squeeze / hedge unwind failure case
+6. paper ledger open, close, reduce, and block events
+7. shadow comparison: legacy action vs V2 decision
+
+## Required Fields
+
+Proof artifacts must include:
+
+- `feature_snapshot_id`
+- `prediction_id`
+- `decision_id`
+- `risk_decision_id`
+- `execution_intent_id`
+- `paper_trade_id` where applicable
+- `shadow_decision_id` where applicable
+- symbol
+- side or direction
+- confidence
+- risk decision
+- block or allow reason
+- paper PnL placeholder or result
+- explanation payload
+- stale, missing, and unused feature flags
+- live gate status
+
+## Required Tests
+
+Add tests verifying:
+
+- CLI runs successfully
+- all required artifacts are emitted
+- GO/NO-GO marker is correct
+- no live, Redis, legacy, or exchange action occurs
+- risk gateway blocks stale data
+- LAB-like hedge unwind case is blocked or reduced
+- paper ledger records non-live events
+- shadow comparison emits legacy-vs-V2 difference
+
+REQ_NON_LIVE_OPERATOR_PROOF_HARNESS_READY
 
 
 Active requirement:
