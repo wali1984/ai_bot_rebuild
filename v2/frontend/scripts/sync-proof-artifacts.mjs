@@ -25,6 +25,7 @@ const artifactSets = [
   'redis_liquidations_full_export',
   'redis_safe_trim_packet',
   'redis_trim_approval_hold',
+  'autonomous_governor_manual_replacement',
   'post_mvp_non_live_gap_audit',
 ];
 
@@ -78,6 +79,11 @@ for (const name of artifactSets) {
       cpSync(resolve(source, file), resolve(target, file));
     }
   } else if (name === 'redis_trim_approval_hold') {
+    mkdirSync(target, { recursive: true });
+    for (const file of ['operator_dashboard_payload.json']) {
+      cpSync(resolve(source, file), resolve(target, file));
+    }
+  } else if (name === 'autonomous_governor_manual_replacement') {
     mkdirSync(target, { recursive: true });
     for (const file of ['operator_dashboard_payload.json']) {
       cpSync(resolve(source, file), resolve(target, file));
