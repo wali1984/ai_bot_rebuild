@@ -55,6 +55,16 @@ import riskControlMeta from './risk-control/meta';
 import riskControlRbac from './risk-control/rbac';
 import riskControlRoute from './risk-control/route';
 
+import ExchangeManagerPage from './exchange-manager';
+import exchangeManagerMeta from './exchange-manager/meta';
+import exchangeManagerRbac from './exchange-manager/rbac';
+import exchangeManagerRoute from './exchange-manager/route';
+
+import ExternalManualPositionQuarantinePage from './external-manual-position-quarantine';
+import externalManualPositionQuarantineMeta from './external-manual-position-quarantine/meta';
+import externalManualPositionQuarantineRbac from './external-manual-position-quarantine/rbac';
+import externalManualPositionQuarantineRoute from './external-manual-position-quarantine/route';
+
 import ConfigAdminPage from './config-admin';
 import configAdminMeta from './config-admin/meta';
 import configAdminRbac from './config-admin/rbac';
@@ -162,6 +172,8 @@ export const PAGES: ReadonlyArray<PageModule> = [
   { meta: executionsMeta, rbac: executionsRbac, route: executionsRoute, Component: ExecutionsPage },
   { meta: positionsMeta, rbac: positionsRbac, route: positionsRoute, Component: PositionsPage },
   { meta: riskControlMeta, rbac: riskControlRbac, route: riskControlRoute, Component: RiskControlPage },
+  { meta: exchangeManagerMeta, rbac: exchangeManagerRbac, route: exchangeManagerRoute, Component: ExchangeManagerPage },
+  { meta: externalManualPositionQuarantineMeta, rbac: externalManualPositionQuarantineRbac, route: externalManualPositionQuarantineRoute, Component: ExternalManualPositionQuarantinePage },
   { meta: configAdminMeta, rbac: configAdminRbac, route: configAdminRoute, Component: ConfigAdminPage },
   { meta: strategyAdminMeta, rbac: strategyAdminRbac, route: strategyAdminRoute, Component: StrategyAdminPage },
   { meta: trainerAdminMeta, rbac: trainerAdminRbac, route: trainerAdminRoute, Component: TrainerAdminPage },

@@ -23,10 +23,9 @@ export function PageShell({ meta, rbac, route }: Props): JSX.Element {
       </header>
       <DangerousControlPanel controlIds={meta.dangerousControlIds} />
       <section className="page-shell__body">
-        <p>
-          Placeholder shell for milestone E. Concrete handlers, repositories, and
-          interactive controls land in later milestones per the V2 implementation
-          sequence.
+        <p className="cockpit-evidence-gap">
+          Evidence missing - this route is registered but needs a dedicated data
+          payload before it can be used for live-readiness decisions.
         </p>
       </section>
     </article>
