@@ -1,0 +1,262 @@
+{
+  "groups": [
+    {
+      "consumers": 1,
+      "entries-read": 254890620,
+      "lag": 0,
+      "last-delivered-id": "1778392914403-0",
+      "name": "liq_levels",
+      "pending": 0
+    }
+  ],
+  "latest_sample": [
+    {
+      "fields": {
+        "ingest_ts": "1778392825561",
+        "notional": "74.43007",
+        "price": "0.09269",
+        "qty": "803.0",
+        "side": "LONG_LIQ",
+        "source": "coinank",
+        "src_id": "DOGEUSDT:1775797620113:LONG_LIQ:0.09269:803.0",
+        "src_key": "raw:coinank:liquidation_orders:global",
+        "symbol": "DOGEUSDT",
+        "ts": "1775797620113"
+      },
+      "id": "1778392825561-11"
+    },
+    {
+      "fields": {
+        "ingest_ts": "1778392825561",
+        "notional": "38580.0279",
+        "price": "82.92",
+        "qty": "463.09",
+        "side": "LONG_LIQ",
+        "source": "coinank",
+        "src_id": "SOLUSDT:1775797620103:LONG_LIQ:82.92:463.09",
+        "src_key": "raw:coinank:liquidation_orders:global",
+        "symbol": "SOLUSDT",
+        "ts": "1775797620103"
+      },
+      "id": "1778392825561-12"
+    },
+    {
+      "fields": {
+        "ingest_ts": "1778392825561",
+        "notional": "36286.634228",
+        "price": "0.0035071",
+        "qty": "10273679.0",
+        "side": "LONG_LIQ",
+        "source": "coinank",
+        "src_id": "1000PEPEUSDT:1775797620103:LONG_LIQ:0.0035071:10273679.0",
+        "src_key": "raw:coinank:liquidation_orders:global",
+        "symbol": "1000PEPEUSDT",
+        "ts": "1775797620103"
+      },
+      "id": "1778392825561-13"
+    },
+    {
+      "fields": {
+        "ingest_ts": "1778392825561",
+        "notional": "0.06104",
+        "price": "0.02992",
+        "qty": "2.0",
+        "side": "LONG_LIQ",
+        "source": "coinank",
+        "src_id": "PIPPINUSDT:1775797595088:LONG_LIQ:0.02992:2.0",
+        "src_key": "raw:coinank:liquidation_orders:global",
+        "symbol": "PIPPINUSDT",
+        "ts": "1775797595088"
+      },
+      "id": "1778392825561-14"
+    },
+    {
+      "fields": {
+        "ingest_ts": "1778392914403",
+        "notional": "3709.445916",
+        "price": "1.06582",
+        "qty": "3566.0",
+        "side": "SHORT_LIQ",
+        "source": "coinank",
+        "src_id": "RAVEUSDT:1775800776364:SHORT_LIQ:1.06582:3566.0",
+        "src_key": "raw:coinank:liquidation_orders:global",
+        "symbol": "RAVEUSDT",
+        "ts": "1775800776364"
+      },
+      "id": "1778392914403-0"
+    }
+  ],
+  "memory_usage_bytes": 13347527519,
+  "memory_usage_mb": 12729.194,
+  "oldest_sample": [
+    {
+      "fields": {
+        "ingest_ts": "1772952007223",
+        "notional": "275.3186835",
+        "price": "14.882091",
+        "qty": "18.5",
+        "side": "LONG_LIQ",
+        "source": "binance",
+        "src_id": "idx:1952:RIVERUSDT:1772945647166:SELL:14.882091:18.5",
+        "src_key": "binance:force:raw",
+        "symbol": "RIVERUSDT",
+        "ts": "1772945647166"
+      },
+      "id": "1772952007223-4"
+    },
+    {
+      "fields": {
+        "ingest_ts": "1772952007223",
+        "notional": "795.7823099999999",
+        "price": "1936.21",
+        "qty": "0.411",
+        "side": "LONG_LIQ",
+        "source": "binance",
+        "src_id": "idx:1953:ETHUSDT:1772945647138:SELL:1936.21:0.411",
+        "src_key": "binance:force:raw",
+        "symbol": "ETHUSDT",
+        "ts": "1772945647138"
+      },
+      "id": "1772952007223-5"
+    },
+    {
+      "fields": {
+        "ingest_ts": "1772952007223",
+        "notional": "933.3982000000001",
+        "price": "66671.3",
+        "qty": "0.014",
+        "side": "LONG_LIQ",
+        "source": "binance",
+        "src_id": "idx:1956:BTCUSDT:1772945646648:SELL:66671.3:0.014",
+        "src_key": "binance:force:raw",
+        "symbol": "BTCUSDT",
+        "ts": "1772945646648"
+      },
+      "id": "1772952007223-6"
+    },
+    {
+      "fields": {
+        "ingest_ts": "1772952007223",
+        "notional": "133.38739999999999",
+        "price": "66693.7",
+        "qty": "0.002",
+        "side": "LONG_LIQ",
+        "source": "binance",
+        "src_id": "idx:1960:BTCUSDT:1772945645615:SELL:66693.7:0.002",
+        "src_key": "binance:force:raw",
+        "symbol": "BTCUSDT",
+        "ts": "1772945645615"
+      },
+      "id": "1772952007223-7"
+    },
+    {
+      "fields": {
+        "ingest_ts": "1772952007223",
+        "notional": "0.3751456",
+        "price": "0.0031792",
+        "qty": "118.0",
+        "side": "LONG_LIQ",
+        "source": "binance",
+        "src_id": "idx:1961:1000PEPEUSDT:1772945645592:SELL:0.0031792:118.0",
+        "src_key": "binance:force:raw",
+        "symbol": "1000PEPEUSDT",
+        "ts": "1772945645592"
+      },
+      "id": "1772952007224-0"
+    }
+  ],
+  "pending": [
+    {
+      "group": "liq_levels",
+      "pending": [
+        0,
+        null,
+        null,
+        null
+      ]
+    }
+  ],
+  "redis_memory": {
+    "config_maxmemory_raw": [
+      "maxmemory",
+      "17179869184"
+    ],
+    "config_policy_raw": [
+      "maxmemory-policy",
+      "allkeys-lru"
+    ],
+    "evicted_keys": 189283,
+    "keyspace": {
+      "db0": "keys=7274,expires=5085,avg_ttl=69740931"
+    },
+    "maxmemory": 17179869184,
+    "maxmemory_human": "16.00G",
+    "maxmemory_policy": "allkeys-lru",
+    "used_memory": 13108843392,
+    "used_memory_human": "12.21G",
+    "used_memory_peak_human": "16.04G"
+  },
+  "stream_info": {
+    "entries-added": 254890620,
+    "first-entry": [
+      "1772952007223-4",
+      [
+        "ts",
+        "1772945647166",
+        "symbol",
+        "RIVERUSDT",
+        "side",
+        "LONG_LIQ",
+        "price",
+        "14.882091",
+        "qty",
+        "18.5",
+        "notional",
+        "275.3186835",
+        "source",
+        "binance",
+        "src_key",
+        "binance:force:raw",
+        "src_id",
+        "idx:1952:RIVERUSDT:1772945647166:SELL:14.882091:18.5",
+        "ingest_ts",
+        "1772952007223"
+      ]
+    ],
+    "groups": 1,
+    "last-entry": [
+      "1778392914403-0",
+      [
+        "ts",
+        "1775800776364",
+        "symbol",
+        "RAVEUSDT",
+        "side",
+        "SHORT_LIQ",
+        "price",
+        "1.06582",
+        "qty",
+        "3566.0",
+        "notional",
+        "3709.445916",
+        "source",
+        "coinank",
+        "src_key",
+        "raw:coinank:liquidation_orders:global",
+        "src_id",
+        "RAVEUSDT:1775800776364:SHORT_LIQ:1.06582:3566.0",
+        "ingest_ts",
+        "1778392914403"
+      ]
+    ],
+    "last-generated-id": "1778392914403-0",
+    "length": 70928809,
+    "max-deleted-entry-id": "0-0",
+    "radix-tree-keys": 2867253,
+    "radix-tree-nodes": 6382715,
+    "recorded-first-entry-id": "1772952007223-4"
+  },
+  "ttl_seconds": -1,
+  "type": "stream",
+  "xlen": 70928809
+}

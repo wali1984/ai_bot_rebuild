@@ -1,0 +1,34 @@
+{
+  "artifacts": [
+    "claude_worklog/final_readiness/redis_memory_human_approval/latest/CODEX_PHASE3E_GO_NO_GO.md",
+    "claude_worklog/final_readiness/redis_memory_human_approval/latest/GO_NO_GO.md",
+    "claude_worklog/final_readiness/redis_memory_human_approval/latest/export_manifest.json",
+    "claude_worklog/final_readiness/redis_memory_human_approval/latest/next_safe_milestone.md",
+    "claude_worklog/final_readiness/redis_memory_human_approval/latest/redis_preflight_evidence.json"
+  ],
+  "forbidden_commands_not_executed": [
+    "DEL",
+    "XDEL",
+    "XTRIM",
+    "SET",
+    "HSET",
+    "XADD",
+    "FLUSHALL",
+    "FLUSHDB",
+    "CONFIG SET",
+    "BGSAVE"
+  ],
+  "generated_at": "2026-05-10T06:25:59.064190+00:00",
+  "read_only_commands": [
+    "redis-cli TYPE liquidations:events",
+    "redis-cli XLEN liquidations:events",
+    "redis-cli MEMORY USAGE liquidations:events SAMPLES 0",
+    "redis-cli XINFO STREAM liquidations:events",
+    "redis-cli XINFO GROUPS liquidations:events",
+    "redis-cli XPENDING liquidations:events <group>",
+    "redis-cli XRANGE liquidations:events - + COUNT 5",
+    "redis-cli XREVRANGE liquidations:events + - COUNT 5",
+    "df -h ."
+  ],
+  "target_key": "liquidations:events"
+}

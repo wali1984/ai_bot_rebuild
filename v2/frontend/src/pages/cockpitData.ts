@@ -252,6 +252,50 @@ export interface RedisMemoryPressurePayload {
   dry_run_actions: Array<Record<string, unknown>>;
 }
 
+export interface RedisHumanApprovalPayload {
+  generated_at: string;
+  live_gate_status: string;
+  go_no_go: string;
+  codex_go_no_go: string;
+  next_safe_milestone: string;
+  target_key: string;
+  redis_mutation_performed: boolean;
+  human_approval_required: boolean;
+  preflight_summary: {
+    type: string;
+    xlen: number;
+    memory_usage_mb: number;
+    used_memory_human?: string;
+    maxmemory_human?: string;
+    maxmemory_policy?: string;
+  };
+  export: {
+    mode: string;
+    complete: boolean;
+    exported_entries: number;
+    stream_length: number;
+    coverage_ratio: number;
+    full_export_blocker: string;
+    chunks: Array<Record<string, unknown>>;
+  };
+  consumer_safety: {
+    status: string;
+    reason: string;
+    pending_total: number;
+    groups: Array<Record<string, unknown>>;
+  };
+  proposed_trim: {
+    preferred_policy: string;
+    preferred_command_do_not_run: string;
+    alternate_policy: string;
+    alternate_command_do_not_run: string;
+    expected_memory_reduction_mb: number;
+    requires_full_export_before_execution: boolean;
+    requires_human_approval: boolean;
+    rollback_limitation: string;
+  };
+}
+
 const cockpitPayloadPath = '/enterprise_trading_cockpit/latest/operator_cockpit_payload.json';
 const quarantinePayloadPath = '/external_manual_position_quarantine/latest/operator_dashboard_payload.json';
 const readonlyDataPlanePayloadPath = '/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json';
@@ -259,6 +303,7 @@ const systemAtlasPayloadPath = '/system_atlas_runtime_coverage/latest/operator_d
 const systemAtlasGapRemediationPayloadPath = '/system_atlas_gap_remediation/latest/operator_dashboard_payload.json';
 const phase3cRuntimeMonitorPayloadPath = '/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json';
 const redisMemoryPressurePayloadPath = '/redis_memory_pressure_remediation/latest/operator_dashboard_payload.json';
+const redisHumanApprovalPayloadPath = '/redis_memory_human_approval/latest/operator_dashboard_payload.json';
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: 'no-store' });
@@ -273,6 +318,7 @@ export function useCockpitPayload(): {
   systemAtlasGapRemediation: SystemAtlasGapRemediationPayload | null;
   phase3cRuntimeMonitor: Phase3cRuntimeMonitorPayload | null;
   redisMemoryPressure: RedisMemoryPressurePayload | null;
+  redisHumanApproval: RedisHumanApprovalPayload | null;
   error: string | null;
 } {
   const [payload, setPayload] = useState<CockpitPayload | null>(null);
@@ -281,6 +327,7 @@ export function useCockpitPayload(): {
   const [systemAtlasGapRemediation, setSystemAtlasGapRemediation] = useState<SystemAtlasGapRemediationPayload | null>(null);
   const [phase3cRuntimeMonitor, setPhase3cRuntimeMonitor] = useState<Phase3cRuntimeMonitorPayload | null>(null);
   const [redisMemoryPressure, setRedisMemoryPressure] = useState<RedisMemoryPressurePayload | null>(null);
+  const [redisHumanApproval, setRedisHumanApproval] = useState<RedisHumanApprovalPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -328,12 +375,19 @@ export function useCockpitPayload(): {
       .catch(() => {
         if (active) setRedisMemoryPressure(null);
       });
+    fetchJson<RedisHumanApprovalPayload>(redisHumanApprovalPayloadPath)
+      .then((next) => {
+        if (active) setRedisHumanApproval(next);
+      })
+      .catch(() => {
+        if (active) setRedisHumanApproval(null);
+      });
     return () => {
       active = false;
     };
   }, []);
 
-  return { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, error };
+  return { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, error };
 }
 
 interface ReadonlyDataPlanePayload {

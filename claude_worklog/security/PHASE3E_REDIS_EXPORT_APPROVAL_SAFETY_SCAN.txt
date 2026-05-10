@@ -1,0 +1,9 @@
+claude_worklog/tools/build_phase3e_redis_export_approval_packet.py:15:ROOT = Path("/home/wali/Desktop/AI BOT REBUILD")
+claude_worklog/tools/build_phase3e_redis_export_approval_packet.py:207:    proposed_command = f"redis-cli XTRIM {KEY} MINID ~ {minid_cutoff}"
+claude_worklog/tools/build_phase3e_redis_export_approval_packet.py:208:    alternate_command = f"redis-cli XTRIM {KEY} MAXLEN ~ {maxlen_target}"
+claude_worklog/final_readiness/redis_memory_human_approval/latest/proposed_redis_trim_command_DO_NOT_RUN.md:8:redis-cli XTRIM liquidations:events MINID ~ 1777183314403-0
+claude_worklog/final_readiness/redis_memory_human_approval/latest/proposed_redis_trim_command_DO_NOT_RUN.md:14:redis-cli XTRIM liquidations:events MAXLEN ~ 5000000
+claude_worklog/final_readiness/redis_memory_human_approval/latest/operator_dashboard_payload.json:71:    "alternate_command_do_not_run": "redis-cli XTRIM liquidations:events MAXLEN ~ 5000000",
+claude_worklog/final_readiness/redis_memory_human_approval/latest/operator_dashboard_payload.json:75:    "preferred_command_do_not_run": "redis-cli XTRIM liquidations:events MINID ~ 1777183314403-0",
+v2/frontend/public/redis_memory_human_approval/latest/operator_dashboard_payload.json:71:    "alternate_command_do_not_run": "redis-cli XTRIM liquidations:events MAXLEN ~ 5000000",
+v2/frontend/public/redis_memory_human_approval/latest/operator_dashboard_payload.json:75:    "preferred_command_do_not_run": "redis-cli XTRIM liquidations:events MINID ~ 1777183314403-0",

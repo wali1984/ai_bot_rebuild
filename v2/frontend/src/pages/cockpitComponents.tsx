@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, Phase3cRuntimeMonitorPayload, QuarantinePayload, RedisMemoryPressurePayload, SettingRow, SystemAtlasGapRemediationPayload, SystemAtlasPayload } from './cockpitData';
+import type { Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, Phase3cRuntimeMonitorPayload, QuarantinePayload, RedisHumanApprovalPayload, RedisMemoryPressurePayload, SettingRow, SystemAtlasGapRemediationPayload, SystemAtlasPayload } from './cockpitData';
 import { statusClass, valueText } from './cockpitData';
 
 export function CockpitLoading({ error }: { error: string | null }): JSX.Element | null {
@@ -407,6 +407,53 @@ export function RedisMemoryPressurePanel({ payload }: { payload: RedisMemoryPres
             {valueText(row.proposed_action)}: {valueText(row.key)} saves approx {valueText(row.estimated_memory_reduction_mb)} MB; approval: {valueText(row.required_approval)}
           </div>
         ))}
+      </div>
+    </Panel>
+  );
+}
+
+export function RedisHumanApprovalPanel({ payload }: { payload: RedisHumanApprovalPayload | null }): JSX.Element {
+  if (!payload) {
+    return (
+      <Panel id="redis-human-approval-packet" title="Redis Export And Human Approval Packet">
+        <p className="cockpit-evidence-gap">Evidence missing - Redis human approval payload unavailable.</p>
+      </Panel>
+    );
+  }
+  return (
+    <Panel id="redis-human-approval-packet" title="Redis Export And Human Approval Packet">
+      <div className="cockpit-analytics-grid">
+        <Metric label="Gate" value={payload.go_no_go} />
+        <Metric label="Codex" value={payload.codex_go_no_go} />
+        <Metric label="Next milestone" value={payload.next_safe_milestone} />
+        <Metric label="Target key" value={payload.target_key} />
+        <Metric label="Memory" value={`${payload.preflight_summary.memory_usage_mb} MB`} />
+        <Metric label="XLEN" value={payload.preflight_summary.xlen} />
+        <Metric label="Export complete" value={payload.export.complete ? 'yes' : 'no'} />
+        <Metric label="Consumer safety" value={payload.consumer_safety.status} />
+      </div>
+      <div className="cockpit-card-grid">
+        <div className="cockpit-evidence-gap">
+          Human approval required before any Redis mutation. Proposed commands are documented for review only and were not executed.
+        </div>
+        <div className="cockpit-exchange-card">
+          <h3>Export Proof</h3>
+          <p>Mode: {payload.export.mode}</p>
+          <p>Entries exported: {payload.export.exported_entries} of {payload.export.stream_length}</p>
+          <p>Coverage: {payload.export.coverage_ratio}</p>
+          <p>{payload.export.full_export_blocker}</p>
+        </div>
+        <div className="cockpit-exchange-card">
+          <h3>Consumer Safety</h3>
+          <p>{payload.consumer_safety.reason}</p>
+          <p>Pending total: {payload.consumer_safety.pending_total}</p>
+        </div>
+        <div className="cockpit-evidence-gap">
+          DO NOT RUN: {payload.proposed_trim.preferred_command_do_not_run}
+        </div>
+        <div className="cockpit-evidence-gap">
+          Alternate DO NOT RUN: {payload.proposed_trim.alternate_command_do_not_run}
+        </div>
       </div>
     </Panel>
   );

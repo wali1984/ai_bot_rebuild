@@ -1,0 +1,29 @@
+{
+  "chunks": [
+    {
+      "bytes": 35326,
+      "duration_seconds": 0.009,
+      "entries": 1000,
+      "first_id": "1772952007223-4",
+      "last_id": "1772952038115-2",
+      "path": "claude_worklog/final_readiness/redis_memory_human_approval/latest/export/liquidations_events_oldest_sample.jsonl.gz",
+      "sha256": "9377f6e762d6a2f777e1c916ab34f36c0ff561122c809551020dfc123d4e1a88"
+    },
+    {
+      "bytes": 27508,
+      "duration_seconds": 0.007,
+      "entries": 1000,
+      "first_id": "1778374816865-4",
+      "last_id": "1778392914403-0",
+      "path": "claude_worklog/final_readiness/redis_memory_human_approval/latest/export/liquidations_events_latest_sample.jsonl.gz",
+      "sha256": "7097eff948d5d63cc8f0348fb546332a28fce23aaf504c4ccff7cd95c5e2b181"
+    }
+  ],
+  "complete": false,
+  "coverage_ratio": 2.82e-05,
+  "exported_entries": 2000,
+  "full_export_blocker": "Full autonomous export was not run: liquidations:events has 70,928,809 entries. Estimated compressed archive is 5.59 GiB and estimated runtime is 118.21 hours. This packet provides bounded export proof and requires a human-approved archive/offload target before a full irreversible-trim prerequisite is satisfied.",
+  "mode": "partial_bounded_export_proof",
+  "source": "liquidations:events",
+  "stream_length": 70928809
+}

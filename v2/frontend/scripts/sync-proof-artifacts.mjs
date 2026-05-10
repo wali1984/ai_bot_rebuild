@@ -20,6 +20,7 @@ const artifactSets = [
   'system_atlas_gap_remediation',
   'phase3c_runtime_monitor_verification',
   'redis_memory_pressure_remediation',
+  'redis_memory_human_approval',
   'post_mvp_non_live_gap_audit',
 ];
 
@@ -48,6 +49,11 @@ for (const name of artifactSets) {
       cpSync(resolve(source, file), resolve(target, file));
     }
   } else if (name === 'redis_memory_pressure_remediation') {
+    mkdirSync(target, { recursive: true });
+    for (const file of ['operator_dashboard_payload.json']) {
+      cpSync(resolve(source, file), resolve(target, file));
+    }
+  } else if (name === 'redis_memory_human_approval') {
     mkdirSync(target, { recursive: true });
     for (const file of ['operator_dashboard_payload.json']) {
       cpSync(resolve(source, file), resolve(target, file));
