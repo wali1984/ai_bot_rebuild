@@ -1,0 +1,18 @@
+{
+  "monitor_log": {
+    "path": "claude_worklog/monitoring/read_only_monitor.log",
+    "verification_command": "wc -c claude_worklog/monitoring/read_only_monitor.log"
+  },
+  "post_monitor_go_no_go": {
+    "path": "claude_worklog/post_monitor/09_V2_BUILD_GO_NO_GO.md",
+    "verification_command": "cat claude_worklog/post_monitor/09_V2_BUILD_GO_NO_GO.md"
+  },
+  "snapshots": {
+    "path": "claude_worklog/monitoring/snapshots.jsonl",
+    "verification_command": "python3 - <<'PY'\\nfrom pathlib import Path\\nprint(len(Path('claude_worklog/monitoring/snapshots.jsonl').read_text().splitlines()))\\nPY"
+  },
+  "trainer_metrics": {
+    "path": "claude_worklog/monitoring/trainer_metrics.jsonl",
+    "verification_command": "python3 - <<'PY'\\nfrom pathlib import Path\\nprint(len(Path('claude_worklog/monitoring/trainer_metrics.jsonl').read_text().splitlines()))\\nPY"
+  }
+}

@@ -18,6 +18,7 @@ const artifactSets = [
   'readonly_market_exchange_data_plane',
   'system_atlas_runtime_coverage',
   'system_atlas_gap_remediation',
+  'phase3c_runtime_monitor_verification',
   'post_mvp_non_live_gap_audit',
 ];
 
@@ -36,6 +37,11 @@ for (const name of artifactSets) {
       cpSync(resolve(source, file), resolve(target, file));
     }
   } else if (name === 'system_atlas_gap_remediation') {
+    mkdirSync(target, { recursive: true });
+    for (const file of ['operator_dashboard_payload.json']) {
+      cpSync(resolve(source, file), resolve(target, file));
+    }
+  } else if (name === 'phase3c_runtime_monitor_verification') {
     mkdirSync(target, { recursive: true });
     for (const file of ['operator_dashboard_payload.json']) {
       cpSync(resolve(source, file), resolve(target, file));

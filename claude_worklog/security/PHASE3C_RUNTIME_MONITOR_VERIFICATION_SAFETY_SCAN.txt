@@ -1,0 +1,2 @@
+claude_worklog/tools/build_phase3c_runtime_monitor_verification.py:11:ROOT = Path("/home/wali/Desktop/AI BOT REBUILD")
+claude_worklog/tools/build_phase3c_runtime_monitor_verification.py:89:    critical_log_terms = [term for term in ["Traceback", "CRITICAL", "FATAL", "PermissionError", "Redis write", "create_order", "cancel_order"] if term in log_text]

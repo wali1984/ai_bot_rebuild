@@ -1,0 +1,17 @@
+{
+  "duration_hours": 200.95,
+  "phase3a_placeholder_status": {
+    "allowed_write_dir": "claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/runtime_monitor",
+    "generated_at": "2026-05-10T03:05:07.454277+00:00",
+    "live_gate_status": "blocked_human_only",
+    "monitor_completed_12h": false,
+    "monitor_prepared": true,
+    "monitor_started": false,
+    "status": "prepared_not_run"
+  },
+  "read_only_monitor_log_exists": true,
+  "snapshot_count": 11755,
+  "snapshots_exists": true,
+  "trainer_metric_count": 11755,
+  "trainer_metrics_exists": true
+}

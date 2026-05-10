@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, QuarantinePayload, SettingRow, SystemAtlasGapRemediationPayload, SystemAtlasPayload } from './cockpitData';
+import type { Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, Phase3cRuntimeMonitorPayload, QuarantinePayload, SettingRow, SystemAtlasGapRemediationPayload, SystemAtlasPayload } from './cockpitData';
 import { statusClass, valueText } from './cockpitData';
 
 export function CockpitLoading({ error }: { error: string | null }): JSX.Element | null {
@@ -322,6 +322,49 @@ export function SystemAtlasGapRemediationPanel({ payload }: { payload: SystemAtl
           <div className="cockpit-evidence-gap" key={gap}>{gap}</div>
         ))}
         {blockers.length === 0 ? <div className="cockpit-evidence-gap">No Phase 3B blockers recorded.</div> : null}
+      </div>
+    </Panel>
+  );
+}
+
+export function Phase3cRuntimeMonitorPanel({ payload }: { payload: Phase3cRuntimeMonitorPayload | null }): JSX.Element {
+  if (!payload) {
+    return (
+      <Panel id="phase3c-runtime-monitor-verification" title="Phase 3C Runtime Monitor Verification">
+        <p className="cockpit-evidence-gap">Evidence missing - Phase 3C runtime monitor payload unavailable.</p>
+      </Panel>
+    );
+  }
+  return (
+    <Panel id="phase3c-runtime-monitor-verification" title="Phase 3C Runtime Monitor Verification">
+      <div className="cockpit-analytics-grid">
+        <Metric label="Gate" value={payload.go_no_go} />
+        <Metric label="Codex" value={payload.codex_go_no_go} />
+        <Metric label="Next milestone" value={payload.next_safe_milestone} />
+        <Metric label="Duration hours" value={payload.counts.duration_hours} />
+        <Metric label="Snapshots" value={payload.counts.snapshot_count} />
+        <Metric label="Trainer metrics" value={payload.counts.trainer_metric_count} />
+        <Metric label="Redis max memory" value={`${payload.counts.redis_memory_max_pct}%`} />
+        <Metric label="Blocking gaps" value={payload.counts.blocking_gap_count} />
+      </div>
+      <div className="cockpit-card-grid">
+        <div className="cockpit-exchange-card">
+          <h3>Runtime Window</h3>
+          <p>First snapshot: {valueText(payload.latest.first_snapshot_ts)}</p>
+          <p>Last snapshot: {valueText(payload.latest.last_snapshot_ts)}</p>
+          <p>Trainer latest: {valueText(payload.latest.latest_trainer_status)}</p>
+          <p>Publish surface: {valueText(payload.latest.publish_surface_liveness)}</p>
+        </div>
+        <div className="cockpit-exchange-card">
+          <h3>Lineage Snapshot</h3>
+          <p>Executed analysis: {valueText(payload.latest.executed_analysis)}</p>
+          <p>Attribution: {valueText(payload.latest.attribution_completeness)}</p>
+        </div>
+        {payload.gaps.slice(0, 12).map((gap) => (
+          <div className="cockpit-evidence-gap" key={`${gap.gap}-${gap.evidence}`}>
+            {gap.severity}: {gap.gap} ({gap.evidence})
+          </div>
+        ))}
       </div>
     </Panel>
   );

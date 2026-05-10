@@ -188,11 +188,45 @@ export interface SystemAtlasGapRemediationPayload {
   artifact_paths: Record<string, string>;
 }
 
+export interface Phase3cRuntimeMonitorPayload {
+  generated_at: string;
+  live_gate_status: string;
+  go_no_go: string;
+  codex_go_no_go: string;
+  next_safe_milestone: string;
+  counts: {
+    snapshot_count: number;
+    trainer_metric_count: number;
+    duration_hours: number;
+    monitor_log_bytes: number;
+    redis_memory_max_pct: number;
+    redis_memory_avg_pct: number;
+    trainer_critical_count: number;
+    trainer_degraded_count: number;
+    blocking_gap_count: number;
+  };
+  latest: {
+    first_snapshot_ts: string | null;
+    last_snapshot_ts: string | null;
+    latest_trainer_status: string | null;
+    prediction_worker_alive: boolean | null;
+    publish_surface_liveness: string | null;
+    redis_memory: Record<string, unknown>;
+    executed_analysis: Record<string, unknown>;
+    attribution_completeness: Record<string, unknown>;
+    feature_freshness_status_counts: Record<string, unknown>;
+    post_monitor_go_no_go: string;
+    phase3a_monitor_status: Record<string, unknown>;
+  };
+  gaps: Array<{ gap: string; severity: string; evidence: string }>;
+}
+
 const cockpitPayloadPath = '/enterprise_trading_cockpit/latest/operator_cockpit_payload.json';
 const quarantinePayloadPath = '/external_manual_position_quarantine/latest/operator_dashboard_payload.json';
 const readonlyDataPlanePayloadPath = '/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json';
 const systemAtlasPayloadPath = '/system_atlas_runtime_coverage/latest/operator_dashboard_payload.json';
 const systemAtlasGapRemediationPayloadPath = '/system_atlas_gap_remediation/latest/operator_dashboard_payload.json';
+const phase3cRuntimeMonitorPayloadPath = '/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json';
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: 'no-store' });
@@ -205,12 +239,14 @@ export function useCockpitPayload(): {
   quarantine: QuarantinePayload | null;
   systemAtlas: SystemAtlasPayload | null;
   systemAtlasGapRemediation: SystemAtlasGapRemediationPayload | null;
+  phase3cRuntimeMonitor: Phase3cRuntimeMonitorPayload | null;
   error: string | null;
 } {
   const [payload, setPayload] = useState<CockpitPayload | null>(null);
   const [quarantine, setQuarantine] = useState<QuarantinePayload | null>(null);
   const [systemAtlas, setSystemAtlas] = useState<SystemAtlasPayload | null>(null);
   const [systemAtlasGapRemediation, setSystemAtlasGapRemediation] = useState<SystemAtlasGapRemediationPayload | null>(null);
+  const [phase3cRuntimeMonitor, setPhase3cRuntimeMonitor] = useState<Phase3cRuntimeMonitorPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -244,12 +280,19 @@ export function useCockpitPayload(): {
       .catch(() => {
         if (active) setSystemAtlasGapRemediation(null);
       });
+    fetchJson<Phase3cRuntimeMonitorPayload>(phase3cRuntimeMonitorPayloadPath)
+      .then((next) => {
+        if (active) setPhase3cRuntimeMonitor(next);
+      })
+      .catch(() => {
+        if (active) setPhase3cRuntimeMonitor(null);
+      });
     return () => {
       active = false;
     };
   }, []);
 
-  return { payload, quarantine, systemAtlas, systemAtlasGapRemediation, error };
+  return { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, error };
 }
 
 interface ReadonlyDataPlanePayload {
