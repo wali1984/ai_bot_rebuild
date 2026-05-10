@@ -10,12 +10,9 @@
   "codex": {
     "status": "acting_governor_active"
   },
-  "generated_at": "2026-05-10T23:27:34.138746+00:00",
+  "generated_at": "2026-05-10T23:34:08.540794+00:00",
   "ollama_local_tools": {
     "status": "draft_evidence_helper_available"
   },
-  "processes": [
-    "2287160 1014838 0 /bin/bash -c python3 claude_worklog/tools/autonomous_governor_status.py 2>/tmp/autonomous_governor_status.err; rc=$?; cat /tmp/autonomous_governor_status.err; exit $rc",
-    "2287161 2287160 0 python3 claude_worklog/tools/autonomous_governor_status.py"
-  ]
+  "processes": []
 }

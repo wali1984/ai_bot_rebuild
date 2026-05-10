@@ -1,6 +1,6 @@
 {
   "active_task": null,
-  "active_task_pid": 2284630,
+  "active_task_pid": null,
   "active_task_pid_alive": false,
   "allowed_codex_takeover_work": [
     "read-only milestone review",
@@ -14,7 +14,7 @@
   "claude_lane": "paused_rate_limited",
   "codex_takeover_active": true,
   "current_autonomous_decision": "Claude rate limit is a resource-routing event; Codex acting-governor owns safe non-live work until reset.",
-  "current_codex_task": "create Codex parallel review batch",
+  "current_codex_task": "Codex takeover: review/remediate safe non-live blockers until Claude quota reset",
   "current_next_safe_milestone": "CODEX_ACTING_GOVERNOR_CONTINUE_SAFE_NON_LIVE_WORK_UNTIL_CLAUDE_RESET",
   "current_ollama_local_evidence_task": "DRAFT_ONLY_REQUIRES_CLAUDE_OR_CODEX_VERIFICATION evidence packet preparation",
   "forbidden_actions": [
@@ -26,24 +26,25 @@
     "live trading enablement",
     "secret exposure"
   ],
-  "generated_at": "2026-05-10T23:27:34.126538+00:00",
-  "git_head": "4ebb540 Add Codex parallel review batch results",
+  "generated_at": "2026-05-10T23:34:08.527646+00:00",
+  "git_head": "d8267cf Dispatch 069C through Codex takeover",
   "go_no_go": "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF_READY",
   "handoff_back_to_claude_condition": "quota probe reports ready, git is clean, and no active Codex child is running",
   "human_input_required": "NO unless selected task is final live/capital gate",
   "live_gate_status": "blocked_human_only",
   "marker": "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF_READY",
-  "next_pending_task": "069C_decision_lineage_dashboard_payload_integration",
-  "next_safe_codex_task": "create Codex parallel review batch",
+  "069b_final_readiness_aliases_present": true,
+  "069b_status": "completed_aliased",
+  "069c_dispatch_status": "completed",
+  "next_pending_task": "069D_decision_lineage_validation_and_codex_review_packet",
+  "next_safe_codex_task": "Codex takeover: review/remediate safe non-live blockers until Claude quota reset",
   "ollama_evidence_helper_active": true,
-  "processes": [
-    "2287160 1014838 0 /bin/bash -c python3 claude_worklog/tools/autonomous_governor_status.py 2>/tmp/autonomous_governor_status.err; rc=$?; cat /tmp/autonomous_governor_status.err; exit $rc",
-    "2287161 2287160 0 python3 claude_worklog/tools/autonomous_governor_status.py"
-  ],
+  "processes": [],
   "quota": {
     "path": "claude_worklog/quota/CLAUDE_CODE_QUOTA_STATUS.md",
     "reset_hint": "You've hit your limit \u00b7 resets 1am (America/New_York)",
     "state": "blocked_or_limited"
   },
-  "redis_trim_approval_present": false
+  "redis_trim_approval_present": false,
+  "redis_trim_state": "deferred_non_blocking"
 }
