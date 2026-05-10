@@ -22,7 +22,7 @@
     "Redis mutation without exact approval",
     "secret exposure"
   ],
-  "generated_at": "2026-05-10T21:01:12.695125+00:00",
+  "generated_at": "2026-05-10T21:03:22.634336+00:00",
   "next_milestone": "continue_safe_non_live_queue_until_final_live_gate",
   "next_pending_task": "069B_decision_lineage_evidence_packet_builder",
   "priority": 1,

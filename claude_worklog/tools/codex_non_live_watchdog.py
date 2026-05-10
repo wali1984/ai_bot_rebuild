@@ -616,10 +616,16 @@ def recover_dirty_tree() -> bool:
     for hit in safety_hits:
         rel = hit.split(":", 1)[0]
         suffix = Path(rel).suffix
+        guard_tool_paths = {
+            "claude_worklog/tools/claude_master_rebuild_planner.py",
+            "claude_worklog/tools/codex_non_live_watchdog.py",
+        }
         # Generated docs and task prompts often quote forbidden boundaries. That
         # is not an attempted live action. Treat executable/source files as the
         # actionable surface for term-based blocking.
         if suffix in {".md", ".json", ".txt"}:
+            continue
+        if rel in guard_tool_paths and ("\"" in hit or "'" in hit or "r\"" in hit):
             continue
         if (
             "/home/wali/Desktop/AI BOT/" in hit

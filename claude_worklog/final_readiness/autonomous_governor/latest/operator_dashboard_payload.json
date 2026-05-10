@@ -3,9 +3,9 @@
   "current_selected_next_task": "197_phase2z_degraded_state_fail_closed_gates_domain_implementation",
   "dashboard_updated": true,
   "final_live_gate_hard_stop": true,
-  "generated_at": "2026-05-10T21:01:12.712327+00:00",
-  "git_clean_ignoring_generated_outputs": true,
-  "git_head": "873bc42 Add autonomous governor live-gate control plane",
+  "generated_at": "2026-05-10T21:03:22.650795+00:00",
+  "git_clean_ignoring_generated_outputs": false,
+  "git_head": "1235e12 Add autonomous governor live-gate control plane",
   "go_no_go": "AUTONOMOUS_GOVERNOR_REPLACES_MANUAL_COPILOT_UNTIL_LIVE_GATE_READY",
   "human_input_required": "NO unless selected task is final live gate",
   "marker": "AUTONOMOUS_GOVERNOR_REPLACES_MANUAL_COPILOT_UNTIL_LIVE_GATE_READY",
@@ -33,7 +33,7 @@
       "Redis mutation without exact approval",
       "secret exposure"
     ],
-    "generated_at": "2026-05-10T21:01:12.695125+00:00",
+    "generated_at": "2026-05-10T21:03:22.634336+00:00",
     "next_milestone": "continue_safe_non_live_queue_until_final_live_gate",
     "next_pending_task": "069B_decision_lineage_evidence_packet_builder",
     "priority": 1,
@@ -70,7 +70,9 @@
   },
   "non_live_approvals_now_non_blocking": true,
   "ollama_helper_policy_ready": true,
-  "processes": [],
+  "processes": [
+    "2231188 1029421 87 python3 claude_worklog/tools/claude_master_rebuild_planner.py --daemon --poll-seconds 120"
+  ],
   "queue": {
     "current_running_task": "197_phase2z_degraded_state_fail_closed_gates_domain_implementation",
     "final_live_gate_required_count": 0,

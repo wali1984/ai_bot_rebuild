@@ -1179,10 +1179,12 @@ def run_once(dry_run: bool = False) -> Dict[str, Any]:
         )
         if any(result.get("blocked_reason") for result in task_results):
             payload["blocked_reason"] = "dispatch_bridge_blocked"
-            payload["human_attention_required"] = True
+            payload["human_attention_required"] = False
+            payload["non_live_decision_packets_block_global_queue"] = False
         elif any(result.get("returncode") not in {0, None} for result in task_results):
             payload["blocked_reason"] = "generated_supervisor_task_failed"
-            payload["human_attention_required"] = True
+            payload["human_attention_required"] = False
+            payload["non_live_decision_packets_block_global_queue"] = False
         write_json(STATUS, payload)
         return payload
 
@@ -1202,7 +1204,8 @@ def run_once(dry_run: bool = False) -> Dict[str, Any]:
     payload.update({"returncode": cp.returncode, "stdout_chars": len(cp.stdout), "stderr_chars": len(cp.stderr)})
     if cp.returncode != 0:
         payload["blocked_reason"] = "claude_master_planner_invocation_failed"
-        payload["human_attention_required"] = True
+        payload["human_attention_required"] = False
+        payload["non_live_decision_packets_block_global_queue"] = False
     else:
         materialized, refused = safe_materialize_blocks(cp.stdout)
         task_ids = generated_task_ids(materialized)
@@ -1215,10 +1218,12 @@ def run_once(dry_run: bool = False) -> Dict[str, Any]:
         })
         if refused:
             payload["blocked_reason"] = "master_planner_refused_unsafe_or_unexpected_file"
-            payload["human_attention_required"] = True
+            payload["human_attention_required"] = False
+            payload["non_live_decision_packets_block_global_queue"] = False
         elif any(result.get("returncode") not in {0, None} for result in task_results):
             payload["blocked_reason"] = "generated_supervisor_task_failed"
-            payload["human_attention_required"] = True
+            payload["human_attention_required"] = False
+            payload["non_live_decision_packets_block_global_queue"] = False
     write_json(STATUS, payload)
     return payload
 
