@@ -27,6 +27,7 @@ const artifactSets = [
   'redis_trim_approval_hold',
   'autonomous_governor_manual_replacement',
   'autonomous_governor',
+  'claude_rate_limit_codex_takeover',
   'post_mvp_non_live_gap_audit',
 ];
 
@@ -90,6 +91,11 @@ for (const name of artifactSets) {
       cpSync(resolve(source, file), resolve(target, file));
     }
   } else if (name === 'autonomous_governor') {
+    mkdirSync(target, { recursive: true });
+    for (const file of ['operator_dashboard_payload.json']) {
+      cpSync(resolve(source, file), resolve(target, file));
+    }
+  } else if (name === 'claude_rate_limit_codex_takeover') {
     mkdirSync(target, { recursive: true });
     for (const file of ['operator_dashboard_payload.json']) {
       cpSync(resolve(source, file), resolve(target, file));

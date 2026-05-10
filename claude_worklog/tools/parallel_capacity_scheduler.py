@@ -243,7 +243,16 @@ def quota_status() -> dict[str, Any]:
         state = "blocked_or_limited"
     else:
         state = "unknown"
-    return {"state": state, "path": str(path.relative_to(WORKSPACE))}
+    reset_hint = None
+    match = re.search(r"resets\s+([0-9]{1,2}(?::[0-9]{2})?\s*(?:am|pm))", text, re.IGNORECASE)
+    if match:
+        reset_hint = f"{match.group(1)} America/New_York"
+    return {"state": state, "path": str(path.relative_to(WORKSPACE)), "reset_hint": reset_hint}
+
+
+def stop_service(session: str) -> None:
+    if tmux_running(session):
+        run(["tmux", "kill-session", "-t", session])
 
 
 def review_task_exists(marker: str) -> bool:
@@ -491,11 +500,15 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
     human_attention = latest_human_attention_task()
     codex_review_batch_counts = codex_review_counts()
     codex_batch_active = codex_review_batch_active(codex_review_batch_counts)
+    quota = quota_status()
+    claude_rate_limited = quota.get("state") == "blocked_or_limited"
 
     available_work: list[str] = []
     next_safe_codex_task: str | None = None
     actions: list[dict[str, Any]] = []
 
+    if claude_rate_limited:
+        available_work.append("Claude rate-limited: Codex temporary takeover for safe non-live work")
     if human_attention:
         available_work.append(f"recover human_attention_required task {human_attention}")
     if fail_marker:
@@ -509,7 +522,7 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
 
     if claude_children:
         claude_lane = "active"
-    elif quota_status().get("state") == "blocked_or_limited":
+    elif claude_rate_limited:
         claude_lane = "blocked_quota"
     elif planner_running:
         claude_lane = "planner_waiting"
@@ -520,7 +533,9 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
     codex_review_lane = "active" if codex_children else "idle"
     codex_autofix_lane = "available" if (human_attention or fail_marker) and not codex_children else "idle"
 
-    if claude_children and git_status:
+    if claude_rate_limited and not codex_children:
+        next_safe_codex_task = "Codex takeover: review/remediate safe non-live blockers until Claude quota reset"
+    elif claude_children and git_status:
         next_safe_codex_task = "read-only review already committed milestone; do not patch dirty current work"
     elif not claude_children and git_status:
         next_safe_codex_task = "run Codex watchdog dirty-tree recovery"
@@ -536,6 +551,10 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
         next_safe_codex_task = f"queue read-only review for {latest_milestone.get('marker')}"
 
     if enable_actions:
+        if claude_rate_limited and planner_running:
+            stop_service(PLANNER_SESSION)
+            actions.append({"action": "paused_master_planner_for_claude_rate_limit", "reset_hint": quota.get("reset_hint")})
+            planner_running = False
         if not watchdog_running:
             start_service("start_codex_non_live_watchdog.sh")
             actions.append({"action": "started_codex_watchdog"})
@@ -580,10 +599,14 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
         git_status = git_status_lines()
         git_clean = not git_status
 
-        if git_clean and not planner_running and not active_claude_children():
+        quota = quota_status()
+        claude_rate_limited = quota.get("state") == "blocked_or_limited"
+        if git_clean and not planner_running and not active_claude_children() and not claude_rate_limited:
             start_service("start_claude_master_rebuild_planner.sh")
             actions.append({"action": "started_master_planner"})
             planner_running = True
+        elif git_clean and not planner_running and claude_rate_limited:
+            actions.append({"action": "deferred_master_planner_start_until_claude_quota_reset", "reset_hint": quota.get("reset_hint")})
 
     status = {
         "generated_at": generated_at,
@@ -608,7 +631,11 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
         "running_codex_review_count": codex_review_batch_counts["running"],
         "completed_codex_review_count_this_window": codex_review_batch_counts["completed_this_window"],
         "blocked_codex_review_count_this_window": codex_review_batch_counts["blocked_this_window"],
-        "quota_probe": quota_status(),
+        "quota_probe": quota,
+        "claude_rate_limited": claude_rate_limited,
+        "codex_takeover_active": claude_rate_limited,
+        "codex_takeover_reason": "Claude Code quota blocked; safe non-live work continues through Codex/Ollama lanes." if claude_rate_limited else None,
+        "handoff_back_to_claude_condition": "quota_probe.state == ready and git_clean and no active Codex child",
         "current_mvp_milestone": mvp.get("current_mvp_milestone"),
         "next_mvp_milestone": mvp.get("next_mvp_milestone"),
         "active_lane": mvp.get("active_lane"),
