@@ -1,73 +1,67 @@
 {
-  "allowed_actions": [
-    "create safe non-live task JSON",
-    "run Claude/Codex/Ollama through supervisor",
-    "validate, commit, push safe V2 artifacts",
-    "create non-blocking decision packets"
-  ],
-  "blocked_validation": null,
-  "codex_review_criteria": [
-    "hidden live path",
-    "fake-ready marker",
-    "missing tests",
-    "Redis/exchange mutation",
-    "stale dashboard payload",
-    "lineage/evidence gaps"
-  ],
+  "generated_at": "2026-05-11T07:06:30+00:00",
+  "selected_task_id": "claude_primary_online_readiness_build_with_codex_parallel_audit",
+  "parallel_codex_task_id": "codex_parallel_audit_online_readiness_build",
+  "safety_classification": "non_live_autonomous",
+  "priority": 0,
+  "why_selected": "Claude quota is ready and the corrected objective is online-readiness, not UI-only polish or unrelated review drift.",
+  "next_milestone": "CLAUDE_PRIMARY_ONLINE_READINESS_BUILD_WITH_CODEX_PARALLEL_AUDIT_AND_UI_POLISH_READY",
+  "redis_decision": "phase3h_deferred_non_blocking_no_trim_approval",
   "current_task": null,
+  "blocked_validation": null,
+  "allowed_actions": [
+    "safe non-live V2 code/build/test/doc changes inside AI BOT REBUILD",
+    "read-only legacy/runtime evidence inspection",
+    "V2 data-plane and audit-ledger implementation",
+    "trainer/model/feature preservation and wrapping",
+    "enterprise GUI integration in parallel",
+    "Codex parallel review/audit artifacts"
+  ],
   "forbidden_actions": [
-    "live trading enablement",
+    "modify /home/wali/Desktop/AI BOT",
+    "write/delete/trim Redis without exact approval",
+    "create Redis trim approval file",
+    "restart live services",
     "real exchange order/cancel/close",
     "real leverage/margin/position-mode changes",
-    "legacy bot mutation",
-    "Redis mutation without exact approval",
+    "activate live keys",
+    "enable live trading",
     "secret exposure"
   ],
-  "generated_at": "2026-05-11T05:47:10.055752+00:00",
-  "next_milestone": "continue_safe_non_live_queue_until_final_live_gate",
-  "next_pending_task": "claude_primary_enterprise_ui_polish_remove_legacy_chart",
-  "priority": 1,
-  "redis_decision": "phase3h_deferred_continue_safe_work",
-  "remediation_task_created": false,
-  "safety_classification": "non_live_autonomous",
-  "selected_task_id": "claude_primary_enterprise_ui_polish_remove_legacy_chart",
   "why_higher_priority_items_are_not_selected": [
     {
       "item": "final_live_gate",
       "priority": 0,
-      "reason": "human-only real capital boundary",
-      "selected": false
+      "selected": false,
+      "reason": "human-only real capital boundary; not requested and still blocked_human_only"
     },
     {
-      "item": "claude_rate_limit",
+      "item": "redis_trim",
       "priority": 0,
-      "reason": "Codex takeover while Claude quota is blocked",
-      "selected": false
+      "selected": false,
+      "reason": "no exact trim approval file; deferred and non-blocking"
     },
     {
-      "item": "stale_fake_running_recovery",
-      "priority": 0,
-      "reason": "task liveness safety",
-      "selected": false
-    },
-    {
-      "item": "fresh_blocked_validation_remediation",
+      "item": "ui_only_polish",
       "priority": 1,
-      "reason": "no fresh blocked validation result",
-      "selected": false
+      "selected": false,
+      "reason": "enterprise UI polish recovered; broader online-readiness now takes precedence"
     },
     {
-      "item": "redis_memory_path",
-      "priority": 1,
-      "reason": "REDIS_EXPORT_BACKUP_DURABILITY_REVIEW_REQUIRED",
-      "selected": true
-    },
-    {
-      "item": "v2_data_plane_independence",
+      "item": "032_codex_review_symbol_universe_usdm_correction",
       "priority": 2,
-      "reason": "continues through queue after active task/redis decision handling",
-      "selected": false
+      "selected": false,
+      "reason": "safe but lower priority than current online-readiness objective"
     }
   ],
-  "why_selected": "Redis trim approval is absent; leave Phase 3H as a non-blocking decision packet and continue safe V2 work."
+  "codex_review_criteria": [
+    "hidden live path",
+    "legacy mutation",
+    "Redis mutation risk",
+    "runtime evidence gaps",
+    "trainer/model/feature preservation gaps",
+    "stale/fake-ready markers",
+    "dashboard truthfulness",
+    "Codex parallel audit actually active"
+  ]
 }

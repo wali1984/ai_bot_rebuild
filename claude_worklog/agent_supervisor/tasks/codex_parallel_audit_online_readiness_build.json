@@ -1,0 +1,21 @@
+{
+  "task_id": "codex_parallel_audit_online_readiness_build",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/online_readiness_codex_audit/latest/"
+  ],
+  "required_output_files": [
+    "claude_worklog/final_readiness/online_readiness_codex_audit/latest/CODEX_ONLINE_READINESS_PARALLEL_AUDIT.md",
+    "claude_worklog/final_readiness/online_readiness_codex_audit/latest/CODEX_GO_NO_GO.md"
+  ],
+  "priority": 2590,
+  "lane": "online_readiness_audit",
+  "mvp_relevance": "Codex must run extensively in parallel as reviewer/auditor while Claude is primary builder for online-readiness.",
+  "blocked_by": [],
+  "prompt": "You are Codex parallel auditor for the safe non-live V2 online-readiness lane. Do not modify source code. Do not touch /home/wali/Desktop/AI BOT. Do not write/delete/trim Redis. Do not create Redis trim approval files. Do not restart live services. Do not place/cancel/modify exchange orders. Do not change leverage, margin, or position mode. Do not enable live trading. Work only inside AI BOT REBUILD. Human input is required only for final live/capital gate.\n\nAudit current state while Claude primary build proceeds or is about to proceed. Inspect final_readiness markers, queue/current status, autonomous_governor selection, Phase 3 Redis blockers, decision-lineage 069 chain, readonly market/exchange data-plane, trainer lineage/readiness, v2 backend/frontend safety boundaries, and recent commits. Challenge: queue drift into UI-only work; stale/fake-ready markers; hidden live paths; Redis mutation risk; old legacy bot mutation; missing runtime evidence; trainer/model/feature preservation gaps; Codex not actually running in parallel; dashboard not showing true blockers.\n\nEmit exactly two BEGIN_FILE blocks under claude_worklog/final_readiness/online_readiness_codex_audit/latest/. CODEX_GO_NO_GO.md must contain exactly one line: CODEX_ONLINE_READINESS_PARALLEL_AUDIT_PASS or CODEX_ONLINE_READINESS_PARALLEL_AUDIT_FAIL.",
+  "next_recommended_action": "If PASS, continue Claude primary online-readiness build. If FAIL, create remediation task for the highest-risk finding before unrelated queue work."
+}
