@@ -1,0 +1,46 @@
+{
+  "component": "codex_parallel_audit_plan",
+  "exchange_mutation": "none",
+  "generated_at": "2026-05-11T07:45:58.228145+00:00",
+  "go_no_go": "CODEX_PARALLEL_AUDIT_PLAN_READY",
+  "human_input_required": "false_unless_final_live_capital_gate",
+  "latest_codex_reviews": [
+    "online_readiness_aggregator_pass",
+    "online_readiness_frontend_rereview_pass",
+    "broad_online_readiness_audit_fail_carried"
+  ],
+  "legacy_mutation": "none",
+  "live_gate_status": "blocked_human_only",
+  "redis_mutation": "none",
+  "redis_trim": "deferred_non_blocking",
+  "tasks": [
+    {
+      "focus": "TradingView primary, fallback-only old chart, no placeholder pages",
+      "task_id": "codex_review_enterprise_ui_polish_quality"
+    },
+    {
+      "focus": "real legacy runtime data, no Redis writes, truthful gaps",
+      "task_id": "codex_review_realtime_monitor_coverage"
+    },
+    {
+      "focus": "bounded Redis, durable storage, no legacy writes",
+      "task_id": "codex_review_v2_data_plane_independence"
+    },
+    {
+      "focus": "stale/missing attribution, leverage/margin, kill switch",
+      "task_id": "codex_review_risk_gateway_degraded_state_fail_closed"
+    },
+    {
+      "focus": "prediction_id, feature_snapshot_id, checkpoint, confidence, freshness",
+      "task_id": "codex_review_trainer_prediction_explainability"
+    },
+    {
+      "focus": "no unsafe_unknown or unmapped exchange/Redis/runtime regressions",
+      "task_id": "codex_review_system_atlas_delta"
+    },
+    {
+      "focus": "fixture vs continuous runtime separation and PnL assumptions",
+      "task_id": "codex_review_paper_shadow_replay_truthfulness"
+    }
+  ]
+}

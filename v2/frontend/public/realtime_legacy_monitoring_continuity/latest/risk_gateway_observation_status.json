@@ -1,0 +1,14 @@
+{
+  "adjust_leverage_rows": 0,
+  "exchange_mutation": "none",
+  "fail_closed_required": true,
+  "generated_at": "2026-05-11T07:45:58.228145+00:00",
+  "human_input_required": "false_unless_final_live_capital_gate",
+  "legacy_mutation": "none",
+  "leverage_observations": "high_leverage_pos_ge_25=84",
+  "live_gate_status": "blocked_human_only",
+  "margin_mode_observations": "cross_margin_pos_before_hits=397",
+  "redis_mutation": "none",
+  "redis_trim": "deferred_non_blocking",
+  "risk_rejects_skips": "available_if_present_in_phase3c_snapshots"
+}
