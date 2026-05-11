@@ -19,7 +19,7 @@ Routes to check:
 - `/` redirects to `/admin/mission-control?role=admin` so the default browser route opens the real admin Mission Control cockpit.
 - `/admin/mission-control?role=admin` shows the same cockpit inside the admin shell.
 - `/admin` redirects to `/admin/mission-control?role=admin`.
-- `/public-landing` keeps the public shell route available for comparison only; it is no longer the default route.
+- `/landing` keeps the public shell route available for comparison only; it is no longer the default route.
 
 If the browser still shows an older UI:
 

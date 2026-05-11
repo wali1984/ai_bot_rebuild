@@ -12,7 +12,7 @@ The React route registry mapped `/` through `public-landing/route.ts`, so openin
 
 - Added an explicit root redirect in `v2/frontend/src/router.tsx`.
 - Updated `/admin` and wildcard redirects to preserve `?role=admin`.
-- Moved `public-landing` from `/` to `/public-landing` so there is no root route collision.
+- Moved `public-landing` from `/` to `/landing` so there is no root route collision.
 - Updated `v2/frontend/README_LOCAL_UI.md`.
 - Hardened `TradingViewWidget` initialization so React StrictMode does not remove the embed script container before the external TradingView script runs.
 
