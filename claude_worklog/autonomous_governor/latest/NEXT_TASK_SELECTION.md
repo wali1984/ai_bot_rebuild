@@ -1,8 +1,8 @@
 # Next Task Selection
 
-Selected task: `069C2_decision_lineage_dashboard_contract_remediation`
+Selected task: `codex_parallel_review_20260511_042831_02_orchestrator_decision`
 
-Reason: Fresh blocked validation result detected; create/select remediation before unrelated review queue tasks.
+Reason: A supervisor task is already active; do not race it. Monitor liveness and let it complete or recover.
 
 Safety classification: `non_live_codex_takeover`
 

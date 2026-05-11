@@ -1,11 +1,11 @@
 {
   "codex_auto_governor_working": true,
-  "current_selected_next_task": "069C2_decision_lineage_dashboard_contract_remediation",
+  "current_selected_next_task": "codex_parallel_review_20260511_042831_02_orchestrator_decision",
   "dashboard_updated": true,
   "final_live_gate_hard_stop": true,
-  "generated_at": "2026-05-11T04:07:15.471232+00:00",
-  "git_clean_ignoring_generated_outputs": false,
-  "git_head": "2313300 Dispatch 069D through Codex takeover",
+  "generated_at": "2026-05-11T04:40:55.529642+00:00",
+  "git_clean_ignoring_generated_outputs": true,
+  "git_head": "b8745e7 Codex watchdog recover dirty non-live automation artifacts",
   "go_no_go": "AUTONOMOUS_GOVERNOR_REPLACES_MANUAL_COPILOT_UNTIL_LIVE_GATE_READY",
   "human_input_required": "NO unless selected task is final live gate",
   "marker": "AUTONOMOUS_GOVERNOR_REPLACES_MANUAL_COPILOT_UNTIL_LIVE_GATE_READY",
@@ -31,7 +31,7 @@
       "stale dashboard payload",
       "lineage/evidence gaps"
     ],
-    "current_task": null,
+    "current_task": "codex_parallel_review_20260511_042831_02_orchestrator_decision",
     "forbidden_actions": [
       "live trading enablement",
       "real exchange order/cancel/close",
@@ -40,14 +40,14 @@
       "Redis mutation without exact approval",
       "secret exposure"
     ],
-    "generated_at": "2026-05-11T04:07:15.457522+00:00",
+    "generated_at": "2026-05-11T04:40:55.515769+00:00",
     "next_milestone": "continue_safe_non_live_queue_until_final_live_gate",
     "next_pending_task": "069C2_decision_lineage_dashboard_contract_remediation",
     "priority": 1,
     "redis_decision": "phase3h_deferred_continue_safe_work",
-    "remediation_task_created": true,
+    "remediation_task_created": false,
     "safety_classification": "non_live_codex_takeover",
-    "selected_task_id": "069C2_decision_lineage_dashboard_contract_remediation",
+    "selected_task_id": "codex_parallel_review_20260511_042831_02_orchestrator_decision",
     "why_higher_priority_items_are_not_selected": [
       {
         "item": "final_live_gate",
@@ -86,7 +86,7 @@
         "selected": false
       }
     ],
-    "why_selected": "Fresh blocked validation result detected; create/select remediation before unrelated review queue tasks."
+    "why_selected": "A supervisor task is already active; do not race it. Monitor liveness and let it complete or recover."
   },
   "non_live_approvals_now_non_blocking": true,
   "ollama_helper_policy_ready": true,
@@ -107,7 +107,7 @@
   "redis_trim_no_longer_blocks_entire_queue": true,
   "scheduler": {
     "final_live_gate_status": "blocked_human_only",
-    "next_safe_codex_task": "create Codex parallel review batch"
+    "next_safe_codex_task": "dispatch governor-selected remediation 069C2_decision_lineage_dashboard_contract_remediation"
   },
   "simulation_passed": true,
   "standing_governor_approval_created": true,
