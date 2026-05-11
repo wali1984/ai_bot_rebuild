@@ -5,6 +5,13 @@
     "validate, commit, push safe V2 artifacts",
     "create non-blocking decision packets"
   ],
+  "blocked_validation": {
+    "blocker_id": "069D_validation_blocked",
+    "remediation_task_id": "069C2_decision_lineage_dashboard_contract_remediation",
+    "root_cause": "069C dashboard payload/UI contract not materialized; independent Codex review blocked.",
+    "source_marker": "claude_worklog/phase2_core_rebuild/decision_explainability/069D_GO_NO_GO.md",
+    "source_packet": "claude_worklog/phase2_core_rebuild/decision_explainability/069D_VALIDATION_AND_CODEX_REVIEW_PACKET.md"
+  },
   "codex_review_criteria": [
     "hidden live path",
     "fake-ready marker",
@@ -13,7 +20,7 @@
     "stale dashboard payload",
     "lineage/evidence gaps"
   ],
-  "current_task": "197_phase2z_degraded_state_fail_closed_gates_domain_implementation",
+  "current_task": null,
   "forbidden_actions": [
     "live trading enablement",
     "real exchange order/cancel/close",
@@ -22,13 +29,14 @@
     "Redis mutation without exact approval",
     "secret exposure"
   ],
-  "generated_at": "2026-05-10T21:16:33.340286+00:00",
+  "generated_at": "2026-05-11T04:07:15.457522+00:00",
   "next_milestone": "continue_safe_non_live_queue_until_final_live_gate",
-  "next_pending_task": "069B_decision_lineage_evidence_packet_builder",
-  "priority": 0,
+  "next_pending_task": "069C2_decision_lineage_dashboard_contract_remediation",
+  "priority": 1,
   "redis_decision": "phase3h_deferred_continue_safe_work",
+  "remediation_task_created": true,
   "safety_classification": "non_live_codex_takeover",
-  "selected_task_id": "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF",
+  "selected_task_id": "069C2_decision_lineage_dashboard_contract_remediation",
   "why_higher_priority_items_are_not_selected": [
     {
       "item": "final_live_gate",
@@ -49,6 +57,12 @@
       "selected": false
     },
     {
+      "item": "fresh_blocked_validation_remediation",
+      "priority": 1,
+      "reason": "069C dashboard payload/UI contract not materialized; independent Codex review blocked.",
+      "selected": true
+    },
+    {
       "item": "redis_memory_path",
       "priority": 1,
       "reason": "REDIS_EXPORT_BACKUP_DURABILITY_REVIEW_REQUIRED",
@@ -61,5 +75,5 @@
       "selected": false
     }
   ],
-  "why_selected": "Claude is quota-limited; Codex temporarily owns safe non-live planning/review/remediation until quota reset."
+  "why_selected": "Fresh blocked validation result detected; create/select remediation before unrelated review queue tasks."
 }

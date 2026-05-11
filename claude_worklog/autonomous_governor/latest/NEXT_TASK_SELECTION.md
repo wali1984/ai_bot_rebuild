@@ -1,8 +1,8 @@
 # Next Task Selection
 
-Selected task: `CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF`
+Selected task: `069C2_decision_lineage_dashboard_contract_remediation`
 
-Reason: Claude is quota-limited; Codex temporarily owns safe non-live planning/review/remediation until quota reset.
+Reason: Fresh blocked validation result detected; create/select remediation before unrelated review queue tasks.
 
 Safety classification: `non_live_codex_takeover`
 

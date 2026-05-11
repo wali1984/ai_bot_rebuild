@@ -12,8 +12,8 @@ Result: `AUTONOMOUS_GOVERNOR_REPLACES_MANUAL_COPILOT_UNTIL_LIVE_GATE_READY`
 - Ollama helper policy ready: `True`
 - Dashboard updated: `True`
 - Simulation passed: `True`
-- Git head: `356c22f Codex watchdog recover dirty non-live automation artifacts`
-- Current selected next task: `CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF`
+- Git head: `2313300 Dispatch 069D through Codex takeover`
+- Current selected next task: `069C2_decision_lineage_dashboard_contract_remediation`
 - Human input required: `NO unless selected task is final live gate`
 
 The governor leaves Phase 3H Redis trim as a non-blocking decision packet until

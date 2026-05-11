@@ -25,6 +25,10 @@ APPROVAL = ROOT / "claude_worklog/approvals/STANDING_AUTONOMOUS_GOVERNOR_UNTIL_L
 APPROVAL_MARKER = "STANDING_AUTONOMOUS_GOVERNOR_UNTIL_LIVE_GATE"
 REDIS_TRIM_APPROVAL = ROOT / "claude_worklog/approvals/APPROVED_REDIS_LIQUIDATIONS_EVENTS_XTRIM_MINID_1777222885206_0_ONLY.md"
 QUOTA_STATUS = ROOT / "claude_worklog/quota/CLAUDE_CODE_QUOTA_STATUS.md"
+TASKS = ROOT / "claude_worklog/agent_supervisor/tasks"
+PHASE2_DECISION_EXPLAINABILITY = ROOT / "claude_worklog/phase2_core_rebuild/decision_explainability"
+DECISION_LINEAGE_FINAL = ROOT / "claude_worklog/final_readiness/decision_explainability_lineage/latest"
+DECISION_LINEAGE_PUBLIC = ROOT / "v2/frontend/public/decision_explainability_lineage/latest"
 
 
 def now() -> str:
@@ -81,6 +85,97 @@ def latest_commit() -> str:
 
 def claude_quota_blocked() -> bool:
     return "blocked_or_limited" in read_text(QUOTA_STATUS)
+
+
+def task_exists(task_id: str) -> bool:
+    return (TASKS / f"{task_id}.json").exists()
+
+
+def write_governor_task(task_id: str, task: dict[str, Any]) -> bool:
+    if task_exists(task_id):
+        return False
+    TASKS.mkdir(parents=True, exist_ok=True)
+    write_json(TASKS / f"{task_id}.json", task)
+    return True
+
+
+def latest_blocked_validation_result() -> dict[str, Any] | None:
+    """Return a fresh known blocker that should create remediation before queue drift."""
+    go = PHASE2_DECISION_EXPLAINABILITY / "069D_GO_NO_GO.md"
+    packet = PHASE2_DECISION_EXPLAINABILITY / "069D_VALIDATION_AND_CODEX_REVIEW_PACKET.md"
+    if read_text(go) == "PHASE2HA0_069D_VALIDATION_PACKET_BLOCKED" and packet.exists():
+        return {
+            "blocker_id": "069D_validation_blocked",
+            "source_marker": str(go.relative_to(ROOT)),
+            "source_packet": str(packet.relative_to(ROOT)),
+            "root_cause": "069C dashboard payload/UI contract not materialized; independent Codex review blocked.",
+            "remediation_task_id": "069C2_decision_lineage_dashboard_contract_remediation",
+        }
+    return None
+
+
+def create_decision_lineage_dashboard_remediation_task(blocker: dict[str, Any]) -> bool:
+    """Create the next safe remediation task without manually implementing it."""
+    task_id = str(blocker["remediation_task_id"])
+    task = {
+        "task_id": task_id,
+        "agent": "claude",
+        "risk_level": "L2",
+        "status": "pending",
+        "cwd": str(ROOT),
+        "emit_files": True,
+        "allowed_output_prefixes": [
+            "claude_worklog/final_readiness/decision_explainability_lineage/latest/",
+            "v2/frontend/public/decision_explainability_lineage/latest/",
+            "claude_worklog/phase2_core_rebuild/decision_explainability/",
+        ],
+        "required_output_files": [
+            "claude_worklog/final_readiness/decision_explainability_lineage/latest/069C2_DASHBOARD_CONTRACT_REMEDIATION_REPORT.md",
+            "claude_worklog/final_readiness/decision_explainability_lineage/latest/069C2_GO_NO_GO.md",
+            "claude_worklog/final_readiness/decision_explainability_lineage/latest/operator_dashboard_payload.json",
+            "v2/frontend/public/decision_explainability_lineage/latest/operator_dashboard_payload.json",
+        ],
+        "predecessor_task_ids": [
+            "069D_decision_lineage_validation_and_codex_review_packet",
+        ],
+        "priority": 1600,
+        "lane": "paper_backtest_mvp",
+        "mvp_relevance": "Autonomous remediation for 069D blocked validation: materialize 069C dashboard lineage contract payload before unrelated reviews.",
+        "blocked_by": [
+            "PHASE2HA0_069D_VALIDATION_PACKET_BLOCKED",
+        ],
+        "next_gate": "069C2_GO_NO_GO.md",
+        "legacy_evidence_consulted": [
+            "069A/069B/069C/069D decision explainability artifacts",
+            "non-live operational proof artifacts",
+            "069C independent Codex review",
+        ],
+        "legacy_failure_addressed": [
+            "dashboard can present scaffold/fixture lineage IDs as authoritative",
+            "queue drift past fresh validation blocker",
+        ],
+        "prompt": (
+            "Strict BEGIN_FILE emit-only mode. Build the safe non-live remediation selected by the autonomous governor. "
+            "Do not modify /home/wali/Desktop/AI BOT. Do not write/delete/trim Redis. Do not restart services. "
+            "Do not place/cancel exchange orders. Do not change leverage, margin, or position mode. Do not enable live trading. "
+            "Do not expose secrets. Human input is required only for final live/capital gate.\n\n"
+            "Root cause: 069D validation blocked because 069C is a dashboard payload specification, but the concrete final-readiness/public dashboard payload does not satisfy the lineage authority and missing-evidence warning contract.\n\n"
+            "Read these source artifacts as evidence: "
+            "claude_worklog/phase2_core_rebuild/decision_explainability/069A_LINEAGE_SOURCE_SCAN.md, "
+            "claude_worklog/phase2_core_rebuild/decision_explainability/069B_LINEAGE_EVIDENCE_PACKET.md, "
+            "claude_worklog/phase2_core_rebuild/decision_explainability/069C_DASHBOARD_PAYLOAD_INTEGRATION_SPEC.md, "
+            "claude_worklog/phase2_core_rebuild/decision_explainability/069D_VALIDATION_AND_CODEX_REVIEW_PACKET.md, "
+            "claude_worklog/phase2_core_rebuild/decision_explainability/parallel_capacity_readonly_review_phase2ha0_069c_dashboard_integration_ready_REPORT.md.\n\n"
+            "Emit a concrete operator_dashboard_payload.json under both final_readiness and v2/frontend/public paths with: "
+            "lineage_contract_version, payload_status, warning_count, payload_warnings, lineage_rows, lineage_authority per row, "
+            "missing_evidence_warnings, scaffold_only/fixture_only/null treatment for signal_id/execution_intent_id/shadow_decision_id, "
+            "live_gate_status blocked_human_only, and human_input_required false. "
+            "Also emit 069C2_DASHBOARD_CONTRACT_REMEDIATION_REPORT.md and 069C2_GO_NO_GO.md. "
+            "GO file exactly 069C2_DECISION_LINEAGE_DASHBOARD_CONTRACT_REMEDIATION_READY or 069C2_DECISION_LINEAGE_DASHBOARD_CONTRACT_REMEDIATION_BLOCKED."
+        ),
+        "next_recommended_action": "After READY, run Codex review for 069C2 and rerun 069D validation; if BLOCKED, keep blocker local and continue unrelated safe work only if higher-priority remediation is impossible.",
+    }
+    return write_governor_task(task_id, task)
 
 
 def process_summary() -> list[str]:
@@ -155,14 +250,15 @@ def choose_next_task(queue: dict[str, Any], current: dict[str, Any]) -> dict[str
     no_output = int(queue.get("no_output_growth_count") or 0)
     human_final = int(queue.get("final_live_gate_required_count") or 0)
     quota_blocked = claude_quota_blocked()
+    blocked_validation = latest_blocked_validation_result()
+    remediation_created = False
+    if blocked_validation:
+        remediation_created = create_decision_lineage_dashboard_remediation_task(blocked_validation)
+        next_pending = str(blocked_validation["remediation_task_id"])
 
     if human_final:
         selected = "BLOCKED_FINAL_LIVE_GATE"
         reason = "A final live/capital gate is present; human approval is required."
-        priority = 0
-    elif quota_blocked:
-        selected = "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF"
-        reason = "Claude is quota-limited; Codex temporarily owns safe non-live planning/review/remediation until quota reset."
         priority = 0
     elif stale or no_output:
         selected = "AUTONOMOUS_STALE_RUNNING_RECOVERY"
@@ -172,9 +268,17 @@ def choose_next_task(queue: dict[str, Any], current: dict[str, Any]) -> dict[str
         selected = str(current_task)
         reason = "A supervisor task is already active; do not race it. Monitor liveness and let it complete or recover."
         priority = 1
+    elif blocked_validation:
+        selected = str(blocked_validation["remediation_task_id"])
+        reason = "Fresh blocked validation result detected; create/select remediation before unrelated review queue tasks."
+        priority = 1
     elif redis_hold_next and not phase3h_allowed:
         selected = next_pending or "V2_DATA_PLANE_INDEPENDENCE_OR_NEXT_SAFE_QUEUE_TASK"
         reason = "Redis trim approval is absent; leave Phase 3H as a non-blocking decision packet and continue safe V2 work."
+        priority = 1
+    elif quota_blocked:
+        selected = next_pending or "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF"
+        reason = "Claude is quota-limited; route the selected safe non-live task to Codex takeover until quota reset."
         priority = 1
     else:
         selected = next_pending or "AUTONOMOUS_QUEUE_ADVANCE_NEXT_SAFE_TASK"
@@ -185,6 +289,7 @@ def choose_next_task(queue: dict[str, Any], current: dict[str, Any]) -> dict[str
         {"priority": 0, "item": "final_live_gate", "selected": bool(human_final), "reason": "human-only real capital boundary"},
         {"priority": 0, "item": "claude_rate_limit", "selected": quota_blocked, "reason": "Codex takeover while Claude quota is blocked"},
         {"priority": 0, "item": "stale_fake_running_recovery", "selected": bool(stale or no_output), "reason": "task liveness safety"},
+        {"priority": 1, "item": "fresh_blocked_validation_remediation", "selected": bool(blocked_validation), "reason": (blocked_validation or {}).get("root_cause", "no fresh blocked validation result")},
         {"priority": 1, "item": "redis_memory_path", "selected": bool(redis_hold_next), "reason": redis_hold_next or "no active redis hold marker"},
         {"priority": 2, "item": "v2_data_plane_independence", "selected": False, "reason": "continues through queue after active task/redis decision handling"},
     ]
@@ -195,6 +300,8 @@ def choose_next_task(queue: dict[str, Any], current: dict[str, Any]) -> dict[str
         "priority": priority,
         "current_task": current_task,
         "next_pending_task": next_pending,
+        "blocked_validation": blocked_validation,
+        "remediation_task_created": remediation_created,
         "redis_decision": "phase3h_deferred_continue_safe_work" if redis_hold_next and not phase3h_allowed else "no_redis_hold_blocking_global_queue",
         "why_higher_priority_items_are_not_selected": higher,
         "safety_classification": "non_live_codex_takeover" if quota_blocked else ("non_live_autonomous" if selected != "BLOCKED_FINAL_LIVE_GATE" else "final_live_human_only"),
