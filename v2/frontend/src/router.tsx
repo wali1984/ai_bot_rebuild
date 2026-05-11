@@ -13,9 +13,12 @@ const publicChildren = PUBLIC_PAGES.map((p) => ({
   element: <p.Component />,
 }));
 
+const MISSION_CONTROL_ADMIN_ROUTE = '/admin/mission-control?role=admin';
+
 export const router = createBrowserRouter([
-  { path: '/admin', element: <Navigate to="/admin/mission-control" replace /> },
+  { path: '/', element: <Navigate to={MISSION_CONTROL_ADMIN_ROUTE} replace /> },
+  { path: '/admin', element: <Navigate to={MISSION_CONTROL_ADMIN_ROUTE} replace /> },
   { element: <PublicShell />, children: publicChildren },
   { element: <AdminShell />, children: adminChildren },
-  { path: '*', element: <Navigate to="/" replace /> },
+  { path: '*', element: <Navigate to={MISSION_CONTROL_ADMIN_ROUTE} replace /> },
 ]);

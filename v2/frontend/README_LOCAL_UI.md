@@ -16,9 +16,10 @@ http://localhost:5173/
 
 Routes to check:
 
-- `/` shows the modern Mission Control cockpit and the marker `AI BOT V2 Modern Dashboard Loaded`.
+- `/` redirects to `/admin/mission-control?role=admin` so the default browser route opens the real admin Mission Control cockpit.
 - `/admin/mission-control?role=admin` shows the same cockpit inside the admin shell.
-- `/admin` redirects to `/admin/mission-control`.
+- `/admin` redirects to `/admin/mission-control?role=admin`.
+- `/public-landing` keeps the public shell route available for comparison only; it is no longer the default route.
 
 If the browser still shows an older UI:
 
@@ -33,7 +34,10 @@ npm run build
 ```
 
 The dev build unregisters local service workers automatically so cached `/` or
-`/index.html` shells do not hide new React source changes.
+`/index.html` shells do not hide new React source changes. If the browser still
+lands on the old public shell, clear the service worker and site data, then open
+`http://localhost:5173/` again and confirm the address bar redirects to
+`/admin/mission-control?role=admin`.
 
 ## Chart panel behaviour
 

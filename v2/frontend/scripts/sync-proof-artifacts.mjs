@@ -38,6 +38,7 @@ const artifactSets = [
   'performance_objective_guardrails',
   'orchestrator_risk_boundary',
   'orchestrator_decision_evidence_reconciliation',
+  'root_route_redirect_to_v2_mission_control',
   'online_readiness_control_plane',
   'post_mvp_non_live_gap_audit',
 ];

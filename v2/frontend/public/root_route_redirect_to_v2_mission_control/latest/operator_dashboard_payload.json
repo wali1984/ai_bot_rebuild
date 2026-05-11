@@ -1,0 +1,13 @@
+{
+  "generated_at": "2026-05-11T22:44:36Z",
+  "status": "READY",
+  "milestone": "ROOT_ROUTE_REDIRECT_TO_V2_MISSION_CONTROL_READY",
+  "root_route": "/",
+  "redirect_target": "/admin/mission-control?role=admin",
+  "public_landing_route": "/public-landing",
+  "service_worker_dev_policy": "unregister_existing_registrations",
+  "live_gate": "blocked_human_only",
+  "legacy_mutation": "none",
+  "redis_mutation": "none",
+  "exchange_action": "none"
+}
