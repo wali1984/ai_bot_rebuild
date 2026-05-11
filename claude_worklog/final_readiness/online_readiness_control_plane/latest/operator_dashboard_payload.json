@@ -1,0 +1,28 @@
+{
+  "claude_primary_lane_restored": true,
+  "codex_parallel_lanes_active": true,
+  "component": "online_readiness_control_plane",
+  "decision_lineage_069d2": "ready",
+  "exchange_mutation": "none",
+  "generated_at": "2026-05-11T07:45:58.228145+00:00",
+  "go_no_go": "CLAUDE_PRIMARY_ONLINE_READINESS_BUILD_WITH_CODEX_PARALLEL_AUDIT_AND_UI_POLISH_READY",
+  "human_input_required": "false_unless_final_live_capital_gate",
+  "legacy_mutation": "none",
+  "live_gate_status": "blocked_human_only",
+  "next_blocker": "runtime_gaps_and_redis_pressure_before_live_readiness",
+  "realtime_monitoring_continuity": "ready_with_blocking_gaps_carried",
+  "redis_mutation": "none",
+  "redis_trim": "deferred_non_blocking",
+  "runtime_blockers_carried": [
+    "redis_memory_pressure_critical_95",
+    "executed_rows_missing_prediction_id",
+    "executed_rows_missing_feature_snapshot_id",
+    "executed_rows_incomplete_lineage_tuple",
+    "duplicate_exchange_order_id_rows_observed",
+    "stale_executed_timestamps_gt_5m",
+    "trainer_internal_liveness_critical_seen",
+    "prior_post_monitor_no_go"
+  ],
+  "ui_polish_lane": "parallel_ready",
+  "v2_data_plane_independence": "acceleration_ready"
+}

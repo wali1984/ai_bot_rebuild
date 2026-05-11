@@ -1,11 +1,19 @@
 {
-  "canonical_path": "claude_worklog/final_readiness/claude_primary_handoff/latest/",
-  "claude_quota_status": "ready",
-  "codex_role": "parallel_reviewer_auditor",
-  "go_no_go": "CLAUDE_PRIMARY_HANDOFF_CANONICAL_PATH_NORMALIZED_AND_UI_POLISH_DISPATCH_READY",
-  "human_input_required": false,
+  "claude_quota": "ready",
+  "codex_parallel_lanes": [
+    "online_readiness_aggregator_pass",
+    "frontend_banner_rereview_pass",
+    "broad_online_readiness_audit_failures_carried"
+  ],
+  "component": "claude_primary_handoff",
+  "exchange_mutation": "none",
+  "generated_at": "2026-05-11T07:45:58.228145+00:00",
+  "go_no_go": "CLAUDE_PRIMARY_HANDOFF_CANONICAL_PATH_NORMALIZED_AND_ONLINE_READINESS_BUILD_READY",
+  "human_input_required": "false_unless_final_live_capital_gate",
+  "legacy_mutation": "none",
   "live_gate_status": "blocked_human_only",
-  "next_selected_task": "claude_primary_enterprise_ui_polish_remove_legacy_chart",
-  "redis_trim_status": "deferred_non_blocking",
-  "target": "CLAUDE_PRIMARY_HANDOFF_CANONICAL_PATH_NORMALIZED_AND_UI_POLISH_DISPATCH_READY"
+  "next_task": "continue_online_readiness_queue",
+  "primary_lane": "online_readiness_acceleration",
+  "redis_mutation": "none",
+  "redis_trim": "deferred_non_blocking"
 }

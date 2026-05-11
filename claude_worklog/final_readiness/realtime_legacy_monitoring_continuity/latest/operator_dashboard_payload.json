@@ -1,0 +1,25 @@
+{
+  "blocking_gaps": [
+    "redis_memory_pressure_critical_95",
+    "executed_rows_missing_prediction_id",
+    "executed_rows_missing_feature_snapshot_id",
+    "executed_rows_incomplete_lineage_tuple",
+    "duplicate_exchange_order_id_rows_observed",
+    "stale_executed_timestamps_gt_5m",
+    "trainer_internal_liveness_critical_seen",
+    "prior_post_monitor_no_go"
+  ],
+  "component": "realtime_legacy_monitoring_continuity",
+  "duration_hours_observed": 200.95,
+  "exchange_mutation": "none",
+  "generated_at": "2026-05-11T07:45:58.228145+00:00",
+  "go_no_go": "REALTIME_LEGACY_MONITORING_CONTINUITY_READY",
+  "human_input_required": "false_unless_final_live_capital_gate",
+  "legacy_mutation": "none",
+  "live_gate_status": "blocked_human_only",
+  "redis_memory_pressure": "critical_95",
+  "redis_mutation": "none",
+  "redis_trim": "deferred_non_blocking",
+  "snapshot_count": 11755,
+  "trainer_status": "DEGRADED"
+}

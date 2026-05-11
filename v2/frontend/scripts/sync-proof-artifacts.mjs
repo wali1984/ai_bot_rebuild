@@ -29,6 +29,14 @@ const artifactSets = [
   'autonomous_governor',
   'claude_rate_limit_codex_takeover',
   'claude_codex_rate_limit_handoff',
+  'claude_primary_handoff',
+  'realtime_legacy_monitoring_continuity',
+  'v2_data_plane_independence',
+  'codex_parallel_audit_plan',
+  'enterprise_ui_polish',
+  'performance_objective_guardrails',
+  'orchestrator_risk_boundary',
+  'online_readiness_control_plane',
   'post_mvp_non_live_gap_audit',
 ];
 

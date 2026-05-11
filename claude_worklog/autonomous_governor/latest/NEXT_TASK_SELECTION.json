@@ -1,67 +1,30 @@
 {
-  "generated_at": "2026-05-11T07:06:30+00:00",
-  "selected_task_id": "claude_primary_online_readiness_build_with_codex_parallel_audit",
-  "parallel_codex_task_id": "codex_parallel_audit_online_readiness_build",
-  "safety_classification": "non_live_autonomous",
-  "priority": 0,
-  "why_selected": "Claude quota is ready and the corrected objective is online-readiness, not UI-only polish or unrelated review drift.",
-  "next_milestone": "CLAUDE_PRIMARY_ONLINE_READINESS_BUILD_WITH_CODEX_PARALLEL_AUDIT_AND_UI_POLISH_READY",
-  "redis_decision": "phase3h_deferred_non_blocking_no_trim_approval",
-  "current_task": null,
-  "blocked_validation": null,
-  "allowed_actions": [
-    "safe non-live V2 code/build/test/doc changes inside AI BOT REBUILD",
-    "read-only legacy/runtime evidence inspection",
-    "V2 data-plane and audit-ledger implementation",
-    "trainer/model/feature preservation and wrapping",
-    "enterprise GUI integration in parallel",
-    "Codex parallel review/audit artifacts"
+  "exchange_mutation": "none",
+  "generated_at": "2026-05-11T07:45:58.228145+00:00",
+  "human_input_required": "false_unless_final_live_capital_gate",
+  "legacy_mutation": "none",
+  "legacy_preservation_model": "read_only_evidence_and_wrapper_source_until_v2_contracts_own_data",
+  "live_gate_status": "blocked_human_only",
+  "parallel_codex_tasks": [
+    "enterprise_ui_polish_quality_review",
+    "realtime_monitor_coverage_review",
+    "v2_data_plane_independence_review",
+    "risk_gateway_degraded_state_review",
+    "trainer_prediction_explainability_review",
+    "system_atlas_delta_review",
+    "paper_shadow_replay_truthfulness_review"
   ],
-  "forbidden_actions": [
-    "modify /home/wali/Desktop/AI BOT",
-    "write/delete/trim Redis without exact approval",
-    "create Redis trim approval file",
-    "restart live services",
-    "real exchange order/cancel/close",
-    "real leverage/margin/position-mode changes",
-    "activate live keys",
-    "enable live trading",
-    "secret exposure"
+  "primary_claude_lane": [
+    "realtime_legacy_monitoring_continuity",
+    "v2_data_plane_independence",
+    "risk_gateway_fail_closed_gates",
+    "paper_shadow_replay_runtime"
   ],
-  "why_higher_priority_items_are_not_selected": [
-    {
-      "item": "final_live_gate",
-      "priority": 0,
-      "selected": false,
-      "reason": "human-only real capital boundary; not requested and still blocked_human_only"
-    },
-    {
-      "item": "redis_trim",
-      "priority": 0,
-      "selected": false,
-      "reason": "no exact trim approval file; deferred and non-blocking"
-    },
-    {
-      "item": "ui_only_polish",
-      "priority": 1,
-      "selected": false,
-      "reason": "enterprise UI polish recovered; broader online-readiness now takes precedence"
-    },
-    {
-      "item": "032_codex_review_symbol_universe_usdm_correction",
-      "priority": 2,
-      "selected": false,
-      "reason": "safe but lower priority than current online-readiness objective"
-    }
-  ],
-  "codex_review_criteria": [
-    "hidden live path",
-    "legacy mutation",
-    "Redis mutation risk",
-    "runtime evidence gaps",
-    "trainer/model/feature preservation gaps",
-    "stale/fake-ready markers",
-    "dashboard truthfulness",
-    "Codex parallel audit actually active"
-  ]
+  "redis_mutation": "none",
+  "redis_trim": "deferred_non_blocking",
+  "redis_trim_non_blocking": true,
+  "selected_primary_task": "v2_online_readiness_acceleration",
+  "ui_polish_lane_state": "parallel_ready",
+  "why_live_blocked": "Phase 3C runtime blockers and final live/capital gate not approved",
+  "why_selected": "online-readiness supersedes UI-only polish and unrelated 032 drift"
 }

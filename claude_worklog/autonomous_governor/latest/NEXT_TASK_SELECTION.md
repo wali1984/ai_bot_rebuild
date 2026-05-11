@@ -1,13 +1,19 @@
 # Next Task Selection
 
-Selected task: `claude_primary_online_readiness_build_with_codex_parallel_audit`
+Selected primary task: `v2_online_readiness_acceleration`
 
-Reason: Claude quota is ready, the 069 decision-lineage chain is READY, enterprise UI polish has been recovered and audited, and the user explicitly corrected the objective away from UI-only work. The next safe non-live lane is online-readiness: read-only legacy/runtime monitoring, V2 data-plane responsibility, trainer/model/feature preservation, risk/orchestrator/paper-shadow readiness, and enterprise GUI integration in parallel.
+Parallel Codex tasks: `codex_parallel_audit_plan`, `targeted_online_readiness_reviews`, `enterprise_ui_polish_codex_review`
 
-Safety classification: `non_live_autonomous`
+UI polish lane: `parallel`, not primary.
 
-Codex parallel task: `codex_parallel_audit_online_readiness_build`
+Reason: The latest objective is to bring V2 online safely, not to polish UI in isolation. The 069D2 chain is READY, Claude quota is ready, git is clean, and Codex has passed targeted aggregator/frontend reviews while broad online-readiness audit still carries real runtime blockers.
 
-Redis decision: `phase3h_deferred_non_blocking_no_trim_approval`
+Why live is still blocked: Phase 3C runtime evidence remains blocked with Redis memory pressure, trainer liveness degradation, duplicate exchange-order-id observations, and lineage gaps. Final live/capital approval is not selected.
 
-Human input required: no, unless `FINAL_LIVE_CAPITAL_APPROVAL_REQUIRED`.
+Why Redis trim is non-blocking: the exact Phase 3H trim approval file is absent. No XTRIM may run. V2 data-plane independence and GUI/product work continue without Redis mutation.
+
+How this advances online readiness: prioritize V2-owned read-only rollups, banner API/UI integration, bounded V2 Redis policy, durable DB history/audit ownership, monitor continuity, and risk/degraded-state fail-closed work.
+
+How legacy intelligence is preserved: legacy trainer/models/features remain read-only evidence and can be wrapped into V2 contracts; ownership moves into V2 data contracts, audit ledgers, and durable stores.
+
+How old failure modes are avoided: no legacy writes, no unbounded Redis history as permanent truth, no live order/leverage/margin path, no stale/missing attribution bypass, no UI-only fake-ready markers.

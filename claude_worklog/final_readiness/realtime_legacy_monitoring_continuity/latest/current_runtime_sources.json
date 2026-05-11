@@ -1,0 +1,21 @@
+{
+  "duration_hours_observed": 200.95,
+  "exchange_mutation": "none",
+  "first_snapshot_ts": "2026-04-30T20:52:33.954535+00:00",
+  "generated_at": "2026-05-11T07:45:58.228145+00:00",
+  "human_input_required": "false_unless_final_live_capital_gate",
+  "last_snapshot_ts": "2026-05-09T05:49:27.042047+00:00",
+  "legacy_mutation": "none",
+  "live_gate_status": "blocked_human_only",
+  "redis_mutation": "none",
+  "redis_trim": "deferred_non_blocking",
+  "runtime_sources": [
+    "snapshots.jsonl",
+    "trainer_metrics.jsonl",
+    "runtime_truth_table.json",
+    "phase3c safety-critical gaps"
+  ],
+  "snapshot_count": 11755,
+  "source": "phase3c_runtime_monitor_verification",
+  "trainer_metric_count": 11755
+}

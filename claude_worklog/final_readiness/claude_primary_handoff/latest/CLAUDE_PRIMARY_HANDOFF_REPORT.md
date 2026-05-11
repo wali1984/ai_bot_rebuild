@@ -1,31 +1,21 @@
 # Claude Primary Handoff Report
 
-Result: `CLAUDE_PRIMARY_HANDOFF_CANONICAL_PATH_NORMALIZED_AND_UI_POLISH_DISPATCH_READY`
+Generated: 2026-05-11T07:45:58.228145+00:00
 
-Canonical path:
-- `claude_worklog/final_readiness/claude_primary_handoff/latest/`
+Status: `CLAUDE_PRIMARY_HANDOFF_CANONICAL_PATH_NORMALIZED_AND_ONLINE_READINESS_BUILD_READY`
 
-Source artifacts normalized from:
-- `claude_worklog/final_readiness/claude_primary_handoff_state_refresh/latest/`
-- `claude_worklog/final_readiness/claude_codex_rate_limit_handoff/latest/`
+Claude quota is ready and Claude is restored as primary planner/builder. Codex remains active as reviewer/auditor and has already reviewed the online-readiness aggregator and Mission Control banner chain. Redis trim is deferred and non-blocking. Live trading remains `blocked_human_only`.
 
-Current routing:
-- Claude quota: `ready`
-- Active workers: `none`
-- Git state at normalization: `clean`
-- Selected next task: `claude_primary_enterprise_ui_polish_remove_legacy_chart`
-- Codex role: `parallel_reviewer_auditor`
-- Redis trim: `deferred_non_blocking`
-- Human input required: `false`
-- Live gate: `blocked_human_only`
+## Routing
 
-Dispatch rule:
-- UI polish must run through the supervisor task `claude_primary_enterprise_ui_polish_remove_legacy_chart`.
-- Do not manually implement UI polish outside the supervisor.
-- Human input is required only for `FINAL_LIVE_CAPITAL_APPROVAL_REQUIRED`.
+- Primary planner: Claude
+- Primary builder: Claude
+- Parallel reviewer: Codex
+- Parallel auditor: Codex
+- Acting governor: Codex standby only
+- Ollama/local tools: draft-only evidence helper
+- Human input: no unless `FINAL_LIVE_CAPITAL_APPROVAL_REQUIRED`
 
-Safety:
-- No Redis mutation was performed.
-- No legacy bot mutation was performed.
-- No exchange action was performed.
-- Live trading remains blocked.
+## Current Product Direction
+
+Do not drift into UI-only work. The primary objective is safe V2 online-readiness: read-only legacy/runtime monitoring continuity, V2 data-plane independence, trainer/model/feature preservation, risk gateway fail-closed behavior, paper/shadow/replay readiness, and enterprise cockpit integration.
