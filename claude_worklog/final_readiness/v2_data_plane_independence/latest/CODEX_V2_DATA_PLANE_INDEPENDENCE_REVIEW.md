@@ -2,35 +2,38 @@
 
 Review date: 2026-05-11
 
-Scope: read-only parallel review of the V2 data-plane independence plan and supporting committed artifacts. No Redis mutation, legacy tree mutation, exchange order action, leverage/margin/position-mode action, or live execution enablement was performed.
+Scope: read-only Codex parallel review of the V2 data-plane independence plan and supporting V2 artifacts. No mutation of `/home/wali/Desktop/AI BOT`, Redis, exchange orders, leverage, margin, position mode, or live execution was performed.
 
 ## Decision
 
-PASS for plan/policy approval.
+PASS for V2 data-plane independence plan approval.
 
-This is not final cutover approval and does not authorize live execution. It only confirms that the committed V2 data-plane independence plan assigns durable truth away from Redis/legacy, keeps Redis bounded, keeps legacy passive/read-only until cutover, and defines required cutover gates.
+This is not final cutover approval and does not authorize live execution. The pass means the reviewed plan keeps V2 Redis bounded as transport/cache, assigns durable truth to V2 storage, treats old Redis as read-only transitional evidence, requires clean cutover gates, and does not introduce legacy writes in active V2 code.
 
-## Review Findings
+## Parallel Review Findings
 
 1. V2 Redis is bounded transport/cache only: PASS.
-   Evidence: `V2_DATA_PLANE_INDEPENDENCE_PLAN.md` says V2 owns bounded Redis transport/cache and durable DB history/audit/features/predictions/signals/executions, while legacy remains passive evidence/facade only until V2 proves independent ingress and storage contracts. `bounded_v2_redis_policy.md` requires every stream/key to have maxlen/TTL/namespace owner, source freshness, producer/consumer mapping, and dashboard memory bands, and forbids audit/history accumulation in Redis.
+   Evidence: `bounded_v2_redis_policy.md:3` says V2 Redis is transport/cache only, requires maxlen/TTL/namespace owner/source freshness/producer-consumer mapping/memory bands, and forbids audit/history accumulation in Redis. `claude_worklog/v2_architecture/04_REDIS_NAMESPACE_AND_RETENTION_PLAN.md:5-11` keeps legacy Redis read-only, requires bounded hot streams, offloads audit ledger to DB, and states Redis is not infinite history.
 
 2. Durable history belongs in V2 storage: PASS.
-   Evidence: `durable_history_storage_policy.md` assigns liquidation history, feature snapshots, predictions, signals, execution intents, paper/shadow fills, positions, PnL, risk decisions, and audit events to durable V2 storage. It explicitly says Redis cannot be permanent historical truth and requires IDs, timestamps, source freshness, schema version, and evidence pointers.
+   Evidence: `durable_history_storage_policy.md:3` assigns liquidation history, feature snapshots, predictions, signals, execution intents, paper/shadow fills, positions, PnL, risk decisions, and audit events to durable V2 storage, and says Redis cannot be permanent historical truth. `legacy_to_v2_contract_map.md:6` maps legacy Redis liquidation history to V2 durable history/archive.
 
-3. Old Redis is not treated as permanent truth: PASS.
-   Evidence: `old_redis_bridge_or_retire_decision.md` keeps old Redis as a read-only bridge only for required runtime evidence until V2 durable stores and bounded streams replace legacy responsibilities. `legacy_to_v2_contract_map.md` maps legacy Redis liquidation history to V2 durable history/archive and keeps Redis as transport/cache only.
+3. Old Redis is not permanent truth: PASS.
+   Evidence: `old_redis_bridge_or_retire_decision.md:3` keeps old Redis as a read-only bridge only for required runtime evidence until V2 durable stores and bounded streams replace legacy Redis responsibilities. `V2_DATA_PLANE_INDEPENDENCE_PLAN.md:7-9` says V2 becomes source of truth, legacy remains passive evidence/facade only until independent V2 ingress/storage contracts are proven, and no net-new legacy logic should be added.
 
-4. Clean cutover has backup/freeze/sync/rollback gates: PASS with specificity caveat.
-   Evidence: `freeze_backup_sync_rollback_cutover_plan.md` requires freezing legacy write sources, final backup/export verification, final read-only sync into V2, counts/hashes, rollback point, V2 reader validation, blocked live gate, and an explicit human-reviewed cutover packet. Caveat: this is a policy-level gate list, not yet an executable checklist with owners, thresholds, artifact names, or rollback commands.
+4. Clean cutover has backup/freeze/sync/rollback gates: PASS with implementation caveat.
+   Evidence: `freeze_backup_sync_rollback_cutover_plan.md:3` requires freezing legacy write sources, final backup/export verification, final read-only sync into V2, counts/hashes, rollback point, V2 reader validation, blocked live gate, and an explicit human-reviewed cutover packet. Caveat: these are policy-level gates, not yet an executable final cutover packet with owners, thresholds, artifact names, and rollback commands.
 
-5. No legacy writes are introduced by the plan: PASS.
-   Evidence: the plan says not to add net-new legacy logic. `requirements/19_REDIS_POLICY.md` permits V2 writes only under `v2:*` when allowed and forbids writes to legacy keys such as `signals:trading*`, `executed_signals`, `positions:*`, `portfolio:*`, and any old legacy runtime keys. Current reviewed V2 Redis code only constructs a latest-ID reader and calls `xrevrange`; no legacy write path was found in that reviewed V2 source path.
+5. No legacy writes are introduced by active V2 code: PASS with preserved-code warning.
+   Evidence: `requirements/19_REDIS_POLICY.md:13-21` permits V2 writes only under `v2:*` when allowed and forbids writes to legacy runtime keys. Active Redis V2 adapter code only constructs a Redis client from `V2_REDIS_URL` and reads latest stream IDs with `xrevrange` (`v2/backend/app/adapters/redis_v2/factory.py:22`, `v2/backend/app/adapters/redis_v2/stream_latest_id_reader.py:48`). The preserved legacy copy `v2/legacy_preserved/ingestors/live_coinank.py` contains Redis writers, but static review found no active V2 import or invocation of it.
 
-## Caveats To Carry Forward
+6. No live exchange side effects are introduced: PASS.
+   Evidence: `v2/backend/app/proof/readonly_market_exchange_data_plane.py:38-48` lists order, leverage, margin, position-mode, transfer, withdrawal, and live-trading methods as forbidden; `v2/backend/app/proof/readonly_market_exchange_data_plane.py:95-108` implements order/leverage/margin/position-mode methods by raising `ExchangeMutationForbidden`. Public Binance paths in this proof are read-only GET market data and remain separate from live execution approval.
 
-- Redis enforcement is not complete in the current scaffold. `make_real_redis_stream_latest_id_reader` accepts an arbitrary `V2_REDIS_URL`, and the current read-only reader does not itself enforce a `v2:` prefix or separate-DB isolation. This is acceptable for the plan gate because it does not write, but it must be closed before adding V2 Redis producers.
-- The read-only market/exchange data-plane proof exposes an optional `--fetch-binance` path that performs public Binance GET requests. It does not place, cancel, or modify orders, and mutation methods raise before action, but it should remain opt-in and must not be conflated with live execution approval.
-- Final cutover remains blocked until backup/export artifacts, freeze proof, sync hashes/counts, rollback point, and human-reviewed cutover packet exist.
+## Required Carry-Forward Caveats
+
+- Final cutover remains blocked until backup/export artifacts, freeze proof, sync hashes/counts, rollback point, V2 reader validation, and a human-reviewed cutover packet exist.
+- Before V2 Redis producers are added, implementation must enforce `v2:` namespace or separate-DB isolation at the writer boundary. The current reader is read-only, but it does not itself enforce a `v2:` stream prefix.
+- The policy assigns liquidation history to durable V2 storage, but the canonical DB/schema artifacts should explicitly model that durable liquidation-history/archive table before implementation/cutover approval.
 
 Result: CODEX_V2_DATA_PLANE_INDEPENDENCE_PASS
