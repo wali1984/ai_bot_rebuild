@@ -109,6 +109,8 @@ def main() -> int:
         next_worker_task = scheduler.get("next_safe_codex_task") or "Codex takeover: safe non-live review/remediation"
         current_decision = "Claude rate limit is a resource-routing event; Codex acting-governor owns safe non-live work until reset."
         current_milestone = "CODEX_ACTING_GOVERNOR_CONTINUE_SAFE_NON_LIVE_WORK_UNTIL_CLAUDE_RESET"
+    processes = process_rows()
+    codex_process_active = any("codex exec" in row or "--task-id codex" in row for row in processes)
     payload = {
         "generated_at": now(),
         "marker": "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF_READY",
@@ -132,7 +134,8 @@ def main() -> int:
         "current_next_safe_milestone": current_milestone,
         "live_gate_status": "blocked_human_only",
         "redis_trim_approval_present": (ROOT / "claude_worklog/approvals/APPROVED_REDIS_LIQUIDATIONS_EVENTS_XTRIM_MINID_1777222885206_0_ONLY.md").exists(),
-        "processes": process_rows(),
+        "active_codex_child": codex_process_active,
+        "processes": processes,
         "allowed_codex_takeover_work": [
             "read-only milestone review",
             "safe non-live implementation/remediation inside AI BOT REBUILD",
@@ -176,7 +179,7 @@ def main() -> int:
         {
             "generated_at": now(),
             "claude": {"status": payload["claude_lane"], "quota": quota},
-            "codex": {"status": "acting_governor_active" if payload["codex_takeover_active"] else "available"},
+            "codex": {"status": "active_parallel_review" if codex_process_active else ("acting_governor_active" if payload["codex_takeover_active"] else "available")},
             "ollama_local_tools": {"status": "draft_evidence_helper_available"},
             "processes": payload["processes"],
         },

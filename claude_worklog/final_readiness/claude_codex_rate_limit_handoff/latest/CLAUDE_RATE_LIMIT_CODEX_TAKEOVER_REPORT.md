@@ -5,7 +5,7 @@ Result: `CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF_READY`
 - Claude quota state: `ready`
 - Reset hint: `None`
 - Codex takeover active: `False`
-- Active task: `codex_parallel_review_20260511_052547_04_paper_execution_ledger`
+- Active task: `codex_parallel_review_20260511_052547_05_replay_backtest_runner`
 - Active task PID alive: `True`
 - Next pending task: `claude_primary_enterprise_ui_polish_remove_legacy_chart`
 - Next safe Codex task: `Claude primary: claude_primary_enterprise_ui_polish_remove_legacy_chart`

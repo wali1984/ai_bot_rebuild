@@ -13,7 +13,7 @@ and no active Codex child is running.
 
 ## Current Queue
 
-- Active task: `codex_parallel_review_20260511_052547_04_paper_execution_ledger`
+- Active task: `codex_parallel_review_20260511_052547_05_replay_backtest_runner`
 - Next pending task: `claude_primary_enterprise_ui_polish_remove_legacy_chart`
 - Next safe Codex task: `Claude primary: claude_primary_enterprise_ui_polish_remove_legacy_chart`
 

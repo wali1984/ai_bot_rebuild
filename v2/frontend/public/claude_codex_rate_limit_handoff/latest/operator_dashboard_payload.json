@@ -1,6 +1,7 @@
 {
-  "active_task": "codex_parallel_review_20260511_052547_04_paper_execution_ledger",
-  "active_task_pid": 2431241,
+  "active_codex_child": true,
+  "active_task": "codex_parallel_review_20260511_052547_05_replay_backtest_runner",
+  "active_task_pid": 2433416,
   "active_task_pid_alive": true,
   "allowed_codex_takeover_work": [
     "read-only milestone review",
@@ -26,8 +27,8 @@
     "live trading enablement",
     "secret exposure"
   ],
-  "generated_at": "2026-05-11T05:29:29.417440+00:00",
-  "git_head": "e87cbf9 Create Codex parallel review batch",
+  "generated_at": "2026-05-11T05:30:38.815423+00:00",
+  "git_head": "53f43a1 Refresh Claude primary handoff state",
   "go_no_go": "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF_READY",
   "handoff_back_to_claude_condition": "quota probe reports ready, git is clean, and no active Codex child is running",
   "human_input_required": "NO unless selected task is final live/capital gate",
@@ -38,10 +39,9 @@
   "next_safe_worker_task": "Claude primary: claude_primary_enterprise_ui_polish_remove_legacy_chart",
   "ollama_evidence_helper_active": true,
   "processes": [
-    "2431239 2399536 86 python3 claude_worklog/tools/agent_supervisor.py --task-id codex_parallel_review_20260511_052547_04_paper_execution_ledger",
-    "2431241 2431239 85 codex exec <takeover task prompt redacted>",
-    "2431252 2431241 85 codex exec <takeover task prompt redacted>",
-    "2432643 1014838 0 python3 claude_worklog/tools/agent_supervisor.py --dry-run"
+    "2433414 2399536 18 python3 claude_worklog/tools/agent_supervisor.py --task-id codex_parallel_review_20260511_052547_05_replay_backtest_runner",
+    "2433416 2433414 18 codex exec <takeover task prompt redacted>",
+    "2433427 2433416 18 codex exec <takeover task prompt redacted>"
   ],
   "quota": {
     "path": "claude_worklog/quota/CLAUDE_CODE_QUOTA_STATUS.md",
