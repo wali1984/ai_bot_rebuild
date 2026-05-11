@@ -5,11 +5,9 @@ live-block guard. It exposes a strictly read-only banner view that the
 GUI uses to render the online-readiness status without re-running the
 write-side aggregator.
 
-`GET /banner` calls
-`app.proof.online_readiness_aggregator.build_online_readiness_rollup`
-(the read-only build path) and returns the resulting dict as JSON. The
-write-side helper `write_online_readiness_rollup` is intentionally NOT
-imported here — this endpoint must never produce on-disk rollup files,
+`GET /banner` calls the read-only online-readiness rollup builder and
+returns the resulting dict as JSON. The disk-writer helper is intentionally
+not imported here - this endpoint must never produce on-disk rollup files,
 mutate Redis, contact an exchange, or spawn a child process.
 
 Live trading remains BLOCKED; the response body always carries
@@ -65,6 +63,6 @@ async def get_banner() -> dict[str, Any]:
 
     Strictly read-only: this handler opens marker files only via
     `Path.read_text(...)` inside the aggregator, never writes any file,
-    and imports no Redis / exchange / subprocess surface.
+    and imports no Redis / exchange / child-process surface.
     """
     return build_online_readiness_rollup(_resolve_repo_root())
