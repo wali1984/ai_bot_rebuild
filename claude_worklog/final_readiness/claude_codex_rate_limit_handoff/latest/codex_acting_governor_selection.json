@@ -14,7 +14,7 @@
     "live trading enablement",
     "secret exposure"
   ],
-  "generated_at": "2026-05-11T05:05:42.010801+00:00",
+  "generated_at": "2026-05-11T05:15:42.895490+00:00",
   "live_gate_status": "blocked_human_only",
   "mode": "codex_acting_governor",
   "requires_claude_after_reset": true,
