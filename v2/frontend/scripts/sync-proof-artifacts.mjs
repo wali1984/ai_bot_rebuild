@@ -40,6 +40,7 @@ const artifactSets = [
   'orchestrator_decision_evidence_reconciliation',
   'root_route_redirect_to_v2_mission_control',
   'root_route_mission_control',
+  'claude_design_full_visual_implementation',
   'online_readiness_control_plane',
   'post_mvp_non_live_gap_audit',
 ];

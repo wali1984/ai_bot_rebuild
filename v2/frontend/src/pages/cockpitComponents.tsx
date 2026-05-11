@@ -29,11 +29,18 @@ export function Metric({ label, value, detail }: { label: string; value: unknown
   );
 }
 
-export function Panel({ id, title, children }: { id: string; title: string; children: ReactNode }): JSX.Element {
+export function Panel({ id, title, children, right }: { id: string; title: string; children: ReactNode; right?: ReactNode }): JSX.Element {
   return (
-    <section className="cockpit-panel" id={id} data-testid={`cockpit-${id}`}>
-      <h2>{title}</h2>
-      {children}
+    <section className="cockpit-panel panel bracketed" id={id} data-testid={`cockpit-${id}`}>
+      <span className="br-bl" aria-hidden="true" />
+      <span className="br-br" aria-hidden="true" />
+      <div className="panel-head">
+        <h2 className="panel-title">{title}</h2>
+        {right ? <div className="panel-actions">{right}</div> : null}
+      </div>
+      <div className="panel-body">
+        {children}
+      </div>
     </section>
   );
 }
