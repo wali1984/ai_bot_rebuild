@@ -1,0 +1,31 @@
+{
+  "task_id": "codex_review_online_readiness_aggregator_freshness_extension",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "priority": 3210,
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/"
+  ],
+  "required_output_files": [
+    "claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/CODEX_ONLINE_READINESS_AGGREGATOR_FRESHNESS_REVIEW.md",
+    "claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/CODEX_GO_NO_GO.md"
+  ],
+  "prompt": "Run the required Codex review for the V2 online-readiness aggregator freshness extension. This is review-only: do not modify source code, task definitions, Redis, legacy bot files, or exchange state. Inspect v2/backend/app/proof/online_readiness_aggregator.py, v2/backend/tests/unit/proof/test_online_readiness_aggregator_freshness.py, claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/V2_ONLINE_READINESS_ACCELERATION_REPORT.md, claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/VALIDATION_EVIDENCE.md, and claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/NEXT_SAFE_TASKS.md. Challenge whether the gating predicate is unchanged, whether staleness cannot demote READY to BLOCKED, whether no live-runtime imports were introduced, whether marker_sha256 is computed over file bytes rather than stripped text, whether invalid now strings are safe, whether output stays caller-supplied/file-only, and whether live_gate_status remains blocked_human_only. Emit exactly two BEGIN_FILE blocks for the required output files. CODEX_GO_NO_GO.md must contain exactly one line: CODEX_ONLINE_READINESS_AGGREGATOR_FRESHNESS_PASS or CODEX_ONLINE_READINESS_AGGREGATOR_FRESHNESS_FAIL.",
+  "next_recommended_action": "If PASS, let the governor queue the next safe online-readiness follow-up before unrelated backlog. If FAIL, create a focused remediation task and keep unrelated safe work moving.",
+  "safety_constraints": [
+    "review-only",
+    "do not modify /home/wali/Desktop/AI BOT",
+    "do not mutate Redis",
+    "do not place/cancel/modify exchange orders",
+    "do not change leverage/margin/position mode",
+    "do not enable live trading",
+    "live gate remains blocked_human_only"
+  ],
+  "source_requirements": [
+    "claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/NEXT_SAFE_TASKS.md",
+    "claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/GO_NO_GO.md"
+  ]
+}
