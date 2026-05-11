@@ -185,6 +185,12 @@ executes.
 
 ## Validation Evidence
 
+- `npm run typecheck` from `v2/frontend`: passed.
+- `npm run build` from `v2/frontend`: passed.
+- `npm run test:e2e -- tests/e2e/mission_control_readiness_banner.spec.ts`
+  from `v2/frontend`: passed on 2026-05-11 with 4/4 Chromium tests:
+  READY banner, BLOCKED missing marker, BLOCKED divergent marker, and
+  GET-only invariant.
 - contract alignment: every field referenced by the component
   (`all_required_matched`, `blocking_lanes`, `lanes[].lane_id`,
   `lanes[].matched`, `lanes[].found`, `lanes[].error`,
