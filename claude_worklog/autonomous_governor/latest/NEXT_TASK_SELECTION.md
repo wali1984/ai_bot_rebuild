@@ -1,8 +1,8 @@
 # Next Task Selection
 
-Selected task: `codex_parallel_review_20260511_042831_02_orchestrator_decision`
+Selected task: `069D2_decision_lineage_validation_rerun_after_069C2`
 
-Reason: A supervisor task is already active; do not race it. Monitor liveness and let it complete or recover.
+Reason: Fresh blocked validation result detected; create/select remediation before unrelated review queue tasks.
 
 Safety classification: `non_live_codex_takeover`
 

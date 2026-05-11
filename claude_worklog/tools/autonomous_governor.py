@@ -26,6 +26,7 @@ APPROVAL_MARKER = "STANDING_AUTONOMOUS_GOVERNOR_UNTIL_LIVE_GATE"
 REDIS_TRIM_APPROVAL = ROOT / "claude_worklog/approvals/APPROVED_REDIS_LIQUIDATIONS_EVENTS_XTRIM_MINID_1777222885206_0_ONLY.md"
 QUOTA_STATUS = ROOT / "claude_worklog/quota/CLAUDE_CODE_QUOTA_STATUS.md"
 TASKS = ROOT / "claude_worklog/agent_supervisor/tasks"
+STATE = ROOT / "claude_worklog/agent_supervisor/state/tasks"
 PHASE2_DECISION_EXPLAINABILITY = ROOT / "claude_worklog/phase2_core_rebuild/decision_explainability"
 DECISION_LINEAGE_FINAL = ROOT / "claude_worklog/final_readiness/decision_explainability_lineage/latest"
 DECISION_LINEAGE_PUBLIC = ROOT / "v2/frontend/public/decision_explainability_lineage/latest"
@@ -91,6 +92,27 @@ def task_exists(task_id: str) -> bool:
     return (TASKS / f"{task_id}.json").exists()
 
 
+def task_status(task_id: str) -> str:
+    state = read_json(STATE / f"{task_id}.json")
+    task = read_json(TASKS / f"{task_id}.json")
+    return str(state.get("status") or task.get("status") or "pending")
+
+
+def task_terminal(task_id: str) -> bool:
+    return task_status(task_id) in {"completed", "superseded_by_evidence"}
+
+
+def nonterminal_current_task(queue: dict[str, Any], current: dict[str, Any]) -> str | None:
+    candidate = str(queue.get("current_running_task") or current.get("task_id") or "").strip()
+    if not candidate:
+        return None
+    state_status = task_status(candidate)
+    current_status = str(current.get("status") or "")
+    if state_status in {"running", "retry_scheduled"} or current_status == "running":
+        return candidate
+    return None
+
+
 def write_governor_task(task_id: str, task: dict[str, Any]) -> bool:
     if task_exists(task_id):
         return False
@@ -104,6 +126,15 @@ def latest_blocked_validation_result() -> dict[str, Any] | None:
     go = PHASE2_DECISION_EXPLAINABILITY / "069D_GO_NO_GO.md"
     packet = PHASE2_DECISION_EXPLAINABILITY / "069D_VALIDATION_AND_CODEX_REVIEW_PACKET.md"
     if read_text(go) == "PHASE2HA0_069D_VALIDATION_PACKET_BLOCKED" and packet.exists():
+        c2_go = DECISION_LINEAGE_FINAL / "069C2_GO_NO_GO.md"
+        if read_text(c2_go) == "069C2_DECISION_LINEAGE_DASHBOARD_CONTRACT_REMEDIATION_READY":
+            return {
+                "blocker_id": "069D_validation_rerun_required",
+                "source_marker": str(go.relative_to(ROOT)),
+                "source_packet": str(packet.relative_to(ROOT)),
+                "root_cause": "069C2 remediation completed; 069D validation must rerun before unrelated queue work.",
+                "remediation_task_id": "069D2_decision_lineage_validation_rerun_after_069C2",
+            }
         return {
             "blocker_id": "069D_validation_blocked",
             "source_marker": str(go.relative_to(ROOT)),
@@ -178,6 +209,63 @@ def create_decision_lineage_dashboard_remediation_task(blocker: dict[str, Any]) 
     return write_governor_task(task_id, task)
 
 
+def create_decision_lineage_validation_rerun_task(blocker: dict[str, Any]) -> bool:
+    task_id = str(blocker["remediation_task_id"])
+    task = {
+        "task_id": task_id,
+        "agent": "claude",
+        "risk_level": "L2",
+        "status": "pending",
+        "cwd": str(ROOT),
+        "emit_files": True,
+        "allowed_output_prefixes": [
+            "claude_worklog/final_readiness/decision_explainability_lineage/latest/",
+            "claude_worklog/phase2_core_rebuild/decision_explainability/",
+        ],
+        "required_output_files": [
+            "claude_worklog/final_readiness/decision_explainability_lineage/latest/069D2_VALIDATION_RERUN_REPORT.md",
+            "claude_worklog/final_readiness/decision_explainability_lineage/latest/069D2_GO_NO_GO.md",
+        ],
+        "predecessor_task_ids": [
+            "069C2_decision_lineage_dashboard_contract_remediation",
+        ],
+        "priority": 1601,
+        "lane": "paper_backtest_mvp",
+        "mvp_relevance": "Autonomous validation rerun after 069C2 remediated the dashboard lineage contract blocker found by 069D.",
+        "blocked_by": [
+            "PHASE2HA0_069D_VALIDATION_PACKET_BLOCKED",
+        ],
+        "next_gate": "069D2_GO_NO_GO.md",
+        "legacy_evidence_consulted": [
+            "069A/069B/069C/069D decision explainability artifacts",
+            "069C2 final-readiness dashboard payload",
+            "069C2 remediation report",
+        ],
+        "legacy_failure_addressed": [
+            "queue drift after 069C2 completion before validation rerun",
+            "dashboard lineage authority and missing-evidence warning contract not independently rechecked",
+        ],
+        "prompt": (
+            "Strict BEGIN_FILE emit-only mode. Rerun the 069D decision-lineage validation after 069C2 remediation. "
+            "Do not modify /home/wali/Desktop/AI BOT. Do not write/delete/trim Redis. Do not restart services. "
+            "Do not place/cancel exchange orders. Do not change leverage, margin, or position mode. Do not enable live trading. "
+            "Do not expose secrets. Human input is required only for final live/capital gate.\n\n"
+            "Validate that claude_worklog/final_readiness/decision_explainability_lineage/latest/operator_dashboard_payload.json and "
+            "v2/frontend/public/decision_explainability_lineage/latest/operator_dashboard_payload.json now satisfy the 069D blocked-validation contract: "
+            "lineage_contract_version, payload_status, warning_count, payload_warnings, lineage_rows, lineage_authority per row, "
+            "missing_evidence_warnings, explicit scaffold_only/fixture_only/null treatment for signal_id/execution_intent_id/shadow_decision_id, "
+            "live_gate_status blocked_human_only, and human_input_required false. "
+            "Use raw source artifacts, not summaries: 069A_LINEAGE_SOURCE_SCAN.md, 069B_LINEAGE_EVIDENCE_PACKET.md, "
+            "069C_DASHBOARD_PAYLOAD_INTEGRATION_SPEC.md, 069D_VALIDATION_AND_CODEX_REVIEW_PACKET.md, "
+            "parallel_capacity_readonly_review_phase2ha0_069c_dashboard_integration_ready_REPORT.md, and 069C2_DASHBOARD_CONTRACT_REMEDIATION_REPORT.md.\n\n"
+            "Emit exactly: 069D2_VALIDATION_RERUN_REPORT.md and 069D2_GO_NO_GO.md under final_readiness/decision_explainability_lineage/latest. "
+            "GO file exactly 069D2_DECISION_LINEAGE_VALIDATION_RERUN_READY or 069D2_DECISION_LINEAGE_VALIDATION_RERUN_BLOCKED."
+        ),
+        "next_recommended_action": "After READY, governor may proceed to next safe queue task; if BLOCKED, create another local remediation task before unrelated reviews.",
+    }
+    return write_governor_task(task_id, task)
+
+
 def process_summary() -> list[str]:
     proc = run("ps -eo pid,ppid,etimes,cmd | grep -E 'claude_master_rebuild_planner|parallel_scheduler|codex_watchdog|agent_supervisor.py|claude --print|codex exec|ollama run' | grep -v grep || true")
     rows = []
@@ -244,7 +332,7 @@ STANDING_AUTONOMOUS_GOVERNOR_UNTIL_LIVE_GATE
 def choose_next_task(queue: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
     redis_hold_next = read_text(ROOT / "claude_worklog/final_readiness/redis_trim_approval_hold/latest/next_safe_milestone.md")
     phase3h_allowed = REDIS_TRIM_APPROVAL.exists()
-    current_task = queue.get("current_running_task") or current.get("task_id")
+    current_task = nonterminal_current_task(queue, current)
     next_pending = queue.get("next_pending_task")
     stale = int(queue.get("stale_running_count") or 0)
     no_output = int(queue.get("no_output_growth_count") or 0)
@@ -253,7 +341,10 @@ def choose_next_task(queue: dict[str, Any], current: dict[str, Any]) -> dict[str
     blocked_validation = latest_blocked_validation_result()
     remediation_created = False
     if blocked_validation:
-        remediation_created = create_decision_lineage_dashboard_remediation_task(blocked_validation)
+        if str(blocked_validation.get("remediation_task_id")) == "069D2_decision_lineage_validation_rerun_after_069C2":
+            remediation_created = create_decision_lineage_validation_rerun_task(blocked_validation)
+        else:
+            remediation_created = create_decision_lineage_dashboard_remediation_task(blocked_validation)
         next_pending = str(blocked_validation["remediation_task_id"])
 
     if human_final:

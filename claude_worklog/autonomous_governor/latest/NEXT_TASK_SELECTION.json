@@ -6,9 +6,9 @@
     "create non-blocking decision packets"
   ],
   "blocked_validation": {
-    "blocker_id": "069D_validation_blocked",
-    "remediation_task_id": "069C2_decision_lineage_dashboard_contract_remediation",
-    "root_cause": "069C dashboard payload/UI contract not materialized; independent Codex review blocked.",
+    "blocker_id": "069D_validation_rerun_required",
+    "remediation_task_id": "069D2_decision_lineage_validation_rerun_after_069C2",
+    "root_cause": "069C2 remediation completed; 069D validation must rerun before unrelated queue work.",
     "source_marker": "claude_worklog/phase2_core_rebuild/decision_explainability/069D_GO_NO_GO.md",
     "source_packet": "claude_worklog/phase2_core_rebuild/decision_explainability/069D_VALIDATION_AND_CODEX_REVIEW_PACKET.md"
   },
@@ -20,7 +20,7 @@
     "stale dashboard payload",
     "lineage/evidence gaps"
   ],
-  "current_task": "codex_parallel_review_20260511_042831_02_orchestrator_decision",
+  "current_task": null,
   "forbidden_actions": [
     "live trading enablement",
     "real exchange order/cancel/close",
@@ -29,14 +29,14 @@
     "Redis mutation without exact approval",
     "secret exposure"
   ],
-  "generated_at": "2026-05-11T04:40:55.515769+00:00",
+  "generated_at": "2026-05-11T04:41:48.703979+00:00",
   "next_milestone": "continue_safe_non_live_queue_until_final_live_gate",
-  "next_pending_task": "069C2_decision_lineage_dashboard_contract_remediation",
+  "next_pending_task": "069D2_decision_lineage_validation_rerun_after_069C2",
   "priority": 1,
   "redis_decision": "phase3h_deferred_continue_safe_work",
-  "remediation_task_created": false,
+  "remediation_task_created": true,
   "safety_classification": "non_live_codex_takeover",
-  "selected_task_id": "codex_parallel_review_20260511_042831_02_orchestrator_decision",
+  "selected_task_id": "069D2_decision_lineage_validation_rerun_after_069C2",
   "why_higher_priority_items_are_not_selected": [
     {
       "item": "final_live_gate",
@@ -59,7 +59,7 @@
     {
       "item": "fresh_blocked_validation_remediation",
       "priority": 1,
-      "reason": "069C dashboard payload/UI contract not materialized; independent Codex review blocked.",
+      "reason": "069C2 remediation completed; 069D validation must rerun before unrelated queue work.",
       "selected": true
     },
     {
@@ -75,5 +75,5 @@
       "selected": false
     }
   ],
-  "why_selected": "A supervisor task is already active; do not race it. Monitor liveness and let it complete or recover."
+  "why_selected": "Fresh blocked validation result detected; create/select remediation before unrelated review queue tasks."
 }
