@@ -15,6 +15,7 @@ EVENTS = WORKSPACE / "claude_worklog/agent_supervisor/events.jsonl"
 STATUS_PATH = WORKSPACE / "claude_worklog/agent_supervisor/status/parallel_capacity_scheduler_status.json"
 TASKS_DIR = WORKSPACE / "claude_worklog/agent_supervisor/tasks"
 STATE_DIR = WORKSPACE / "claude_worklog/agent_supervisor/state/tasks"
+GOVERNOR_SELECTION_PATH = WORKSPACE / "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json"
 PHASE2_DIR = WORKSPACE / "claude_worklog/phase2_core_rebuild"
 CODEX_PARALLEL_REVIEWS_DIR = WORKSPACE / "claude_worklog/codex_parallel_reviews"
 CODEX_BATCH_GENERATOR = WORKSPACE / "claude_worklog/tools/create_codex_parallel_review_batch.py"
@@ -367,6 +368,22 @@ def codex_review_counts() -> dict[str, int]:
     return counts
 
 
+def selected_blocked_validation_remediation() -> str | None:
+    selection = read_json(GOVERNOR_SELECTION_PATH)
+    task_id = str(selection.get("selected_task_id") or "")
+    if not task_id:
+        return None
+    blocker = selection.get("blocked_validation")
+    if not isinstance(blocker, dict) or not blocker:
+        return None
+    state = read_json(STATE_DIR / f"{task_id}.json")
+    task = read_json(TASKS_DIR / f"{task_id}.json")
+    status = str(state.get("status") or task.get("status") or "pending")
+    if status in {"completed", "superseded_by_evidence"}:
+        return None
+    return task_id
+
+
 def codex_review_batch_active(counts: dict[str, int] | None = None) -> bool:
     counts = counts or codex_review_counts()
     return bool(counts.get("pending") or counts.get("running"))
@@ -520,6 +537,7 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
     codex_batch_active = codex_review_batch_active(codex_review_batch_counts)
     quota = quota_status()
     claude_rate_limited = quota.get("state") == "blocked_or_limited"
+    blocked_validation_remediation = selected_blocked_validation_remediation()
 
     available_work: list[str] = []
     next_safe_codex_task: str | None = None
@@ -531,6 +549,8 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
         available_work.append(f"recover human_attention_required task {human_attention}")
     if fail_marker:
         available_work.append(f"recover failed marker {fail_marker}")
+    if blocked_validation_remediation:
+        available_work.append(f"fresh blocked-validation remediation {blocked_validation_remediation}")
     if git_status and not claude_children and not codex_children:
         available_work.append("recover dirty tree through Codex watchdog")
     if latest_milestone and not codex_children:
@@ -551,7 +571,9 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
     codex_review_lane = "active" if codex_children else "idle"
     codex_autofix_lane = "available" if (human_attention or fail_marker) and not codex_children else "idle"
 
-    if claude_rate_limited and not codex_children:
+    if blocked_validation_remediation and not codex_children:
+        next_safe_codex_task = f"dispatch governor-selected remediation {blocked_validation_remediation}"
+    elif claude_rate_limited and not codex_children:
         next_safe_codex_task = "Codex takeover: review/remediate safe non-live blockers until Claude quota reset"
     elif claude_children and git_status:
         next_safe_codex_task = "read-only review already committed milestone; do not patch dirty current work"
@@ -591,13 +613,31 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
 
         codex_review_batch_counts = codex_review_counts()
         codex_batch_active = codex_review_batch_active(codex_review_batch_counts)
-        if claude_rate_limited and git_clean and not claude_children and not active_codex_children():
+        if blocked_validation_remediation and git_clean and not claude_children and not active_codex_children():
+            takeover = run_codex_acting_governor(dispatch=True)
+            actions.append(
+                {
+                    "action": "ran_codex_acting_governor_for_blocked_validation_remediation",
+                    "selected_remediation": blocked_validation_remediation,
+                    **takeover,
+                }
+            )
+            git_status = git_status_lines()
+            git_clean = not git_status
+            blocked_validation_remediation = selected_blocked_validation_remediation()
+        elif claude_rate_limited and git_clean and not claude_children and not active_codex_children():
             takeover = run_codex_acting_governor(dispatch=True)
             actions.append({"action": "ran_codex_acting_governor_takeover", **takeover})
             git_status = git_status_lines()
             git_clean = not git_status
 
-        if git_clean and not claude_children and not active_codex_children() and not (human_attention or fail_marker):
+        if (
+            git_clean
+            and not blocked_validation_remediation
+            and not claude_children
+            and not active_codex_children()
+            and not (human_attention or fail_marker)
+        ):
             if not codex_batch_active:
                 batch = create_codex_review_batch()
                 actions.append({"action": "created_codex_parallel_review_batch", **batch})
@@ -611,7 +651,7 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
         git_status = git_status_lines()
         git_clean = not git_status
 
-        if git_clean and not claude_children and not codex_children and latest_milestone:
+        if git_clean and not blocked_validation_remediation and not claude_children and not codex_children and latest_milestone:
             task_id = create_readonly_review_task(latest_milestone)
             if task_id:
                 rc = run_task(task_id)
