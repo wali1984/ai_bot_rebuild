@@ -1,0 +1,14 @@
+{
+  "active_codex_child_policy": "do_not_interrupt",
+  "claude_handoff_condition": "quota_ready_and_git_clean_and_no_active_codex_child",
+  "claude_quota_status": "ready",
+  "codex_role": "parallel_reviewer_auditor",
+  "go_no_go": "CLAUDE_PRIMARY_HANDOFF_STATE_REFRESH_AND_NEXT_TASK_SELECTION_READY",
+  "human_input_required": false,
+  "live_gate_status": "blocked_human_only",
+  "next_selected_task": "claude_primary_enterprise_ui_polish_remove_legacy_chart",
+  "redis_trim_global_blocking": false,
+  "redis_trim_status": "deferred_non_blocking",
+  "resolved_blocker": "069D2_DECISION_LINEAGE_VALIDATION_RERUN_READY",
+  "target": "CLAUDE_PRIMARY_HANDOFF_STATE_REFRESH_AND_NEXT_TASK_SELECTION_READY"
+}

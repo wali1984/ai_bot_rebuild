@@ -10,9 +10,14 @@
   "codex": {
     "status": "available"
   },
-  "generated_at": "2026-05-11T05:25:26.557797+00:00",
+  "generated_at": "2026-05-11T05:29:29.431517+00:00",
   "ollama_local_tools": {
     "status": "draft_evidence_helper_available"
   },
-  "processes": []
+  "processes": [
+    "2431239 2399536 86 python3 claude_worklog/tools/agent_supervisor.py --task-id codex_parallel_review_20260511_052547_04_paper_execution_ledger",
+    "2431241 2431239 85 codex exec <takeover task prompt redacted>",
+    "2431252 2431241 85 codex exec <takeover task prompt redacted>",
+    "2432643 1014838 0 python3 claude_worklog/tools/agent_supervisor.py --dry-run"
+  ]
 }

@@ -1,8 +1,8 @@
 # Next Task Selection
 
-Selected task: `032_codex_review_symbol_universe_usdm_correction`
+Selected task: `codex_parallel_review_20260511_052547_04_paper_execution_ledger`
 
-Reason: Redis trim approval is absent; leave Phase 3H as a non-blocking decision packet and continue safe V2 work.
+Reason: A supervisor task is already active; do not race it. Monitor liveness and let it complete or recover.
 
 Safety classification: `non_live_autonomous`
 

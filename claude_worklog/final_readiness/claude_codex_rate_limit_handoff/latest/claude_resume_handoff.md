@@ -6,14 +6,16 @@ and no active Codex child is running.
 ## Codex Completed During Takeover
 
 - Created/updated rate-limit takeover status artifacts.
-- Kept Claude planner paused while quota is blocked.
+- Completed `069B`, `069C`, `069C2`, and `069D2` decision-lineage work through Codex takeover while Claude was blocked.
+- Repaired stale 069D2 queue selection so READY evidence supersedes the older 069D blocked marker.
+- Claude quota status is now `ready`.
 - Preserved live gate and Redis trim approval boundaries.
 
 ## Current Queue
 
-- Active task: `None`
-- Next pending task: `032_codex_review_symbol_universe_usdm_correction`
-- Next safe Codex task: `Codex takeover: review/remediate safe non-live blockers until Claude quota reset`
+- Active task: `codex_parallel_review_20260511_052547_04_paper_execution_ledger`
+- Next pending task: `claude_primary_enterprise_ui_polish_remove_legacy_chart`
+- Next safe Codex task: `Claude primary: claude_primary_enterprise_ui_polish_remove_legacy_chart`
 
 ## Safety
 

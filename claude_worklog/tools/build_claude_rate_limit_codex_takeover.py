@@ -99,26 +99,37 @@ def main() -> int:
     pid_alive = False
     if active_pid:
         pid_alive = run(["ps", "-p", str(active_pid)]).returncode == 0
+    claude_ready = quota["state"] == "ready"
+    next_pending = queue.get("next_pending_task")
+    if claude_ready:
+        next_worker_task = f"Claude primary: {next_pending or 'select next safe non-live task'}"
+        current_decision = "Claude quota is ready; Claude resumes as primary builder/planner when git is clean and no Codex child is active. Codex remains parallel reviewer/auditor."
+        current_milestone = "CLAUDE_PRIMARY_HANDOFF_AND_NEXT_SAFE_NON_LIVE_TASK_SELECTION"
+    else:
+        next_worker_task = scheduler.get("next_safe_codex_task") or "Codex takeover: safe non-live review/remediation"
+        current_decision = "Claude rate limit is a resource-routing event; Codex acting-governor owns safe non-live work until reset."
+        current_milestone = "CODEX_ACTING_GOVERNOR_CONTINUE_SAFE_NON_LIVE_WORK_UNTIL_CLAUDE_RESET"
     payload = {
         "generated_at": now(),
         "marker": "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF_READY",
         "go_no_go": "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF_READY",
         "git_head": git_head(),
         "quota": quota,
-        "claude_lane": "paused_rate_limited" if quota["state"] == "blocked_or_limited" else "ready",
-        "codex_takeover_active": quota["state"] == "blocked_or_limited",
+        "claude_lane": "ready" if claude_ready else "paused_rate_limited",
+        "codex_takeover_active": not claude_ready,
         "ollama_evidence_helper_active": True,
         "human_input_required": "NO unless selected task is final live/capital gate",
         "handoff_back_to_claude_condition": "quota probe reports ready, git is clean, and no active Codex child is running",
         "active_task": active_task,
         "active_task_pid": active_pid,
         "active_task_pid_alive": pid_alive,
-        "next_pending_task": queue.get("next_pending_task"),
-        "next_safe_codex_task": scheduler.get("next_safe_codex_task") or "Codex takeover: safe non-live review/remediation",
-        "current_autonomous_decision": "Claude rate limit is a resource-routing event; Codex acting-governor owns safe non-live work until reset.",
-        "current_codex_task": scheduler.get("next_safe_codex_task") or "Codex takeover queue selection",
+        "next_pending_task": next_pending,
+        "next_safe_worker_task": next_worker_task,
+        "next_safe_codex_task": next_worker_task,
+        "current_autonomous_decision": current_decision,
+        "current_codex_task": "parallel reviewer/auditor" if claude_ready else next_worker_task,
         "current_ollama_local_evidence_task": "DRAFT_ONLY_REQUIRES_CLAUDE_OR_CODEX_VERIFICATION evidence packet preparation",
-        "current_next_safe_milestone": "CODEX_ACTING_GOVERNOR_CONTINUE_SAFE_NON_LIVE_WORK_UNTIL_CLAUDE_RESET",
+        "current_next_safe_milestone": current_milestone,
         "live_gate_status": "blocked_human_only",
         "redis_trim_approval_present": (ROOT / "claude_worklog/approvals/APPROVED_REDIS_LIQUIDATIONS_EVENTS_XTRIM_MINID_1777222885206_0_ONLY.md").exists(),
         "processes": process_rows(),
@@ -156,7 +167,7 @@ def main() -> int:
     with (OUT / "autonomous_decision_records.jsonl").open("a", encoding="utf-8") as fh:
         fh.write(json.dumps({
             "ts": now(),
-            "decision": "route_safe_non_live_work_to_codex_until_claude_reset",
+            "decision": "resume_claude_primary_keep_codex_parallel_review" if claude_ready else "route_safe_non_live_work_to_codex_until_claude_reset",
             "human_input_required": payload["human_input_required"],
             "final_live_gate_status": "blocked_human_only",
         }, sort_keys=True) + "\n")
@@ -178,6 +189,8 @@ def main() -> int:
             "next_recommended_claude_task": payload["next_pending_task"],
             "codex_takeover_context": payload["next_safe_codex_task"],
             "unresolved_blockers": [
+                "Phase 3H Redis trim remains unapproved and non-blocking",
+            ] if claude_ready else [
                 "Claude quota blocked until reset",
                 "Phase 3H Redis trim remains unapproved and non-blocking",
             ],
@@ -201,11 +214,11 @@ Result: `CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF_READY`
 - Live gate: `blocked_human_only`
 - Redis trim approval present: `{payload['redis_trim_approval_present']}`
 
-Claude rate limiting is a lane outage, not a rebuild stop. Codex becomes the
-temporary planner/reviewer/builder for safe non-live work. Ollama/local tools
-may continue evidence preparation as draft-only helpers. The system hands work
-back to Claude after the quota probe returns `ready`, git is clean, and no
-active Codex child is running.
+Claude rate limiting is a lane outage, not a rebuild stop. When the quota probe
+is blocked, Codex becomes the temporary planner/reviewer/builder for safe
+non-live work. When the quota probe is ready, Claude resumes as primary
+builder/planner if git is clean and no active Codex child is running; Codex
+remains available as parallel reviewer/auditor.
 """,
     )
     write_text(
@@ -218,7 +231,9 @@ and no active Codex child is running.
 ## Codex Completed During Takeover
 
 - Created/updated rate-limit takeover status artifacts.
-- Kept Claude planner paused while quota is blocked.
+- Completed `069B`, `069C`, `069C2`, and `069D2` decision-lineage work through Codex takeover while Claude was blocked.
+- Repaired stale 069D2 queue selection so READY evidence supersedes the older 069D blocked marker.
+- Claude quota status is now `{quota['state']}`.
 - Preserved live gate and Redis trim approval boundaries.
 
 ## Current Queue
@@ -306,8 +321,7 @@ source/evidence directly before final claims.
 `{payload['next_safe_codex_task']}`
 
 Do not wait for manual Copilot sequencing. Do not start live work. Do not run
-Redis trim. Continue safe non-live work through Codex/Ollama until Claude quota
-resets.
+Redis trim. {"Claude is quota-ready; resume Claude as primary only when git is clean and no Codex child is active. Codex remains parallel reviewer/auditor." if claude_ready else "Continue safe non-live work through Codex/Ollama until Claude quota resets."}
 """,
     )
     return 0

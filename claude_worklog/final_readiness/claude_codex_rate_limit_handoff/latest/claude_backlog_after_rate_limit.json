@@ -1,11 +1,10 @@
 {
-  "codex_takeover_context": "Codex takeover: review/remediate safe non-live blockers until Claude quota reset",
-  "generated_at": "2026-05-11T05:25:26.557850+00:00",
+  "codex_takeover_context": "Claude primary: claude_primary_enterprise_ui_polish_remove_legacy_chart",
+  "generated_at": "2026-05-11T05:29:29.431558+00:00",
   "handoff_condition": "quota probe reports ready, git is clean, and no active Codex child is running",
   "live_gate_approached": false,
-  "next_recommended_claude_task": "032_codex_review_symbol_universe_usdm_correction",
+  "next_recommended_claude_task": "claude_primary_enterprise_ui_polish_remove_legacy_chart",
   "unresolved_blockers": [
-    "Claude quota blocked until reset",
     "Phase 3H Redis trim remains unapproved and non-blocking"
   ]
 }
