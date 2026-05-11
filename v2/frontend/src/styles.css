@@ -741,6 +741,49 @@ a { color: inherit; }
   background: #070b0f;
 }
 
+.tradingview-widget-shell {
+  position: relative;
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: #070b0f;
+}
+
+.tradingview-widget-container {
+  width: 100%;
+  height: 420px;
+}
+
+.tradingview-widget-container iframe {
+  width: 100%;
+  min-height: 420px;
+  border: 0;
+}
+
+.tradingview-widget-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: #070b0f;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.modern-dashboard-marker {
+  width: fit-content;
+  max-width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--color-green);
+  border-radius: 6px;
+  background: rgba(45,191,105,0.12);
+  color: #90e8a8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .cockpit-chart > rect {
   fill: #070b0f;
 }

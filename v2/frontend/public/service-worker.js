@@ -8,8 +8,8 @@
  *   - All API responses are passed through to the network without caching.
  */
 
-const STATIC_CACHE = 'aibot-v2-static-v1';
-const STATIC_ASSETS = ['/', '/index.html', '/manifest.webmanifest'];
+const STATIC_CACHE = 'aibot-v2-static-v2';
+const STATIC_ASSETS = ['/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -43,20 +43,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  if (url.pathname === '/' || url.pathname === '/index.html') {
+    event.respondWith(fetch(req).catch(() => caches.match('/index.html')));
+    return;
+  }
+
   event.respondWith(
-    caches.match(req).then((hit) => {
-      if (hit) return hit;
-      return fetch(req)
-        .then((res) => {
-          // Cache only successful, basic, GET, non-API responses.
-          if (res && res.status === 200 && res.type === 'basic' && !url.pathname.startsWith('/api/')) {
-            const clone = res.clone();
-            caches.open(STATIC_CACHE).then((cache) => cache.put(req, clone)).catch(() => undefined);
-          }
-          return res;
-        })
-        .catch(() => caches.match('/index.html'));
-    }),
+    fetch(req)
+      .then((res) => {
+        // Cache only successful, basic, GET, non-API responses.
+        if (res && res.status === 200 && res.type === 'basic' && !url.pathname.startsWith('/api/')) {
+          const clone = res.clone();
+          caches.open(STATIC_CACHE).then((cache) => cache.put(req, clone)).catch(() => undefined);
+        }
+        return res;
+      })
+      .catch(() => caches.match(req).then((hit) => hit || caches.match('/index.html'))),
   );
 });
 

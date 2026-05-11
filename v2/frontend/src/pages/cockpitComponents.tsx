@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { TradingViewWidget } from '../components/charts/TradingViewWidget';
 import type { AutonomousGovernorPayload, Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, Phase3cRuntimeMonitorPayload, QuarantinePayload, RedisExportCapacityPayload, RedisFullExportPayload, RedisHumanApprovalPayload, RedisMemoryPressurePayload, RedisSafeTrimPacketPayload, SettingRow, SystemAtlasGapRemediationPayload, SystemAtlasPayload } from './cockpitData';
 import { statusClass, valueText } from './cockpitData';
 
@@ -89,6 +90,7 @@ export function ChartPanel({ candles, decisions, sourceType }: { candles: Candle
   const step = width / Math.max(candles.length, 1);
   return (
     <Panel id="charting-market-data" title="BTCUSDT Chart, Signals, And Risk Markers">
+      <TradingViewWidget symbol="BINANCE:BTCUSDT" />
       <svg className="cockpit-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="BTCUSDT candlestick chart with risk markers">
         <rect x="0" y="0" width={width} height={height} rx="6" />
         {candles.map((candle, index) => {

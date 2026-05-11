@@ -72,6 +72,9 @@ export default function MissionControlPage(): JSX.Element {
           <ExchangeManager rows={payload.exchanges} />
         </aside>
       </div>
+      <footer className="modern-dashboard-marker" data-testid="modern-dashboard-loaded">
+        AI BOT V2 Modern Dashboard Loaded
+      </footer>
     </article>
   );
 }
