@@ -21,6 +21,7 @@ OUT = ROOT / "claude_worklog/final_readiness/claude_codex_rate_limit_handoff/lat
 TASKS = ROOT / "claude_worklog/agent_supervisor/tasks"
 STATE = ROOT / "claude_worklog/agent_supervisor/state/tasks"
 EVENTS = ROOT / "claude_worklog/agent_supervisor/events.jsonl"
+GOVERNOR_SELECTION = ROOT / "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json"
 SAFE_RISK_LEVELS = {"L0", "L1", "L2"}
 TERMINAL_OK = {"completed", "superseded_by_evidence"}
 
@@ -213,7 +214,18 @@ def run_supervisor_task(task_id: str) -> dict[str, Any]:
 
 
 def select_takeover_task(queue: dict[str, Any]) -> tuple[str | None, str, dict[str, Any]]:
-    source_task_id = str(queue.get("next_pending_task") or "").strip()
+    selection = read_json(GOVERNOR_SELECTION)
+    selected = str(selection.get("selected_task_id") or "").strip()
+    blocker = selection.get("blocked_validation")
+    if selected and isinstance(blocker, dict) and blocker:
+        selected_task = read_json(task_file(selected))
+        selected_status = task_status(selected, selected_task)
+        if selected_task and selected_status not in TERMINAL_OK:
+            source_task_id = selected
+        else:
+            source_task_id = str(queue.get("next_pending_task") or "").strip()
+    else:
+        source_task_id = str(queue.get("next_pending_task") or "").strip()
     if not source_task_id:
         return None, "no queue next_pending_task", {}
     task = read_json(task_file(source_task_id))
