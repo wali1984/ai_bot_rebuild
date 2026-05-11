@@ -8,15 +8,11 @@
     "status": "ready"
   },
   "codex": {
-    "status": "active_parallel_review"
+    "status": "available"
   },
-  "generated_at": "2026-05-11T05:30:38.816777+00:00",
+  "generated_at": "2026-05-11T05:47:10.137240+00:00",
   "ollama_local_tools": {
     "status": "draft_evidence_helper_available"
   },
-  "processes": [
-    "2433414 2399536 18 python3 claude_worklog/tools/agent_supervisor.py --task-id codex_parallel_review_20260511_052547_05_replay_backtest_runner",
-    "2433416 2433414 18 codex exec <takeover task prompt redacted>",
-    "2433427 2433416 18 codex exec <takeover task prompt redacted>"
-  ]
+  "processes": []
 }

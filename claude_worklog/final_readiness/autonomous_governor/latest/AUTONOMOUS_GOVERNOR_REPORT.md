@@ -12,8 +12,8 @@ Result: `AUTONOMOUS_GOVERNOR_REPLACES_MANUAL_COPILOT_UNTIL_LIVE_GATE_READY`
 - Ollama helper policy ready: `True`
 - Dashboard updated: `True`
 - Simulation passed: `True`
-- Git head: `e87cbf9 Create Codex parallel review batch`
-- Current selected next task: `codex_parallel_review_20260511_052547_04_paper_execution_ledger`
+- Git head: `f540ec4 Add Codex parallel review batch results`
+- Current selected next task: `claude_primary_enterprise_ui_polish_remove_legacy_chart`
 - Human input required: `NO unless selected task is final live gate`
 
 The governor leaves Phase 3H Redis trim as a non-blocking decision packet until

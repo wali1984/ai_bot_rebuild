@@ -1,8 +1,8 @@
 {
-  "active_codex_child": true,
-  "active_task": "codex_parallel_review_20260511_052547_05_replay_backtest_runner",
-  "active_task_pid": 2433416,
-  "active_task_pid_alive": true,
+  "active_codex_child": false,
+  "active_task": null,
+  "active_task_pid": 2442445,
+  "active_task_pid_alive": false,
   "allowed_codex_takeover_work": [
     "read-only milestone review",
     "safe non-live implementation/remediation inside AI BOT REBUILD",
@@ -27,8 +27,8 @@
     "live trading enablement",
     "secret exposure"
   ],
-  "generated_at": "2026-05-11T05:30:38.815423+00:00",
-  "git_head": "53f43a1 Refresh Claude primary handoff state",
+  "generated_at": "2026-05-11T05:47:10.135832+00:00",
+  "git_head": "f540ec4 Add Codex parallel review batch results",
   "go_no_go": "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF_READY",
   "handoff_back_to_claude_condition": "quota probe reports ready, git is clean, and no active Codex child is running",
   "human_input_required": "NO unless selected task is final live/capital gate",
@@ -38,11 +38,7 @@
   "next_safe_codex_task": "Claude primary: claude_primary_enterprise_ui_polish_remove_legacy_chart",
   "next_safe_worker_task": "Claude primary: claude_primary_enterprise_ui_polish_remove_legacy_chart",
   "ollama_evidence_helper_active": true,
-  "processes": [
-    "2433414 2399536 18 python3 claude_worklog/tools/agent_supervisor.py --task-id codex_parallel_review_20260511_052547_05_replay_backtest_runner",
-    "2433416 2433414 18 codex exec <takeover task prompt redacted>",
-    "2433427 2433416 18 codex exec <takeover task prompt redacted>"
-  ],
+  "processes": [],
   "quota": {
     "path": "claude_worklog/quota/CLAUDE_CODE_QUOTA_STATUS.md",
     "reset_hint": null,

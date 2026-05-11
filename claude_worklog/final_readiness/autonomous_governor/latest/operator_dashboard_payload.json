@@ -1,11 +1,11 @@
 {
   "codex_auto_governor_working": true,
-  "current_selected_next_task": "codex_parallel_review_20260511_052547_04_paper_execution_ledger",
+  "current_selected_next_task": "claude_primary_enterprise_ui_polish_remove_legacy_chart",
   "dashboard_updated": true,
   "final_live_gate_hard_stop": true,
-  "generated_at": "2026-05-11T05:29:29.363085+00:00",
-  "git_clean_ignoring_generated_outputs": false,
-  "git_head": "e87cbf9 Create Codex parallel review batch",
+  "generated_at": "2026-05-11T05:47:10.069909+00:00",
+  "git_clean_ignoring_generated_outputs": true,
+  "git_head": "f540ec4 Add Codex parallel review batch results",
   "go_no_go": "AUTONOMOUS_GOVERNOR_REPLACES_MANUAL_COPILOT_UNTIL_LIVE_GATE_READY",
   "human_input_required": "NO unless selected task is final live gate",
   "marker": "AUTONOMOUS_GOVERNOR_REPLACES_MANUAL_COPILOT_UNTIL_LIVE_GATE_READY",
@@ -25,7 +25,7 @@
       "stale dashboard payload",
       "lineage/evidence gaps"
     ],
-    "current_task": "codex_parallel_review_20260511_052547_04_paper_execution_ledger",
+    "current_task": null,
     "forbidden_actions": [
       "live trading enablement",
       "real exchange order/cancel/close",
@@ -34,14 +34,14 @@
       "Redis mutation without exact approval",
       "secret exposure"
     ],
-    "generated_at": "2026-05-11T05:29:29.349216+00:00",
+    "generated_at": "2026-05-11T05:47:10.055752+00:00",
     "next_milestone": "continue_safe_non_live_queue_until_final_live_gate",
     "next_pending_task": "claude_primary_enterprise_ui_polish_remove_legacy_chart",
     "priority": 1,
     "redis_decision": "phase3h_deferred_continue_safe_work",
     "remediation_task_created": false,
     "safety_classification": "non_live_autonomous",
-    "selected_task_id": "codex_parallel_review_20260511_052547_04_paper_execution_ledger",
+    "selected_task_id": "claude_primary_enterprise_ui_polish_remove_legacy_chart",
     "why_higher_priority_items_are_not_selected": [
       {
         "item": "final_live_gate",
@@ -80,18 +80,13 @@
         "selected": false
       }
     ],
-    "why_selected": "A supervisor task is already active; do not race it. Monitor liveness and let it complete or recover."
+    "why_selected": "Redis trim approval is absent; leave Phase 3H as a non-blocking decision packet and continue safe V2 work."
   },
   "non_live_approvals_now_non_blocking": true,
   "ollama_helper_policy_ready": true,
-  "processes": [
-    "2431239 2399536 86 python3 claude_worklog/tools/agent_supervisor.py --task-id codex_parallel_review_20260511_052547_04_paper_execution_ledger",
-    "2431241 2431239 85 codex exec <task prompt redacted>",
-    "2431252 2431241 85 codex exec <task prompt redacted>",
-    "2432643 1014838 0 python3 claude_worklog/tools/agent_supervisor.py --dry-run"
-  ],
+  "processes": [],
   "queue": {
-    "current_running_task": "codex_parallel_review_20260511_052547_04_paper_execution_ledger",
+    "current_running_task": null,
     "final_live_gate_required_count": 0,
     "gate": "READY_FOR_CODEX_RERUN",
     "human_attention_required_count": 0,

@@ -1,6 +1,6 @@
 {
   "codex_takeover_context": "Claude primary: claude_primary_enterprise_ui_polish_remove_legacy_chart",
-  "generated_at": "2026-05-11T05:30:38.816827+00:00",
+  "generated_at": "2026-05-11T05:47:10.137288+00:00",
   "handoff_condition": "quota probe reports ready, git is clean, and no active Codex child is running",
   "live_gate_approached": false,
   "next_recommended_claude_task": "claude_primary_enterprise_ui_polish_remove_legacy_chart",
