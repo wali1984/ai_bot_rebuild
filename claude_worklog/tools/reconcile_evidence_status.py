@@ -18,6 +18,21 @@ Evidence = Tuple[str, str, List[str]]
 
 EVIDENCE_MARKERS: List[Evidence] = [
     (
+        "PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_IMPL_AND_VALIDATION_PASSED",
+        "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/15_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_GO_NO_GO.md",
+        [
+            "119_orchestrator_decision_2fb_assembler_service_implementation",
+            "codex_recover_119_orchestrator_decision_2fb_assembler_service_implementation",
+        ],
+    ),
+    (
+        "CODEX_NON_LIVE_RECOVERY_READY",
+        "claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_119_orchestrator_decision_2fb_assembler_service_implementation_GO_NO_GO.md",
+        [
+            "codex_recover_119_orchestrator_decision_2fb_assembler_service_implementation",
+        ],
+    ),
+    (
         "PHASE2H_B_PAPER_EXECUTION_LEDGER_ASSEMBLER_SERVICE_CODEX_PASS",
         "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/18_2H_B_PAPER_EXECUTION_LEDGER_ASSEMBLER_SERVICE_CODEX_GO_NO_GO.md",
         [
