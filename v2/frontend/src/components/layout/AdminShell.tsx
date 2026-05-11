@@ -9,12 +9,12 @@ export function AdminShell(): JSX.Element {
   const location = useLocation();
 
   if (role === 'public') {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   const page = PAGES.find((p) => p.route.path === location.pathname && p.meta.surface === 'admin');
   if (page && !canSeePage(role, page.rbac.minRole)) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return (
