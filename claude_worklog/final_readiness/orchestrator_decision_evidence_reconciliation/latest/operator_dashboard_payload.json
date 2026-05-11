@@ -1,0 +1,48 @@
+{
+  "generated_at": "2026-05-11T22:38:44Z",
+  "status": "READY",
+  "milestone": "121_ORCHESTRATOR_DECISION_EVIDENCE_RECONCILIATION_OUTPUT_CONTRACT_READY",
+  "source_task": {
+    "task_id": "121_orchestrator_decision_2fb_evidence_reconciliation",
+    "supervisor_status": "completed",
+    "source_marker": "PHASE2F_B_EVIDENCE_RECONCILIATION_PASSED",
+    "source_commit": "81034de"
+  },
+  "orchestrator_risk_boundary": {
+    "orchestrator": "proposes_coordinates_enriches_deconflicts",
+    "risk_gateway": "final_authority_before_execution",
+    "execution": "acts_only_on_approved_execution_intent",
+    "bypass_allowed": false
+  },
+  "missing_evidence_gaps": [
+    {
+      "field": "signal_id",
+      "message": "Evidence missing — cannot explain without guessing."
+    },
+    {
+      "field": "risk_decision_id",
+      "message": "Evidence missing — cannot explain without guessing."
+    },
+    {
+      "field": "execution_intent_id",
+      "message": "Evidence missing — cannot explain without guessing."
+    },
+    {
+      "field": "audit_ledger_event",
+      "message": "Evidence missing — cannot explain without guessing."
+    }
+  ],
+  "codex_review": {
+    "status": "PASS",
+    "marker": "121_ORCHESTRATOR_DECISION_EVIDENCE_RECONCILIATION_CODEX_PASS"
+  },
+  "carried_blockers": [
+    "CODEX_RISK_GATEWAY_DEGRADED_STATE_FAIL",
+    "CODEX_REALTIME_MONITOR_COVERAGE_FAIL",
+    "CODEX_V2_DATA_PLANE_INDEPENDENCE_FAIL"
+  ],
+  "redis_trim": "deferred_non_blocking",
+  "live_gate": "blocked_human_only",
+  "human_input_required": "false_unless_final_live_capital_gate",
+  "next_recommended_lane": "risk_gateway_degraded_state_or_realtime_monitor_coverage_remediation"
+}

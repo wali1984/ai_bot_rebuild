@@ -37,6 +37,7 @@ const artifactSets = [
   'enterprise_ui_polish',
   'performance_objective_guardrails',
   'orchestrator_risk_boundary',
+  'orchestrator_decision_evidence_reconciliation',
   'online_readiness_control_plane',
   'post_mvp_non_live_gap_audit',
 ];
