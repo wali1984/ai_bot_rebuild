@@ -1,0 +1,32 @@
+{
+  "agent": "codex",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/codex_design_handoff_review_protocol/reviews/latest/"
+  ],
+  "blocked_by": [],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "legacy_evidence_consulted": [
+    "claude_worklog/frontend_design/handoffs/2026-05-11",
+    "v2/frontend route/component/payload surfaces",
+    "codex design handoff review protocol"
+  ],
+  "legacy_failure_addressed": [
+    "mock design data treated as runtime truth",
+    "placeholder-only pages passing as complete UI",
+    "live-block banner hidden by redesign",
+    "unsafe admin controls exposed without approval classification"
+  ],
+  "mvp_relevance": "Parallel Codex review of Claude Design handoff ingestion and enterprise UI/data truthfulness while online-readiness work continues.",
+  "next_gate": "CODEX_DESIGN_HANDOFF_REVIEW_PASS",
+  "next_recommended_action": "If PASS, keep design/UI polish as a parallel product lane. If FAIL, create a focused remediation task without blocking unrelated online-readiness work unless a safety-critical live/Redis/exchange violation is found.",
+  "priority": 2585,
+  "prompt": "You are Codex running a read-only parallel design-handoff review. Do not implement UI. Do not modify /home/wali/Desktop/AI BOT. Do not mutate Redis. Do not create Redis trim approval files. Do not restart services. Do not place/cancel/modify exchange orders. Do not change leverage, margin, or position mode. Do not enable live trading. Do not expose secrets.\n\nInspect the latest design handoff at claude_worklog/frontend_design/handoffs/2026-05-11 and the V2 frontend router/pages/components/payloads. Use claude_worklog/final_readiness/codex_design_handoff_review_protocol/latest/CODEX_DESIGN_HANDOFF_REVIEW_POLICY.md as the required review policy. Challenge mock data, placeholder-only pages, missing evidence labels, stale/static proof data presented as runtime truth, TradingView replacement behavior, safety banners, Monitor Center, Trainer Prediction Monitor, Signal Explainability, Config Admin safety classifications, and any live/legacy/Redis/exchange mutation path. Emit exactly two BEGIN_FILE blocks under the allowed output prefix. CODEX_DESIGN_HANDOFF_GO_NO_GO.md must contain exactly one line: CODEX_DESIGN_HANDOFF_REVIEW_PASS or CODEX_DESIGN_HANDOFF_REVIEW_FAIL.",
+  "required_output_files": [
+    "claude_worklog/final_readiness/codex_design_handoff_review_protocol/reviews/latest/CODEX_DESIGN_HANDOFF_REVIEW.md",
+    "claude_worklog/final_readiness/codex_design_handoff_review_protocol/reviews/latest/CODEX_DESIGN_HANDOFF_GO_NO_GO.md"
+  ],
+  "risk_level": "L1",
+  "status": "pending",
+  "task_id": "codex_parallel_review_claude_design_handoff_enterprise_ui"
+}

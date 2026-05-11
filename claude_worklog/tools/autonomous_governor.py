@@ -30,6 +30,9 @@ STATE = ROOT / "claude_worklog/agent_supervisor/state/tasks"
 PHASE2_DECISION_EXPLAINABILITY = ROOT / "claude_worklog/phase2_core_rebuild/decision_explainability"
 DECISION_LINEAGE_FINAL = ROOT / "claude_worklog/final_readiness/decision_explainability_lineage/latest"
 DECISION_LINEAGE_PUBLIC = ROOT / "v2/frontend/public/decision_explainability_lineage/latest"
+DESIGN_HANDOFFS = ROOT / "claude_worklog/frontend_design/handoffs"
+DESIGN_REVIEW_TASK_ID = "codex_parallel_review_claude_design_handoff_enterprise_ui"
+DESIGN_REVIEW_PROTOCOL = ROOT / "claude_worklog/final_readiness/codex_design_handoff_review_protocol/latest/CODEX_DESIGN_HANDOFF_REVIEW_POLICY.md"
 
 
 def now() -> str:
@@ -106,6 +109,16 @@ def task_terminal(task_id: str) -> bool:
     return task_status(task_id) in {"completed", "superseded_by_evidence"}
 
 
+def latest_design_handoff_dir() -> Path | None:
+    if not DESIGN_HANDOFFS.exists():
+        return None
+    candidates = [path for path in DESIGN_HANDOFFS.iterdir() if path.is_dir()]
+    if not candidates:
+        return None
+    candidates.sort(key=lambda path: path.stat().st_mtime)
+    return candidates[-1]
+
+
 def nonterminal_current_task(queue: dict[str, Any], current: dict[str, Any]) -> str | None:
     candidate = str(queue.get("current_running_task") or current.get("task_id") or "").strip()
     if not candidate:
@@ -123,6 +136,64 @@ def write_governor_task(task_id: str, task: dict[str, Any]) -> bool:
     TASKS.mkdir(parents=True, exist_ok=True)
     write_json(TASKS / f"{task_id}.json", task)
     return True
+
+
+def create_design_handoff_review_task() -> bool:
+    """Create a parallel Codex review task for the latest Claude Design handoff.
+
+    This task is deliberately L1/read-only and is not selected as the primary
+    online-readiness lane. It gives the parallel scheduler a concrete Codex
+    review item when a design handoff is present.
+    """
+    latest = latest_design_handoff_dir()
+    if latest is None or task_exists(DESIGN_REVIEW_TASK_ID):
+        return False
+    output_prefix = "claude_worklog/final_readiness/codex_design_handoff_review_protocol/reviews/latest/"
+    task = {
+        "task_id": DESIGN_REVIEW_TASK_ID,
+        "agent": "codex",
+        "risk_level": "L1",
+        "status": "pending",
+        "cwd": str(ROOT),
+        "emit_files": True,
+        "allowed_output_prefixes": [output_prefix],
+        "required_output_files": [
+            f"{output_prefix}CODEX_DESIGN_HANDOFF_REVIEW.md",
+            f"{output_prefix}CODEX_DESIGN_HANDOFF_GO_NO_GO.md",
+        ],
+        "priority": 2585,
+        "lane": "codex_parallel_audit",
+        "mvp_relevance": "Parallel Codex review of Claude Design handoff ingestion and enterprise UI/data truthfulness while online-readiness work continues.",
+        "blocked_by": [],
+        "next_gate": "CODEX_DESIGN_HANDOFF_REVIEW_PASS",
+        "legacy_evidence_consulted": [
+            str(latest.relative_to(ROOT)),
+            "v2/frontend route/component/payload surfaces",
+            "codex design handoff review protocol",
+        ],
+        "legacy_failure_addressed": [
+            "mock design data treated as runtime truth",
+            "placeholder-only pages passing as complete UI",
+            "live-block banner hidden by redesign",
+            "unsafe admin controls exposed without approval classification",
+        ],
+        "prompt": (
+            "You are Codex running a read-only parallel design-handoff review. "
+            "Do not implement UI. Do not modify /home/wali/Desktop/AI BOT. Do not mutate Redis. "
+            "Do not create Redis trim approval files. Do not restart services. Do not place/cancel/modify exchange orders. "
+            "Do not change leverage, margin, or position mode. Do not enable live trading. Do not expose secrets.\n\n"
+            f"Inspect the latest design handoff at {latest.relative_to(ROOT)} and the V2 frontend router/pages/components/payloads. "
+            f"Use {DESIGN_REVIEW_PROTOCOL.relative_to(ROOT)} as the required review policy. "
+            "Challenge mock data, placeholder-only pages, missing evidence labels, stale/static proof data presented as runtime truth, "
+            "TradingView replacement behavior, safety banners, Monitor Center, Trainer Prediction Monitor, Signal Explainability, "
+            "Config Admin safety classifications, and any live/legacy/Redis/exchange mutation path. "
+            "Emit exactly two BEGIN_FILE blocks under the allowed output prefix. "
+            "CODEX_DESIGN_HANDOFF_GO_NO_GO.md must contain exactly one line: "
+            "CODEX_DESIGN_HANDOFF_REVIEW_PASS or CODEX_DESIGN_HANDOFF_REVIEW_FAIL."
+        ),
+        "next_recommended_action": "If PASS, keep design/UI polish as a parallel product lane. If FAIL, create a focused remediation task without blocking unrelated online-readiness work unless a safety-critical live/Redis/exchange violation is found.",
+    }
+    return write_governor_task(DESIGN_REVIEW_TASK_ID, task)
 
 
 def latest_blocked_validation_result() -> dict[str, Any] | None:
@@ -356,6 +427,8 @@ def choose_next_task(queue: dict[str, Any], current: dict[str, Any]) -> dict[str
     human_final = int(queue.get("final_live_gate_required_count") or 0)
     quota_blocked = claude_quota_blocked()
     blocked_validation = latest_blocked_validation_result()
+    design_handoff_review_created = create_design_handoff_review_task()
+    design_handoff_dir = latest_design_handoff_dir()
     remediation_created = False
     if blocked_validation:
         if str(blocked_validation.get("remediation_task_id")) == "069D2_decision_lineage_validation_rerun_after_069C2":
@@ -436,6 +509,12 @@ def choose_next_task(queue: dict[str, Any], current: dict[str, Any]) -> dict[str
             "lineage/evidence gaps",
         ],
         "next_milestone": "continue_safe_non_live_queue_until_final_live_gate",
+        "parallel_codex_design_handoff_review": {
+            "latest_handoff_path": str(design_handoff_dir.relative_to(ROOT)) if design_handoff_dir else None,
+            "task_id": DESIGN_REVIEW_TASK_ID if design_handoff_dir else None,
+            "task_created": design_handoff_review_created,
+            "blocking_primary_lane": False,
+        },
     }
 
 

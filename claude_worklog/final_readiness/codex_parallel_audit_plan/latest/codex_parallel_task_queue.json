@@ -7,7 +7,7 @@
     },
     {
       "focus": "Claude Design handoff ingestion, route wiring, payload truthfulness, safety banners, monitor/trainer/config pages, no placeholder-only UI",
-      "task_id": "codex_review_claude_design_handoff_enterprise_ui"
+      "task_id": "codex_parallel_review_claude_design_handoff_enterprise_ui"
     },
     {
       "focus": "real legacy runtime data, no Redis writes, truthful gaps",
