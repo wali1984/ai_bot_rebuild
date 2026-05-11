@@ -1,0 +1,40 @@
+{
+  "agent": "codex",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/decision_explainability_lineage/latest/",
+    "claude_worklog/phase2_core_rebuild/decision_explainability/"
+  ],
+  "auto_commit": false,
+  "blocked_by": [
+    "PHASE2HA0_069D_VALIDATION_PACKET_BLOCKED"
+  ],
+  "commit_message": "Codex takeover outputs for 069D2_decision_lineage_validation_rerun_after_069C2",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "description": "Codex acting-governor takeover for 069D2_decision_lineage_validation_rerun_after_069C2 while Claude is rate-limited.",
+  "emit_files": true,
+  "lane": "paper_backtest_mvp",
+  "legacy_evidence_consulted": [
+    "069A/069B/069C/069D decision explainability artifacts",
+    "069C2 final-readiness dashboard payload",
+    "069C2 remediation report"
+  ],
+  "legacy_failure_addressed": [
+    "queue drift after 069C2 completion before validation rerun",
+    "dashboard lineage authority and missing-evidence warning contract not independently rechecked"
+  ],
+  "mvp_relevance": "Autonomous validation rerun after 069C2 remediated the dashboard lineage contract blocker found by 069D.",
+  "next_gate": "069D2_GO_NO_GO.md",
+  "next_recommended_action": "After READY, governor may proceed to next safe queue task; if BLOCKED, create another local remediation task before unrelated reviews.",
+  "predecessor_task_ids": [
+    "069C2_decision_lineage_dashboard_contract_remediation"
+  ],
+  "priority": 1602,
+  "prompt": "You are Codex acting-governor because Claude Code is rate-limited. Complete the safe non-live source task 069D2_decision_lineage_validation_rerun_after_069C2 through the supervisor. Respect the source task output contract exactly. Do not modify legacy. Do not write Redis. Do not restart services. Do not place/cancel exchange orders. Do not change leverage or margin. Do not enable live trading. Do not expose secrets. Human input is required only for final live/capital gate.\n\nStrict BEGIN_FILE emit-only mode. Rerun the 069D decision-lineage validation after 069C2 remediation. Do not modify /home/wali/Desktop/AI BOT. Do not write/delete/trim Redis. Do not restart services. Do not place/cancel exchange orders. Do not change leverage, margin, or position mode. Do not enable live trading. Do not expose secrets. Human input is required only for final live/capital gate.\n\nValidate that claude_worklog/final_readiness/decision_explainability_lineage/latest/operator_dashboard_payload.json and v2/frontend/public/decision_explainability_lineage/latest/operator_dashboard_payload.json now satisfy the 069D blocked-validation contract: lineage_contract_version, payload_status, warning_count, payload_warnings, lineage_rows, lineage_authority per row, missing_evidence_warnings, explicit scaffold_only/fixture_only/null treatment for signal_id/execution_intent_id/shadow_decision_id, live_gate_status blocked_human_only, and human_input_required false. Use raw source artifacts, not summaries: 069A_LINEAGE_SOURCE_SCAN.md, 069B_LINEAGE_EVIDENCE_PACKET.md, 069C_DASHBOARD_PAYLOAD_INTEGRATION_SPEC.md, 069D_VALIDATION_AND_CODEX_REVIEW_PACKET.md, parallel_capacity_readonly_review_phase2ha0_069c_dashboard_integration_ready_REPORT.md, and 069C2_DASHBOARD_CONTRACT_REMEDIATION_REPORT.md.\n\nEmit exactly: 069D2_VALIDATION_RERUN_REPORT.md and 069D2_GO_NO_GO.md under final_readiness/decision_explainability_lineage/latest. GO file exactly 069D2_DECISION_LINEAGE_VALIDATION_RERUN_READY or 069D2_DECISION_LINEAGE_VALIDATION_RERUN_BLOCKED.",
+  "required_output_files": [
+    "claude_worklog/final_readiness/decision_explainability_lineage/latest/069D2_VALIDATION_RERUN_REPORT.md",
+    "claude_worklog/final_readiness/decision_explainability_lineage/latest/069D2_GO_NO_GO.md"
+  ],
+  "risk_level": "L2",
+  "status": "pending",
+  "task_id": "codex_takeover_069D2_decision_lineage_validation_rerun_after_069C2"
+}

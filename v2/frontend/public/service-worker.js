@@ -8,7 +8,7 @@
  *   - All API responses are passed through to the network without caching.
  */
 
-const STATIC_CACHE = 'aibot-v2-static-v1';
+const STATIC_CACHE = 'aibot-v2-static-v2';
 const STATIC_ASSETS = ['/', '/index.html', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
