@@ -754,6 +754,56 @@ a { color: inherit; }
   line-height: 1.35;
 }
 
+.design-page-shell {
+  gap: 14px;
+  max-width: 1760px;
+}
+
+.design-page-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.42fr);
+  gap: 1px;
+  overflow: hidden;
+  border-radius: 6px;
+}
+
+.design-page-hero__copy {
+  display: grid;
+  gap: 10px;
+  min-height: 150px;
+  padding: 20px;
+  background:
+    linear-gradient(90deg, rgba(11,15,20,0.94), rgba(11,15,20,0.55)),
+    linear-gradient(135deg, rgba(245,165,36,0.07), transparent 52%);
+}
+
+.design-page-hero__copy h1 {
+  margin: 0;
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.design-page-hero__copy p {
+  max-width: 780px;
+  margin: 0;
+  color: var(--text-mid);
+}
+
+.design-page-hero__ribbons {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  padding: 16px;
+  background: rgba(13,19,26,0.96);
+}
+
+.design-source-ribbon {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .cockpit-panel {
   display: grid;
   gap: 12px;
@@ -1079,7 +1129,8 @@ a { color: inherit; }
   .enterprise-cockpit-hero { display: grid; }
   .mission-command-hero,
   .mission-command-layout,
-  .mission-system-grid {
+  .mission-system-grid,
+  .design-page-hero {
     grid-template-columns: 1fr;
   }
   .mission-command-stats,
@@ -1089,6 +1140,9 @@ a { color: inherit; }
   }
   .mission-command-hero__copy h1 {
     font-size: 34px;
+  }
+  .design-page-hero__copy h1 {
+    font-size: 28px;
   }
   .cockpit-live-block { min-width: 0; }
   .enterprise-cockpit-grid { grid-template-columns: 1fr; }

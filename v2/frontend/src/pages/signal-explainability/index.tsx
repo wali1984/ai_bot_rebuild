@@ -1,21 +1,19 @@
 import meta from './meta';
 import rbac from './rbac';
 import route from './route';
-import { CockpitLoading, DecisionDrawers } from '../cockpitComponents';
+import { CockpitLoading, DecisionDrawers, Panel } from '../cockpitComponents';
 import { useCockpitPayload } from '../cockpitData';
+import { DesignPageShell, SourceRibbon } from '../designShell';
 
 export default function SignalExplainabilityPage(): JSX.Element {
   const { payload, error } = useCockpitPayload();
   return (
-    <article className="enterprise-cockpit-page" data-testid="page-signal-explainability" data-page-id={meta.id} data-page-path={route.path} data-page-min-role={rbac.minRole}>
-      <header className="enterprise-cockpit-hero">
-        <div>
-          <p className="cockpit-kicker">Signal Explainability</p>
-          <h1>{meta.title}</h1>
-          <p>{meta.description}</p>
-        </div>
-      </header>
+    <DesignPageShell meta={meta} rbac={rbac} route={route} eyebrow="Signal Explainability" source="V2_PROOF_ARTIFACT / no-guessing contract">
+      <SourceRibbon labels={['feature attribution', 'source freshness', 'risk reason', 'orchestrator reason', 'no guessing']} />
+      <Panel id="signal-explainability-no-guessing" title="No-Guessing Rule" right={<span className="chip solid-warn">MISSING_EVIDENCE</span>}>
+        <p className="cockpit-evidence-gap">Evidence missing — cannot explain without guessing.</p>
+      </Panel>
       {payload ? <DecisionDrawers rows={payload.decisions} /> : <CockpitLoading error={error} />}
-    </article>
+    </DesignPageShell>
   );
 }
