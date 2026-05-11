@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap');
+
 :root {
   --color-bg: #0b0f14;
   --color-fg: #e6edf3;
@@ -911,4 +913,204 @@ a { color: inherit; }
   .cockpit-live-block { min-width: 0; }
   .enterprise-cockpit-grid { grid-template-columns: 1fr; }
   .cockpit-decision-drawer summary { grid-template-columns: 1fr; }
+}
+
+/* =========================================================================
+ * Claude Design handoff 2026-05-11 — additive design tokens + primitives
+ * Source: claude_worklog/frontend_design/handoffs/2026-05-11/
+ * Rule: additive only — existing rules above remain authoritative for live state.
+ * IBM Plex fonts imported at top of file (CSS @import ordering requirement).
+ * ======================================================================= */
+
+:root, [data-theme="dark"] {
+  --surface:        #10141B;
+  --panel:          #141921;
+  --panel-2:        #181E27;
+  --border-strong:  #2F3845;
+  --text-mid:       #98A0AC;
+  --text-dim:       #5B6471;
+  --text-faint:     #3D4552;
+  --accent:         #F5A524;
+  --accent-2:       oklch(0.78 0.13 60);
+  --ok:             oklch(0.78 0.13 155);
+  --block:          oklch(0.68 0.20 25);
+  --warn:           oklch(0.82 0.13 90);
+  --paper:          oklch(0.74 0.11 250);
+  --grid-line:      rgba(255,255,255,0.025);
+  --hatch:          rgba(245, 165, 36, 0.10);
+  --hatch-strong:   rgba(245, 165, 36, 0.18);
+}
+
+[data-theme="light"] {
+  --surface:        #ECE8E0;
+  --panel:          #F8F5EF;
+  --panel-2:        #F1EDE4;
+  --border-strong:  #BFB7A4;
+  --text-mid:       #5A6371;
+  --text-dim:       #8C95A2;
+  --text-faint:     #B5BCC7;
+  --accent:         #B26A00;
+  --accent-2:       oklch(0.55 0.13 60);
+  --ok:             oklch(0.50 0.13 155);
+  --block:          oklch(0.50 0.18 25);
+  --warn:           oklch(0.55 0.13 90);
+  --paper:          oklch(0.48 0.13 250);
+  --grid-line:      rgba(0,0,0,0.04);
+  --hatch:          rgba(178, 106, 0, 0.12);
+  --hatch-strong:   rgba(178, 106, 0, 0.22);
+}
+
+[data-theme="terminal"] {
+  --surface:        #050505;
+  --panel:          #0A0A0A;
+  --panel-2:        #0F0F0F;
+  --border-strong:  #2B2B2B;
+  --text-mid:       #B08A3E;
+  --text-dim:       #6A5023;
+  --text-faint:     #3D2E14;
+  --accent:         #F5C56A;
+  --accent-2:       #F5C56A;
+  --ok:             #6ADB6A;
+  --block:          #FF5050;
+  --warn:           #F5C56A;
+  --paper:          #6AC8E6;
+  --grid-line:      rgba(245,197,106,0.05);
+  --hatch:          rgba(245, 197, 106, 0.10);
+  --hatch-strong:   rgba(245, 197, 106, 0.22);
+}
+
+.mono   { font-family: "IBM Plex Mono", ui-monospace, monospace; font-feature-settings: "ss02", "zero"; }
+.num    { font-variant-numeric: tabular-nums; font-feature-settings: "tnum", "zero"; font-family: "IBM Plex Mono", ui-monospace, monospace; }
+.cond   { font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif; }
+
+.eyebrow {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.label-mono {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-mid);
+}
+
+.hatch {
+  background-image: repeating-linear-gradient(135deg, var(--hatch) 0 6px, transparent 6px 12px);
+}
+.hatch-strong {
+  background-image: repeating-linear-gradient(135deg, var(--hatch-strong) 0 8px, transparent 8px 16px);
+}
+
+.grid-bg {
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: -1px -1px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--color-border);
+  position: relative;
+}
+.panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--panel-2);
+}
+.panel-title {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-mid);
+  font-weight: 500;
+}
+.panel-body { padding: 14px; }
+
+.bracketed::before,
+.bracketed::after,
+.bracketed > .br-bl,
+.bracketed > .br-br {
+  content: "";
+  position: absolute;
+  width: 10px; height: 10px;
+  border: 1px solid var(--accent);
+}
+.bracketed::before { top: -1px; left: -1px;  border-right: 0; border-bottom: 0; }
+.bracketed::after  { top: -1px; right: -1px; border-left: 0;  border-bottom: 0; }
+.bracketed > .br-bl { bottom: -1px; left: -1px;  border-right: 0; border-top: 0; }
+.bracketed > .br-br { bottom: -1px; right: -1px; border-left: 0;  border-top: 0; }
+
+.dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  box-shadow: 0 0 0 0 currentColor;
+}
+.dot.ok    { background: var(--ok);    color: var(--ok); }
+.dot.warn  { background: var(--warn);  color: var(--warn); }
+.dot.block { background: var(--block); color: var(--block); }
+.dot.paper { background: var(--paper); color: var(--paper); }
+.pulse { animation: design-pulse 2s ease-out infinite; }
+@keyframes design-pulse {
+  0%   { box-shadow: 0 0 0 0   color-mix(in oklch, currentColor 50%, transparent); }
+  70%  { box-shadow: 0 0 0 6px color-mix(in oklch, currentColor  0%, transparent); }
+  100% { box-shadow: 0 0 0 0   color-mix(in oklch, currentColor  0%, transparent); }
+}
+
+@keyframes tick-flash {
+  0%   { background: color-mix(in oklch, var(--accent) 25%, transparent); }
+  100% { background: transparent; }
+}
+.tick-flash { animation: tick-flash 0.5s ease-out; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel-2);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-mid);
+  line-height: 1.2;
+}
+.chip.solid-block {
+  background: var(--block);
+  color: #fff;
+  border-color: var(--block);
+}
+.chip.solid-warn {
+  background: transparent;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.chip.solid-ok {
+  color: var(--ok);
+  border-color: color-mix(in oklch, var(--ok) 50%, var(--color-border));
+}
+.chip.solid-paper {
+  color: var(--paper);
+  border-color: color-mix(in oklch, var(--paper) 50%, var(--color-border));
+}
+
+/* Hatched modifier for the live-blocked banner.
+ * Only applied when banner state is 'blocked'. Solid amber/green for pending/active. */
+.live-block-banner--hatched {
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--hatch-strong) 0 10px,
+    transparent 10px 20px
+  ), linear-gradient(var(--color-red), var(--color-red));
 }

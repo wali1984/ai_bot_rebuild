@@ -8,7 +8,7 @@ const LABELS = {
 } as const;
 
 const TONES = {
-  blocked: 'live-block-banner--red',
+  blocked: 'live-block-banner--red live-block-banner--hatched',
   pending: 'live-block-banner--amber',
   active: 'live-block-banner--green',
 } as const;
