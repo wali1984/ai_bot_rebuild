@@ -11,8 +11,8 @@
     "evidence packet generation",
     "Git commit/push of validated non-live artifacts"
   ],
-  "claude_lane": "paused_rate_limited",
-  "codex_takeover_active": true,
+  "claude_lane": "ready",
+  "codex_takeover_active": false,
   "current_autonomous_decision": "Claude rate limit is a resource-routing event; Codex acting-governor owns safe non-live work until reset.",
   "current_codex_task": "Codex takeover: review/remediate safe non-live blockers until Claude quota reset",
   "current_next_safe_milestone": "CODEX_ACTING_GOVERNOR_CONTINUE_SAFE_NON_LIVE_WORK_UNTIL_CLAUDE_RESET",
@@ -26,25 +26,21 @@
     "live trading enablement",
     "secret exposure"
   ],
-  "generated_at": "2026-05-10T23:34:08.527646+00:00",
-  "git_head": "d8267cf Dispatch 069C through Codex takeover",
+  "generated_at": "2026-05-11T05:25:26.544618+00:00",
+  "git_head": "8f4c259 Codex watchdog recover dirty non-live automation artifacts",
   "go_no_go": "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF_READY",
   "handoff_back_to_claude_condition": "quota probe reports ready, git is clean, and no active Codex child is running",
   "human_input_required": "NO unless selected task is final live/capital gate",
   "live_gate_status": "blocked_human_only",
   "marker": "CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF_READY",
-  "069b_final_readiness_aliases_present": true,
-  "069b_status": "completed_aliased",
-  "069c_dispatch_status": "completed",
-  "next_pending_task": "069D_decision_lineage_validation_and_codex_review_packet",
+  "next_pending_task": "032_codex_review_symbol_universe_usdm_correction",
   "next_safe_codex_task": "Codex takeover: review/remediate safe non-live blockers until Claude quota reset",
   "ollama_evidence_helper_active": true,
   "processes": [],
   "quota": {
     "path": "claude_worklog/quota/CLAUDE_CODE_QUOTA_STATUS.md",
-    "reset_hint": "You've hit your limit \u00b7 resets 1am (America/New_York)",
-    "state": "blocked_or_limited"
+    "reset_hint": null,
+    "state": "ready"
   },
-  "redis_trim_approval_present": false,
-  "redis_trim_state": "deferred_non_blocking"
+  "redis_trim_approval_present": false
 }

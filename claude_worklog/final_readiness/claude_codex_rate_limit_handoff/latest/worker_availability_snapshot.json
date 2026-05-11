@@ -2,15 +2,15 @@
   "claude": {
     "quota": {
       "path": "claude_worklog/quota/CLAUDE_CODE_QUOTA_STATUS.md",
-      "reset_hint": "You've hit your limit \u00b7 resets 1am (America/New_York)",
-      "state": "blocked_or_limited"
+      "reset_hint": null,
+      "state": "ready"
     },
-    "status": "paused_rate_limited"
+    "status": "ready"
   },
   "codex": {
-    "status": "acting_governor_active"
+    "status": "available"
   },
-  "generated_at": "2026-05-10T23:34:08.540794+00:00",
+  "generated_at": "2026-05-11T05:25:26.557797+00:00",
   "ollama_local_tools": {
     "status": "draft_evidence_helper_available"
   },

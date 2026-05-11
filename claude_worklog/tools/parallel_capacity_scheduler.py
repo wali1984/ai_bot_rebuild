@@ -239,12 +239,12 @@ def quota_status() -> dict[str, Any]:
     text = read_text(path, 20_000)
     if not text:
         return {"state": "unknown", "path": str(path.relative_to(WORKSPACE))}
-    if "\nready\n" in text.lower() or "state:\nready" in text.lower():
-        state = "ready"
-    elif "blocked_or_limited" in text:
-        state = "blocked_or_limited"
-    else:
-        state = "unknown"
+    lines = [line.strip() for line in text.splitlines()]
+    state = "unknown"
+    for idx, line in enumerate(lines):
+        if line.lower() == "state:" and idx + 1 < len(lines):
+            state = lines[idx + 1] or "unknown"
+            break
     reset_hint = None
     match = re.search(r"resets\s+([0-9]{1,2}(?::[0-9]{2})?\s*(?:am|pm))", text, re.IGNORECASE)
     if match:

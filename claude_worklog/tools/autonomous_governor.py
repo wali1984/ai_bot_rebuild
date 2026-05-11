@@ -85,7 +85,11 @@ def latest_commit() -> str:
 
 
 def claude_quota_blocked() -> bool:
-    return "blocked_or_limited" in read_text(QUOTA_STATUS)
+    lines = [line.strip() for line in read_text(QUOTA_STATUS).splitlines()]
+    for idx, line in enumerate(lines):
+        if line.lower() == "state:" and idx + 1 < len(lines):
+            return lines[idx + 1] == "blocked_or_limited"
+    return False
 
 
 def task_exists(task_id: str) -> bool:
@@ -123,6 +127,19 @@ def write_governor_task(task_id: str, task: dict[str, Any]) -> bool:
 
 def latest_blocked_validation_result() -> dict[str, Any] | None:
     """Return a fresh known blocker that should create remediation before queue drift."""
+    d2_go = DECISION_LINEAGE_FINAL / "069D2_GO_NO_GO.md"
+    d2_marker = read_text(d2_go)
+    if d2_marker == "069D2_DECISION_LINEAGE_VALIDATION_RERUN_READY":
+        return None
+    if d2_marker == "069D2_DECISION_LINEAGE_VALIDATION_RERUN_BLOCKED":
+        return {
+            "blocker_id": "069D2_validation_rerun_blocked",
+            "source_marker": str(d2_go.relative_to(ROOT)),
+            "source_packet": str((DECISION_LINEAGE_FINAL / "069D2_VALIDATION_RERUN_REPORT.md").relative_to(ROOT)),
+            "root_cause": "069D2 validation rerun is still blocked; create another local remediation before unrelated queue work.",
+            "remediation_task_id": "069D3_decision_lineage_validation_rerun_remediation",
+        }
+
     go = PHASE2_DECISION_EXPLAINABILITY / "069D_GO_NO_GO.md"
     packet = PHASE2_DECISION_EXPLAINABILITY / "069D_VALIDATION_AND_CODEX_REVIEW_PACKET.md"
     if read_text(go) == "PHASE2HA0_069D_VALIDATION_PACKET_BLOCKED" and packet.exists():

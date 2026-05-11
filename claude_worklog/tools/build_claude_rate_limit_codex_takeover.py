@@ -50,7 +50,12 @@ def write_json(path: Path, data: Any) -> None:
 
 def quota_state() -> dict[str, str | None]:
     text = read_text(QUOTA)
-    state = "blocked_or_limited" if "blocked_or_limited" in text else ("ready" if "State:\nready" in text else "unknown")
+    lines = [line.strip() for line in text.splitlines()]
+    state = "unknown"
+    for idx, line in enumerate(lines):
+        if line.lower() == "state:" and idx + 1 < len(lines):
+            state = lines[idx + 1] or "unknown"
+            break
     reset_hint = None
     for line in text.splitlines():
         if "resets" in line.lower():

@@ -2,14 +2,12 @@
 
 Result: `CLAUDE_RATE_LIMIT_CODEX_TAKEOVER_AND_AUTONOMOUS_HANDOFF_READY`
 
-- Claude quota state: `blocked_or_limited`
-- Reset hint: `You've hit your limit · resets 1am (America/New_York)`
-- Codex takeover active: `True`
+- Claude quota state: `ready`
+- Reset hint: `None`
+- Codex takeover active: `False`
 - Active task: `None`
 - Active task PID alive: `False`
-- 069B status: `completed_by_codex_takeover_and_aliased`
-- 069C status: `completed_by_codex_takeover`
-- Next pending task: `069D_decision_lineage_validation_and_codex_review_packet`
+- Next pending task: `032_codex_review_symbol_universe_usdm_correction`
 - Next safe Codex task: `Codex takeover: review/remediate safe non-live blockers until Claude quota reset`
 - Human input required: `NO unless selected task is final live/capital gate`
 - Live gate: `blocked_human_only`
