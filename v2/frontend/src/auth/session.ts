@@ -48,7 +48,7 @@ export const sessionStore = {
   getRoleSnapshot(): Role {
     return cached.role;
   },
-  setRoleForTest(role: Role): void {
+  setRole(role: Role): void {
     cached = { ...cached, role };
     try {
       window.sessionStorage.setItem(STORAGE_KEY, role);
@@ -56,6 +56,9 @@ export const sessionStore = {
       // ignore
     }
     emit();
+  },
+  setRoleForTest(role: Role): void {
+    this.setRole(role);
   },
   clear(): void {
     cached = DEFAULT_SESSION;

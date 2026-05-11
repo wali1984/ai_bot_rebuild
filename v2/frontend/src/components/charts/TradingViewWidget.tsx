@@ -9,20 +9,28 @@ const WIDGET_SRC = 'https://s3.tradingview.com/external-embedding/embed-widget-a
 
 export function TradingViewWidget({ symbol = 'BINANCE:BTCUSDT', fallback }: TradingViewWidgetProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const initializedRef = useRef(false);
+  const symbolRef = useRef(symbol);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return undefined;
+    if (initializedRef.current && symbolRef.current === symbol) return undefined;
 
     let active = true;
     let loaded = false;
+    initializedRef.current = true;
+    symbolRef.current = symbol;
     const timeout = window.setTimeout(() => {
       if (active && !loaded) setFailed(true);
     }, 7000);
 
     setFailed(false);
     container.replaceChildren();
+
+    const widgetTarget = document.createElement('div');
+    widgetTarget.className = 'tradingview-widget-container__widget';
 
     const script = document.createElement('script');
     script.src = WIDGET_SRC;
@@ -47,13 +55,9 @@ export function TradingViewWidget({ symbol = 'BINANCE:BTCUSDT', fallback }: Trad
       support_host: 'https://www.tradingview.com',
     });
 
-    container.appendChild(script);
+    container.append(widgetTarget, script);
 
-    return () => {
-      active = false;
-      window.clearTimeout(timeout);
-      container.replaceChildren();
-    };
+    return undefined;
   }, [symbol]);
 
   return (

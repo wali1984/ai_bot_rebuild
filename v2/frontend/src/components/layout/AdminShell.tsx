@@ -1,12 +1,29 @@
+import { useEffect } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { useRoles, canSeePage } from '../../auth/rbac';
+import { useRoles, canSeePage, type Role } from '../../auth/rbac';
+import { sessionStore } from '../../auth/session';
 import { LiveBlockBanner } from '../banners/LiveBlockBanner';
 import { Nav } from './Nav';
 import { PAGES } from '../../pages/registry';
 
+const VALID_ROLES = new Set<Role>(['public', 'viewer', 'operator', 'reviewer', 'admin', 'live_approver']);
+
+function roleFromSearch(search: string): Role | null {
+  const role = new URLSearchParams(search).get('role') as Role | null;
+  return role && VALID_ROLES.has(role) ? role : null;
+}
+
 export function AdminShell(): JSX.Element {
-  const role = useRoles();
+  const sessionRole = useRoles();
   const location = useLocation();
+  const queryRole = roleFromSearch(location.search);
+  const role = queryRole ?? sessionRole;
+
+  useEffect(() => {
+    if (queryRole && queryRole !== sessionRole) {
+      sessionStore.setRole(queryRole);
+    }
+  }, [queryRole, sessionRole]);
 
   if (role === 'public') {
     return <Navigate to="/" replace />;

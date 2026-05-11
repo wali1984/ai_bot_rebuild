@@ -6,6 +6,13 @@
   "redirect_target": "/admin/mission-control?role=admin",
   "public_landing_route": "/public-landing",
   "service_worker_dev_policy": "unregister_existing_registrations",
+  "smoke": {
+    "root_lands_on_admin_mission_control": true,
+    "admin_shell_active": true,
+    "public_shell_active": false,
+    "modern_dashboard_marker_visible": true,
+    "service_worker_registrations": 0
+  },
   "live_gate": "blocked_human_only",
   "legacy_mutation": "none",
   "redis_mutation": "none",
