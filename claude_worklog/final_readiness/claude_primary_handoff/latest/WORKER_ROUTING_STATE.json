@@ -1,0 +1,21 @@
+{
+  "active_workers": [],
+  "canonical_path": "claude_worklog/final_readiness/claude_primary_handoff/latest/",
+  "claude_primary_handoff_condition": {
+    "claude_quota_ready": true,
+    "git_clean": true,
+    "no_active_codex_child": true
+  },
+  "claude_quota_status": "ready",
+  "codex_role": "parallel_reviewer_auditor",
+  "go_no_go": "CLAUDE_PRIMARY_HANDOFF_CANONICAL_PATH_NORMALIZED_AND_UI_POLISH_DISPATCH_READY",
+  "human_input_required": false,
+  "live_gate_status": "blocked_human_only",
+  "next_selected_task": "claude_primary_enterprise_ui_polish_remove_legacy_chart",
+  "redis_trim_status": "deferred_non_blocking",
+  "source_paths": [
+    "claude_worklog/final_readiness/claude_primary_handoff_state_refresh/latest/",
+    "claude_worklog/final_readiness/claude_codex_rate_limit_handoff/latest/"
+  ],
+  "target": "CLAUDE_PRIMARY_HANDOFF_CANONICAL_PATH_NORMALIZED_AND_UI_POLISH_DISPATCH_READY"
+}
