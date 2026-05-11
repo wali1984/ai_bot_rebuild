@@ -1,0 +1,25 @@
+{
+  "task_id": "codex_parallel_review_risk_gateway_degraded_state_online_readiness",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "priority": 3180,
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/codex_parallel_audit_plan/latest/",
+    "claude_worklog/final_readiness/orchestrator_risk_boundary/latest/"
+  ],
+  "required_output_files": [
+    "claude_worklog/final_readiness/codex_parallel_audit_plan/latest/CODEX_RISK_GATEWAY_DEGRADED_STATE_REVIEW.md",
+    "claude_worklog/final_readiness/codex_parallel_audit_plan/latest/CODEX_RISK_GATEWAY_DEGRADED_STATE_GO_NO_GO.md"
+  ],
+  "prompt": "Run a read-only Codex parallel review of risk-gateway and degraded-state fail-closed boundaries. Challenge stale/missing attribution handling, confidence requirements, duplicate execution identifiers, margin/leverage observations, kill switch behavior, and any path that could bypass the risk gateway. Do not modify /home/wali/Desktop/AI BOT. Do not mutate Redis. Do not place, cancel, or modify exchange orders. Do not change leverage, margin, or position mode. Do not enable live execution. Emit exactly the required review and GO/NO-GO files. GO/NO-GO must contain one line: CODEX_RISK_GATEWAY_DEGRADED_STATE_PASS or CODEX_RISK_GATEWAY_DEGRADED_STATE_FAIL.",
+  "next_recommended_action": "If FAIL, create focused non-live remediation and keep unrelated safe lanes moving.",
+  "safety_constraints": [
+    "read-only review",
+    "legacy Redis no mutation",
+    "exchange no mutation",
+    "live gate blocked_human_only"
+  ]
+}
