@@ -33,6 +33,7 @@ const artifactSets = [
   'realtime_legacy_monitoring_continuity',
   'v2_data_plane_independence',
   'codex_parallel_audit_plan',
+  'codex_design_handoff_review_protocol',
   'enterprise_ui_polish',
   'performance_objective_guardrails',
   'orchestrator_risk_boundary',

@@ -6,6 +6,10 @@
       "task_id": "codex_review_enterprise_ui_polish_quality"
     },
     {
+      "focus": "Claude Design handoff ingestion, route wiring, payload truthfulness, safety banners, monitor/trainer/config pages, no placeholder-only UI",
+      "task_id": "codex_review_claude_design_handoff_enterprise_ui"
+    },
+    {
       "focus": "real legacy runtime data, no Redis writes, truthful gaps",
       "task_id": "codex_review_realtime_monitor_coverage"
     },
