@@ -4,6 +4,7 @@ import route from './route';
 import type { PageMeta } from '../../types/page';
 import { AutonomousGovernorPanel, ChartPanel, CockpitLoading, ConfigTable, DecisionDrawers, ExchangeManager, MarketPulse, MonitorTable, Panel, Phase3cRuntimeMonitorPanel, QuarantinePanel, RedisExportCapacityPanel, RedisFullExportPanel, RedisHumanApprovalPanel, RedisMemoryPressurePanel, RedisSafeTrimPacketPanel, SafetyTopBar, SystemAtlasGapRemediationPanel, SystemAtlasPanel } from '../cockpitComponents';
 import { useCockpitPayload } from '../cockpitData';
+import { MissionControlReadinessBanner } from '../../components/banners/MissionControlReadinessBanner';
 
 export default function MissionControlPage(): JSX.Element {
   const { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, redisExportCapacity, redisFullExport, redisSafeTrimPacket, autonomousGovernor, error } = useCockpitPayload();
@@ -11,6 +12,7 @@ export default function MissionControlPage(): JSX.Element {
   if (!payload) {
     return (
       <article className="enterprise-cockpit-page" data-testid="page-mission-control" data-page-id={(meta as PageMeta).id} data-page-path={route.path} data-page-min-role={rbac.minRole}>
+        <MissionControlReadinessBanner />
         <CockpitLoading error={error} />
       </article>
     );
@@ -19,6 +21,7 @@ export default function MissionControlPage(): JSX.Element {
 
   return (
     <article className="enterprise-cockpit-page" data-testid="page-mission-control" data-page-id={meta.id} data-page-path={route.path} data-page-min-role={rbac.minRole}>
+      <MissionControlReadinessBanner />
       <header className="enterprise-cockpit-hero">
         <div>
           <p className="cockpit-kicker">AI BOT V2 Mission Control</p>
