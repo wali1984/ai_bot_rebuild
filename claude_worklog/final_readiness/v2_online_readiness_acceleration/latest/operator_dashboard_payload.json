@@ -93,6 +93,16 @@
   ],
   "next_supervised_tasks_pointer": "claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/NEXT_SAFE_TASKS.md",
   "codex_review_required": true,
+  "codex_freshness_review": {
+    "status": "PASS",
+    "canonical_marker": "ONLINE_READINESS_AGGREGATOR_FRESHNESS_CODEX_PASS",
+    "canonical_go_no_go_path": "claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/ONLINE_READINESS_AGGREGATOR_FRESHNESS_CODEX_GO_NO_GO.md",
+    "output_contract_mismatch": "reconciled",
+    "task_state": "completed",
+    "test_evidence": "23 passed in rejected stdout; accepted retry performed source/test inspection under the correct prefix"
+  },
+  "redis_trim": "deferred_non_blocking",
+  "human_input_required": "false_unless_final_live_capital_gate",
   "codex_review_focus": [
     "Confirm gating predicate (text-match against required_marker) is the sole driver of all_required_matched and go_no_go_marker.",
     "Confirm staleness cannot demote READY to BLOCKED under any input.",
