@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 interface TradingViewWidgetProps {
   symbol?: string;
+  fallback?: ReactNode;
 }
 
 const WIDGET_SRC = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
 
-export function TradingViewWidget({ symbol = 'BINANCE:BTCUSDT' }: TradingViewWidgetProps): JSX.Element {
+export function TradingViewWidget({ symbol = 'BINANCE:BTCUSDT', fallback }: TradingViewWidgetProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -56,13 +57,24 @@ export function TradingViewWidget({ symbol = 'BINANCE:BTCUSDT' }: TradingViewWid
   }, [symbol]);
 
   return (
-    <div className="tradingview-widget-shell" data-testid="tradingview-widget" data-symbol={symbol}>
-      <div className="tradingview-widget-container" ref={containerRef} />
-      {failed ? (
-        <div className="tradingview-widget-fallback" role="status">
-          Chart unavailable. TradingView widget failed to load.
-        </div>
-      ) : null}
+    <div
+      className="tradingview-widget-shell"
+      data-testid="tradingview-widget"
+      data-symbol={symbol}
+      data-failed={failed ? 'true' : 'false'}
+    >
+      <div
+        className="tradingview-widget-container"
+        ref={containerRef}
+        aria-hidden={failed ? 'true' : undefined}
+      />
+      {failed
+        ? fallback ?? (
+            <div className="tradingview-widget-fallback" role="status">
+              Chart unavailable. TradingView widget failed to load.
+            </div>
+          )
+        : null}
     </div>
   );
 }

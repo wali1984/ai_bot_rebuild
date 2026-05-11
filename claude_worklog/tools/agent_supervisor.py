@@ -480,7 +480,25 @@ def final_live_gate_text(text: str) -> bool:
 def task_requires_final_live_gate(task: Dict[str, Any]) -> bool:
     if str(task.get("risk_level", "")).upper() == "L5":
         return True
-    joined = "\n".join(str(task.get(k, "")) for k in ("task_id", "description", "prompt", "command", "next_recommended_action"))
+    explicit_flags = (
+        "requires_final_live_gate",
+        "final_live_gate_required",
+        "requires_live_capital_approval",
+    )
+    if any(bool(task.get(flag, False)) for flag in explicit_flags):
+        return True
+    if str(task.get("approval_type", "")).strip().lower() in {
+        "final_live_gate",
+        "final_live_capital",
+        "live_capital",
+    }:
+        return True
+    if str(task.get("attention_reason", "")).strip() == "final_live_gate_required":
+        return True
+    # Do not infer a final live gate from generic prompt safety constraints such
+    # as "do not enable live trading" or "human input only for final live gate".
+    # Those appear in ordinary non-live tasks and must not globally block the queue.
+    joined = "\n".join(str(task.get(k, "")) for k in ("task_id", "description"))
     return final_live_gate_text(joined)
 
 

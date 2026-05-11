@@ -34,3 +34,19 @@ npm run build
 
 The dev build unregisters local service workers automatically so cached `/` or
 `/index.html` shells do not hide new React source changes.
+
+## Chart panel behaviour
+
+The Mission Control chart panel (`cockpit-charting-market-data`) embeds the
+external TradingView Advanced Chart widget for `BINANCE:BTCUSDT` by default.
+The widget is read-only: it never places, cancels, or modifies orders.
+
+If the TradingView script fails to load or does not finish loading within
+the timeout, the panel renders a local read-only proof candle SVG as a
+fallback. The fallback is identified by `data-testid="tradingview-chart-fallback"`
+and is only visible when the embed has failed; on a healthy widget load the
+legacy SVG chart is hidden entirely so it does not duplicate the live widget.
+
+The `READONLY_MARKET_FEED` / `STATIC_PROOF_FIXTURE` evidence label is always
+visible below the chart regardless of which surface is rendered, so operators
+can confirm which data source drove the displayed candles.

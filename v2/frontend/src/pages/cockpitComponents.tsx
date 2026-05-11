@@ -88,9 +88,13 @@ export function ChartPanel({ candles, decisions, sourceType }: { candles: Candle
   const max = Math.max(...prices);
   const y = (price: number) => height - 24 - ((price - min) / (max - min || 1)) * (height - 48);
   const step = width / Math.max(candles.length, 1);
-  return (
-    <Panel id="charting-market-data" title="BTCUSDT Chart, Signals, And Risk Markers">
-      <TradingViewWidget symbol="BINANCE:BTCUSDT" />
+  const fallback = (
+    <div
+      className="tradingview-widget-fallback tradingview-widget-fallback--chart"
+      role="status"
+      data-testid="tradingview-chart-fallback"
+    >
+      <p>Chart unavailable. TradingView widget failed to load. Showing local proof candles as read-only fallback.</p>
       <svg className="cockpit-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="BTCUSDT candlestick chart with risk markers">
         <rect x="0" y="0" width={width} height={height} rx="6" />
         {candles.map((candle, index) => {
@@ -117,6 +121,11 @@ export function ChartPanel({ candles, decisions, sourceType }: { candles: Candle
           </g>
         ))}
       </svg>
+    </div>
+  );
+  return (
+    <Panel id="charting-market-data" title="BTCUSDT Chart, Signals, And Risk Markers">
+      <TradingViewWidget symbol="BINANCE:BTCUSDT" fallback={fallback} />
       <p className="cockpit-evidence-note">
         {sourceType === 'READONLY_MARKET_FEED'
           ? 'READONLY_MARKET_FEED: chart uses Binance USD-M public GET-only market data. It cannot place orders.'
