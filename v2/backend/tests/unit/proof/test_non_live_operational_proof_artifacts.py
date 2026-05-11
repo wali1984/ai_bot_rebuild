@@ -9,6 +9,24 @@ from v2.backend.app.proof import (
     build_non_live_proof,
     write_non_live_proof,
 )
+from v2.backend.app.proof.non_live_operational_proof import (
+    SCENARIO_FIXTURE_PATH,
+    deterministic_scenarios,
+)
+
+
+def test_go_no_go_marker_is_codex_review_marker() -> None:
+    assert GO_NO_GO_MARKER == "NON_LIVE_OPERATOR_PROOF_HARNESS_READY_FOR_CODEX_REVIEW"
+
+
+def test_scenarios_are_loaded_from_local_fixture() -> None:
+    assert SCENARIO_FIXTURE_PATH.exists()
+
+    scenarios = deterministic_scenarios()
+    lab = next(item for item in scenarios if item.symbol == "LABUSDT")
+
+    assert lab.scenario_id == "lab_hedge_unwind_short_squeeze"
+    assert lab.expected_v2_action == "block_or_reduce"
 
 
 def test_write_non_live_proof_emits_all_required_artifacts(tmp_path: Path) -> None:
@@ -17,7 +35,7 @@ def test_write_non_live_proof_emits_all_required_artifacts(tmp_path: Path) -> No
     missing = [name for name in REQUIRED_ARTIFACTS if not (tmp_path / name).exists()]
 
     assert missing == []
-    assert (tmp_path / "GO_NO_GO.md").read_text().strip() == GO_NO_GO_MARKER
+    assert (tmp_path / "GO_NO_GO.md").read_text() == GO_NO_GO_MARKER
 
 
 def test_risk_gateway_blocks_stale_data(tmp_path: Path) -> None:

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 
-GO_NO_GO_MARKER = "NON_LIVE_OPERATOR_PROOF_HARNESS_READY"
+GO_NO_GO_MARKER = "NON_LIVE_OPERATOR_PROOF_HARNESS_READY_FOR_CODEX_REVIEW"
 
 REQUIRED_ARTIFACTS = (
     "replay_backtest_result.json",
@@ -25,6 +25,9 @@ REQUIRED_ARTIFACTS = (
 
 LIVE_GATE_STATUS = "blocked_human_only"
 GENERATED_AT = "2026-05-08T00:00:00Z"
+SCENARIO_FIXTURE_PATH = (
+    Path(__file__).parent / "fixtures" / "non_live_operational_proof" / "scenarios.json"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,103 +80,10 @@ class ProofScenario:
 
 
 def deterministic_scenarios() -> tuple[ProofScenario, ...]:
-    return (
-        ProofScenario(
-            scenario_id="safe_long_paper_intent",
-            symbol="BTCUSDT",
-            direction="long",
-            confidence=0.82,
-            feature_freshness="fresh",
-            duplicate_signal=False,
-            requested_action="open_long",
-            legacy_action="open_long",
-            squeeze_context="none",
-            expected_v2_action="allow_paper_open_long",
-            block_reason="not_blocked",
-            paper_pnl="+12.40",
-            model_version="hybrid_trainer_v2026_05",
-            checkpoint_id="ckpt_safe_long_paper_intent_2026_05",
-            confidence_raw=0.86,
-            confidence_calibrated=0.82,
-            trainer_worker_liveness="alive",
-        ),
-        ProofScenario(
-            scenario_id="stale_data_blocked",
-            symbol="ETHUSDT",
-            direction="long",
-            confidence=0.78,
-            feature_freshness="stale",
-            duplicate_signal=False,
-            requested_action="open_long",
-            legacy_action="open_long",
-            squeeze_context="none",
-            expected_v2_action="block",
-            block_reason="stale_feature_snapshot",
-            paper_pnl="0.00",
-            model_version="hybrid_trainer_v2026_05",
-            checkpoint_id="ckpt_stale_data_blocked_2026_05",
-            confidence_raw=0.81,
-            confidence_calibrated=0.78,
-            trainer_worker_liveness="degraded",
-        ),
-        ProofScenario(
-            scenario_id="duplicate_signal_blocked",
-            symbol="SOLUSDT",
-            direction="short",
-            confidence=0.74,
-            feature_freshness="fresh",
-            duplicate_signal=True,
-            requested_action="open_short",
-            legacy_action="open_short",
-            squeeze_context="none",
-            expected_v2_action="block",
-            block_reason="duplicate_signal",
-            paper_pnl="0.00",
-            model_version="hybrid_trainer_v2026_05",
-            checkpoint_id="ckpt_duplicate_signal_blocked_2026_05",
-            confidence_raw=0.77,
-            confidence_calibrated=0.74,
-            trainer_worker_liveness="alive",
-        ),
-        ProofScenario(
-            scenario_id="hedge_close_residual_exposure_blocked",
-            symbol="BNBUSDT",
-            direction="short",
-            confidence=0.69,
-            feature_freshness="fresh",
-            duplicate_signal=False,
-            requested_action="close_protective_long",
-            legacy_action="close_protective_long",
-            squeeze_context="residual_short_exposure",
-            expected_v2_action="block_or_reduce",
-            block_reason="hedge_close_would_leave_naked_short",
-            paper_pnl="0.00",
-            model_version="hybrid_trainer_v2026_05",
-            checkpoint_id="ckpt_hedge_close_residual_exposure_blocked_2026_05",
-            confidence_raw=0.72,
-            confidence_calibrated=0.69,
-            trainer_worker_liveness="alive",
-        ),
-        ProofScenario(
-            scenario_id="lab_hedge_unwind_short_squeeze",
-            symbol="LABUSDT",
-            direction="short",
-            confidence=0.66,
-            feature_freshness="fresh",
-            duplicate_signal=False,
-            requested_action="close_protective_long",
-            legacy_action="close_long_leave_short_exposed",
-            squeeze_context="eighty_percent_pump_against_short",
-            expected_v2_action="block_or_reduce",
-            block_reason="short_squeeze_and_hedge_unwind_residual_exposure",
-            paper_pnl="legacy_loss_avoided",
-            model_version="hybrid_trainer_v2026_05",
-            checkpoint_id="ckpt_lab_hedge_unwind_short_squeeze_2026_05",
-            confidence_raw=0.69,
-            confidence_calibrated=0.66,
-            trainer_worker_liveness="worker_dead",
-        ),
-    )
+    payload = json.loads(SCENARIO_FIXTURE_PATH.read_text(encoding="utf-8"))
+    if payload.get("generated_at") != GENERATED_AT:
+        raise ValueError("non-live proof scenario fixture generated_at drifted")
+    return tuple(ProofScenario(**scenario) for scenario in payload["scenarios"])
 
 
 def _risk_action(scenario: ProofScenario) -> str:
@@ -400,7 +310,7 @@ def write_non_live_proof(output_dir: str | Path) -> dict[str, Any]:
         proof["shadow_comparison_result"],
     )
     _write_rollup(output / "aggregate_non_live_proof_rollup.md", proof)
-    (output / "GO_NO_GO.md").write_text(GO_NO_GO_MARKER + "\n", encoding="utf-8")
+    (output / "GO_NO_GO.md").write_text(GO_NO_GO_MARKER, encoding="utf-8")
     return proof
 
 

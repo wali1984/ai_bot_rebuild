@@ -24,4 +24,4 @@ def test_cli_runs_successfully_and_emits_artifacts(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     assert GO_NO_GO_MARKER in result.stdout
     assert [name for name in REQUIRED_ARTIFACTS if not (tmp_path / name).exists()] == []
-    assert (tmp_path / "GO_NO_GO.md").read_text().strip() == GO_NO_GO_MARKER
+    assert (tmp_path / "GO_NO_GO.md").read_text() == GO_NO_GO_MARKER

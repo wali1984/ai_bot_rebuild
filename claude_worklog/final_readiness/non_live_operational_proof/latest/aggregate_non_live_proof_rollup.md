@@ -1,6 +1,6 @@
 # Aggregate Non-Live Proof Rollup
 
-- status: `NON_LIVE_OPERATOR_PROOF_HARNESS_READY`
+- status: `NON_LIVE_OPERATOR_PROOF_HARNESS_READY_FOR_CODEX_REVIEW`
 - generated_at: `2026-05-08T00:00:00Z`
 - live_gate_status: `blocked_human_only`
 - scenario_count: 5
