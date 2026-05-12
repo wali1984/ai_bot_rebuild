@@ -2,7 +2,7 @@
 
 Status: REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY
 
-Generated at: 2026-05-12T02:12:35.394Z
+Generated at: 2026-05-12T02:29:15.058Z
 
 Mission Control is now treated as an operational truth surface, not a proof dump. The first screen prioritizes live/safety state, actual observed runtime processes, current/next task, trainer runtime status, orchestrator/risk/execution status, signal lineage classification, payload freshness, blockers, and links to detail pages.
 
@@ -12,7 +12,7 @@ Current facts:
 - Redis trim: deferred_non_blocking
 - Supervisor observed: no
 - Current task: none
-- Last completed task: codex_parallel_review_20260512_020029_04_paper_execution_ledger
+- Last completed task: codex_parallel_review_20260512_021504_06_paper_mode
 - Next task: codex_recover_173_phase2r_consolidated_python_source_and_task_json_end_file_leakage_cleanup
 - Trainer runtime state: TRAINER_RUNTIME_EVIDENCE_MISSING
 - Market ingestors observed: 6

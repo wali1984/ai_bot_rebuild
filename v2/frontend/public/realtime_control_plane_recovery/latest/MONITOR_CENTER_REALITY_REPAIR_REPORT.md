@@ -1,6 +1,6 @@
 # Monitor Center Reality Repair Report
 
-Generated at: 2026-05-12T02:12:35.394Z
+Generated at: 2026-05-12T02:29:15.058Z
 
 Monitor Center now keeps actual monitor/script rows visible through the V2 cockpit payload and operator truth summary. Required fields are script path, owner/module, status, classification, last run/success/failure where available, metrics emitted, Redis/log/process watchers, alerts, evidence source, and freshness.
 

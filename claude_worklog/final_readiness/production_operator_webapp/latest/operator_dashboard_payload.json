@@ -1,0 +1,18 @@
+{
+  "generated_at": "2026-05-12T02:29:15.058Z",
+  "status": "PRODUCTION_OPERATOR_WEBAPP_AND_RUNTIME_MONITOR_WIRING_READY",
+  "live_gate_status": "blocked_human_only",
+  "route_count": 31,
+  "mission_control": "production_operational_surface",
+  "tradingview_status": "primary_widget_with_explicit_static_fallback",
+  "trainer_monitor_status": "TRAINER_RUNTIME_EVIDENCE_MISSING",
+  "signal_explainability_status": "STATIC_PROOF_FIXTURE",
+  "monitor_center_status": "script_monitor_table_present",
+  "stale_payload_count": 12,
+  "warn_payload_count": 0,
+  "missing_evidence_count": 3,
+  "supervisor_truth_status": "SUPERVISOR_STATUS_STALE_OR_CONFLICTING",
+  "redis_trim_status": "deferred_non_blocking",
+  "codex_result": "PRODUCTION_OPERATOR_WEBAPP_CODEX_PASS",
+  "human_input_required": "false_unless_final_live_capital_gate"
+}

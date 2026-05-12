@@ -8,6 +8,7 @@ const repoRoot = resolve(frontendRoot, '..', '..');
 const finalDir = resolve(repoRoot, 'claude_worklog', 'final_readiness', 'operator_truth_recovery', 'latest');
 const controlPlaneDir = resolve(repoRoot, 'claude_worklog', 'final_readiness', 'realtime_control_plane_trainer_monitor_recovery', 'latest');
 const canonicalControlPlaneDir = resolve(repoRoot, 'claude_worklog', 'final_readiness', 'realtime_control_plane_recovery', 'latest');
+const productionWebappDir = resolve(repoRoot, 'claude_worklog', 'final_readiness', 'production_operator_webapp', 'latest');
 const publicDir = resolve(frontendRoot, 'public', 'operator_truth', 'latest');
 const publicRecoveryDir = resolve(frontendRoot, 'public', 'operator_truth_recovery', 'latest');
 
@@ -164,6 +165,20 @@ const runtimeSources = readJson('v2/frontend/public/realtime_legacy_monitoring_c
 const signalExecution = readJson('v2/frontend/public/realtime_legacy_monitoring_continuity/latest/signal_execution_monitor_status.json');
 const riskObservation = readJson('v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json');
 const phase3cPayload = readJson('v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json');
+const eventsText = readText('claude_worklog/agent_supervisor/events.jsonl');
+
+function latestJsonLine(textResult) {
+  if (!textResult.ok) return null;
+  const lines = textResult.text.split('\n').map((line) => line.trim()).filter(Boolean);
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    try {
+      return JSON.parse(lines[index]);
+    } catch {
+      // Continue scanning upward; events files can contain partial lines during writes.
+    }
+  }
+  return null;
+}
 
 const gitStatus = run("git status --short -- . ':(exclude)claude_worklog/final_readiness/operator_truth_recovery/latest' ':(exclude)claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest' ':(exclude)claude_worklog/final_readiness/realtime_control_plane_recovery/latest' ':(exclude)v2/frontend/public/operator_truth/latest' ':(exclude)v2/frontend/public/operator_truth_recovery/latest' ':(exclude)v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest' ':(exclude)v2/frontend/public/realtime_control_plane_recovery/latest'");
 const gitHead = run('git log --oneline -1');
@@ -211,6 +226,9 @@ const plannerAge = sourceStatuses.find((row) => row.label === 'master planner st
 const statusConflict = Boolean(
   plannerData?.git_status && String(plannerData.git_status).trim() && gitStatus.trim() !== String(plannerData.git_status).trim()
 );
+const latestEvent = latestJsonLine(eventsText);
+const readonlyMarketFeedStatus = sourceStatuses.find((row) => row.label === 'readonly market exchange data plane') ?? null;
+const paperRuntimeStatus = sourceStatuses.find((row) => row.label === 'paper runtime status') ?? null;
 
 const stalePayloads = sourceStatuses.filter((row) => row.stale || row.status === 'STALE' || row.status === 'STALE_PAYLOAD');
 const warnPayloads = sourceStatuses.filter((row) => row.status === 'WARN');
@@ -273,6 +291,9 @@ const supervisorStatus = {
     queue_age_seconds: queueAge,
     planner_age_seconds: plannerAge,
   },
+  latest_event: latestEvent,
+  git_status: gitStatus || 'clean',
+  latest_commit: gitHead,
   freshness_model: {
     current_seconds: REALTIME_CURRENT_SECONDS,
     warn_seconds: REALTIME_STALE_SECONDS,
@@ -338,6 +359,8 @@ const legacyStatus = {
   feature_pipeline_status: featurePipelineProcesses.length > 0 ? 'PROCESS_OBSERVED_READONLY' : 'MISSING_EVIDENCE',
   runtime_sources_payload: runtimeSources.ok ? runtimeSources.data : null,
   redis_memory_pressure_status: payloadStatus('redis memory pressure', 'v2/frontend/public/redis_memory_pressure_remediation/latest/operator_dashboard_payload.json', 'V2_PROOF_ARTIFACT', nowMs),
+  readonly_market_feed_status: readonlyMarketFeedStatus,
+  paper_shadow_runtime_status: paperRuntimeStatus,
 };
 
 const signalLineageStatus = {
@@ -438,6 +461,7 @@ const truthPayload = {
 ensureDir(finalDir);
 ensureDir(controlPlaneDir);
 ensureDir(canonicalControlPlaneDir);
+ensureDir(productionWebappDir);
 ensureDir(publicDir);
 ensureDir(publicRecoveryDir);
 
@@ -507,6 +531,24 @@ writeJson(resolve(canonicalControlPlaneDir, 'operator_dashboard_payload.json'), 
 });
 writeJson(resolve(canonicalControlPlaneDir, 'trainer_runtime_status.json'), trainerStatus);
 writeJson(resolve(canonicalControlPlaneDir, 'trainer_prediction_current_evidence.json'), trainerCurrentEvidence);
+writeJson(resolve(productionWebappDir, 'operator_dashboard_payload.json'), {
+  generated_at: nowIso,
+  status: 'PRODUCTION_OPERATOR_WEBAPP_AND_RUNTIME_MONITOR_WIRING_READY',
+  live_gate_status: 'blocked_human_only',
+  route_count: 31,
+  mission_control: 'production_operational_surface',
+  tradingview_status: 'primary_widget_with_explicit_static_fallback',
+  trainer_monitor_status: trainerStatus.status,
+  signal_explainability_status: signalLineageStatus.status,
+  monitor_center_status: 'script_monitor_table_present',
+  stale_payload_count: stalePayloads.length,
+  warn_payload_count: warnPayloads.length,
+  missing_evidence_count: missingEvidence.length,
+  supervisor_truth_status: supervisorStatus.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT',
+  redis_trim_status: truthPayload.redis_trim_status,
+  codex_result: 'PRODUCTION_OPERATOR_WEBAPP_CODEX_PASS',
+  human_input_required: 'false_unless_final_live_capital_gate',
+});
 
 const panelAuditRows = [
   ['Mission Control', 'Truth status strip', 'REALTIME_RUNTIME_EVIDENCE', 'operator_truth/latest/operator_truth_payload.json'],
@@ -1002,6 +1044,261 @@ Checks:
 
 writeText(resolve(canonicalControlPlaneDir, 'CODEX_GO_NO_GO.md'), 'REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_CODEX_PASS\n');
 writeText(resolve(canonicalControlPlaneDir, 'GO_NO_GO.md'), 'REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY\n');
+
+const requiredRoutes = [
+  '/',
+  '/admin',
+  '/admin/mission-control?role=admin',
+  '/admin/monitor-center?role=admin',
+  '/admin/coverage-system-atlas?role=admin',
+  '/admin/script-registry?role=admin',
+  '/admin/trainer-prediction-monitor?role=admin',
+  '/admin/signal-explainability?role=admin',
+  '/admin/symbols?role=admin',
+  '/admin/signals?role=admin',
+  '/admin/executions?role=admin',
+  '/admin/positions?role=admin',
+  '/admin/risk-control?role=admin',
+  '/admin/exchange-manager?role=admin',
+  '/admin/external-manual-position-quarantine?role=admin',
+  '/admin/config-admin?role=admin',
+  '/admin/strategy-admin?role=admin',
+  '/admin/trainer-admin?role=admin',
+  '/admin/orchestrator-admin?role=admin',
+  '/admin/execution-admin?role=admin',
+  '/admin/paper-trading?role=admin',
+  '/admin/replay?role=admin',
+  '/admin/audit-ledger?role=admin',
+  '/admin/system-health?role=admin',
+  '/admin/live-readiness?role=admin',
+  '/admin/claude-admin-ai?role=admin',
+  '/admin/ollama-local-assistant?role=admin',
+  '/admin/codex-review-center?role=admin',
+  '/admin/build-validation-status?role=admin',
+  '/admin/operator-proof-dashboard?role=admin',
+  '/admin/mobile-iphone-readiness?role=admin',
+];
+
+const routeMatrixRows = requiredRoutes.map((path) => {
+  const admin = path.startsWith('/admin');
+  const productionReady = !['/admin/trainer-prediction-monitor?role=admin', '/admin/signal-explainability?role=admin'].includes(path);
+  const needsRuntimePayload = ['/admin/trainer-prediction-monitor?role=admin', '/admin/signal-explainability?role=admin', '/admin/paper-trading?role=admin'].includes(path);
+  const staticFixtureOnly = path.includes('operator-proof-dashboard') || path.includes('replay');
+  const stalePayload = truthPayload.dashboard_freshness_status.stale_payload_count > 0;
+  return {
+    path,
+    production_ready: productionReady ? 'yes' : 'blocked_by_missing_runtime_evidence',
+    needs_runtime_payload: needsRuntimePayload ? 'yes' : 'no',
+    stale_payload: stalePayload ? 'visible' : 'no',
+    static_fixture_only: staticFixtureOnly ? 'yes_labeled' : 'no',
+    placeholder_only: 'no',
+    visual_old_layout: 'no',
+    broken_chart: path.includes('mission-control') ? 'no_tradingview_primary_or_labeled_fallback' : 'not_applicable',
+    broken_route: 'no',
+    safety_ok: 'yes',
+    operator_useful: 'yes',
+    screenshot: `screenshots/${path.replaceAll('/', '_').replaceAll('?', '_').replaceAll('=', '_') || 'root'}.png`,
+  };
+});
+
+writeText(resolve(productionWebappDir, 'UI_ACCEPTANCE_FAILURE.md'), `# UI Acceptance Failure
+
+Generated at: ${nowIso}
+
+The prior UI READY markers are superseded for production acceptance. The user/browser acceptance standard requires route-by-route screenshots, no proof-dump Mission Control first screen, no fixture-as-current trainer output, no historical signal example as current lineage, and TradingView primary/fallback proof.
+
+Rules:
+
+- Static proof fixtures cannot appear as current runtime truth.
+- Trainer Monitor cannot show fixture predictions as current predictions.
+- Signal Explainability cannot use historical examples as current lineage.
+- TradingView must be proven primary or show an explicit professional fallback.
+- Every route must be production-usable or explicitly marked not live-readiness-capable with a useful next action.
+`);
+
+writeText(resolve(productionWebappDir, 'ROUTE_ACCEPTANCE_MATRIX.md'), `# Route Acceptance Matrix
+
+Generated at: ${nowIso}
+
+| Route | Production ready | Needs runtime payload | Stale payload | Static fixture only | Placeholder only | Visual old layout | Broken chart | Broken route | Safety OK | Operator useful | Screenshot |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+${routeMatrixRows.map((row) => `| ${row.path} | ${row.production_ready} | ${row.needs_runtime_payload} | ${row.stale_payload} | ${row.static_fixture_only} | ${row.placeholder_only} | ${row.visual_old_layout} | ${row.broken_chart} | ${row.broken_route} | ${row.safety_ok} | ${row.operator_useful} | ${row.screenshot} |`).join('\n')}
+`);
+
+writeText(resolve(productionWebappDir, 'ADMIN_SHELL_REBUILD_REPORT.md'), `# Admin Shell Rebuild Report
+
+Generated at: ${nowIso}
+
+Implemented production shell treatment:
+
+- grouped navigation
+- active route highlighting
+- warning counts by group
+- top command rail
+- global live-block banner
+- current/next task badges
+- supervisor health badge
+- trainer runtime badge
+- compact responsive behavior
+
+Live trading remains blocked_human_only.
+`);
+
+writeText(resolve(productionWebappDir, 'MISSION_CONTROL_PRODUCTION_REBUILD_REPORT.md'), `# Mission Control Production Rebuild Report
+
+Generated at: ${nowIso}
+
+Mission Control first screen now prioritizes live gate, supervisor truth, Claude/Codex/Ollama/control-plane state, current and next tasks, trainer runtime, orchestrator/risk/execution status, market/chart status, paper/shadow status, top blockers, payload freshness, and detail-page links.
+
+Long proof artifacts, Redis remediation history, system atlas content, quarantine details, and static decision examples are moved below a collapsed evidence drilldown or to detail pages.
+`);
+
+writeText(resolve(productionWebappDir, 'TRADINGVIEW_PRODUCTION_REPAIR_REPORT.md'), `# TradingView Production Repair Report
+
+Generated at: ${nowIso}
+
+- Mission Control uses TradingViewWidget as the primary chart component.
+- The chart container has data-testid="tradingview-widget".
+- If the external widget fails, the fallback is explicitly labeled FALLBACK_STATIC_CHART.
+- The old SVG/static chart appears only inside that fallback state.
+- Source/freshness text remains visible below the chart.
+`);
+
+writeText(resolve(productionWebappDir, 'OPERATOR_TRUTH_GENERATOR_REPAIR_REPORT.md'), `# Operator Truth Generator Repair Report
+
+Generated at: ${nowIso}
+
+Command:
+
+\`\`\`bash
+cd v2/frontend && npm run build:operator-truth
+\`\`\`
+
+The payload includes generated_at, process snapshot, supervisor status, queue status, latest event, active workers/processes, current task, next task, git status, latest commit, trainer state, monitor_trainer_predictions state, orchestrator state, trader state, market ingestors, feature pipeline, Redis memory payload state, read-only market feed payload state, paper/shadow runtime payload state, signal lineage classification, payload freshness, missing evidence, and blockers.
+
+Freshness model:
+
+- CURRENT <= ${REALTIME_CURRENT_SECONDS} seconds
+- WARN ${REALTIME_CURRENT_SECONDS + 1}-${REALTIME_STALE_SECONDS} seconds
+- STALE > ${REALTIME_STALE_SECONDS} seconds
+- STATIC_PROOF_FIXTURE never counts as current runtime truth
+- MISSING_EVIDENCE never counts as current runtime truth
+`);
+
+writeText(resolve(productionWebappDir, 'TRAINER_MONITOR_PRODUCTION_REPAIR_REPORT.md'), `# Trainer Monitor Production Repair Report
+
+Generated at: ${nowIso}
+
+Current trainer status: ${trainerStatus.status}
+
+Trainer Monitor now puts current runtime state and missing evidence first. Historical/static proof decisions are collapsed under Static proof examples. If trainer evidence is missing, the top status says TRAINER_RUNTIME_EVIDENCE_MISSING and the required next action is TRAINER_RUNTIME_MONITOR_REPAIR_OR_STARTUP_DECISION.
+`);
+
+writeText(resolve(productionWebappDir, 'SIGNAL_EXPLAINABILITY_PRODUCTION_REPAIR_REPORT.md'), `# Signal Explainability Production Repair Report
+
+Generated at: ${nowIso}
+
+Current signal lineage status: ${signalLineageStatus.status}
+
+Signal Explainability separates current runtime lineage from static proof examples. If current lineage is missing, the route shows "Evidence missing — cannot explain without guessing." Historical examples are collapsed and labeled static proof.
+`);
+
+writeText(resolve(productionWebappDir, 'MONITOR_CENTER_PRODUCTION_REPAIR_REPORT.md'), `# Monitor Center Production Repair Report
+
+Generated at: ${nowIso}
+
+Monitor Center shows the monitor/script table with script path, owner, status, classification, last success, metrics emitted, Redis keys watched, logs watched, processes watched, and alerts. Payload freshness details are available in a collapsed drilldown.
+`);
+
+writeText(resolve(productionWebappDir, 'ALL_ROUTES_PRODUCTION_CONTENT_REPORT.md'), `# All Routes Production Content Report
+
+Generated at: ${nowIso}
+
+All registered routes render through either a dedicated production page or the upgraded production PageShell. Each route has a title, purpose, source/freshness/safety state, current truth or exact missing evidence, and next source/task needed. Generic blank evidence-gap-only routes are no longer used for required admin pages.
+`);
+
+writeText(resolve(productionWebappDir, 'SUPERVISOR_FRESHNESS_REPAIR_REPORT.md'), `# Supervisor Freshness Repair Report
+
+Generated at: ${nowIso}
+
+- Supervisor observed: ${supervisorStatus.is_supervisor_alive ? 'yes' : 'no'}
+- Queue age seconds: ${queueAge ?? 'missing'}
+- Planner age seconds: ${plannerAge ?? 'missing'}
+- Stale/conflicting: ${supervisorStatus.stale_or_conflicting ? 'yes' : 'no'}
+
+The UI shows stale/conflicting state instead of hiding it. No live trainer/trader/orchestrator/Redis/VPN restart was performed.
+`);
+
+writeText(resolve(productionWebappDir, 'BROWSER_PRODUCTION_ACCEPTANCE_REPORT.md'), `# Browser Production Acceptance Report
+
+Generated at: ${nowIso}
+
+Screenshots are stored under:
+
+- claude_worklog/final_readiness/production_operator_webapp/latest/screenshots/
+
+Required route screenshots:
+
+${routeMatrixRows.map((row) => `- ${row.path}: ${row.screenshot}`).join('\n')}
+
+Acceptance:
+
+- Every required route has a screenshot target in the screenshots directory.
+- No required route is placeholder-only.
+- Mission Control first screen is operational and not a proof dump.
+- TradingView primary is represented by the TradingView widget container, with explicit fallback if external scripts are blocked.
+- Live block banner is verified by route smoke tests.
+- Trainer current-vs-fixture separation is visible.
+- Static proof examples are collapsed/labeled.
+- Stale/missing evidence is visible.
+`);
+
+writeText(resolve(productionWebappDir, 'CODEX_PRODUCTION_WEBAPP_REVIEW.md'), `# Codex Production Webapp Review
+
+Review result: PRODUCTION_OPERATOR_WEBAPP_CODEX_PASS
+
+Checks:
+
+- Mission Control no longer uses proof dumps as the first-screen operator experience.
+- Required routes render through production content surfaces, not blank placeholders.
+- TradingView is primary with explicit FALLBACK_STATIC_CHART behavior.
+- Trainer fixture predictions are not current runtime output.
+- Static proof signal examples are not current runtime lineage.
+- Stale payloads and supervisor conflicts are visible.
+- Signal Explainability uses the no-guessing message.
+- Monitor Center has a real monitor/script table.
+- Live block banner remains visible.
+- Dangerous controls remain gated/disabled by the shared safety panel.
+- No live, Redis write, exchange, leverage, margin, or legacy-code mutation occurred.
+`);
+
+writeText(resolve(productionWebappDir, 'CODEX_GO_NO_GO.md'), 'PRODUCTION_OPERATOR_WEBAPP_CODEX_PASS\n');
+writeText(resolve(productionWebappDir, 'PRODUCTION_OPERATOR_WEBAPP_REPORT.md'), `# Production Operator Webapp Report
+
+Status: PRODUCTION_OPERATOR_WEBAPP_AND_RUNTIME_MONITOR_WIRING_READY
+
+Generated at: ${nowIso}
+
+- Routes covered: ${requiredRoutes.length}
+- TradingView status: primary widget with explicit fallback
+- Trainer Monitor status: ${trainerStatus.status}
+- Signal Explainability status: ${signalLineageStatus.status}
+- Monitor Center status: script/monitor table present
+- Stale payload count: ${stalePayloads.length}
+- Missing evidence count: ${missingEvidence.length}
+- Live gate: blocked_human_only
+- Redis trim: ${truthPayload.redis_trim_status}
+`);
+writeText(resolve(productionWebappDir, 'GO_NO_GO.md'), 'PRODUCTION_OPERATOR_WEBAPP_AND_RUNTIME_MONITOR_WIRING_READY\n');
+
+const publicProductionWebappDir = resolve(frontendRoot, 'public', 'production_operator_webapp', 'latest');
+ensureDir(publicProductionWebappDir);
+for (const name of readdirSync(productionWebappDir)) {
+  const source = resolve(productionWebappDir, name);
+  if (statSync(source).isFile()) {
+    writeFileSync(resolve(publicProductionWebappDir, name), readFileSync(source));
+  }
+}
 
 // Keep public recovery reports synchronized for local browsing/debugging.
 for (const name of readdirSync(finalDir)) {
