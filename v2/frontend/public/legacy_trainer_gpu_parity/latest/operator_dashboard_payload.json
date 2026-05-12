@@ -1,0 +1,72 @@
+{
+  "codex_review_status": "LEGACY_TRAINER_GPU_PARITY_CODEX_PASS",
+  "exchange_actions": false,
+  "generated_at": "2026-05-12T06:11:36Z",
+  "gpu_runtime": {
+    "classification": "GPU_VISIBLE_BUT_TRAINER_GPU_RUNTIME_NOT_PROVEN",
+    "current_trainer_gpu_use_proven": false,
+    "driver_version": "580.126.09",
+    "generated_at": "2026-05-12T06:11:36Z",
+    "gpu_name": "NVIDIA GeForce RTX 5080",
+    "legacy_trainer_process_observed": false,
+    "memory_total_mib": "16303",
+    "memory_used_mib": "896",
+    "nvidia_smi_available": true,
+    "nvidia_smi_query": "NVIDIA GeForce RTX 5080, 580.126.09, 17, 896, 16303, 37, P3, Enabled",
+    "persistence_mode": "Enabled",
+    "pstate": "P3",
+    "python_torch_state": {
+      "cuda_available": true,
+      "device_count": 1,
+      "device_name": "NVIDIA GeForce RTX 5080",
+      "python_version": "3.12.3",
+      "torch_cuda_version": "12.8",
+      "torch_version": "2.8.0+cu128"
+    },
+    "reason_current_trainer_gpu_use_not_proven": "No rl.hybrid_trainer process observed and V2 paper wrapper code is a lightweight read-only momentum wrapper, not the legacy PPO/MASA CUDA trainer.",
+    "temperature_c": "37",
+    "utilization_gpu_percent": "17",
+    "v2_wrapper_process_observed": true
+  },
+  "legacy_bot_modified": false,
+  "legacy_trainer": {
+    "monitor_process_observed": false,
+    "process_observed": false,
+    "startup_decision_packet": "claude_worklog/final_readiness/legacy_trainer_gpu_parity/latest/LEGACY_TRAINER_STARTUP_DECISION_PACKET.md",
+    "status": "LEGACY_TRAINER_PROCESS_MISSING"
+  },
+  "live_gate_status": "blocked_human_only",
+  "missing_evidence": [
+    "LEGACY_TRAINER_PROCESS_MISSING",
+    "LEGACY_TRAINER_MONITOR_PROCESS_MISSING",
+    "CURRENT_LEGACY_PPO_MASA_GPU_INFERENCE_MISSING",
+    "V2_WRAPPER_DOES_NOT_LOAD_LEGACY_PPO_MASA_CHECKPOINTS",
+    "FEATURE_VECTOR_PARITY_NOT_PROVEN",
+    "LEGACY_CONFIDENCE_CALIBRATION_PARITY_NOT_PROVEN",
+    "V2_WRAPPER_FIELD_MISSING:model_id",
+    "V2_WRAPPER_FIELD_MISSING:top_positive_features",
+    "V2_WRAPPER_FIELD_MISSING:top_negative_features",
+    "V2_WRAPPER_FIELD_MISSING:missing_feature_flags",
+    "V2_WRAPPER_FIELD_MISSING:stale_feature_flags"
+  ],
+  "old_redis_writes": false,
+  "parity_classification": "BLOCKED_FULL_LEGACY_GPU_PARITY_NOT_PROVEN",
+  "redis_trim_approval_created": false,
+  "status": "LEGACY_TRAINER_GPU_PARITY_AND_V2_WRAPPER_VALIDATION_BLOCKED",
+  "v2_paper_trainer_wrapper": {
+    "feature_snapshot_id": "fs_paper_tick_1778566272462",
+    "missing_required_fields": [
+      "model_id",
+      "top_positive_features",
+      "top_negative_features",
+      "missing_feature_flags",
+      "stale_feature_flags"
+    ],
+    "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
+    "prediction_id": "pred_paper_tick_1778566272462",
+    "process_observed": true,
+    "source_payload": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+    "source_payload_age_seconds_at_validation": 24,
+    "status": "V2_PAPER_TRAINER_WRAPPER_INCOMPLETE"
+  }
+}
