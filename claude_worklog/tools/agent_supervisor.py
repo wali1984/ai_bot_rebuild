@@ -263,6 +263,13 @@ def task_allowed_by_non_drift_lock(task: Dict[str, Any]) -> Tuple[bool, str]:
     selected = str(lock.get("selected_task_id") or lock.get("selected_primary_task") or "")
     if selected and task_id == selected:
         return True, "selected_by_non_drift_lock"
+    parallel_codex_tasks = {str(x) for x in lock.get("parallel_codex_tasks", []) if str(x).strip()}
+    if (
+        task_id in parallel_codex_tasks
+        and str(task.get("agent", "")) == "codex"
+        and str(task.get("lane", "")) == "non_drift_codex_audit"
+    ):
+        return True, "parallel_codex_audit_allowed_by_non_drift_lock"
     return False, "blocked_by_non_drift_governor_lock_selected_task_only"
 
 

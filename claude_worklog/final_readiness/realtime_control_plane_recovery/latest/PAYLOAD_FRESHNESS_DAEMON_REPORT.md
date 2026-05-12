@@ -1,6 +1,6 @@
 # Payload Freshness Daemon Report
 
-Generated at: 2026-05-12T21:40:18.138Z
+Generated at: 2026-05-12T23:05:32.391Z
 
 Command:
 
@@ -20,7 +20,7 @@ Freshness model:
 Snapshot:
 
 - payloads checked: 16
-- stale: 11
-- warn: 1
+- stale: 13
+- warn: 0
 - static fixtures: 1
 - missing evidence rows: 1

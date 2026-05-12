@@ -2,7 +2,7 @@
 
 Status: OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_RECOVERY_READY
 
-Generated at: 2026-05-12T21:40:18.138Z
+Generated at: 2026-05-12T23:05:32.391Z
 
 This pass creates a single operator truth payload and wires the dashboard to it so the operator can distinguish current runtime evidence, runtime monitor payloads, static proof fixtures, stale payloads, and missing evidence.
 
@@ -16,8 +16,8 @@ Key truths:
 - Trader process: PROCESS_OBSERVED_READONLY
 - Market ingestors: PROCESS_OBSERVED_READONLY (6)
 - Feature pipeline: PROCESS_OBSERVED_READONLY (1)
-- Current next task: LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK
-- Stale payload count: 11
+- Current next task: SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX
+- Stale payload count: 13
 - Missing evidence count: 1
 
 The dashboard now labels fixture/static data instead of treating it as live runtime truth.

@@ -1,17 +1,17 @@
 # Next Tasks By Lane
 
-Generated: 2026-05-12T22:13:28.364526+00:00
+Generated: 2026-05-12T23:07:37.561845+00:00
 
 Primary Claude lane:
 
-- Selected task: `LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK`
-- Why: Website rebuild passed; primary chain still has trainer runtime/parity and legacy execution containment blockers.
+- Selected task: `SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX`
+- Why: Website rebuild passed; legacy execution containment proof exists; trainer runtime/parity remains the active primary blocker.
 - Autonomous: yes
 - Human approval: no, unless final live/capital gate.
 
 Codex parallel lane:
 
-- Selected audits: `codex_audit_no_live_side_effects, codex_audit_current_runtime_truth, codex_audit_risk_gateway_fail_closed, codex_audit_trainer_parity_truth, codex_audit_public_dashboard_truth, codex_audit_legacy_bridge_readonly`
+- Selected audits: `codex_audit_no_live_side_effects, codex_audit_current_runtime_truth, codex_audit_risk_gateway_fail_closed, codex_audit_trainer_parity_truth, codex_audit_legacy_bridge_readonly, codex_audit_public_dashboard_truth, codex_audit_script_migration_coverage, codex_audit_v2_data_plane_independence`
 - Autonomous: yes
 - Human approval: no.
 

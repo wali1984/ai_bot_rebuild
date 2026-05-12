@@ -20,7 +20,17 @@ BLOCKED = "CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_BLOCKED"
 CODEX_PASS = "CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_CODEX_PASS"
 CODEX_FAIL = "CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_CODEX_FAIL"
 LIVE_GATE = "blocked_human_only"
-SELECTED_PRIMARY_TASK = "LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK"
+SELECTED_PRIMARY_TASK = "SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX"
+PARALLEL_CODEX_TASKS = [
+    "codex_audit_no_live_side_effects",
+    "codex_audit_current_runtime_truth",
+    "codex_audit_risk_gateway_fail_closed",
+    "codex_audit_trainer_parity_truth",
+    "codex_audit_legacy_bridge_readonly",
+    "codex_audit_public_dashboard_truth",
+    "codex_audit_script_migration_coverage",
+    "codex_audit_v2_data_plane_independence",
+]
 
 
 def now_iso() -> str:
@@ -208,7 +218,7 @@ def build_lanes(status: dict[str, Any]) -> dict[str, Any]:
         "generated_at": generated_at,
         "primary_claude_lane": {
             "selected_task": status["recommended_next_primary_task"],
-            "why_selected": "Website rebuild passed; primary chain still has trainer runtime/parity and legacy execution containment blockers.",
+            "why_selected": "Website rebuild passed; legacy execution containment proof exists; trainer runtime/parity remains the active primary blocker.",
             "objective_mapping": [
                 "V2 live-like paper/shadow",
                 "legacy bridge read-only evidence",
@@ -225,14 +235,7 @@ def build_lanes(status: dict[str, Any]) -> dict[str, Any]:
             ],
         },
         "codex_parallel_lane": {
-            "selected_tasks": [
-                "codex_audit_no_live_side_effects",
-                "codex_audit_current_runtime_truth",
-                "codex_audit_risk_gateway_fail_closed",
-                "codex_audit_trainer_parity_truth",
-                "codex_audit_public_dashboard_truth",
-                "codex_audit_legacy_bridge_readonly",
-            ],
+            "selected_tasks": PARALLEL_CODEX_TASKS,
             "why_selected": "Parallel audits support primary runtime safety and truth without superseding the primary Claude lane.",
             "objective_mapping": "adversarial review of V2 live-like paper/shadow safety and data truth",
             "autonomous_run_allowed": True,
@@ -284,6 +287,8 @@ def write_packet(status: dict[str, Any], lanes: dict[str, Any]) -> None:
         "primary_objective": status["primary_objective"],
         "selected_primary_task": status["recommended_next_primary_task"],
         "selected_task_id": status["recommended_next_primary_task"],
+        "parallel_codex_tasks": lanes["codex_parallel_lane"]["selected_tasks"],
+        "codex_parallel_lane_allowed": True,
         "primary_lane": "v2_live_like_paper_shadow_canary_preflight",
         "support_lane_policy": "Website/UI/proof work is support-only unless it fixes a fresh route/data-truth regression or unblocks primary runtime truth.",
         "current_primary_blockers": status["current_primary_blockers"],

@@ -1,0 +1,18 @@
+{
+  "agent": "codex",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "non_drift_codex_audit",
+  "next_gate": "CODEX_AUDIT_READY",
+  "prompt": "You are Codex running a non-live audit under AI BOT REBUILD.\n\nAudit topic: v2 data plane independence.\n\nScope:\n- Work inside /home/wali/Desktop/AI BOT REBUILD only.\n- Legacy bot mutation is forbidden.\n- Legacy Redis mutation is forbidden.\n- Exchange or capital actions are forbidden.\n- Margin and leverage changes are forbidden.\n- Live gate remains blocked_human_only.\n- Website work stays support-only unless there is a fresh regression.\n\nInspect current files and runtime evidence relevant to the audit topic. Do not edit source code.\nEmit exactly two BEGIN_FILE blocks:\n\nBEGIN_FILE: claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_v2_data_plane_independence_REPORT.md\n...markdown report with PASS or BLOCKED and concrete evidence...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_v2_data_plane_independence_GO_NO_GO.md\nCODEX_AUDIT_READY\nEND_FILE\n",
+  "required_output_files": [
+    "claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_v2_data_plane_independence_REPORT.md",
+    "claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_v2_data_plane_independence_GO_NO_GO.md"
+  ],
+  "risk_level": "L1",
+  "status": "pending",
+  "task_id": "codex_audit_v2_data_plane_independence"
+}

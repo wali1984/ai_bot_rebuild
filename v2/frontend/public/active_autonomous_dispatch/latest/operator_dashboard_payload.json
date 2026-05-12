@@ -1,0 +1,88 @@
+{
+  "claude_active": false,
+  "claude_dispatched_or_completed": true,
+  "claude_idle_classification": "CLAUDE_ACTIVE_OK",
+  "codex_parallel_dispatch_state": {
+    "codex_audits": [
+      "codex_audit_no_live_side_effects",
+      "codex_audit_current_runtime_truth",
+      "codex_audit_risk_gateway_fail_closed",
+      "codex_audit_trainer_parity_truth",
+      "codex_audit_legacy_bridge_readonly",
+      "codex_audit_public_dashboard_truth",
+      "codex_audit_script_migration_coverage",
+      "codex_audit_v2_data_plane_independence"
+    ],
+    "codex_process_active": false,
+    "generated_at": "2026-05-12T23:07:37.890129+00:00",
+    "non_drift_lock_allows_codex_audits": true,
+    "proof_audit_last_run": {
+      "end": "2026-05-12T22:49:42.826539+00:00",
+      "start": "2026-05-12T22:47:52.635020+00:00",
+      "status": "completed"
+    },
+    "proof_audit_outputs_materialized": true,
+    "proof_audit_status": "completed",
+    "proof_audit_task": "codex_audit_no_live_side_effects",
+    "task_definitions": [
+      "claude_worklog/agent_supervisor/tasks/codex_audit_no_live_side_effects.json",
+      "claude_worklog/agent_supervisor/tasks/codex_audit_current_runtime_truth.json",
+      "claude_worklog/agent_supervisor/tasks/codex_audit_risk_gateway_fail_closed.json",
+      "claude_worklog/agent_supervisor/tasks/codex_audit_trainer_parity_truth.json",
+      "claude_worklog/agent_supervisor/tasks/codex_audit_legacy_bridge_readonly.json",
+      "claude_worklog/agent_supervisor/tasks/codex_audit_public_dashboard_truth.json",
+      "claude_worklog/agent_supervisor/tasks/codex_audit_script_migration_coverage.json",
+      "claude_worklog/agent_supervisor/tasks/codex_audit_v2_data_plane_independence.json"
+    ],
+    "watchdog_policy": "dispatches non-drift parallel audit when tree is clean and outputs are missing"
+  },
+  "documentation_governance_status": "DOCUMENTATION_GOVERNANCE_READY",
+  "follow_on_primary_task": "SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX",
+  "generated_at": "2026-05-12T23:07:37.890129+00:00",
+  "latest_commit": "7e6f376 Refresh non-drift governor lock state",
+  "legacy_bridge_state": "LEGACY_EXECUTION_CONTAINMENT_AND_TRAINER_PARITY_SAFE_MODE_READY\nPacket emitted: read-only containment report + GO_NO_GO. Verdict: `LEGACY_EXECUTION_CONTAINMENT_AND_TRAINER_PARITY_SAFE_MODE_READY`, with trainer bridge in partial-parity safe-mode and Risk Gateway blocking exchange paths.",
+  "live_gate_status": "blocked_human_only",
+  "manual_operator_non_interference_rule": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/MANUAL_OPERATOR_NON_INTERFERENCE_RULE.md",
+  "next_blocker": "continue primary lane with SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX",
+  "next_primary_task": "LEGACY_EXECUTION_CONTAINMENT_AND_TRAINER_PARITY_SAFE_MODE",
+  "paper_runtime_status": {
+    "continuous_loop_available": true,
+    "live_gate_status": "blocked_human_only",
+    "prediction_id": "pred_paper_tick_1778627231142"
+  },
+  "primary_dispatch_state": {
+    "claude_process_active": false,
+    "current_status_summary": "no runnable task",
+    "dispatch_acceptance": "selected task now has runnable task definition and supervised run state is recorded",
+    "dispatch_repair": "created_or_verified_selected_primary_task_definition",
+    "follow_on_primary_task": "SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX",
+    "follow_on_primary_task_status": "completed",
+    "generated_at": "2026-05-12T23:07:37.890129+00:00",
+    "next_primary_supervised_run_last_run": {
+      "end": "2026-05-12T22:55:35.593229+00:00",
+      "start": "2026-05-12T22:53:35.414563+00:00",
+      "status": "completed"
+    },
+    "next_primary_supervised_run_status": "completed",
+    "next_primary_task": "LEGACY_EXECUTION_CONTAINMENT_AND_TRAINER_PARITY_SAFE_MODE",
+    "queue_current_running_task": null,
+    "queue_next_pending_task": "SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX",
+    "required_outputs_materialized": true,
+    "selected_primary_task": "LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK",
+    "supervised_run_last_run": {
+      "end": "2026-05-12T22:48:04.025780+00:00",
+      "start": "2026-05-12T22:46:03.843331+00:00",
+      "status": "completed"
+    },
+    "supervised_run_status": "completed",
+    "task_definition_existed_before_repair": true,
+    "task_definition_path": "claude_worklog/agent_supervisor/tasks/LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK.json",
+    "task_state_path": "claude_worklog/agent_supervisor/state/tasks/LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK.json"
+  },
+  "redis_trim": "deferred_non_blocking",
+  "script_migration_backlog_status": "SCRIPT_MIGRATION_BACKLOG_READY",
+  "selected_primary_task": "LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK",
+  "status": "ACTIVE_AUTONOMOUS_PRIMARY_DISPATCH_AND_SCRIPT_MIGRATION_PROOF_READY",
+  "trainer_parity_state": "LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_BLOCKED",
+  "website_lane": "secondary_support_lane"
+}

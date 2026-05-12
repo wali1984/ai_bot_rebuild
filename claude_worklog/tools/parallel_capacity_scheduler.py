@@ -578,7 +578,11 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
     codex_autofix_lane = "available" if (human_attention or fail_marker) and not codex_children else "idle"
 
     if non_drift_lock.get("status") == "ACTIVE":
-        next_safe_codex_task = f"hold support lanes; primary lock selected {non_drift_lock.get('selected_primary_task')}"
+        parallel_codex_tasks = non_drift_lock.get("parallel_codex_tasks", []) or []
+        if parallel_codex_tasks:
+            next_safe_codex_task = f"dispatch non-drift Codex audit lane: {parallel_codex_tasks[0]}"
+        else:
+            next_safe_codex_task = f"hold support lanes; primary lock selected {non_drift_lock.get('selected_primary_task')}"
     elif blocked_validation_remediation and not codex_children:
         next_safe_codex_task = f"dispatch governor-selected remediation {blocked_validation_remediation}"
     elif claude_rate_limited and not codex_children:

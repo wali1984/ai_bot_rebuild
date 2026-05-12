@@ -8,8 +8,10 @@
       "codex_audit_current_runtime_truth",
       "codex_audit_risk_gateway_fail_closed",
       "codex_audit_trainer_parity_truth",
+      "codex_audit_legacy_bridge_readonly",
       "codex_audit_public_dashboard_truth",
-      "codex_audit_legacy_bridge_readonly"
+      "codex_audit_script_migration_coverage",
+      "codex_audit_v2_data_plane_independence"
     ],
     "source_evidence": [
       "claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json"
@@ -19,21 +21,21 @@
   "codex_status": "CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_CODEX_PASS",
   "current_legacy_bridge_containment_status": {
     "legacy_bridge_age_seconds": null,
-    "legacy_execution_containment": "MISSING"
+    "legacy_execution_containment": "LEGACY_EXECUTION_CONTAINMENT_AND_TRAINER_PARITY_SAFE_MODE_READY\nPacket emitted: read-only containment report + GO_NO_GO. Verdict: `LEGACY_EXECUTION_CONTAINMENT_AND_TRAINER_PARITY_SAFE_MODE_READY`, with trainer bridge in partial-parity safe-mode and Risk Gateway blocking exchange paths."
   },
   "current_paper_runtime_status": {
     "legacy_bridge_age_seconds": null,
-    "paper_runtime_age_seconds": 9,
-    "queue_status_age_seconds": 2
+    "paper_runtime_age_seconds": 26,
+    "queue_status_age_seconds": 29
   },
-  "current_selected_task": "LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK",
+  "current_selected_task": "SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX",
   "drift_status": "ON_PRIMARY_OBJECTIVE",
-  "generated_at": "2026-05-12T22:13:28.364526+00:00",
+  "generated_at": "2026-05-12T23:07:37.561845+00:00",
   "live_gate_status": "blocked_human_only",
   "primary_objective": "V2 live-like paper/shadow, legacy bridge, risk gateway, trainer parity, and canary preflight",
   "public_website_pass_marker": "PRODUCTION_WEBSITE_FULL_PUBLIC_ROUTE_CRAWL_AND_COINANK_STYLE_REBUILD_READY",
-  "reason_selected": "Website rebuild passed; primary chain still has trainer runtime/parity and legacy execution containment blockers.",
-  "recommended_next_primary_task": "LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK",
+  "reason_selected": "Website rebuild passed; legacy execution containment proof exists; trainer runtime/parity remains the active primary blocker.",
+  "recommended_next_primary_task": "SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX",
   "redis_trim": "deferred_non_blocking",
   "secondary_website_lane_status": {
     "allowed_only_on_regression": true,

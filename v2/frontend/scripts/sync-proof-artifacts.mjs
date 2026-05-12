@@ -54,12 +54,18 @@ const artifactSets = [
   'control_plane_supervisor_persistence',
   'legacy_trainer_gpu_parity',
   'legacy_trainer_restart_runtime',
+  'legacy_execution_containment',
+  'safe_legacy_trainer_bridge',
   'v2_live_observer_shadow_twin',
   'tonight_live_like_paper_shadow',
   'production_website_public_route_rebuild',
   'production_website_full_rebuild',
   'claude_automation_non_drift_governor_lock',
   'non_drift_governor_lock',
+  'active_autonomous_dispatch',
+  'script_migration_backlog',
+  'documentation_governance',
+  'continuous_claude_runtime',
   'post_mvp_non_live_gap_audit',
 ];
 

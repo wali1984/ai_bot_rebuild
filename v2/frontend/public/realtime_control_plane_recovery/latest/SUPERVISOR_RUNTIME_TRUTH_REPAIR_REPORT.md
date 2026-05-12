@@ -1,6 +1,6 @@
 # Supervisor Runtime Truth Repair Report
 
-Generated at: 2026-05-12T21:40:18.138Z
+Generated at: 2026-05-12T23:05:32.391Z
 
 Inspection sources:
 
@@ -16,11 +16,11 @@ Findings:
 - Master planner process observed: no
 - Autonomous governor process observed: no
 - Current status stale/conflicting: no
-- Queue age seconds: 0
-- Planner age seconds: 90304
+- Queue age seconds: 25
+- Planner age seconds: 95418
 - Current running task: none
 - Last completed task: none
-- Next pending task: LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK
+- Next pending task: SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX
 
 Action taken:
 

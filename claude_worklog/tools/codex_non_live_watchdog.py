@@ -667,6 +667,41 @@ def cycle() -> int:
 
     lock = non_drift_lock()
     if lock:
+        parallel_tasks = [str(x) for x in lock.get("parallel_codex_tasks", []) if str(x).strip()]
+        if parallel_tasks:
+            if not git_clean():
+                append_event(
+                    {
+                        "event": "codex_watchdog_non_drift_parallel_audit_waiting_for_clean_tree",
+                        "selected_primary_task": lock.get("selected_primary_task"),
+                        "parallel_codex_tasks": parallel_tasks,
+                    }
+                )
+                print(f"NON_DRIFT_LOCK_CODEX_AUDITS_WAITING_FOR_CLEAN_TREE {lock.get('selected_primary_task')}")
+                return 0
+            for task_id in parallel_tasks:
+                ok, _missing = verify_required_outputs_for_task(task_id)
+                if ok:
+                    continue
+                append_event(
+                    {
+                        "event": "codex_watchdog_dispatching_non_drift_parallel_audit",
+                        "selected_primary_task": lock.get("selected_primary_task"),
+                        "task_id": task_id,
+                    }
+                )
+                rc = run_supervisor_task(task_id)
+                print(f"NON_DRIFT_LOCK_CODEX_AUDIT_DISPATCHED {task_id} rc={rc}")
+                return rc
+            append_event(
+                {
+                    "event": "codex_watchdog_non_drift_parallel_audits_already_materialized",
+                    "selected_primary_task": lock.get("selected_primary_task"),
+                    "parallel_codex_tasks": parallel_tasks,
+                }
+            )
+            print(f"NON_DRIFT_LOCK_CODEX_AUDITS_MATERIALIZED {lock.get('selected_primary_task')}")
+            return 0
         append_event(
             {
                 "event": "codex_watchdog_paused_by_non_drift_governor_lock",

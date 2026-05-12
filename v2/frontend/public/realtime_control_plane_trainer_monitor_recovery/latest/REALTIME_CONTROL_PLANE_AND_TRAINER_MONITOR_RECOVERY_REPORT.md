@@ -2,7 +2,7 @@
 
 Status: REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY
 
-Generated at: 2026-05-12T21:40:18.138Z
+Generated at: 2026-05-12T23:05:32.391Z
 
 This pass repairs the runtime truth snapshot used by Mission Control. The generator now distinguishes the current queue task from the last completed task, captures observed read-only runtime processes, and keeps missing trainer runtime evidence visible.
 
@@ -12,7 +12,7 @@ Current runtime snapshot:
 - Supervisor process observed: yes
 - Current running task: none
 - Last completed task: none
-- Next pending task: LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK
+- Next pending task: SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX
 - Market ingestors observed: 6
 - Feature pipeline observed: 1
 - Orchestrator observed: 2
