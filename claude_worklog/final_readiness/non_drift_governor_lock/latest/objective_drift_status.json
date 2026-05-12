@@ -6,10 +6,10 @@
   ],
   "freshness": {
     "legacy_bridge_age_seconds": null,
-    "paper_runtime_age_seconds": 1,
-    "queue_status_age_seconds": 9
+    "paper_runtime_age_seconds": 9,
+    "queue_status_age_seconds": 2
   },
-  "generated_at": "2026-05-12T21:47:29.019615+00:00",
+  "generated_at": "2026-05-12T22:13:28.364526+00:00",
   "live_gate_status": "blocked_human_only",
   "markers": {
     "control_plane_supervisor_persistence": "CONTROL_PLANE_SUPERVISOR_PERSISTENCE_RECOVERY_READY",
@@ -25,28 +25,28 @@
   "primary_objective": "V2 live-like paper/shadow, legacy bridge, risk gateway, trainer parity, and canary preflight",
   "processes": {
     "agent_supervisor": [
-      "68607 1029421     702 bash -c cd '/home/wali/Desktop/AI BOT REBUILD' && while true; do   if [ -f '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/control_plane/STOP_REBUILD_CONTROL_PLANE' ]; then echo stop-file-seen; exit 0; fi;   printf '[%s] starting agent_supervisor.py %s\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" '--daemon --poll-seconds 30' >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/agent_supervisor.log';   python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30 >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/agent_supervisor.log' 2>&1;   rc=$?;   printf '{\"ts\":\"%s\",\"event\":\"agent_supervisor_loop_exit\",\"rc\":%s}\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \"$rc\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/events.jsonl';   sleep 10; done",
-      "68613   68607     702 python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30"
+      "68607 1029421    2262 bash -c cd '/home/wali/Desktop/AI BOT REBUILD' && while true; do   if [ -f '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/control_plane/STOP_REBUILD_CONTROL_PLANE' ]; then echo stop-file-seen; exit 0; fi;   printf '[%s] starting agent_supervisor.py %s\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" '--daemon --poll-seconds 30' >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/agent_supervisor.log';   python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30 >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/agent_supervisor.log' 2>&1;   rc=$?;   printf '{\"ts\":\"%s\",\"event\":\"agent_supervisor_loop_exit\",\"rc\":%s}\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \"$rc\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/events.jsonl';   sleep 10; done",
+      "68613   68607    2262 python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30"
     ],
     "codex_non_live_watchdog": [
-      "68622 1029421     702 bash -c cd '/home/wali/Desktop/AI BOT REBUILD' && while true; do   if [ -f '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/control_plane/STOP_REBUILD_CONTROL_PLANE' ]; then echo stop-file-seen; exit 0; fi;   printf '[%s] starting codex_non_live_watchdog.py\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/codex_non_live_watchdog.log';   python3 claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll-seconds 300 >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/codex_non_live_watchdog.log' 2>&1;   rc=$?;   printf '{\"ts\":\"%s\",\"event\":\"codex_non_live_watchdog_loop_exit\",\"rc\":%s}\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \"$rc\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/events.jsonl';   sleep 30; done",
-      "68624   68622     702 python3 claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll-seconds 300"
+      "68622 1029421    2262 bash -c cd '/home/wali/Desktop/AI BOT REBUILD' && while true; do   if [ -f '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/control_plane/STOP_REBUILD_CONTROL_PLANE' ]; then echo stop-file-seen; exit 0; fi;   printf '[%s] starting codex_non_live_watchdog.py\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/codex_non_live_watchdog.log';   python3 claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll-seconds 300 >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/codex_non_live_watchdog.log' 2>&1;   rc=$?;   printf '{\"ts\":\"%s\",\"event\":\"codex_non_live_watchdog_loop_exit\",\"rc\":%s}\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \"$rc\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/events.jsonl';   sleep 30; done",
+      "68624   68622    2262 python3 claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll-seconds 300"
     ],
     "legacy_orchestrator": [
-      "1042465 1011413  315557 python3 -m rl.orchestrator_worker"
+      "1042465 1011413  317116 python3 -m rl.orchestrator_worker"
     ],
     "legacy_trader": [
-      "3324274 3324271   73179 python3 -u trading/trader.py"
+      "3324274 3324271   74739 python3 -u trading/trader.py"
     ],
     "legacy_trainer": [
-      "3980694 3980692   20946 python3 -m rl.hybrid_trainer --mode hybrid --training-mode live --enhanced-features"
+      "3980694 3980692   22505 python3 -m rl.hybrid_trainer --mode hybrid --training-mode live --enhanced-features"
     ],
     "paper_runtime": [
-      "3446733 1011413   65648 python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30"
+      "3446733 1011413   67207 python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30"
     ],
     "parallel_capacity_scheduler": [
-      "54966 1029421    1503 bash -c cd '/home/wali/Desktop/AI BOT REBUILD' && while true; do   if [ -f '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/control_plane/STOP_REBUILD_CONTROL_PLANE' ]; then echo stop-file-seen; exit 0; fi;   printf '[%s] starting parallel_capacity_scheduler.py\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/parallel_capacity_scheduler.log';   python3 claude_worklog/tools/parallel_capacity_scheduler.py --daemon --poll-seconds 600 >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/parallel_capacity_scheduler.log' 2>&1;   rc=$?;   printf '{\"ts\":\"%s\",\"event\":\"parallel_capacity_scheduler_loop_exit\",\"rc\":%s}\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \"$rc\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/events.jsonl';   sleep 30; done",
-      "55934   54966    1438 python3 claude_worklog/tools/parallel_capacity_scheduler.py --daemon --poll-seconds 600"
+      "54966 1029421    3062 bash -c cd '/home/wali/Desktop/AI BOT REBUILD' && while true; do   if [ -f '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/control_plane/STOP_REBUILD_CONTROL_PLANE' ]; then echo stop-file-seen; exit 0; fi;   printf '[%s] starting parallel_capacity_scheduler.py\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/parallel_capacity_scheduler.log';   python3 claude_worklog/tools/parallel_capacity_scheduler.py --daemon --poll-seconds 600 >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/parallel_capacity_scheduler.log' 2>&1;   rc=$?;   printf '{\"ts\":\"%s\",\"event\":\"parallel_capacity_scheduler_loop_exit\",\"rc\":%s}\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \"$rc\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/events.jsonl';   sleep 30; done",
+      "55934   54966    2997 python3 claude_worklog/tools/parallel_capacity_scheduler.py --daemon --poll-seconds 600"
     ]
   },
   "recommended_next_primary_task": "LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK",

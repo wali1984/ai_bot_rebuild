@@ -5,7 +5,7 @@
     "legacy_execution_containment_marker_missing"
   ],
   "exchange_mutation_allowed": false,
-  "generated_at": "2026-05-12T21:47:29.019615+00:00",
+  "generated_at": "2026-05-12T22:13:28.364526+00:00",
   "legacy_bot_mutation_allowed": false,
   "live_gate_status": "blocked_human_only",
   "lock_id": "CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK",

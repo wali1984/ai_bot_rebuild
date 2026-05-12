@@ -4,7 +4,7 @@
     "legacy_execution_containment_marker_missing"
   ],
   "exchange_mutation": "none",
-  "generated_at": "2026-05-12T21:47:29.019615+00:00",
+  "generated_at": "2026-05-12T22:13:28.364526+00:00",
   "human_input_required": "false_unless_final_live_capital_gate",
   "legacy_mutation": "none",
   "live_gate_status": "blocked_human_only",

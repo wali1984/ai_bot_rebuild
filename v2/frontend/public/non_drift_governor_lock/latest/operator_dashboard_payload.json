@@ -23,12 +23,12 @@
   },
   "current_paper_runtime_status": {
     "legacy_bridge_age_seconds": null,
-    "paper_runtime_age_seconds": 1,
-    "queue_status_age_seconds": 9
+    "paper_runtime_age_seconds": 9,
+    "queue_status_age_seconds": 2
   },
   "current_selected_task": "LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK",
   "drift_status": "ON_PRIMARY_OBJECTIVE",
-  "generated_at": "2026-05-12T21:47:29.019615+00:00",
+  "generated_at": "2026-05-12T22:13:28.364526+00:00",
   "live_gate_status": "blocked_human_only",
   "primary_objective": "V2 live-like paper/shadow, legacy bridge, risk gateway, trainer parity, and canary preflight",
   "public_website_pass_marker": "PRODUCTION_WEBSITE_FULL_PUBLIC_ROUTE_CRAWL_AND_COINANK_STYLE_REBUILD_READY",

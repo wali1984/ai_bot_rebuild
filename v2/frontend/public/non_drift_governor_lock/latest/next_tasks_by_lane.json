@@ -30,7 +30,7 @@
     ],
     "why_selected": "Parallel audits support primary runtime safety and truth without superseding the primary Claude lane."
   },
-  "generated_at": "2026-05-12T21:47:29.019615+00:00",
+  "generated_at": "2026-05-12T22:13:28.364526+00:00",
   "primary_claude_lane": {
     "autonomous_run_allowed": true,
     "human_approval_required": false,
