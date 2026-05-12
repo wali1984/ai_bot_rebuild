@@ -5,6 +5,7 @@ import { sessionStore } from '../../auth/session';
 import { LiveBlockBanner } from '../banners/LiveBlockBanner';
 import { Nav } from './Nav';
 import { PAGES } from '../../pages/registry';
+import { useOperatorTruthPayload } from '../../pages/operatorTruthData';
 
 const VALID_ROLES = new Set<Role>(['public', 'viewer', 'operator', 'reviewer', 'admin', 'live_approver']);
 
@@ -16,6 +17,7 @@ function roleFromSearch(search: string): Role | null {
 export function AdminShell(): JSX.Element {
   const sessionRole = useRoles();
   const location = useLocation();
+  const { payload } = useOperatorTruthPayload();
   const queryRole = roleFromSearch(location.search);
   const role = queryRole ?? sessionRole;
 
@@ -38,7 +40,19 @@ export function AdminShell(): JSX.Element {
     <div className="admin-shell">
       <LiveBlockBanner />
       <header className="admin-shell__header">
-        <h1>AI BOT V2 — Admin</h1>
+        <div>
+          <p className="eyebrow">Production operator cockpit</p>
+          <h1>AI BOT V2</h1>
+        </div>
+        <div className="admin-command-rail" aria-label="Global operator runtime state">
+          <span className="chip solid-block">LIVE: {payload?.live_gate_status ?? 'blocked_human_only'}</span>
+          <span className={payload?.supervisor_status.stale_or_conflicting ? 'chip solid-warn' : 'chip solid-ok'}>
+            Supervisor: {payload?.supervisor_status.stale_or_conflicting ? 'stale/conflicting' : 'current'}
+          </span>
+          <span className="chip">Current: {payload?.supervisor_status.current_running_task ?? 'none'}</span>
+          <span className="chip">Next: {payload?.current_next_task ?? 'missing'}</span>
+          <span className="chip solid-warn">Trainer: {payload?.trainer_monitor_status.status ?? 'MISSING_EVIDENCE'}</span>
+        </div>
       </header>
       <div className="admin-shell__body">
         <Nav />

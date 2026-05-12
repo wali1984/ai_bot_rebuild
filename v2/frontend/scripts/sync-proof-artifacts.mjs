@@ -43,6 +43,7 @@ const artifactSets = [
   'claude_design_full_visual_implementation',
   'operator_truth_recovery',
   'operator_ui_hard_fail_recovery',
+  'production_operator_webapp',
   'realtime_control_plane_trainer_monitor_recovery',
   'realtime_control_plane_recovery',
   'online_readiness_control_plane',

@@ -5,17 +5,17 @@ import { PAGES } from '../../pages/registry';
 import { useOperatorTruthPayload } from '../../pages/operatorTruthData';
 
 const CATEGORY_LABELS: Record<string, string> = {
-  overview: 'Command',
-  observability: 'Monitor',
+  overview: 'Operate',
+  observability: 'Inspect',
   trainer: 'Trainer / Signals',
   risk: 'Risk',
   execution: 'Execution',
   market: 'Market',
-  trading: 'Exchange',
+  trading: 'Operate',
   admin: 'Admin',
-  audit: 'Evidence',
+  audit: 'Proof / Audit',
   ai: 'AI Control',
-  mobile: 'Mobile',
+  mobile: 'System',
 };
 
 const CATEGORY_ORDER = ['overview', 'observability', 'trainer', 'risk', 'execution', 'market', 'trading', 'admin', 'audit', 'ai', 'mobile'];

@@ -100,8 +100,9 @@ export function ChartPanel({ candles, decisions, sourceType }: { candles: Candle
       className="tradingview-widget-fallback tradingview-widget-fallback--chart"
       role="status"
       data-testid="tradingview-chart-fallback"
+      data-chart-mode="FALLBACK_STATIC_CHART"
     >
-      <p>Chart unavailable. TradingView widget failed to load. Showing local proof candles as read-only fallback.</p>
+      <p>FALLBACK_STATIC_CHART: TradingView widget failed to load or external scripts are blocked. Showing local proof candles as read-only fallback.</p>
       <svg className="cockpit-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="BTCUSDT candlestick chart with risk markers">
         <rect x="0" y="0" width={width} height={height} rx="6" />
         {candles.map((candle, index) => {
@@ -131,7 +132,7 @@ export function ChartPanel({ candles, decisions, sourceType }: { candles: Candle
     </div>
   );
   return (
-    <Panel id="charting-market-data" title="BTCUSDT Chart, Signals, And Risk Markers">
+    <Panel id="charting-market-data" title="BTCUSDT TradingView Primary Chart">
       <TradingViewWidget symbol="BINANCE:BTCUSDT" fallback={fallback} />
       <p className="cockpit-evidence-note">
         {sourceType === 'READONLY_MARKET_FEED'

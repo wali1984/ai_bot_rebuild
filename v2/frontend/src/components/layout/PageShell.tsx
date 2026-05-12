@@ -1,5 +1,8 @@
 import type { PageMeta, PageRbac, PageRoute } from '../../types/page';
 import { DangerousControlPanel } from '../controls/DangerousControlPanel';
+import { Metric, Panel } from '../../pages/cockpitComponents';
+import { useCockpitPayload } from '../../pages/cockpitData';
+import { useOperatorTruthPayload } from '../../pages/operatorTruthData';
 
 interface Props {
   meta: PageMeta;
@@ -7,27 +10,180 @@ interface Props {
   route: PageRoute;
 }
 
+const ROUTE_PROFILES: Record<string, { source: string; status: string; next: string; data: string[] }> = {
+  symbols: {
+    source: 'READONLY_MARKET_FEED / symbol universe registry',
+    status: 'needs current symbol universe payload',
+    next: 'Wire V2 symbol universe payload with exchange/source freshness and selection status.',
+    data: ['symbol', 'exchange', 'status', 'market feed freshness', 'enabled for paper/shadow'],
+  },
+  signals: {
+    source: 'RUNTIME_MONITOR_PAYLOAD / signal lineage',
+    status: 'current runtime signal lineage required',
+    next: 'Connect current signal stream with prediction_id, signal_id, confidence, and risk result.',
+    data: ['signal_id', 'prediction_id', 'confidence', 'feature freshness', 'risk gate result'],
+  },
+  executions: {
+    source: 'V2_PROOF_ARTIFACT / paper execution ledger',
+    status: 'paper only; live execution blocked',
+    next: 'Wire current paper execution ledger and execution_intent_id evidence.',
+    data: ['execution_intent_id', 'risk_decision_id', 'paper fill state', 'PnL', 'blocked live reason'],
+  },
+  positions: {
+    source: 'READONLY_ACCOUNT_FEED / paper position payload',
+    status: 'paper/read-only positions only',
+    next: 'Wire paper/shadow positions and external/manual quarantine state.',
+    data: ['symbol', 'side', 'size', 'source', 'quarantine status', 'live-block status'],
+  },
+  'strategy-admin': {
+    source: 'V2 strategy registry',
+    status: 'dangerous strategy toggles approval-gated',
+    next: 'Expose strategy registry with validation, rollback, and approval classification.',
+    data: ['strategy id', 'state', 'risk class', 'enabled for paper', 'approval requirement'],
+  },
+  'trainer-admin': {
+    source: 'TRAINER_RUNTIME_EVIDENCE / trainer config',
+    status: 'trainer runtime monitor missing until proven current',
+    next: 'Run TRAINER_RUNTIME_MONITOR_REPAIR_OR_STARTUP_DECISION before treating trainer as current.',
+    data: ['trainer process', 'monitor process', 'checkpoint', 'latest prediction', 'feature snapshot'],
+  },
+  'orchestrator-admin': {
+    source: 'RUNTIME_MONITOR_PAYLOAD / orchestrator evidence',
+    status: 'orchestrator proposes only',
+    next: 'Wire current orchestrator decisions to Risk Gateway decision evidence.',
+    data: ['decision_id', 'reason', 'deconflict status', 'risk_decision_id', 'audit event'],
+  },
+  'execution-admin': {
+    source: 'V2 execution adapter registry',
+    status: 'paper/shadow only; live methods disabled',
+    next: 'Expose execution adapter status and blocked live method inventory.',
+    data: ['adapter', 'mode', 'paper capability', 'live blocked method', 'approval requirement'],
+  },
+  'audit-ledger': {
+    source: 'V2 audit ledger',
+    status: 'append-only audit proof required',
+    next: 'Wire durable audit ledger tail and chain integrity checks.',
+    data: ['event id', 'source', 'decision_id', 'risk_decision_id', 'chain status'],
+  },
+  'system-health': {
+    source: 'operator truth payload / monitor center',
+    status: 'current/stale/conflicting surfaced',
+    next: 'Keep build:operator-truth fresh and repair stale control-plane daemons separately.',
+    data: ['supervisor', 'market ingest', 'feature pipeline', 'orchestrator', 'trainer'],
+  },
+  'codex-review-center': {
+    source: 'Codex review artifacts',
+    status: 'parallel auditor only',
+    next: 'Wire latest Codex PASS/FAIL matrix and remediation links.',
+    data: ['review id', 'result', 'blocker', 'source paths', 'next remediation'],
+  },
+  'ollama-local-assistant': {
+    source: 'Ollama draft-only evidence helper',
+    status: 'draft-only; never final truth',
+    next: 'Show Ollama helper availability and verification requirements.',
+    data: ['model', 'task', 'draft packet', 'Claude/Codex verification state'],
+  },
+  login: {
+    source: 'local session role',
+    status: 'local role selector only',
+    next: 'Use admin role query for local development; production auth remains separate.',
+    data: ['role', 'session', 'RBAC minimum', 'dangerous control visibility'],
+  },
+  'public-status': {
+    source: 'public status summary',
+    status: 'high-level only',
+    next: 'Expose only non-sensitive health once production status policy exists.',
+    data: ['live gate', 'frontend health', 'public uptime', 'no internal IDs'],
+  },
+};
+
 export function PageShell({ meta, rbac, route }: Props): JSX.Element {
+  const { payload: truthPayload, error: truthError } = useOperatorTruthPayload();
+  const { payload: cockpitPayload } = useCockpitPayload();
+  const profile = ROUTE_PROFILES[meta.id] ?? {
+    source: 'MISSING_EVIDENCE',
+    status: 'needs dedicated production payload',
+    next: `Create a production payload and table for ${meta.title}.`,
+    data: ['current data', 'freshness', 'source evidence', 'missing evidence', 'next task'],
+  };
+  const firstDecision = cockpitPayload?.decisions[0];
+  const sourceRows = [
+    ['live gate', truthPayload?.live_gate_status ?? 'blocked_human_only'],
+    ['supervisor', truthPayload?.supervisor_status.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT_OR_LOADING'],
+    ['current task', truthPayload?.supervisor_status.current_running_task ?? 'none'],
+    ['next task', truthPayload?.current_next_task ?? 'MISSING_EVIDENCE'],
+    ['trainer runtime', truthPayload?.trainer_monitor_status.status ?? 'MISSING_EVIDENCE'],
+    ['signal lineage', truthPayload?.signal_lineage_status.status ?? 'MISSING_EVIDENCE'],
+  ] satisfies Array<[string, unknown]>;
   return (
     <article
-      className="page-shell"
+      className="enterprise-cockpit-page design-page-shell grid-bg"
       data-testid={`page-${meta.id}`}
       data-page-id={meta.id}
       data-page-surface={meta.surface}
       data-page-min-role={rbac.minRole}
       data-page-path={route.path}
     >
-      <header className="page-shell__header">
-        <h1>{meta.title}</h1>
-        <p className="page-shell__description">{meta.description}</p>
+      <header className="design-page-hero panel bracketed hatch">
+        <span className="br-bl" aria-hidden="true" />
+        <span className="br-br" aria-hidden="true" />
+        <div className="design-page-hero__copy">
+          <p className="eyebrow">{meta.navCategory ?? 'admin'} / production route</p>
+          <h1>{meta.title}</h1>
+          <p>{meta.description}</p>
+        </div>
+        <div className="design-page-hero__ribbons">
+          <span className="chip solid-block">LIVE TRADING: blocked_human_only</span>
+          <span className="chip solid-paper">{profile.status}</span>
+          <span className="chip">{profile.source}</span>
+        </div>
       </header>
       <DangerousControlPanel controlIds={meta.dangerousControlIds} />
-      <section className="page-shell__body">
-        <p className="cockpit-evidence-gap">
-          Evidence missing - this route is registered but needs a dedicated data
-          payload before it can be used for live-readiness decisions.
-        </p>
-      </section>
+      <Panel id={`${meta.id}-production-summary`} title={`${meta.title} Production Surface`}>
+        <div className="cockpit-analytics-grid">
+          {sourceRows.map(([label, value]) => <Metric key={label} label={label} value={value} />)}
+        </div>
+        <div className="cockpit-card-grid">
+          <div className="cockpit-exchange-card">
+            <h3>Purpose</h3>
+            <p>{meta.description}</p>
+            <p>Source: {profile.source}</p>
+          </div>
+          <div className="cockpit-evidence-gap">
+            <strong>Next source/task needed</strong>
+            <p>{profile.next}</p>
+          </div>
+          <div className="cockpit-evidence-gap">
+            <strong>Runtime truth rule</strong>
+            <p>Static proof fixtures and historical examples are not current runtime truth. Evidence missing — cannot explain without guessing.</p>
+          </div>
+        </div>
+      </Panel>
+      <Panel id={`${meta.id}-required-data`} title="Required Production Data Contract" right={<span className="chip solid-warn">No placeholder-only route</span>}>
+        <div className="cockpit-card-grid">
+          {profile.data.map((item) => (
+            <div className="cockpit-exchange-card" key={item}>
+              <h3>{item}</h3>
+              <p>Required before this page can support live-readiness decisions.</p>
+            </div>
+          ))}
+        </div>
+      </Panel>
+      {truthError ? (
+        <p className="cockpit-evidence-gap" role="alert">Operator truth payload unavailable: {truthError}</p>
+      ) : null}
+      {firstDecision && ['signals', 'executions', 'positions', 'audit-ledger'].includes(meta.id) ? (
+        <Panel id={`${meta.id}-fixture-context`} title="Static Proof Context" right={<span className="chip solid-paper">STATIC_PROOF_FIXTURE</span>}>
+          <div className="cockpit-lineage-grid">
+            <div><span>signal_id</span><strong>{firstDecision.signal_id}</strong></div>
+            <div><span>prediction_id</span><strong>{firstDecision.prediction_id}</strong></div>
+            <div><span>risk_decision_id</span><strong>{firstDecision.risk_decision_id}</strong></div>
+            <div><span>execution_intent_id</span><strong>{firstDecision.execution_intent_id}</strong></div>
+            <div><span>result</span><strong>{firstDecision.result}</strong></div>
+            <div><span>classification</span><strong>not current runtime</strong></div>
+          </div>
+        </Panel>
+      ) : null}
     </article>
   );
 }
