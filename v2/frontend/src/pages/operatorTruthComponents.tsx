@@ -84,7 +84,9 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
   const freshness = payload.dashboard_freshness_status;
   const supervisorState = controlPlaneValue(payload);
   const restartRuntime = payload.legacy_trainer_restart_runtime;
+  const liveObserver = payload.live_observer_shadow_twin;
   const legacyRestartStatus = nestedText(restartRuntime, ['legacy_trainer', 'status'], '');
+  const liveObserverStatus = nestedText(liveObserver, ['status'], '');
   const plannerState = supervisor.master_planner_running ? 'MASTER_PLANNER_RUNNING' : 'MASTER_PLANNER_NOT_RUNNING';
   const governorState = supervisor.autonomous_governor_active ? 'AUTONOMOUS_GOVERNOR_ACTIVE' : 'AUTONOMOUS_GOVERNOR_NOT_OBSERVED';
   const runningTask = supervisor.current_running_task ?? 'NO_ACTIVE_SUPERVISOR_TASK';
@@ -114,6 +116,7 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
           <span className={`chip ${truthTone(supervisorState) === 'good' ? 'solid-ok' : 'solid-warn'}`}>{supervisorState}</span>
           <span className={`chip ${hasCurrentTrainer ? 'solid-ok' : 'solid-warn'}`}>{trainer.status}</span>
           {legacyRestartStatus ? <span className={`chip ${truthTone(legacyRestartStatus) === 'good' ? 'solid-ok' : 'solid-warn'}`}>Legacy trainer: {legacyRestartStatus}</span> : null}
+          {liveObserverStatus ? <span className={`chip ${truthTone(liveObserverStatus) === 'good' ? 'solid-ok' : 'solid-warn'}`}>Observer: {liveObserverStatus}</span> : null}
           {payload.canonical_truth_bridge ? <span className="chip solid-ok">{payload.canonical_truth_bridge.status}</span> : null}
           <span className="chip solid-paper">Redis trim: {payload.redis_trim_status}</span>
         </div>
@@ -162,6 +165,12 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
           source={signal.status === 'REALTIME_RUNTIME_EVIDENCE' ? 'RUNTIME_MONITOR_PAYLOAD' : 'STATIC_PROOF_FIXTURE'}
         />
         <TruthStateCard
+          label="Legacy observer twin"
+          value={nestedText(liveObserver, ['legacy_shadow_twin', 'risk_decision', 'risk_result'], liveObserverStatus || 'MISSING_EVIDENCE')}
+          detail={`source ${nestedText(liveObserver, ['legacy_shadow_twin', 'legacy_source', 'stream'], 'missing')}; paper ${nestedText(liveObserver, ['legacy_shadow_twin', 'paper_ledger_entry', 'paper_result'], 'missing')}`}
+          source="LEGACY_READONLY_BRIDGE / V2_SHADOW_TWIN"
+        />
+        <TruthStateCard
           label="Payload freshness"
           value={`${freshness.stale_payload_count} STALE / ${freshness.static_fixture_count} STATIC`}
           detail={`${freshness.payloads_checked} payloads checked; ${freshness.missing_evidence_count} missing evidence items`}
@@ -204,6 +213,7 @@ export function RuntimeTruthMatrix({ payload }: { payload: OperatorTruthPayload 
     ['Trainer prediction stream', payload.trainer_monitor_status.status, 'trainer monitor payload'],
     ['Signal explainability', payload.signal_lineage_status.status, 'signal lineage payload'],
     ['V2 paper online', paperOnline?.status ?? 'MISSING_EVIDENCE', paperOnline?.path ?? 'operator_runtime/paper_online/latest'],
+    ['Legacy observer twin', payload.runtime_monitor_status.live_observer_runtime_status?.status ?? nestedText(payload.live_observer_shadow_twin, ['status'], 'MISSING_EVIDENCE'), 'operator_runtime/live_observer/latest'],
     ['Redis memory pressure', redis?.status ?? 'MISSING_EVIDENCE', redis?.path ?? 'Redis read-only state / payload audit'],
     ['Static fixture count', String(payload.dashboard_freshness_status.static_fixture_count), 'public payload audit'],
     ['Stale payload count', String(payload.dashboard_freshness_status.stale_payload_count), 'public payload audit'],
@@ -219,6 +229,60 @@ export function RuntimeTruthMatrix({ payload }: { payload: OperatorTruthPayload 
         </div>
       ))}
     </section>
+  );
+}
+
+export function LiveObserverShadowTwinPanel({ payload }: { payload: OperatorTruthPayload }): JSX.Element {
+  const observer = payload.live_observer_shadow_twin;
+  const riskResult = nestedText(observer, ['legacy_shadow_twin', 'risk_decision', 'risk_result']);
+  const riskReason = nestedText(observer, ['legacy_shadow_twin', 'risk_decision', 'risk_reason_code']);
+  const paperResult = nestedText(observer, ['legacy_shadow_twin', 'paper_ledger_entry', 'paper_result']);
+  const sourceStream = nestedText(observer, ['legacy_shadow_twin', 'legacy_source', 'stream']);
+  const visibleRecords = observer && typeof observer.gui_runtime_truth === 'object'
+    ? (observer.gui_runtime_truth as Record<string, unknown>).current_records_visible as Record<string, unknown> | undefined
+    : undefined;
+  return (
+    <Panel
+      id="live-observer-shadow-twin"
+      title="Legacy Live Observer / V2 Shadow Twin"
+      right={<span className={observer ? 'chip solid-ok' : 'chip solid-warn'}>{observer ? 'REALTIME_RUNTIME_EVIDENCE' : 'MISSING_EVIDENCE'}</span>}
+    >
+      <div className="cockpit-lineage-grid">
+        <div><span>bridge status</span><strong>{nestedText(observer, ['legacy_read_only_bridge', 'status'])}</strong></div>
+        <div><span>source stream</span><strong>{sourceStream}</strong></div>
+        <div><span>legacy signal_id</span><strong>{nestedText(observer, ['legacy_shadow_twin', 'normalized_signal', 'signal_id'])}</strong></div>
+        <div><span>legacy symbol/action</span><strong>{nestedText(observer, ['legacy_shadow_twin', 'normalized_signal', 'symbol'])} / {nestedText(observer, ['legacy_shadow_twin', 'normalized_signal', 'action'])}</strong></div>
+        <div><span>Risk Gateway result</span><strong className={statusClass(riskResult)}>{riskResult}</strong></div>
+        <div><span>risk reason</span><strong>{riskReason}</strong></div>
+        <div><span>paper result</span><strong>{paperResult}</strong></div>
+        <div><span>audit ledger</span><strong>{nestedText(observer, ['audit_ledger', 'status'])}</strong></div>
+        <div><span>V2 Redis namespace</span><strong>{nestedText(observer, ['v2_bounded_redis_namespace', 'status'])}</strong></div>
+        <div><span>trainer parity</span><strong>{nestedText(observer, ['trainer_bridge_parity', 'parity_status'])}</strong></div>
+      </div>
+      <p className="cockpit-evidence-note">
+        This bridge observes legacy read-only evidence and mirrors it into V2 paper/shadow records. It does not write old Redis, does not command the legacy trader, and Risk Gateway remains final authority.
+      </p>
+      {visibleRecords ? (
+        <div className="truth-working-grid">
+          {Object.entries(visibleRecords).map(([label, value]) => (
+            <div className={`truth-working-card truth-working-card--${truthTone(value)}`} key={label}>
+              <span>{label}</span>
+              <strong>{valueText(value)}</strong>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {Array.isArray(observer?.blockers) && observer.blockers.length ? (
+        <div className="missing-evidence-board">
+          {observer.blockers.map((row: Record<string, unknown>) => (
+            <div className="missing-evidence-card" key={valueText(row.id)}>
+              <strong>{valueText(row.id)}</strong>
+              <p>{valueText(row.severity)}: {valueText(row.detail)}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </Panel>
   );
 }
 

@@ -2,7 +2,7 @@
 
 Status: V2_LIVE_OBSERVER_SHADOW_TWIN_READY
 
-Generated at: 2026-05-12T19:50:49Z
+Generated at: 2026-05-12T19:56:15Z
 
 - Legacy bridge importer: `LEGACY_LIVE_BRIDGE_IMPORTER_CURRENT`
 - V2 paper runtime: `CURRENT`

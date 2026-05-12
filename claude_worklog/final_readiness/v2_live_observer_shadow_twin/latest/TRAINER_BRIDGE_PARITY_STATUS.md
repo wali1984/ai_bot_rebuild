@@ -1,6 +1,6 @@
 # Trainer Bridge Parity Status
 
-Generated at: 2026-05-12T19:50:49Z
+Generated at: 2026-05-12T19:56:15Z
 
 - Legacy trainer: `PROCESS_OBSERVED_READONLY`
 - Legacy trainer monitor: `PROCESS_NOT_OBSERVED`

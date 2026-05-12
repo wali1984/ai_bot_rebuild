@@ -61,6 +61,8 @@ export interface OperatorTruthPayload {
     paper_shadow_runtime_status?: OperatorTruthStatusRow;
     paper_online_runtime_status?: OperatorTruthStatusRow;
     paper_online_runtime?: PaperOnlineRuntimePayload | null;
+    live_observer_runtime_status?: OperatorTruthStatusRow;
+    live_observer_runtime?: Record<string, unknown> | null;
     legacy_trader_containment?: {
       status: string;
       action: string;
@@ -96,6 +98,7 @@ export interface OperatorTruthPayload {
   current_blockers: Array<{ id: string; severity: string; detail: string }>;
   proof_artifact_statuses: OperatorTruthStatusRow[];
   legacy_trainer_restart_runtime?: Record<string, unknown> | null;
+  live_observer_shadow_twin?: Record<string, unknown> | null;
   classifications: Record<string, string>;
 }
 
@@ -161,6 +164,7 @@ export interface PaperOnlineRuntimePayload {
 
 const operatorTruthPayloadPath = '/operator_truth/latest/operator_truth_payload.json';
 const paperOnlineRuntimePayloadPath = '/operator_runtime/paper_online/latest/paper_runtime_status.json';
+const liveObserverRuntimePayloadPath = '/operator_runtime/live_observer/latest/current_runtime_truth_payload.json';
 const RUNTIME_CURRENT_SECONDS = 120;
 
 async function fetchJson<T>(path: string): Promise<T> {
@@ -207,6 +211,7 @@ function makeStatusRow(
 function synthesizeTruthFromPaperRuntime(
   staleTruth: OperatorTruthPayload | null,
   paperRuntime: PaperOnlineRuntimePayload,
+  liveObserverRuntime: Record<string, unknown> | null = null,
 ): OperatorTruthPayload {
   const age = ageSeconds(paperRuntime.generated_at);
   const staleTruthAge = ageSeconds(staleTruth?.generated_at);
@@ -317,6 +322,8 @@ function synthesizeTruthFromPaperRuntime(
       paper_shadow_runtime_status: oldRuntime?.paper_shadow_runtime_status,
       paper_online_runtime_status: paperStatus,
       paper_online_runtime: paperRuntime,
+      live_observer_runtime_status: oldRuntime?.live_observer_runtime_status,
+      live_observer_runtime: liveObserverRuntime ?? oldRuntime?.live_observer_runtime ?? null,
       legacy_trader_containment: {
         status: legacyTraderRows.length ? 'LEGACY_TRADER_PROCESS_OBSERVED_READONLY_CONTAINED' : 'LEGACY_TRADER_NOT_OBSERVED',
         action: 'observation_only_no_restart_no_kill_no_order_action',
@@ -365,6 +372,8 @@ function synthesizeTruthFromPaperRuntime(
     missing_evidence: [],
     current_blockers: currentBlockers,
     proof_artifact_statuses: staleTruth?.proof_artifact_statuses ?? [],
+    legacy_trainer_restart_runtime: staleTruth?.legacy_trainer_restart_runtime ?? null,
+    live_observer_shadow_twin: liveObserverRuntime ?? staleTruth?.live_observer_shadow_twin ?? null,
     classifications: staleTruth?.classifications ?? {
       REALTIME_RUNTIME_EVIDENCE: 'Current runtime evidence.',
       STALE_PAYLOAD: 'Generated artifact is older than its freshness threshold.',
@@ -387,13 +396,15 @@ export function useOperatorTruthPayload(): {
       Promise.allSettled([
         fetchJson<OperatorTruthPayload>(`${operatorTruthPayloadPath}?ts=${Date.now()}`),
         fetchJson<PaperOnlineRuntimePayload>(`${paperOnlineRuntimePayloadPath}?ts=${Date.now()}`),
-      ]).then(([truthResult, paperResult]) => {
+        fetchJson<Record<string, unknown>>(`${liveObserverRuntimePayloadPath}?ts=${Date.now()}`),
+      ]).then(([truthResult, paperResult, liveObserverResult]) => {
         if (!active) return;
         const truth = truthResult.status === 'fulfilled' ? truthResult.value : null;
         const paper = paperResult.status === 'fulfilled' ? paperResult.value : null;
+        const liveObserver = liveObserverResult.status === 'fulfilled' ? liveObserverResult.value : null;
         const truthAge = ageSeconds(truth?.generated_at);
         if (paper && runtimeIsCurrent(paper) && (truthAge === null || truthAge > RUNTIME_CURRENT_SECONDS)) {
-          setPayload(synthesizeTruthFromPaperRuntime(truth, paper));
+          setPayload(synthesizeTruthFromPaperRuntime(truth, paper, liveObserver));
           setError(null);
           return;
         }
@@ -403,7 +414,7 @@ export function useOperatorTruthPayload(): {
           return;
         }
         if (paper && runtimeIsCurrent(paper)) {
-          setPayload(synthesizeTruthFromPaperRuntime(null, paper));
+          setPayload(synthesizeTruthFromPaperRuntime(null, paper, liveObserver));
           setError(null);
           return;
         }

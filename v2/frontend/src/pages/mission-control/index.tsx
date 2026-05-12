@@ -7,7 +7,7 @@ import type { AutonomousGovernorPayload, CockpitPayload } from '../cockpitData';
 import { statusClass, useCockpitPayload, valueText } from '../cockpitData';
 import { MissionControlReadinessBanner } from '../../components/banners/MissionControlReadinessBanner';
 import { useOperatorTruthPayload, usePaperOnlineRuntimePayload, type PaperOnlineRuntimePayload } from '../operatorTruthData';
-import { ActualRuntimeNowPanel, LegacyRuntimeMonitorPanel, MissingEvidencePanel, OperatorTruthCommandDeck, OperatorTruthLoading, PaperOnlineRuntimeStatusPanel, PayloadFreshnessPanel, RuntimeTruthMatrix, SignalLineageTruthPanel, TrainerPredictionTruthPanel, WhatIsWorkingPanel } from '../operatorTruthComponents';
+import { ActualRuntimeNowPanel, LegacyRuntimeMonitorPanel, LiveObserverShadowTwinPanel, MissingEvidencePanel, OperatorTruthCommandDeck, OperatorTruthLoading, PaperOnlineRuntimeStatusPanel, PayloadFreshnessPanel, RuntimeTruthMatrix, SignalLineageTruthPanel, TrainerPredictionTruthPanel, WhatIsWorkingPanel } from '../operatorTruthComponents';
 
 const EVIDENCE_MISSING = 'Evidence missing - cannot explain without guessing.';
 
@@ -33,6 +33,7 @@ export default function MissionControlPage(): JSX.Element {
       {truthPayload ? <ActualRuntimeNowPanel payload={truthPayload} /> : null}
       {truthPayload ? <RuntimeTruthMatrix payload={truthPayload} /> : null}
       <PaperOnlineRuntimeStatusPanel payload={paperRuntime} />
+      {truthPayload ? <LiveObserverShadowTwinPanel payload={truthPayload} /> : null}
       {truthPayload ? <MissionCriticalSystemsGrid payload={payload} truthPayload={truthPayload} paperRuntime={paperRuntime} /> : null}
       <OperatorDetailLinksPanel />
       <div className="mission-command-layout">
@@ -82,6 +83,9 @@ function OperatorDetailLinksPanel(): JSX.Element {
 
 function MissionCriticalSystemsGrid({ payload, truthPayload, paperRuntime }: { payload: CockpitPayload; truthPayload: NonNullable<ReturnType<typeof useOperatorTruthPayload>['payload']>; paperRuntime: PaperOnlineRuntimePayload | null }): JSX.Element {
   const decision = payload.decisions[0];
+  const observerTwin = truthPayload.live_observer_shadow_twin?.legacy_shadow_twin as Record<string, unknown> | undefined;
+  const observerRiskDecision = observerTwin?.risk_decision as Record<string, unknown> | undefined;
+  const observerRiskResult = observerRiskDecision?.risk_result;
   const cards = [
     {
       label: 'Paper / shadow equity',
@@ -99,15 +103,21 @@ function MissionCriticalSystemsGrid({ payload, truthPayload, paperRuntime }: { p
     },
     {
       label: 'Orchestrator',
-      value: truthPayload.runtime_monitor_status.orchestrator_status,
-      detail: 'Observed read-only process evidence only; orchestrator cannot approve execution.',
-      source: 'READONLY_PROCESS_LIST',
+      value: truthPayload.live_observer_shadow_twin ? 'LEGACY_OBSERVER_ADAPTER_ACTIVE' : truthPayload.runtime_monitor_status.orchestrator_status,
+      detail: truthPayload.live_observer_shadow_twin
+        ? 'Legacy proposal/signal evidence is normalized through V2 observer adapter; Risk Gateway still approves/blocks.'
+        : 'Observed read-only process evidence only; orchestrator cannot approve execution.',
+      source: truthPayload.live_observer_shadow_twin ? 'LEGACY_READONLY_BRIDGE / V2_ADAPTER' : 'READONLY_PROCESS_LIST',
     },
     {
       label: 'Risk Gateway',
-      value: decision?.risk_reason ?? 'MISSING_EVIDENCE',
-      detail: `risk_decision_id: ${valueText(decision?.risk_decision_id)}`,
-      source: 'V2_PROOF_ARTIFACT',
+      value: truthPayload.live_observer_shadow_twin
+        ? observerRiskResult ?? 'MISSING_EVIDENCE'
+        : decision?.risk_reason ?? 'MISSING_EVIDENCE',
+      detail: truthPayload.live_observer_shadow_twin
+        ? 'Current legacy-observed shadow signal was processed by V2 Risk Gateway final authority.'
+        : `risk_decision_id: ${valueText(decision?.risk_decision_id)}`,
+      source: truthPayload.live_observer_shadow_twin ? 'REALTIME_RUNTIME_EVIDENCE' : 'V2_PROOF_ARTIFACT',
     },
     {
       label: 'Execution / paper',

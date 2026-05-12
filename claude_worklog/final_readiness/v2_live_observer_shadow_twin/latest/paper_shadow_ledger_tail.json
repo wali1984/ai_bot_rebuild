@@ -2,16 +2,16 @@
   "entries": [
     {
       "exchange_order_id": null,
-      "execution_intent_id": "shadow_intent_1778615449554",
+      "execution_intent_id": "shadow_intent_1778615775786",
       "fee_rate": 0.0004,
       "funding_assumption": "zero_until_funding_feed_adapter_current",
       "legacy_redis_write": false,
       "live_order": false,
-      "paper_ledger_entry_id": "shadow_ledger_1778615449554",
-      "paper_price_reference": 80750.0,
+      "paper_ledger_entry_id": "shadow_ledger_1778615775786",
+      "paper_price_reference": 80767.2,
       "paper_result": "NO_FILL_RISK_BLOCKED",
-      "risk_decision_id": "risk_shadow_1778615449554",
-      "signal_id": "2878b780-b691-44fa-b11b-38e5c05a0059",
+      "risk_decision_id": "risk_shadow_1778615775786",
+      "signal_id": "784da47b-167b-4dee-8c96-37020b81786e",
       "slippage_bps": 2.0,
       "symbol": "SOLUSDT"
     }

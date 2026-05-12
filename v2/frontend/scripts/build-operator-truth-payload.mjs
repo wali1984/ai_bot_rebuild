@@ -14,6 +14,7 @@ const publicDir = resolve(frontendRoot, 'public', 'operator_truth', 'latest');
 const publicRecoveryDir = resolve(frontendRoot, 'public', 'operator_truth_recovery', 'latest');
 const publicCanonicalTruthBridgeDir = resolve(frontendRoot, 'public', 'paper_online_canonical_truth_bridge', 'latest');
 const paperOnlineRuntimeRelPath = 'v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json';
+const liveObserverRuntimeRelPath = 'v2/frontend/public/operator_runtime/live_observer/latest/current_runtime_truth_payload.json';
 
 const REALTIME_CURRENT_SECONDS = 120;
 const REALTIME_STALE_SECONDS = 300;
@@ -169,6 +170,7 @@ const signalExecution = readJson('v2/frontend/public/realtime_legacy_monitoring_
 const riskObservation = readJson('v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json');
 const phase3cPayload = readJson('v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json');
 const paperOnlineRuntime = readJson(paperOnlineRuntimeRelPath);
+const liveObserverRuntime = readJson(liveObserverRuntimeRelPath);
 const legacyTrainerRestartRuntime = readJson('v2/frontend/public/legacy_trainer_restart_runtime/latest/operator_dashboard_payload.json');
 const eventsText = readText('claude_worklog/agent_supervisor/events.jsonl');
 
@@ -214,6 +216,7 @@ const sourceStatuses = [
   payloadStatus('risk gateway observation status', 'v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json', 'RUNTIME_MONITOR_PAYLOAD', nowMs),
   payloadStatus('phase3c runtime monitor payload', 'v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json', 'RUNTIME_MONITOR_PAYLOAD', nowMs),
   payloadStatus('v2 paper online runtime', paperOnlineRuntimeRelPath, 'REALTIME_RUNTIME_EVIDENCE', nowMs),
+  payloadStatus('v2 live observer shadow twin', liveObserverRuntimeRelPath, 'REALTIME_RUNTIME_EVIDENCE', nowMs),
   payloadStatus('legacy trainer restart runtime capture', 'v2/frontend/public/legacy_trainer_restart_runtime/latest/operator_dashboard_payload.json', 'RUNTIME_MONITOR_PAYLOAD', nowMs),
   payloadStatus('orchestrator evidence reconciliation payload', 'v2/frontend/public/orchestrator_decision_evidence_reconciliation/latest/operator_dashboard_payload.json', 'V2_PROOF_ARTIFACT', nowMs),
   payloadStatus('readonly market exchange data plane', 'v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json', 'V2_PROOF_ARTIFACT', nowMs),
@@ -237,6 +240,7 @@ const latestEvent = latestJsonLine(eventsText);
 const readonlyMarketFeedStatus = sourceStatuses.find((row) => row.label === 'readonly market exchange data plane') ?? null;
 const paperRuntimeStatus = sourceStatuses.find((row) => row.label === 'paper runtime status') ?? null;
 const paperOnlineRuntimeStatus = sourceStatuses.find((row) => row.label === 'v2 paper online runtime') ?? null;
+const liveObserverRuntimeStatus = sourceStatuses.find((row) => row.label === 'v2 live observer shadow twin') ?? null;
 const hasCurrentPaperRuntime =
   paperOnlineRuntime.ok &&
   paperOnlineRuntimeStatus?.status === 'CURRENT' &&
@@ -280,6 +284,9 @@ const legacyTraderContainment = {
   evidence_source: 'read-only process list',
   live_gate_status: 'blocked_human_only',
 };
+const liveObserverCurrent = liveObserverRuntime.ok && liveObserverRuntimeStatus?.status === 'CURRENT'
+  ? liveObserverRuntime.data
+  : null;
 
 const stalePayloads = sourceStatuses.filter((row) => row.stale || row.status === 'STALE' || row.status === 'STALE_PAYLOAD');
 const warnPayloads = sourceStatuses.filter((row) => row.status === 'WARN');
@@ -319,6 +326,13 @@ if (!hasCurrentPaperRuntime && (statusConflict || queueAge === null || queueAge 
     id: 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING',
     severity: 'operator_visibility',
     detail: 'Supervisor/planner status is stale or disagrees with current git/process reality.',
+  });
+}
+if (!liveObserverCurrent) {
+  missingEvidence.push({
+    id: 'V2_LIVE_OBSERVER_SHADOW_TWIN_MISSING_OR_STALE',
+    severity: 'operator_visibility',
+    detail: 'Run cd v2/frontend && npm run build:live-observer so the GUI can display legacy read-only bridge evidence beside V2 paper truth.',
   });
 }
 
@@ -441,6 +455,8 @@ const legacyStatus = {
   paper_shadow_runtime_status: paperRuntimeStatus,
   paper_online_runtime_status: paperOnlineRuntimeStatus,
   paper_online_runtime: paperOnlineRuntime.ok ? paperOnlineRuntime.data : null,
+  live_observer_runtime_status: liveObserverRuntimeStatus,
+  live_observer_runtime: liveObserverRuntime.ok ? liveObserverRuntime.data : null,
   legacy_trader_containment: legacyTraderContainment,
 };
 
@@ -551,6 +567,7 @@ const truthPayload = {
     : 'deferred_non_blocking',
   proof_artifact_statuses: proofArtifactStatuses,
   legacy_trainer_restart_runtime: legacyTrainerRestartRuntime.ok ? legacyTrainerRestartRuntime.data : null,
+  live_observer_shadow_twin: liveObserverRuntime.ok ? liveObserverRuntime.data : null,
   classifications: {
     REALTIME_RUNTIME_EVIDENCE: 'Current process/status snapshot generated by this read-only collection.',
     READONLY_MARKET_FEED: 'Read-only market data feed; no order capability.',
@@ -582,8 +599,10 @@ writeJson(resolve(publicDir, 'operator_truth_bridge_payload.json'), {
   status: canonicalTruthBridge.status,
   canonical_truth_bridge: canonicalTruthBridge,
   legacy_trainer_restart_runtime: legacyTrainerRestartRuntime.ok ? legacyTrainerRestartRuntime.data : null,
+  live_observer_shadow_twin: liveObserverRuntime.ok ? liveObserverRuntime.data : null,
   operator_truth_payload: 'v2/frontend/public/operator_truth/latest/operator_truth_payload.json',
   paper_runtime_payload: paperOnlineRuntimeRelPath,
+  live_observer_payload: liveObserverRuntimeRelPath,
   control_plane_status: controlPlaneStatus,
   historical_status_files_stale: historicalStatusFilesStale,
   legacy_trader_containment: legacyTraderContainment,

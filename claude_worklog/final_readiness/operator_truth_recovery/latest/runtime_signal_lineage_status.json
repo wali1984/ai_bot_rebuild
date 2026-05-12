@@ -1,17 +1,17 @@
 {
-  "generated_at": "2026-05-12T16:50:32.089Z",
+  "generated_at": "2026-05-12T19:56:22.492Z",
   "status": "REALTIME_RUNTIME_EVIDENCE",
   "latest_signal": {
     "classification": "REALTIME_RUNTIME_EVIDENCE",
-    "signal_id": "sig_paper_tick_1778604604851",
-    "prediction_id": "pred_paper_tick_1778604604851",
-    "feature_snapshot_id": "fs_paper_tick_1778604604851",
-    "orchestrator_decision_id": "orch_paper_tick_1778604604851",
-    "risk_decision_id": "risk_paper_tick_1778604604851",
-    "execution_intent_id": "pei_paper_tick_1778604604851",
-    "signal_reason": "open_short",
+    "signal_id": "sig_paper_tick_1778615753842",
+    "prediction_id": "pred_paper_tick_1778615753842",
+    "feature_snapshot_id": "fs_paper_tick_1778615753842",
+    "orchestrator_decision_id": "orch_paper_tick_1778615753842",
+    "risk_decision_id": "risk_paper_tick_1778615753842",
+    "execution_intent_id": "pei_paper_tick_1778615753842",
+    "signal_reason": "open_long",
     "orchestrator_reason": "paper_momentum_signal_routed",
-    "risk_reason": "allow_proceed_short",
+    "risk_reason": "allow_proceed_long",
     "result": "APPROVED_FOR_PAPER_ONLY",
     "evidence_links": [
       "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json"

@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-05-12T16:50:32.089Z",
+  "generated_at": "2026-05-12T19:56:22.492Z",
   "status": "REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY",
   "live_gate_status": "blocked_human_only",
   "supervisor_truth_status": "CURRENT_SNAPSHOT",
   "supervisor_alive": false,
   "current_running_task": null,
-  "last_completed_task": "codex_parallel_review_20260512_163146_02_orchestrator_decision",
+  "last_completed_task": "codex_parallel_review_20260512_194507_07_shadow_readiness",
   "next_pending_task": "codex_recover_codex_recover_codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation",
   "market_ingestor_status": "PROCESS_OBSERVED_READONLY",
   "market_ingestor_count": 6,
@@ -13,7 +13,7 @@
   "orchestrator_status": "PROCESS_OBSERVED_READONLY",
   "trader_status": "PROCESS_OBSERVED_READONLY",
   "trainer_monitor_status": "V2_PAPER_TRAINER_WRAPPER_CURRENT",
-  "stale_payload_count": 12,
+  "stale_payload_count": 13,
   "missing_evidence_count": 0,
   "redis_trim_status": "deferred_non_blocking",
   "human_input_required": "false_unless_final_live_capital_gate"
