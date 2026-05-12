@@ -39,7 +39,7 @@ export default function MissionControlPage(): JSX.Element {
           {truthPayload ? <SignalRuntimeStatusPanel truthPayload={truthPayload} /> : null}
         </div>
         <aside className="mission-command-side">
-          <RiskBoundaryPanel payload={payload} />
+          {truthPayload ? <RiskGatewayRuntimePanel truthPayload={truthPayload} /> : null}
           <AutonomousGovernorPanel payload={autonomousGovernor} />
           <MonitorTable rows={payload.monitors} />
         </aside>
@@ -142,6 +142,24 @@ function MissionCriticalSystemsGrid({ payload, truthPayload }: { payload: Cockpi
         </div>
       ))}
     </section>
+  );
+}
+
+function RiskGatewayRuntimePanel({ truthPayload }: { truthPayload: NonNullable<ReturnType<typeof useOperatorTruthPayload>['payload']> }): JSX.Element {
+  return (
+    <Panel id="risk-gateway-runtime" title="Risk Gateway Runtime Boundary" right={<span className="chip solid-block">Fail-closed</span>}>
+      <div className="cockpit-lineage-grid">
+        <div><span>Final authority</span><strong>Risk Gateway</strong></div>
+        <div><span>Live gate</span><strong>{truthPayload.live_gate_status}</strong></div>
+        <div><span>Current signal lineage</span><strong>{truthPayload.signal_lineage_status.status}</strong></div>
+        <div><span>Current task</span><strong>{truthPayload.supervisor_status.current_running_task ?? 'none'}</strong></div>
+        <div><span>Next task</span><strong>{truthPayload.current_next_task ?? 'MISSING_EVIDENCE'}</strong></div>
+        <div><span>Missing evidence</span><strong>{truthPayload.missing_evidence.length}</strong></div>
+      </div>
+      <p className="cockpit-evidence-note">
+        Orchestrator may propose, enrich, and deconflict. Risk Gateway remains final authority before any execution intent. No historical proof IDs are shown as current runtime decisions on Mission Control.
+      </p>
+    </Panel>
   );
 }
 
