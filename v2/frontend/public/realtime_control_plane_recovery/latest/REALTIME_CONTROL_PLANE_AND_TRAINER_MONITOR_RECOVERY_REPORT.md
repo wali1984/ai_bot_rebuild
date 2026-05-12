@@ -2,7 +2,7 @@
 
 Status: REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY
 
-Generated at: 2026-05-12T20:46:20.231Z
+Generated at: 2026-05-12T21:28:24.906Z
 
 Mission Control is now treated as an operational truth surface, not a proof dump. The first screen prioritizes live/safety state, actual observed runtime processes, current/next task, trainer runtime status, orchestrator/risk/execution status, signal lineage classification, payload freshness, blockers, and links to detail pages.
 
@@ -10,16 +10,16 @@ Current facts:
 
 - Live trading: blocked_human_only
 - Redis trim: deferred_non_blocking
-- Supervisor observed: no
+- Supervisor observed: yes
 - Current task: none
-- Last completed task: codex_parallel_review_20260512_202241_10_no_live_side_effects
-- Next task: codex_recover_codex_recover_codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation
+- Last completed task: none
+- Next task: LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK
 - Trainer runtime state: V2_PAPER_TRAINER_WRAPPER_CURRENT
 - Market ingestors observed: 6
 - Feature pipeline observed: 1
 - Orchestrator observed: 2
 - Trader observed: 1
-- Stale payloads: 14
+- Stale payloads: 11
 - Warning payloads: 1
 - Missing evidence rows: 1
 

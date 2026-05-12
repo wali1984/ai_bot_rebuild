@@ -1,30 +1,35 @@
 {
+  "current_primary_blockers": [
+    "legacy_trainer_restart_runtime_parity_sync_blocked",
+    "legacy_execution_containment_marker_missing",
+    "master_planner_status_stale"
+  ],
   "exchange_mutation": "none",
-  "generated_at": "2026-05-11T07:45:58.228145+00:00",
+  "generated_at": "2026-05-12T21:28:13.241438+00:00",
   "human_input_required": "false_unless_final_live_capital_gate",
   "legacy_mutation": "none",
-  "legacy_preservation_model": "read_only_evidence_and_wrapper_source_until_v2_contracts_own_data",
   "live_gate_status": "blocked_human_only",
+  "non_drift_lock_path": "claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json",
   "parallel_codex_tasks": [
-    "enterprise_ui_polish_quality_review",
-    "realtime_monitor_coverage_review",
-    "v2_data_plane_independence_review",
-    "risk_gateway_degraded_state_review",
-    "trainer_prediction_explainability_review",
-    "system_atlas_delta_review",
-    "paper_shadow_replay_truthfulness_review"
+    "audit_no_live_side_effects",
+    "audit_legacy_bridge_readonly",
+    "audit_trainer_parity_truth",
+    "audit_risk_gateway_final_authority",
+    "audit_paper_shadow_runtime_freshness"
   ],
   "primary_claude_lane": [
-    "realtime_legacy_monitoring_continuity",
-    "v2_data_plane_independence",
-    "risk_gateway_fail_closed_gates",
-    "paper_shadow_replay_runtime"
+    "v2_live_like_paper_shadow",
+    "legacy_live_bridge_readonly",
+    "risk_gateway_final_authority",
+    "trainer_parity_runtime_capture",
+    "canary_preflight_blocked_human_only"
   ],
+  "primary_lane": "v2_live_like_paper_shadow_canary_preflight",
   "redis_mutation": "none",
   "redis_trim": "deferred_non_blocking",
-  "redis_trim_non_blocking": true,
-  "selected_primary_task": "v2_online_readiness_acceleration",
-  "ui_polish_lane_state": "parallel_ready",
-  "why_live_blocked": "Phase 3C runtime blockers and final live/capital gate not approved",
-  "why_selected": "online-readiness supersedes UI-only polish and unrelated 032 drift"
+  "selected_primary_task": "LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK",
+  "selected_task_id": "claude_primary_v2_live_like_paper_shadow_followup",
+  "ui_polish_lane_state": "support_only_after_production_website_full_rebuild_ready",
+  "website_support_lane_status": "PRODUCTION_WEBSITE_FULL_PUBLIC_ROUTE_CRAWL_AND_COINANK_STYLE_REBUILD_READY",
+  "why_selected": "website rebuild passed and is demoted to support; primary blockers are legacy trainer parity/restart capture, legacy execution containment, risk gateway visibility, and canary preflight readiness"
 }

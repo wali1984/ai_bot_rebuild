@@ -1,19 +1,13 @@
 # Next Task Selection
 
-Selected primary task: `v2_online_readiness_acceleration`
+Generated: 2026-05-12T21:28:13.241438+00:00
 
-Parallel Codex tasks: `codex_parallel_audit_plan`, `targeted_online_readiness_reviews`, `enterprise_ui_polish_codex_review`
+- Selected primary task: `LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK`
+- Primary lane: `v2_live_like_paper_shadow_canary_preflight`
+- Website lane: `secondary_support_lane`
+- Live gate: `blocked_human_only`
+- Legacy mutation: `none`
+- Redis mutation: `none`
+- Exchange mutation: `none`
 
-UI polish lane: `parallel`, not primary.
-
-Reason: The latest objective is to bring V2 online safely, not to polish UI in isolation. The 069D2 chain is READY, Claude quota is ready, git is clean, and Codex has passed targeted aggregator/frontend reviews while broad online-readiness audit still carries real runtime blockers.
-
-Why live is still blocked: Phase 3C runtime evidence remains blocked with Redis memory pressure, trainer liveness degradation, duplicate exchange-order-id observations, and lineage gaps. Final live/capital approval is not selected.
-
-Why Redis trim is non-blocking: the exact Phase 3H trim approval file is absent. No XTRIM may run. V2 data-plane independence and GUI/product work continue without Redis mutation.
-
-How this advances online readiness: prioritize V2-owned read-only rollups, banner API/UI integration, bounded V2 Redis policy, durable DB history/audit ownership, monitor continuity, and risk/degraded-state fail-closed work.
-
-How legacy intelligence is preserved: legacy trainer/models/features remain read-only evidence and can be wrapped into V2 contracts; ownership moves into V2 data contracts, audit ledgers, and durable stores.
-
-How old failure modes are avoided: no legacy writes, no unbounded Redis history as permanent truth, no live order/leverage/margin path, no stale/missing attribution bypass, no UI-only fake-ready markers.
+The production website rebuild is accepted support evidence. It cannot supersede V2 live-like paper/shadow, legacy bridge, risk gateway, trainer parity, or canary preflight work.

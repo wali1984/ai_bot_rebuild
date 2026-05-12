@@ -23,6 +23,7 @@ INBOX = WORKSPACE / "claude_worklog/requirements_inbox"
 PROCESSED = WORKSPACE / "claude_worklog/agent_supervisor/runtime/master_planner/processed_requirements.json"
 STATUS = WORKSPACE / "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json"
 PROMPT_OUT = WORKSPACE / "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt"
+NON_DRIFT_LOCK = WORKSPACE / "claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json"
 PLANNER_PROFILE_NAME = "Claude Code Max20 consolidated default"
 CODEX_PARALLEL_LANE_NAME = "Codex Pro parallel review/autofix lane"
 TASK_GRANULARITY_ENV = "AI_BOT_PLANNER_TASK_GRANULARITY"
@@ -197,6 +198,11 @@ def read_json(path: pathlib.Path) -> Dict[str, Any]:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {}
+
+
+def non_drift_lock() -> Dict[str, Any]:
+    data = read_json(NON_DRIFT_LOCK)
+    return data if isinstance(data, dict) else {}
 
 
 def write_json(path: pathlib.Path, payload: Dict[str, Any]) -> None:
@@ -1013,6 +1019,20 @@ def build_prompt() -> str:
     active = choose_active_requirement(reqs)
     req_block = "\n\n".join(f"## {req['name']}\n{req['text']}" for req in reqs) or "No unprocessed requirements."
     granularity = task_granularity_mode()
+    lock = non_drift_lock()
+    lock_section = ""
+    if lock.get("status") == "ACTIVE":
+        blockers = ", ".join(str(x) for x in lock.get("current_primary_blockers", [])) or "none"
+        support_lanes = ", ".join(str(x) for x in lock.get("support_lanes", [])) or "none"
+        lock_section = f"""
+CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK is ACTIVE.
+- Primary objective: {lock.get('primary_objective')}
+- Selected primary task: {lock.get('selected_primary_task')}
+- Support lanes: {support_lanes}
+- Current primary blockers: {blockers}
+- Website/UI/proof work is support-only unless it directly exposes current runtime truth or unblocks the primary V2 live-like paper/shadow/canary path.
+- Do not select UI-only, proof-marker-only, stale-fixture, or design-polish work while primary blockers remain.
+"""
     return f"""You are Claude Code running as the Master Non-Live V2 Rebuild Planner.
 
 Claude Code Max 20x profile is active.
@@ -1024,6 +1044,7 @@ Claude Code Max 20x profile is active.
 - If a task fails due emit/path/size/timeout, create a targeted split recovery task instead of continuing to micro-split by habit.
 - Continue to use Codex review after every milestone.
 - Never confuse larger task capacity with broader safety authority. All live/legacy/Redis/exchange/deploy restrictions still apply.
+{lock_section}
 
 Codex Pro parallel lane is active.
 - Role split: Claude Code is planner/architect/primary builder; Codex is adversarial reviewer, concrete blocker fixer, test hardener, safety auditor, regression detector, and re-review authority; Ollama summarizes/compresses evidence; Copilot is terminal/status operator only.
@@ -1113,6 +1134,7 @@ Output policy:
 def status_payload(mode: str, blocked_reason: str | None = None) -> Dict[str, Any]:
     reqs = unprocessed_requirements()
     active = choose_active_requirement(reqs)
+    lock = non_drift_lock()
     payload = {
         "generated_at": now_iso(),
         "mode": mode,
@@ -1127,6 +1149,12 @@ def status_payload(mode: str, blocked_reason: str | None = None) -> Dict[str, An
         "task_granularity_mode": task_granularity_mode(),
         "split_fallback_enabled": split_fallback_enabled(),
         "planner_lane_lock_enabled": lane_lock_active(),
+        "non_drift_governor_lock_enabled": lock.get("status") == "ACTIVE",
+        "non_drift_governor_lock_path": str(NON_DRIFT_LOCK.relative_to(WORKSPACE)),
+        "non_drift_primary_objective": lock.get("primary_objective"),
+        "non_drift_selected_primary_task": lock.get("selected_primary_task"),
+        "non_drift_support_lane_policy": lock.get("support_lane_policy"),
+        "non_drift_current_primary_blockers": lock.get("current_primary_blockers", []),
         "approved_planner_lanes": sorted(APPROVED_PLANNER_LANES),
         "active_lane": "paper_backtest_mvp",
         "active_mvp_target": ACTIVE_MVP_TARGET,

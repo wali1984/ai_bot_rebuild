@@ -1,34 +1,34 @@
 {
-  "generated_at": "2026-05-12T20:46:20.231Z",
+  "generated_at": "2026-05-12T21:28:24.906Z",
   "status": "V2_PAPER_TRAINER_WRAPPER_CURRENT",
   "trainer_processes": [
-    "3980694 3980692 17277 python3 -m rl.hybrid_trainer --mode hybrid --training-mode live --enhanced-features"
+    "3980694 3980692 19802 python3 -m rl.hybrid_trainer --mode hybrid --training-mode live --enhanced-features"
   ],
   "prediction_worker_alive_from_stale_payload": true,
   "latest_trainer_status_from_payload": "DEGRADED",
-  "payload_age_seconds": 133222,
+  "payload_age_seconds": 135747,
   "prediction_lineage_gap": "runtime evidence still has missing prediction/feature snapshot links",
   "latest_prediction": {
     "classification": "REALTIME_RUNTIME_EVIDENCE",
-    "prediction_id": "pred_paper_tick_1778618754775",
+    "prediction_id": "pred_paper_tick_1778621294775",
     "symbol": "BTCUSDT",
     "timeframe": "1m",
     "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-    "confidence_raw": 0.619134,
-    "confidence_calibrated": 0.599134,
-    "feature_snapshot_id": "fs_paper_tick_1778618754775",
+    "confidence_raw": 0.785888,
+    "confidence_calibrated": 0.765888,
+    "feature_snapshot_id": "fs_paper_tick_1778621294775",
     "top_positive": [
       {
         "name": "return_5m",
-        "value": 0.00029266
+        "value": -0.00041678
       },
       {
         "name": "return_15m",
-        "value": -0.00112688
+        "value": -0.00097938
       },
       {
         "name": "volatility_10",
-        "value": 0.00017976
+        "value": 0.00012727
       }
     ],
     "top_negative": [],

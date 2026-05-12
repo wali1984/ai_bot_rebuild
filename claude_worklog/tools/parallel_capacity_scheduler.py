@@ -16,6 +16,7 @@ STATUS_PATH = WORKSPACE / "claude_worklog/agent_supervisor/status/parallel_capac
 TASKS_DIR = WORKSPACE / "claude_worklog/agent_supervisor/tasks"
 STATE_DIR = WORKSPACE / "claude_worklog/agent_supervisor/state/tasks"
 GOVERNOR_SELECTION_PATH = WORKSPACE / "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json"
+NON_DRIFT_LOCK_PATH = WORKSPACE / "claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json"
 PHASE2_DIR = WORKSPACE / "claude_worklog/phase2_core_rebuild"
 CODEX_PARALLEL_REVIEWS_DIR = WORKSPACE / "claude_worklog/codex_parallel_reviews"
 CODEX_BATCH_GENERATOR = WORKSPACE / "claude_worklog/tools/create_codex_parallel_review_batch.py"
@@ -538,6 +539,7 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
     quota = quota_status()
     claude_rate_limited = quota.get("state") == "blocked_or_limited"
     blocked_validation_remediation = selected_blocked_validation_remediation()
+    non_drift_lock = read_json(NON_DRIFT_LOCK_PATH)
 
     available_work: list[str] = []
     next_safe_codex_task: str | None = None
@@ -557,6 +559,10 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
         available_work.append(f"read-only review latest committed milestone {latest_milestone.get('marker')}")
     if not codex_children and (codex_review_batch_counts["pending"] or not codex_batch_active):
         available_work.append("high-utilization Codex parallel review queue")
+    if non_drift_lock.get("status") == "ACTIVE":
+        selected_primary = non_drift_lock.get("selected_primary_task")
+        if selected_primary:
+            available_work.insert(0, f"primary non-drift lock: {selected_primary}")
 
     if claude_children:
         claude_lane = "active"
@@ -571,7 +577,9 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
     codex_review_lane = "active" if codex_children else "idle"
     codex_autofix_lane = "available" if (human_attention or fail_marker) and not codex_children else "idle"
 
-    if blocked_validation_remediation and not codex_children:
+    if non_drift_lock.get("status") == "ACTIVE":
+        next_safe_codex_task = f"hold support lanes; primary lock selected {non_drift_lock.get('selected_primary_task')}"
+    elif blocked_validation_remediation and not codex_children:
         next_safe_codex_task = f"dispatch governor-selected remediation {blocked_validation_remediation}"
     elif claude_rate_limited and not codex_children:
         next_safe_codex_task = "Codex takeover: review/remediate safe non-live blockers until Claude quota reset"
@@ -601,19 +609,19 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
             watchdog_running = True
             codex_watchdog_lane = "active"
 
-        if not claude_children and git_status and not codex_children:
+        if not non_drift_lock and not claude_children and git_status and not codex_children:
             rc = run_watchdog_once()
             actions.append({"action": "ran_watchdog_dirty_tree_recovery", "returncode": rc})
             git_status = git_status_lines()
             git_clean = not git_status
 
-        if git_clean and not claude_children and not codex_children and (human_attention or fail_marker):
+        if not non_drift_lock and git_clean and not claude_children and not codex_children and (human_attention or fail_marker):
             rc = run_watchdog_once()
             actions.append({"action": "ran_watchdog_blocker_recovery", "returncode": rc})
 
         codex_review_batch_counts = codex_review_counts()
         codex_batch_active = codex_review_batch_active(codex_review_batch_counts)
-        if blocked_validation_remediation and git_clean and not claude_children and not active_codex_children():
+        if not non_drift_lock and blocked_validation_remediation and git_clean and not claude_children and not active_codex_children():
             takeover = run_codex_acting_governor(dispatch=True)
             actions.append(
                 {
@@ -625,7 +633,7 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
             git_status = git_status_lines()
             git_clean = not git_status
             blocked_validation_remediation = selected_blocked_validation_remediation()
-        elif claude_rate_limited and git_clean and not claude_children and not active_codex_children():
+        elif not non_drift_lock and claude_rate_limited and git_clean and not claude_children and not active_codex_children():
             takeover = run_codex_acting_governor(dispatch=True)
             actions.append({"action": "ran_codex_acting_governor_takeover", **takeover})
             git_status = git_status_lines()
@@ -633,6 +641,7 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
 
         if (
             git_clean
+            and not non_drift_lock
             and not blocked_validation_remediation
             and not claude_children
             and not active_codex_children()
@@ -651,7 +660,7 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
         git_status = git_status_lines()
         git_clean = not git_status
 
-        if git_clean and not blocked_validation_remediation and not claude_children and not codex_children and latest_milestone:
+        if git_clean and not non_drift_lock and not blocked_validation_remediation and not claude_children and not codex_children and latest_milestone:
             task_id = create_readonly_review_task(latest_milestone)
             if task_id:
                 rc = run_task(task_id)
@@ -665,7 +674,7 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
 
         quota = quota_status()
         claude_rate_limited = quota.get("state") == "blocked_or_limited"
-        if git_clean and not planner_running and not active_claude_children() and not claude_rate_limited:
+        if git_clean and not non_drift_lock and not planner_running and not active_claude_children() and not claude_rate_limited:
             start_service("start_claude_master_rebuild_planner.sh")
             actions.append({"action": "started_master_planner"})
             planner_running = True
@@ -704,6 +713,12 @@ def cycle(enable_actions: bool) -> dict[str, Any]:
         "next_mvp_milestone": mvp.get("next_mvp_milestone"),
         "active_lane": mvp.get("active_lane"),
         "active_mvp_target": mvp.get("active_mvp_target"),
+        "non_drift_governor_lock_enabled": non_drift_lock.get("status") == "ACTIVE",
+        "non_drift_selected_primary_task": non_drift_lock.get("selected_primary_task"),
+        "non_drift_primary_objective": non_drift_lock.get("primary_objective"),
+        "non_drift_support_lane_policy": non_drift_lock.get("support_lane_policy"),
+        "non_drift_current_primary_blockers": non_drift_lock.get("current_primary_blockers", []),
+        "website_lane_policy": "secondary_support_lane",
         "remaining_mvp_milestones": mvp.get("remaining_milestones"),
         "latest_committed_milestone": latest_milestone,
         "latest_fail_marker": fail_marker,

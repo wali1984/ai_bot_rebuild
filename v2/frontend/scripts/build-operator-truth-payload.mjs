@@ -163,6 +163,7 @@ const currentStatus = readJson('claude_worklog/agent_supervisor/status/current_s
 const queueStatus = readJson('claude_worklog/agent_supervisor/status/queue_status.json');
 const plannerStatus = readJson('claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json');
 const governorSelection = readJson('claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json');
+const nonDriftGovernorLock = readJson('claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json');
 const cockpitPayload = readJson('v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json');
 const realtimeTrainer = readJson('v2/frontend/public/realtime_legacy_monitoring_continuity/latest/trainer_prediction_monitor_status.json');
 const runtimeSources = readJson('v2/frontend/public/realtime_legacy_monitoring_continuity/latest/current_runtime_sources.json');
@@ -357,7 +358,17 @@ const supervisorStatus = {
   last_completed_task: currentData?.status === 'completed' ? currentData?.task_id ?? null : null,
   last_task_status: currentData?.status ?? null,
   next_pending_task: safeGet(queueData?.next_pending_task, governorData?.selected_primary_task ?? null),
-  true_next_task: safeGet(queueData?.next_pending_task, governorData?.selected_primary_task ?? null),
+  true_next_task: nonDriftGovernorLock.ok && nonDriftGovernorLock.data?.status === 'ACTIVE'
+    ? nonDriftGovernorLock.data?.selected_primary_task ?? governorData?.selected_primary_task ?? null
+    : safeGet(queueData?.next_pending_task, governorData?.selected_primary_task ?? null),
+  non_drift_governor_lock: nonDriftGovernorLock.ok ? {
+    status: nonDriftGovernorLock.data?.status ?? 'MISSING',
+    selected_primary_task: nonDriftGovernorLock.data?.selected_primary_task ?? null,
+    primary_objective: nonDriftGovernorLock.data?.primary_objective ?? null,
+    support_lane_policy: nonDriftGovernorLock.data?.support_lane_policy ?? null,
+    current_primary_blockers: nonDriftGovernorLock.data?.current_primary_blockers ?? [],
+    path: 'claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json',
+  } : null,
   stale_or_conflicting: hasCurrentPaperRuntime ? false : historicalStatusFilesStale,
   status_conflicts: {
     git_status_conflict: statusConflict,
@@ -552,6 +563,7 @@ const truthPayload = {
   source_files: sourceStatuses.map((row) => row.path),
   canonical_truth_bridge: canonicalTruthBridge,
   supervisor_status: supervisorStatus,
+  non_drift_governor_lock: supervisorStatus.non_drift_governor_lock,
   runtime_monitor_status: legacyStatus,
   trainer_monitor_status: trainerStatus,
   signal_lineage_status: signalLineageStatus,

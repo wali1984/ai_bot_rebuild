@@ -52,6 +52,7 @@ PLANNER_STATUS_FILE = STATUS_DIR / "planner_status.json"
 HEARTBEAT_FILE = STATUS_DIR / "supervisor_heartbeat.json"
 LOCK_FILE = BASE_DIR / "supervisor.lock"
 NEXT_PHASE_FILE = BASE_DIR / "state/NEXT_PHASE.md"
+NON_DRIFT_LOCK_FILE = pathlib.Path("claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json")
 
 AUTONOMOUS_CONTROL_PLANE_DIR = pathlib.Path("claude_worklog/autonomous_control_plane")
 PLANNER_INPUT_PACKET_FILE = PLANNER_DIR / "PLANNER_INPUT_PACKET.md"
@@ -240,6 +241,29 @@ def append_event(event: Dict[str, Any]) -> None:
 def load_json(path: pathlib.Path) -> Dict[str, Any]:
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def load_optional_json(path: pathlib.Path) -> Dict[str, Any]:
+    try:
+        return load_json(path)
+    except Exception:
+        return {}
+
+
+def non_drift_lock() -> Dict[str, Any]:
+    data = load_optional_json(NON_DRIFT_LOCK_FILE)
+    return data if isinstance(data, dict) and data.get("status") == "ACTIVE" else {}
+
+
+def task_allowed_by_non_drift_lock(task: Dict[str, Any]) -> Tuple[bool, str]:
+    lock = non_drift_lock()
+    if not lock:
+        return True, "non_drift_lock_inactive"
+    task_id = str(task.get("task_id") or "")
+    selected = str(lock.get("selected_task_id") or lock.get("selected_primary_task") or "")
+    if selected and task_id == selected:
+        return True, "selected_by_non_drift_lock"
+    return False, "blocked_by_non_drift_governor_lock_selected_task_only"
 
 
 def in_workspace(path: pathlib.Path) -> bool:
@@ -2199,9 +2223,10 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
     for _, t in tasks:
         tid = str(t.get("task_id", ""))
         st = task_effective_status(t)
+        lock_allowed, lock_reason = task_allowed_by_non_drift_lock(t)
         if st == "pending":
             counts["pending"] += 1
-            if next_pending is None:
+            if next_pending is None and lock_allowed:
                 next_pending = tid
         elif st == "running":
             counts["running"] += 1
@@ -2266,6 +2291,13 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
                   "waiting_decision_packet", "delegated_decision_pending",
                   "superseded_by_evidence"}:
             continue
+        if not lock_allowed:
+            append_event({
+                "event": "task_skipped_by_non_drift_governor_lock",
+                "task_id": tid,
+                "reason": lock_reason,
+            })
+            continue
         if should_defer_resume(t):
             continue
         blockers = dependency_blockers(t, status_map)
@@ -2278,9 +2310,17 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
         runnable_candidates.sort()
         next_pending = runnable_candidates[0][1]
 
+    lock = non_drift_lock()
+    if lock:
+        next_pending = str(lock.get("selected_primary_task") or next_pending or "")
+
     queue_payload = {
         "generated_at": now_iso(),
         "next_pending_task": next_pending,
+        "non_drift_governor_lock_enabled": bool(lock),
+        "non_drift_selected_primary_task": lock.get("selected_primary_task") if lock else None,
+        "non_drift_support_lane_policy": lock.get("support_lane_policy") if lock else None,
+        "non_drift_current_primary_blockers": lock.get("current_primary_blockers", []) if lock else [],
         "current_running_task": running,
         "blocked_quota": blocked_quota,
         "stale_running_count": len(stale_running_tasks),
@@ -2349,6 +2389,15 @@ def select_next_task_file() -> Optional[pathlib.Path]:
         }:
             continue
         if should_defer_resume(task):
+            continue
+
+        lock_allowed, lock_reason = task_allowed_by_non_drift_lock(task)
+        if not lock_allowed:
+            append_event({
+                "event": "task_not_selected_by_non_drift_governor_lock",
+                "task_id": tid,
+                "reason": lock_reason,
+            })
             continue
 
         blockers = dependency_blockers(task, status_map)
