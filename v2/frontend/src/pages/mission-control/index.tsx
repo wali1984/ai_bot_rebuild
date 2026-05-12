@@ -31,6 +31,7 @@ export default function MissionControlPage(): JSX.Element {
       {truthPayload ? <OperatorTruthCommandDeck payload={truthPayload} /> : <OperatorTruthLoading error={truthError} />}
       <MissionCommandHero payload={payload} marketFeedSource={marketFeedSource} truthPayloadReady={Boolean(truthPayload)} />
       {truthPayload ? <RuntimeTruthMatrix payload={truthPayload} /> : null}
+      {truthPayload ? <MissionCriticalSystemsGrid payload={payload} truthPayload={truthPayload} /> : null}
       {truthPayload ? (
         <section className="operator-truth-preview-grid" aria-label="Current operator truth and runtime evidence">
           <LegacyRuntimeMonitorPanel payload={truthPayload} />
@@ -44,6 +45,7 @@ export default function MissionControlPage(): JSX.Element {
       <div className="mission-command-layout">
         <div className="mission-command-main">
           <ChartPanel candles={payload.candles} decisions={payload.decisions} sourceType={marketFeedSource} />
+          <SignalStreamCompactPanel payload={payload} />
           <DecisionDrawers rows={payload.decisions} />
           <MarketPulse payload={payload} />
         </div>
@@ -79,6 +81,97 @@ export default function MissionControlPage(): JSX.Element {
         AI BOT V2 Modern Dashboard Loaded
       </footer>
     </article>
+  );
+}
+
+function MissionCriticalSystemsGrid({ payload, truthPayload }: { payload: CockpitPayload; truthPayload: NonNullable<ReturnType<typeof useOperatorTruthPayload>['payload']> }): JSX.Element {
+  const decision = payload.decisions[0];
+  const cards = [
+    {
+      label: 'Paper / shadow equity',
+      value: payload.account_mode,
+      detail: 'No live exchange execution. Paper/shadow state is proof-only until continuous runtime is current.',
+      source: 'V2_PROOF_ARTIFACT',
+    },
+    {
+      label: 'Trainer state',
+      value: truthPayload.trainer_monitor_status.status,
+      detail: 'Current trainer runtime evidence must exist before predictions are treated as current.',
+      source: 'REALTIME_RUNTIME_EVIDENCE',
+    },
+    {
+      label: 'Orchestrator',
+      value: truthPayload.runtime_monitor_status.orchestrator_status,
+      detail: 'Observed read-only process evidence only; orchestrator cannot approve execution.',
+      source: 'READONLY_PROCESS_LIST',
+    },
+    {
+      label: 'Risk Gateway',
+      value: decision?.risk_reason ?? 'MISSING_EVIDENCE',
+      detail: `risk_decision_id: ${valueText(decision?.risk_decision_id)}`,
+      source: 'V2_PROOF_ARTIFACT',
+    },
+    {
+      label: 'Execution / paper',
+      value: decision?.result ?? 'MISSING_EVIDENCE',
+      detail: `execution_intent_id: ${valueText(decision?.execution_intent_id)}`,
+      source: 'STATIC_PROOF_FIXTURE',
+    },
+    {
+      label: 'Redis / V2 data plane',
+      value: truthPayload.redis_trim_status,
+      detail: 'Legacy trim remains deferred; V2 bounded data plane remains the safer strategic path.',
+      source: 'RUNTIME_MONITOR_PAYLOAD',
+    },
+    {
+      label: 'Postgres / audit ledger',
+      value: payload.proof_freshness.some((row) => row.artifact.toLowerCase().includes('audit')) ? 'V2_PROOF_ARTIFACT' : 'MISSING_EVIDENCE',
+      detail: 'Audit durability must be proven before live readiness.',
+      source: 'V2_PROOF_ARTIFACT',
+    },
+    {
+      label: 'Kill switch / live block',
+      value: payload.live_gate_status,
+      detail: 'Final live/capital approval is human-only.',
+      source: 'LIVE_GATE_POLICY',
+    },
+  ];
+  return (
+    <section className="mission-critical-grid" aria-label="Primary cockpit system cards">
+      {cards.map((card) => (
+        <div className="mission-critical-card" key={card.label}>
+          <span>{card.label}</span>
+          <strong className={statusClass(card.value)}>{valueText(card.value)}</strong>
+          <p>{card.detail}</p>
+          <small>{card.source}</small>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function SignalStreamCompactPanel({ payload }: { payload: CockpitPayload }): JSX.Element {
+  return (
+    <Panel id="signal-stream-current-proof" title="Signal Stream - Current Truth View" right={<span className="chip solid-warn">Fixture rows are not live runtime</span>}>
+      <div className="signal-stream-table" role="table" aria-label="Compact signal stream">
+        <div className="signal-stream-row signal-stream-row--head" role="row">
+          <span>Signal</span><span>Prediction</span><span>Symbol</span><span>Action</span><span>Confidence</span><span>Freshness</span><span>Risk</span><span>Flags</span>
+        </div>
+        {payload.decisions.slice(0, 5).map((row) => (
+          <div className="signal-stream-row" role="row" key={row.id}>
+            <span>{valueText(row.signal_id)}</span>
+            <span>{valueText(row.prediction_id)}</span>
+            <span>{row.symbol}</span>
+            <span>{row.result}</span>
+            <span>{row.confidence_raw} / {row.confidence_calibrated}</span>
+            <span>{valueText(row.source_freshness_by_ingestor)}</span>
+            <span className={statusClass(row.risk_reason)}>{row.risk_reason}</span>
+            <span>{[...row.stale_flags, ...row.missing_flags].join(', ') || 'none'}</span>
+          </div>
+        ))}
+      </div>
+      <p className="cockpit-evidence-note">Rows are V2 proof artifacts unless the operator truth payload marks current runtime lineage as realtime.</p>
+    </Panel>
   );
 }
 

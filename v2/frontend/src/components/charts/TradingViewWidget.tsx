@@ -12,6 +12,7 @@ export function TradingViewWidget({ symbol = 'BINANCE:BTCUSDT', fallback }: Trad
   const initializedRef = useRef(false);
   const symbolRef = useRef(symbol);
   const [failed, setFailed] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -20,14 +21,29 @@ export function TradingViewWidget({ symbol = 'BINANCE:BTCUSDT', fallback }: Trad
 
     let active = true;
     let loaded = false;
+    let observer: MutationObserver | null = null;
     initializedRef.current = true;
     symbolRef.current = symbol;
     const timeout = window.setTimeout(() => {
-      if (active && !loaded) setFailed(true);
-    }, 7000);
+      if (active && !container.querySelector('iframe')) setFailed(true);
+    }, 5000);
+    const poll = window.setInterval(() => {
+      if (active && container.querySelector('iframe')) {
+        setReady(true);
+        setFailed(false);
+      }
+    }, 250);
 
     setFailed(false);
+    setReady(false);
     container.replaceChildren();
+    observer = new MutationObserver(() => {
+      if (active && container.querySelector('iframe')) {
+        setReady(true);
+        setFailed(false);
+      }
+    });
+    observer.observe(container, { childList: true, subtree: true });
 
     const widgetTarget = document.createElement('div');
     widgetTarget.className = 'tradingview-widget-container__widget';
@@ -57,7 +73,12 @@ export function TradingViewWidget({ symbol = 'BINANCE:BTCUSDT', fallback }: Trad
 
     container.append(widgetTarget, script);
 
-    return undefined;
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+      window.clearInterval(poll);
+      observer?.disconnect();
+    };
   }, [symbol]);
 
   return (
@@ -72,6 +93,11 @@ export function TradingViewWidget({ symbol = 'BINANCE:BTCUSDT', fallback }: Trad
         ref={containerRef}
         aria-hidden={failed ? 'true' : undefined}
       />
+      {!failed && !ready ? (
+        <div className="tradingview-widget-loading" role="status">
+          TradingView primary chart loading for {symbol}. If the external widget is blocked, the local read-only fallback appears automatically.
+        </div>
+      ) : null}
       {failed
         ? fallback ?? (
             <div className="tradingview-widget-fallback" role="status">

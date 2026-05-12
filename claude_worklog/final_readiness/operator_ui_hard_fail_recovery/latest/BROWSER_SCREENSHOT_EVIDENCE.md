@@ -14,17 +14,27 @@ Before screenshots:
 - `screenshots/before_signal_explainability.png`
 
 After screenshots:
-- `screenshots/after_root.png`
-- `screenshots/after_mission_control.png`
-- `screenshots/after_monitor_center.png`
-- `screenshots/after_trainer_prediction.png`
-- `screenshots/after_signal_explainability.png`
+- `screenshots/root.png`
+- `screenshots/mission_control.png`
+- `screenshots/monitor_center.png`
+- `screenshots/trainer_prediction_monitor.png`
+- `screenshots/signal_explainability.png`
+- `screenshots/paper_trading.png`
+- `screenshots/config_admin.png`
+- `screenshots/build_validation_status.png`
+- `screenshots/operator_proof_dashboard.png`
+- `screenshots/risk_control.png`
+- `screenshots/claude_admin_ai.png`
+- `screenshots/mobile_iphone_readiness.png`
+- `screenshots/replay.png`
+- `screenshots/live_readiness.png`
 
 Automated browser checks after implementation:
 - `/` redirects to `/admin/mission-control?role=admin`.
 - Mission Control contains `operator-command-deck`.
 - Mission Control contains `runtime-truth-matrix`.
 - Secondary monitor/trainer/signal routes contain `route-truth-summary`.
+- Paper Trading, Replay, and Live Readiness are no longer placeholder-only.
 - Live blocked banner text remains visible.
 - `TRAINER_RUNTIME_EVIDENCE_MISSING` remains visible.
 - `SUPERVISOR_STATUS_STALE_OR_CONFLICTING` remains visible.

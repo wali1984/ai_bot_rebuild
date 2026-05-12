@@ -2,7 +2,7 @@
 
 Status: OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_RECOVERY_READY
 
-Generated at: 2026-05-12T00:19:43.848Z
+Generated at: 2026-05-12T00:29:57.739Z
 
 This pass creates a single operator truth payload and wires the dashboard to it so the operator can distinguish current runtime evidence, runtime monitor payloads, static proof fixtures, stale payloads, and missing evidence.
 

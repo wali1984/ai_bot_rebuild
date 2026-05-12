@@ -4,12 +4,16 @@ import route from './route';
 import { AutonomousGovernorPanel, CockpitLoading, Panel } from '../cockpitComponents';
 import { useCockpitPayload } from '../cockpitData';
 import { DesignPageShell, SourceRibbon } from '../designShell';
+import { useOperatorTruthPayload } from '../operatorTruthData';
+import { OperatorTruthLoading, RouteTruthSummary } from '../operatorTruthComponents';
 
 export default function ClaudeAdminAiPage(): JSX.Element {
   const { autonomousGovernor, error } = useCockpitPayload();
+  const { payload: truthPayload, error: truthError } = useOperatorTruthPayload();
   return (
     <DesignPageShell meta={meta} rbac={rbac} route={route} eyebrow="Claude Admin AI" source="AUTONOMOUS_GOVERNOR_PAYLOAD / non-live only" status="CANNOT ENABLE LIVE TRADING">
       <SourceRibbon labels={['Claude primary builder', 'Codex parallel auditor', 'Ollama draft-only helper', 'final live gate human-only']} />
+      {truthPayload ? <RouteTruthSummary payload={truthPayload} title="Claude Admin AI" /> : <OperatorTruthLoading error={truthError} />}
       {autonomousGovernor ? <AutonomousGovernorPanel payload={autonomousGovernor} /> : <CockpitLoading error={error} />}
       <Panel id="claude-admin-ai-safety-contract" title="Admin AI Safety Contract" right={<span className="chip solid-block">No capital action</span>}>
         <div className="cockpit-card-grid">

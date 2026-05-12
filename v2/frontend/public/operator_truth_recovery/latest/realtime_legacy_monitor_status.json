@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-05-12T00:19:43.848Z",
+  "generated_at": "2026-05-12T00:29:57.739Z",
   "active_processes": [
-    "1042465 1011413  238292 python3 -m rl.orchestrator_worker",
-    "1272209 1272100  194117 tail -f Desktop/AI BOT/logs/orchestrator_worker.log"
+    "1042465 1011413  238906 python3 -m rl.orchestrator_worker",
+    "1272209 1272100  194731 tail -f Desktop/AI BOT/logs/orchestrator_worker.log"
   ],
   "orchestrator_processes": [
-    "1042465 1011413  238292 python3 -m rl.orchestrator_worker",
-    "1272209 1272100  194117 tail -f Desktop/AI BOT/logs/orchestrator_worker.log"
+    "1042465 1011413  238906 python3 -m rl.orchestrator_worker",
+    "1272209 1272100  194731 tail -f Desktop/AI BOT/logs/orchestrator_worker.log"
   ],
   "trainer_processes": [],
   "trader_processes": [],
@@ -39,7 +39,7 @@
     "path": "v2/frontend/public/redis_memory_pressure_remediation/latest/operator_dashboard_payload.json",
     "classification": "V2_PROOF_ARTIFACT",
     "generated_at": "2026-05-10T05:48:56.400Z",
-    "age_seconds": 153047,
+    "age_seconds": 153661,
     "is_realtime": false,
     "is_static_fixture": false,
     "stale": true,

@@ -4,13 +4,17 @@ import route from './route';
 import { CockpitLoading, Panel } from '../cockpitComponents';
 import { useCockpitPayload, valueText } from '../cockpitData';
 import { DesignPageShell, SourceRibbon } from '../designShell';
+import { useOperatorTruthPayload } from '../operatorTruthData';
+import { OperatorTruthLoading, RouteTruthSummary } from '../operatorTruthComponents';
 
 export default function RiskControlPage(): JSX.Element {
   const { payload, error } = useCockpitPayload();
+  const { payload: truthPayload, error: truthError } = useOperatorTruthPayload();
   const decision = payload?.decisions[0];
   return (
     <DesignPageShell meta={meta} rbac={rbac} route={route} eyebrow="Risk Control" source="V2_PROOF_ARTIFACT / fail-closed policy" status="DANGEROUS CONTROLS DISABLED">
       <SourceRibbon labels={['kill switch default-deny', 'Risk Gateway final authority', 'no ADJUST_LEVERAGE bypass', 'live approval required']} />
+      {truthPayload ? <RouteTruthSummary payload={truthPayload} title="Risk Control" /> : <OperatorTruthLoading error={truthError} />}
       {payload ? (
         <Panel id="risk-control-fail-closed-gates" title="Fail-Closed Risk Gates" right={<span className="chip solid-block">LIVE BLOCKED</span>}>
           <div className="cockpit-lineage-grid">
