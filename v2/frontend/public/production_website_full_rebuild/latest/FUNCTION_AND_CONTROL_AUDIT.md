@@ -1,6 +1,6 @@
 # Function And Control Audit
 
-Generated at: 2026-05-12T20:46:04Z
+Generated at: 2026-05-12T20:52:50Z
 
 The crawler inspected links, buttons, inputs, and route navigation. Any control implying live enablement, order placement, cancellation, leverage/margin changes, API key activation, Redis trim approval, or paper-to-live switching must be disabled or approval-gated.
 

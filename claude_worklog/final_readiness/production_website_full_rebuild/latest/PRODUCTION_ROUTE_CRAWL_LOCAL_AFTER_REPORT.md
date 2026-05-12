@@ -1,6 +1,6 @@
 # Production Route Crawl — local_after
 
-Generated at: 2026-05-12T20:44:29.676Z
+Generated at: 2026-05-12T20:51:25.409Z
 
 - Base URL: http://127.0.0.1:5173
 - Routes: 34
