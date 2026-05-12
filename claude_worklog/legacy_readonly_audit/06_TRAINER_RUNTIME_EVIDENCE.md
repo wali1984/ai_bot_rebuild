@@ -1,12 +1,12 @@
 # Trainer Runtime Evidence
 
-Generated: 2026-05-10T02:58:38.003762+00:00
+Generated: 2026-05-12T16:04:59.058053+00:00
 
 Read-only process/log evidence.
 
 ## Processes
 ```text
-NO_TRAINER_PROCESS_MATCHES
+3980694 3980692 python3 -m rl.hybrid_trainer --mode hybrid --training-mode live --enhanced-features
 ```
 
 ## Required V2 impact
