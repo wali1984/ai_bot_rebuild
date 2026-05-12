@@ -40,7 +40,6 @@ export default function MissionControlPage(): JSX.Element {
         </div>
         <aside className="mission-command-side">
           {truthPayload ? <RiskGatewayRuntimePanel truthPayload={truthPayload} /> : null}
-          <AutonomousGovernorPanel payload={autonomousGovernor} />
           <MonitorTable rows={payload.monitors} />
         </aside>
       </div>
