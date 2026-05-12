@@ -30,6 +30,8 @@ claude_worklog/quota/CLAUDE_CODE_QUOTA_GUARD.log
 .vscode/
 .local_scratch/
 v2/.venv-control-plane
+v2/runtime/
+v2/frontend/public/operator_runtime/
 
 # Local secret material copied from legacy sources. Never commit these.
 .local_secrets/
