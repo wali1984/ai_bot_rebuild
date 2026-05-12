@@ -12,6 +12,7 @@
     "run:paper-online": "cd ../.. && python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30",
     "build:operator-truth": "node scripts/build-operator-truth-payload.mjs",
     "crawl:dashboard": "node scripts/crawl-dashboard-routes.mjs",
+    "crawl:production-website": "node scripts/crawl-production-website-routes.mjs",
     "crawl:tonight": "node scripts/crawl-tonight-routes.mjs",
     "sync:proof-artifacts": "node scripts/sync-proof-artifacts.mjs",
     "typecheck": "tsc -b --noEmit",
