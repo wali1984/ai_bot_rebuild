@@ -132,11 +132,60 @@ export function ChartPanel({ candles, decisions, sourceType }: { candles: Candle
     </div>
   );
   return (
-    <Panel id="charting-market-data" title="BTCUSDT TradingView Primary Chart">
-      <TradingViewWidget symbol="BINANCE:BTCUSDT" fallback={fallback} />
+    <Panel id="charting-market-data" title="BTCUSDT Read-Only Market Chart">
+      <div
+        className="readonly-market-chart"
+        data-testid="readonly-market-chart"
+        data-chart-mode={sourceType === 'READONLY_MARKET_FEED' ? 'READONLY_MARKET_FEED_PRIMARY' : 'FALLBACK_STATIC_CHART'}
+      >
+        <div className="readonly-market-chart__head">
+          <div>
+            <span>BTCUSDT</span>
+            <strong>{candles.length ? candles[candles.length - 1].close : 'Evidence missing'}</strong>
+          </div>
+          <span className={sourceType === 'READONLY_MARKET_FEED' ? 'chip solid-ok' : 'chip solid-warn'}>
+            {sourceType === 'READONLY_MARKET_FEED' ? 'READONLY_MARKET_FEED_PRIMARY' : 'FALLBACK_STATIC_CHART'}
+          </span>
+        </div>
+        <svg className="cockpit-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="BTCUSDT read-only candlestick chart">
+          <rect x="0" y="0" width={width} height={height} rx="6" />
+          {candles.map((candle, index) => {
+            const x = index * step + step / 2;
+            const open = y(candle.open);
+            const close = y(candle.close);
+            const high = y(candle.high);
+            const low = y(candle.low);
+            const bodyTop = Math.min(open, close);
+            const bodyHeight = Math.max(Math.abs(close - open), 2);
+            const up = candle.close >= candle.open;
+            return (
+              <g key={candle.time}>
+                <line x1={x} x2={x} y1={high} y2={low} className={up ? 'candle-up' : 'candle-down'} />
+                <rect x={x - 5} y={bodyTop} width="10" height={bodyHeight} className={up ? 'candle-up' : 'candle-down'} />
+                <rect x={x - 5} y={height - 18 - candle.volume / 900} width="10" height={candle.volume / 900} className="volume-bar" />
+              </g>
+            );
+          })}
+          {decisions.slice(0, 3).map((decision, index) => (
+            <g key={decision.id}>
+              <circle cx={80 + index * 180} cy={42 + index * 22} r="7" className={decision.risk_reason.includes('blocked') ? 'risk-marker' : 'signal-marker'} />
+              <text x={94 + index * 180} y={47 + index * 22}>{decision.symbol} {decision.risk_reason}</text>
+            </g>
+          ))}
+        </svg>
+      </div>
+      <details className="mission-evidence-details">
+        <summary>
+          <span>TradingView external widget</span>
+          <small>Optional secondary chart; local read-only chart above remains visible if the external widget is blocked.</small>
+        </summary>
+        <div className="mission-evidence-details__body">
+          <TradingViewWidget symbol="BINANCE:BTCUSDT" fallback={fallback} />
+        </div>
+      </details>
       <p className="cockpit-evidence-note">
         {sourceType === 'READONLY_MARKET_FEED'
-          ? 'READONLY_MARKET_FEED: chart uses Binance USD-M public GET-only market data. It cannot place orders.'
+          ? 'READONLY_MARKET_FEED: the visible primary chart uses Binance USD-M public GET-only market data. It cannot place orders.'
           : 'STATIC_PROOF_FIXTURE: chart uses deterministic static proof candles until Binance USD-M `/fapi/v1/klines` read-only market data is wired. It cannot place orders.'}
       </p>
     </Panel>

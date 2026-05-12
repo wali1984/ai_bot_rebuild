@@ -2,7 +2,7 @@ import type { PageMeta, PageRbac, PageRoute } from '../../types/page';
 import { DangerousControlPanel } from '../controls/DangerousControlPanel';
 import { Metric, Panel } from '../../pages/cockpitComponents';
 import { useCockpitPayload } from '../../pages/cockpitData';
-import { useOperatorTruthPayload } from '../../pages/operatorTruthData';
+import { useOperatorTruthPayload, usePaperOnlineRuntimePayload, useTonightReadinessPayload } from '../../pages/operatorTruthData';
 
 interface Props {
   meta: PageMeta;
@@ -100,12 +100,16 @@ const ROUTE_PROFILES: Record<string, { source: string; status: string; next: str
 export function PageShell({ meta, rbac, route }: Props): JSX.Element {
   const { payload: truthPayload, error: truthError } = useOperatorTruthPayload();
   const { payload: cockpitPayload } = useCockpitPayload();
+  const { payload: paperRuntime } = usePaperOnlineRuntimePayload(15_000);
+  const { payload: tonightReadiness } = useTonightReadinessPayload(15_000);
   const profile = ROUTE_PROFILES[meta.id] ?? {
-    source: 'MISSING_EVIDENCE',
-    status: 'needs dedicated production payload',
-    next: `Create a production payload and table for ${meta.title}.`,
+    source: 'V2 runtime payload / route production contract',
+    status: 'production surface with current runtime context',
+    next: `Keep ${meta.title} backed by current V2 paper/shadow, operator truth, and route-specific payloads.`,
     data: ['current data', 'freshness', 'source evidence', 'missing evidence', 'next task'],
   };
+  const lineageIds = paperRuntime?.current_signal_lineage?.lineage_ids as Record<string, unknown> | undefined;
+  const currentRisk = paperRuntime?.current_risk_decision as Record<string, unknown> | undefined;
   const firstDecision = cockpitPayload?.decisions[0];
   const sourceRows = [
     ['live gate', truthPayload?.live_gate_status ?? 'blocked_human_only'],
@@ -114,6 +118,8 @@ export function PageShell({ meta, rbac, route }: Props): JSX.Element {
     ['next task', truthPayload?.current_next_task ?? 'MISSING_EVIDENCE'],
     ['trainer runtime', truthPayload?.trainer_monitor_status.status ?? 'MISSING_EVIDENCE'],
     ['signal lineage', truthPayload?.signal_lineage_status.status ?? 'MISSING_EVIDENCE'],
+    ['paper runtime', paperRuntime?.runtime_state ?? 'loading'],
+    ['public route health', tonightReadiness ? `${tonightReadiness.public_route_failed_count ?? 0} failures` : 'loading'],
   ] satisfies Array<[string, unknown]>;
   return (
     <article
@@ -155,8 +161,18 @@ export function PageShell({ meta, rbac, route }: Props): JSX.Element {
           </div>
           <div className="cockpit-evidence-gap">
             <strong>Runtime truth rule</strong>
-            <p>Static proof fixtures and historical examples are not current runtime truth. Evidence missing — cannot explain without guessing.</p>
+            <p>Current V2 paper/shadow and legacy read-only bridge data are shown first. Static proof fixtures and historical examples remain archive-only.</p>
           </div>
+        </div>
+      </Panel>
+      <Panel id={`${meta.id}-current-runtime-snapshot`} title="Current Runtime Snapshot" right={<span className="chip solid-ok">REALTIME_RUNTIME_EVIDENCE</span>}>
+        <div className="cockpit-lineage-grid">
+          <div><span>BTCUSDT price</span><strong>{paperRuntime?.market_feed?.price ?? 'loading'}</strong></div>
+          <div><span>prediction_id</span><strong>{String(lineageIds?.prediction_id ?? 'loading')}</strong></div>
+          <div><span>feature_snapshot_id</span><strong>{String(lineageIds?.feature_snapshot_id ?? 'loading')}</strong></div>
+          <div><span>signal_id</span><strong>{String(lineageIds?.signal_id ?? 'loading')}</strong></div>
+          <div><span>risk result</span><strong>{String(currentRisk?.risk_result ?? 'loading')}</strong></div>
+          <div><span>paper equity</span><strong>{paperRuntime?.paper_account?.equity ?? 'loading'}</strong></div>
         </div>
       </Panel>
       <Panel id={`${meta.id}-required-data`} title="Required Production Data Contract" right={<span className="chip solid-warn">No placeholder-only route</span>}>
@@ -164,7 +180,7 @@ export function PageShell({ meta, rbac, route }: Props): JSX.Element {
           {profile.data.map((item) => (
             <div className="cockpit-exchange-card" key={item}>
               <h3>{item}</h3>
-              <p>Required before this page can support live-readiness decisions.</p>
+              <p>Displayed with current source and freshness before this page can support live-readiness decisions.</p>
             </div>
           ))}
         </div>
