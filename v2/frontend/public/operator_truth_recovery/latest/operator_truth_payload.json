@@ -1,0 +1,979 @@
+{
+  "generated_at": "2026-05-11T23:57:56.729Z",
+  "source_files": [
+    "claude_worklog/agent_supervisor/status/current_status.json",
+    "claude_worklog/agent_supervisor/status/queue_status.json",
+    "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json",
+    "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json",
+    "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
+    "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/current_runtime_sources.json",
+    "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/trainer_prediction_monitor_status.json",
+    "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/signal_execution_monitor_status.json",
+    "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json",
+    "v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json",
+    "v2/frontend/public/orchestrator_decision_evidence_reconciliation/latest/operator_dashboard_payload.json",
+    "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
+    "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json"
+  ],
+  "supervisor_status": {
+    "generated_at": "2026-05-11T23:57:56.729Z",
+    "current_status_path": "claude_worklog/agent_supervisor/status/current_status.json",
+    "queue_status_path": "claude_worklog/agent_supervisor/status/queue_status.json",
+    "master_planner_status_path": "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json",
+    "current_status": {
+      "task_id": "parallel_capacity_readonly_review_phase2f_b_evidence_reconciliation_passed",
+      "agent": "codex",
+      "risk_level": "L1",
+      "start_time": "2026-05-11T23:23:06.100661+00:00",
+      "end_time": "2026-05-11T23:24:25.971648+00:00",
+      "status": "completed",
+      "stdout_path": "claude_worklog/agent_supervisor/runs/parallel_capacity_readonly_review_phase2f_b_evidence_reconciliation_passed/stdout.txt",
+      "stderr_path": "claude_worklog/agent_supervisor/runs/parallel_capacity_readonly_review_phase2f_b_evidence_reconciliation_passed/stderr.txt",
+      "summary": "agent run status: completed",
+      "next_recommended_action": "inspect run output",
+      "materialized_files": [
+        "claude_worklog/phase2_core_rebuild/automation_reliability/parallel_capacity_readonly_review_phase2f_b_evidence_reconciliation_passed_REPORT.md",
+        "claude_worklog/phase2_core_rebuild/automation_reliability/parallel_capacity_readonly_review_phase2f_b_evidence_reconciliation_passed_GO_NO_GO.md"
+      ],
+      "auto_commit": {
+        "attempted": false,
+        "ok": false,
+        "message": "",
+        "commit_hash": null
+      },
+      "timed_out": false,
+      "attention_reason": null,
+      "last_retry_reason": null,
+      "run_pid": 3228569
+    },
+    "queue_status": {
+      "generated_at": "2026-05-11T23:24:26.002840+00:00",
+      "next_pending_task": "codex_recover_173_phase2r_consolidated_python_source_and_task_json_end_file_leakage_cleanup",
+      "current_running_task": null,
+      "blocked_quota": null,
+      "stale_running_count": 0,
+      "stale_running_tasks": [],
+      "no_event_count": 0,
+      "no_event_tasks": [],
+      "no_output_growth_count": 0,
+      "no_output_growth_tasks": [],
+      "human_attention_required_count": 0,
+      "human_attention_required_tasks": [],
+      "final_live_gate_required_count": 0,
+      "final_live_gate_required_tasks": [],
+      "non_blocking_decision_packet_count": 0,
+      "non_blocking_decision_packets": [],
+      "human_attention_global_blocking": false,
+      "manual_copilot_prompting_required": false,
+      "counts": {
+        "pending": 9,
+        "running": 0,
+        "completed": 365,
+        "failed": 2,
+        "blocked": 10,
+        "retry_scheduled": 8,
+        "skipped": 0,
+        "cancelled": 0,
+        "claude_rate_limited_resume_scheduled": 0,
+        "human_attention_required": 0,
+        "superseded_by_evidence": 48,
+        "waiting_decision_packet": 0,
+        "delegated_decision_pending": 0
+      },
+      "gate": "READY_FOR_CODEX_RERUN"
+    },
+    "master_planner_status": {
+      "generated_at": "2026-05-11T20:35:14.146047+00:00",
+      "mode": "dry-run",
+      "active_requirement": "REQ_0006_PHASE2_IMPLEMENT_TRAINER_PARITY_SERVICE.md",
+      "unprocessed_requirements": [
+        "REQ_0006_PHASE2_IMPLEMENT_TRAINER_PARITY_SERVICE.md",
+        "REQ_0007_CODEX_AUTOFIX_NON_LIVE_BLOCKERS.md",
+        "REQ_0008_ENTERPRISE_WEBSITE_DESIGN_ANIMATION_SYSTEM.md",
+        "REQ_0009_FULL_DECISION_EXPLAINABILITY_AND_UNDER_THE_HOOD_UI.md",
+        "REQ_0010_SAFE_PATH_REMAP_AUTORECOVERY.md",
+        "REQ_0011_PARALLEL_CODEX_REVIEW_AND_AUTOFIX_LANE.md",
+        "REQ_0013_SMC_LIQUIDITY_SHADOW_FEATURES.md",
+        "REQ_0014_CODEX_HUMAN_ATTENTION_AUTONOMOUS_RECOVERY.md",
+        "REQ_0015_ENFORCE_CLAUDE_CODE_AND_CODEX_AUTOMATION_GATES.md",
+        "REQ_0015_PLANNER_LEVEL_HUMAN_ATTENTION_CODEX_AUTORECOVERY.md",
+        "REQ_0016_CODEX_NON_LIVE_HUMAN_REPLACEMENT_WATCHDOG.md",
+        "REQ_0017_FORCE_PAPER_BACKTEST_MVP_TRACK.md",
+        "REQ_0018_PLANNER_LANE_LOCK_AND_PARALLEL_BUILD_POLICY.md",
+        "REQ_0019_LEGACY_MONITOR_AUDIT_EVIDENCE_IN_BUILD.md",
+        "REQ_0020_FULL_AUTONOMOUS_LEGACY_MAPPED_PAPER_BACKTEST_PERFORMANCE_TARGET.md",
+        "REQ_0021_PARALLEL_CAPACITY_SCHEDULER_FOR_CLAUDE_CODEX.md",
+        "REQ_0022_LEGACY_FAILURE_HEDGE_UNWIND_AND_SQUEEZE_RISK.md",
+        "REQ_0023_FULL_LEGACY_READONLY_AUDIT_SENTINEL.md",
+        "REQ_0024_HISTORICAL_PNL_TRADE_TRAINER_AUDIT.md",
+        "REQ_0025_CODEX_HIGH_UTILIZATION_REVIEW_QUEUE.md",
+        "REQ_0026_NON_LIVE_OPERATOR_PROOF_HARNESS.md"
+      ],
+      "processed_requirements": [
+        "REQ_0001_BINANCE_USDM_PRIMARY.md",
+        "REQ_0002_COINANK_UPLOADED_SYMBOL_LIST.md",
+        "REQ_0003_LIVE_COINANK_COPY_AS_IS.md",
+        "REQ_0004_TRAINER_GPU_PARITY.md",
+        "REQ_0005_STARTUP_SCRIPT_RUNTIME_MAP_SOURCE_OF_TRUTH.md"
+      ],
+      "evidence_satisfied_requirements": [
+        "REQ_0001_BINANCE_USDM_PRIMARY.md",
+        "REQ_0002_COINANK_UPLOADED_SYMBOL_LIST.md",
+        "REQ_0003_LIVE_COINANK_COPY_AS_IS.md",
+        "REQ_0004_TRAINER_GPU_PARITY.md",
+        "REQ_0005_STARTUP_SCRIPT_RUNTIME_MAP_SOURCE_OF_TRUTH.md"
+      ],
+      "active_milestone": "master_planner_requirement_intake",
+      "active_task": null,
+      "current_phase": "phase2_core_rebuild",
+      "claude_code_profile": "Claude Code Max20 consolidated default",
+      "task_granularity_mode": "consolidated_default",
+      "split_fallback_enabled": true,
+      "planner_lane_lock_enabled": false,
+      "approved_planner_lanes": [
+        "codex_watchdog",
+        "explainability_ui",
+        "legacy_parity",
+        "paper_backtest_mvp"
+      ],
+      "active_lane": "paper_backtest_mvp",
+      "active_mvp_target": "V2_BACKTEST_AND_PAPER_MVP_READY",
+      "current_mvp_milestone": "REPLAY_BACKTEST_RUNNER_MVP",
+      "next_mvp_milestone": "REPLAY_BACKTEST_RUNNER_MVP",
+      "next_paper_backtest_milestone": "REPLAY_BACKTEST_RUNNER_MVP",
+      "legacy_evidence_consulted": "required_per_task",
+      "legacy_failure_addressed": "required_per_task",
+      "rejected_drift_count": 48,
+      "drift_rejection_count": 48,
+      "codex_recovery_active": false,
+      "distance_to_v2_backtest_and_paper_mvp_ready": {
+        "remaining_count": 3,
+        "remaining_milestones": [
+          "REPLAY_BACKTEST_RUNNER_MVP",
+          "PAPER_MODE_MVP",
+          "SHADOW_MODE_READINESS"
+        ]
+      },
+      "quota_monitor_enabled": true,
+      "codex_parallel_lane": "Codex Pro parallel review/autofix lane",
+      "codex_parallel_lane_enabled": true,
+      "codex_parallel_lane_policy": "git_clean_and_no_active_dirty_claude_output",
+      "codex_gate": "required_after_each_milestone",
+      "last_commit": "6b2fb05 Codex watchdog recover dirty non-live automation artifacts",
+      "blocked_reason": null,
+      "human_attention_required": false,
+      "non_live_decision_packets_block_global_queue": false,
+      "manual_copilot_prompting_required": false,
+      "next_action": "run Claude planner for active requirement",
+      "final_live_gate_status": "blocked_human_only",
+      "git_status": "?? claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/CODEX_GO_NO_GO.md\n?? claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/CODEX_ONLINE_READINESS_AGGREGATOR_FRESHNESS_REVIEW.md",
+      "prompt_path": "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt"
+    },
+    "active_processes": [
+      "1042465 1011413  236985 python3 -m rl.orchestrator_worker",
+      "1272209 1272100  192810 tail -f Desktop/AI BOT/logs/orchestrator_worker.log"
+    ],
+    "supervisor_processes": [],
+    "is_supervisor_alive": false,
+    "heartbeat_stale": true,
+    "master_planner_running": false,
+    "autonomous_governor_active": false,
+    "current_running_task": "parallel_capacity_readonly_review_phase2f_b_evidence_reconciliation_passed",
+    "next_pending_task": "codex_recover_173_phase2r_consolidated_python_source_and_task_json_end_file_leakage_cleanup",
+    "true_next_task": "codex_recover_173_phase2r_consolidated_python_source_and_task_json_end_file_leakage_cleanup",
+    "stale_or_conflicting": true,
+    "status_conflicts": {
+      "git_status_conflict": true,
+      "current_git_status": "M claude_worklog/historical_pnl_audit/01_DATA_SOURCE_STATUS.md\n M v2/frontend/package.json\n M v2/frontend/scripts/sync-proof-artifacts.mjs\n?? v2/frontend/scripts/build-operator-truth-payload.mjs",
+      "planner_reported_git_status": "?? claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/CODEX_GO_NO_GO.md\n?? claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/CODEX_ONLINE_READINESS_AGGREGATOR_FRESHNESS_REVIEW.md",
+      "queue_age_seconds": 2011,
+      "planner_age_seconds": 12163
+    }
+  },
+  "runtime_monitor_status": {
+    "generated_at": "2026-05-11T23:57:56.729Z",
+    "active_processes": [
+      "1042465 1011413  236985 python3 -m rl.orchestrator_worker",
+      "1272209 1272100  192810 tail -f Desktop/AI BOT/logs/orchestrator_worker.log"
+    ],
+    "orchestrator_processes": [
+      "1042465 1011413  236985 python3 -m rl.orchestrator_worker",
+      "1272209 1272100  192810 tail -f Desktop/AI BOT/logs/orchestrator_worker.log"
+    ],
+    "trainer_processes": [],
+    "trader_processes": [],
+    "orchestrator_status": "PROCESS_OBSERVED_READONLY",
+    "trainer_status": "TRAINER_RUNTIME_EVIDENCE_MISSING",
+    "trader_status": "TRADER_PROCESS_NOT_OBSERVED_OR_INTENTIONALLY_DISABLED",
+    "runtime_sources_payload": {
+      "duration_hours_observed": 200.95,
+      "exchange_mutation": "none",
+      "first_snapshot_ts": "2026-04-30T20:52:33.954535+00:00",
+      "generated_at": "2026-05-11T07:45:58.228145+00:00",
+      "human_input_required": "false_unless_final_live_capital_gate",
+      "last_snapshot_ts": "2026-05-09T05:49:27.042047+00:00",
+      "legacy_mutation": "none",
+      "live_gate_status": "blocked_human_only",
+      "redis_mutation": "none",
+      "redis_trim": "deferred_non_blocking",
+      "runtime_sources": [
+        "snapshots.jsonl",
+        "trainer_metrics.jsonl",
+        "runtime_truth_table.json",
+        "phase3c safety-critical gaps"
+      ],
+      "snapshot_count": 11755,
+      "source": "phase3c_runtime_monitor_verification",
+      "trainer_metric_count": 11755
+    },
+    "redis_memory_pressure_status": {
+      "label": "redis memory pressure",
+      "path": "v2/frontend/public/redis_memory_pressure_remediation/latest/operator_dashboard_payload.json",
+      "classification": "V2_PROOF_ARTIFACT",
+      "generated_at": "2026-05-10T05:48:56.400Z",
+      "age_seconds": 151740,
+      "is_realtime": false,
+      "is_static_fixture": false,
+      "stale": true,
+      "missing": false,
+      "status": "STALE_PAYLOAD"
+    }
+  },
+  "trainer_monitor_status": {
+    "generated_at": "2026-05-11T23:57:56.729Z",
+    "status": "TRAINER_RUNTIME_EVIDENCE_MISSING",
+    "trainer_processes": [],
+    "prediction_worker_alive_from_stale_payload": true,
+    "latest_trainer_status_from_payload": "DEGRADED",
+    "payload_age_seconds": 58319,
+    "prediction_lineage_gap": "runtime evidence still has missing prediction/feature snapshot links",
+    "latest_prediction": {
+      "classification": "STATIC_PROOF_FIXTURE",
+      "prediction_id": "hist_pred_day03_btc_winner_preserved",
+      "symbol": "BTCUSDT",
+      "timeframe": "5m",
+      "model_checkpoint": "hybrid_trainer_v2026_05 / ckpt_btc_fixture",
+      "confidence_raw": "0.84",
+      "confidence_calibrated": "0.81",
+      "feature_snapshot_id": "hist_fs_day03_btc_winner_preserved",
+      "top_positive": [
+        "fresh_features",
+        "positive_regime",
+        "volume_confirmation"
+      ],
+      "top_negative": [
+        "funding_watch"
+      ],
+      "source": "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
+      "warning": "This is proof fixture data, not real-time trainer output."
+    },
+    "missing_evidence": [
+      {
+        "id": "TRAINER_PROCESS_NOT_OBSERVED",
+        "severity": "blocking_for_live",
+        "detail": "No rl.hybrid_trainer or monitor_trainer_predictions process was observed in the read-only process snapshot."
+      },
+      {
+        "id": "TRAINER_RUNTIME_EVIDENCE_MISSING",
+        "severity": "blocking_for_live",
+        "detail": "Trainer monitor evidence is missing or stale. Do not infer live trainer behavior from static fixtures."
+      }
+    ]
+  },
+  "signal_lineage_status": {
+    "generated_at": "2026-05-11T23:57:56.729Z",
+    "status": "STATIC_PROOF_FIXTURE",
+    "latest_signal": {
+      "classification": "STATIC_PROOF_FIXTURE",
+      "signal_id": "sig_btc_001",
+      "prediction_id": "hist_pred_day03_btc_winner_preserved",
+      "feature_snapshot_id": "hist_fs_day03_btc_winner_preserved",
+      "orchestrator_decision_id": "hist_dec_day03_btc_winner_preserved",
+      "risk_decision_id": "hist_risk_day03_btc_winner_preserved",
+      "execution_intent_id": "hist_intent_day03_btc_winner_preserved",
+      "signal_reason": "fresh_features_and_positive_regime",
+      "orchestrator_reason": "paper_long_intent_only",
+      "risk_reason": "allow_paper_only",
+      "result": "paper_pnl +84.25; live blocked",
+      "evidence_links": [
+        "/historical_30d_replay_and_paper_proof/latest/legacy_vs_v2_decision_comparison.json"
+      ]
+    },
+    "monitor_payloads": {
+      "signal_execution": {
+        "duplicate_exchange_order_id_rows": 19,
+        "exchange_mutation": "none",
+        "execution_lineage_completeness_pct": 0,
+        "generated_at": "2026-05-11T07:45:58.228145+00:00",
+        "human_input_required": "false_unless_final_live_capital_gate",
+        "legacy_mutation": "none",
+        "live_gate_status": "blocked_human_only",
+        "redis_mutation": "none",
+        "redis_trim": "deferred_non_blocking",
+        "signal_attribution_completeness_pct": 50,
+        "stale_executed_timestamps_gt_5m": 400
+      },
+      "risk_observation": {
+        "adjust_leverage_rows": 0,
+        "exchange_mutation": "none",
+        "fail_closed_required": true,
+        "generated_at": "2026-05-11T07:45:58.228145+00:00",
+        "human_input_required": "false_unless_final_live_capital_gate",
+        "legacy_mutation": "none",
+        "leverage_observations": "high_leverage_pos_ge_25=84",
+        "live_gate_status": "blocked_human_only",
+        "margin_mode_observations": "cross_margin_pos_before_hits=397",
+        "redis_mutation": "none",
+        "redis_trim": "deferred_non_blocking",
+        "risk_rejects_skips": "available_if_present_in_phase3c_snapshots"
+      },
+      "phase3c": {
+        "codex_go_no_go": "PHASE3C_12H_RUNTIME_MONITOR_CODEX_FAIL",
+        "counts": {
+          "blocking_gap_count": 8,
+          "duration_hours": 200.95,
+          "monitor_log_bytes": 0,
+          "redis_memory_avg_pct": 98.95,
+          "redis_memory_max_pct": 99.51,
+          "snapshot_count": 11755,
+          "trainer_critical_count": 59,
+          "trainer_degraded_count": 1236,
+          "trainer_metric_count": 11755
+        },
+        "evidence": {
+          "monitor_log": {
+            "path": "claude_worklog/monitoring/read_only_monitor.log",
+            "verification_command": "wc -c claude_worklog/monitoring/read_only_monitor.log"
+          },
+          "post_monitor_go_no_go": {
+            "path": "claude_worklog/post_monitor/09_V2_BUILD_GO_NO_GO.md",
+            "verification_command": "cat claude_worklog/post_monitor/09_V2_BUILD_GO_NO_GO.md"
+          },
+          "snapshots": {
+            "path": "claude_worklog/monitoring/snapshots.jsonl",
+            "verification_command": "python3 - <<'PY'\\nfrom pathlib import Path\\nprint(len(Path('claude_worklog/monitoring/snapshots.jsonl').read_text().splitlines()))\\nPY"
+          },
+          "trainer_metrics": {
+            "path": "claude_worklog/monitoring/trainer_metrics.jsonl",
+            "verification_command": "python3 - <<'PY'\\nfrom pathlib import Path\\nprint(len(Path('claude_worklog/monitoring/trainer_metrics.jsonl').read_text().splitlines()))\\nPY"
+          }
+        },
+        "gaps": [
+          {
+            "evidence": "latest snapshot redis_memory.memory_ratio_pct",
+            "gap": "redis_memory_pressure_critical_95",
+            "severity": "blocker"
+          },
+          {
+            "evidence": "latest snapshot executed_analysis.missing_prediction_id",
+            "gap": "executed_rows_missing_prediction_id",
+            "severity": "blocker"
+          },
+          {
+            "evidence": "latest snapshot executed_analysis.missing_feature_snapshot_id",
+            "gap": "executed_rows_missing_feature_snapshot_id",
+            "severity": "blocker"
+          },
+          {
+            "evidence": "latest snapshot executed_analysis.lineage_tuple_incomplete_rows",
+            "gap": "executed_rows_incomplete_lineage_tuple",
+            "severity": "blocker"
+          },
+          {
+            "evidence": "latest snapshot executed_analysis.duplicate_exchange_order_id_rows",
+            "gap": "duplicate_exchange_order_id_rows_observed",
+            "severity": "blocker"
+          },
+          {
+            "evidence": "latest snapshot executed_analysis.stale_executed_ts_ms_gt_5m",
+            "gap": "stale_executed_timestamps_gt_5m",
+            "severity": "blocker"
+          },
+          {
+            "evidence": "trainer_metrics.jsonl trainer_internal_liveness_status",
+            "gap": "trainer_internal_liveness_critical_seen",
+            "severity": "blocker"
+          },
+          {
+            "evidence": "claude_worklog/post_monitor/09_V2_BUILD_GO_NO_GO.md",
+            "gap": "prior_post_monitor_no_go",
+            "severity": "blocker"
+          },
+          {
+            "evidence": "system_atlas_runtime_coverage/latest/runtime_monitor/runtime_monitor_status.json",
+            "gap": "phase3a_runtime_monitor_placeholder_not_run",
+            "severity": "non_blocking_context"
+          }
+        ],
+        "generated_at": "2026-05-10T05:36:36.155581+00:00",
+        "go_no_go": "PHASE3C_12H_RUNTIME_MONITOR_COMPLETED_AND_VERIFIED_BLOCKED",
+        "latest": {
+          "attribution_completeness": {
+            "execution_lineage_completeness_pct": 0,
+            "execution_sample_size": 400,
+            "missing_confidence": 0,
+            "missing_feature_snapshot_id": 100,
+            "missing_feature_snapshot_id_prediction_rows": 0,
+            "missing_lineage_tuple_execution_rows": 400,
+            "missing_lineage_tuple_signal_rows": 100,
+            "missing_prediction_id": 100,
+            "missing_prediction_id_prediction_rows": 0,
+            "missing_signal_id": 0,
+            "prediction_sample_size": 0,
+            "signal_attribution_completeness_pct": 50,
+            "signal_sample_size": 100
+          },
+          "executed_analysis": {
+            "adjust_leverage_rows": 0,
+            "cross_margin_pos_before_hits": 397,
+            "duplicate_exchange_order_id_rows": 19,
+            "executed_sample_size": 400,
+            "high_leverage_pos_ge_25": 84,
+            "latency_buckets": {
+              "0": 60,
+              "1-5s": 4,
+              "30-300s": 319,
+              "5-30s": 16,
+              ">300s": 1
+            },
+            "lineage_tuple_incomplete_rows": 400,
+            "missing_confidence": 40,
+            "missing_feature_snapshot_id": 400,
+            "missing_prediction_id": 400,
+            "missing_signal_id": 46,
+            "risk_add_like_success_rows": 307,
+            "stale_executed_ts_ms_gt_5m": 400
+          },
+          "feature_freshness_status_counts": {
+            "fresh": 30,
+            "missing": 64,
+            "stale": 6,
+            "unknown": 44
+          },
+          "first_snapshot_ts": "2026-04-30T20:52:33.954535+00:00",
+          "last_snapshot_ts": "2026-05-09T05:49:27.042047+00:00",
+          "latest_trainer_status": "DEGRADED",
+          "phase3a_monitor_status": {
+            "allowed_write_dir": "claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/runtime_monitor",
+            "generated_at": "2026-05-10T03:05:07.454277+00:00",
+            "live_gate_status": "blocked_human_only",
+            "monitor_completed_12h": false,
+            "monitor_prepared": true,
+            "monitor_started": false,
+            "status": "prepared_not_run"
+          },
+          "post_monitor_go_no_go": "V2_BUILD_NO_GO",
+          "prediction_worker_alive": true,
+          "publish_surface_liveness": "DEGRADED",
+          "redis_memory": {
+            "maxmemory": "17179869184",
+            "memory_ratio_pct": 98.93964696675539,
+            "memory_trend_1h": "+0.27%",
+            "memory_trend_24h": "-0.10%",
+            "memory_trend_6h": "-0.07%",
+            "threshold_class": "critical_95",
+            "used_memory": "16997701920"
+          }
+        },
+        "live_gate_status": "blocked_human_only",
+        "next_safe_milestone": "REDIS_MEMORY_PRESSURE_REMEDIATION",
+        "ready": false
+      }
+    },
+    "missing_evidence": []
+  },
+  "dashboard_freshness_status": {
+    "generated_at": "2026-05-11T23:57:56.729Z",
+    "payloads_checked": 13,
+    "stale_payload_count": 12,
+    "missing_evidence_count": 3,
+    "static_fixture_count": 1,
+    "payload_statuses": [
+      {
+        "label": "supervisor current status",
+        "path": "claude_worklog/agent_supervisor/status/current_status.json",
+        "classification": "REALTIME_RUNTIME_EVIDENCE",
+        "generated_at": "2026-05-11T23:24:25.971Z",
+        "age_seconds": 2011,
+        "is_realtime": true,
+        "is_static_fixture": false,
+        "stale": true,
+        "missing": false,
+        "status": "STALE_PAYLOAD"
+      },
+      {
+        "label": "supervisor queue status",
+        "path": "claude_worklog/agent_supervisor/status/queue_status.json",
+        "classification": "REALTIME_RUNTIME_EVIDENCE",
+        "generated_at": "2026-05-11T23:24:26.002Z",
+        "age_seconds": 2011,
+        "is_realtime": true,
+        "is_static_fixture": false,
+        "stale": true,
+        "missing": false,
+        "status": "STALE_PAYLOAD"
+      },
+      {
+        "label": "master planner status",
+        "path": "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json",
+        "classification": "REALTIME_RUNTIME_EVIDENCE",
+        "generated_at": "2026-05-11T20:35:14.146Z",
+        "age_seconds": 12163,
+        "is_realtime": true,
+        "is_static_fixture": false,
+        "stale": true,
+        "missing": false,
+        "status": "STALE_PAYLOAD"
+      },
+      {
+        "label": "autonomous governor selection",
+        "path": "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json",
+        "classification": "RUNTIME_MONITOR_PAYLOAD",
+        "generated_at": "2026-05-11T07:45:58.228Z",
+        "age_seconds": 58319,
+        "is_realtime": false,
+        "is_static_fixture": false,
+        "stale": true,
+        "missing": false,
+        "status": "STALE_PAYLOAD"
+      },
+      {
+        "label": "enterprise cockpit payload",
+        "path": "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
+        "classification": "STATIC_PROOF_FIXTURE",
+        "generated_at": "2026-05-09T23:59:00.000Z",
+        "age_seconds": 172737,
+        "is_realtime": false,
+        "is_static_fixture": true,
+        "stale": true,
+        "missing": false,
+        "status": "STATIC_PROOF_FIXTURE"
+      },
+      {
+        "label": "realtime legacy runtime sources",
+        "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/current_runtime_sources.json",
+        "classification": "RUNTIME_MONITOR_PAYLOAD",
+        "generated_at": "2026-05-11T07:45:58.228Z",
+        "age_seconds": 58319,
+        "is_realtime": false,
+        "is_static_fixture": false,
+        "stale": true,
+        "missing": false,
+        "status": "STALE_PAYLOAD"
+      },
+      {
+        "label": "trainer prediction monitor status",
+        "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/trainer_prediction_monitor_status.json",
+        "classification": "RUNTIME_MONITOR_PAYLOAD",
+        "generated_at": "2026-05-11T07:45:58.228Z",
+        "age_seconds": 58319,
+        "is_realtime": false,
+        "is_static_fixture": false,
+        "stale": true,
+        "missing": false,
+        "status": "STALE_PAYLOAD"
+      },
+      {
+        "label": "signal execution monitor status",
+        "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/signal_execution_monitor_status.json",
+        "classification": "RUNTIME_MONITOR_PAYLOAD",
+        "generated_at": "2026-05-11T07:45:58.228Z",
+        "age_seconds": 58319,
+        "is_realtime": false,
+        "is_static_fixture": false,
+        "stale": true,
+        "missing": false,
+        "status": "STALE_PAYLOAD"
+      },
+      {
+        "label": "risk gateway observation status",
+        "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json",
+        "classification": "RUNTIME_MONITOR_PAYLOAD",
+        "generated_at": "2026-05-11T07:45:58.228Z",
+        "age_seconds": 58319,
+        "is_realtime": false,
+        "is_static_fixture": false,
+        "stale": true,
+        "missing": false,
+        "status": "STALE_PAYLOAD"
+      },
+      {
+        "label": "phase3c runtime monitor payload",
+        "path": "v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json",
+        "classification": "RUNTIME_MONITOR_PAYLOAD",
+        "generated_at": "2026-05-10T05:36:36.155Z",
+        "age_seconds": 152481,
+        "is_realtime": false,
+        "is_static_fixture": false,
+        "stale": true,
+        "missing": false,
+        "status": "STALE_PAYLOAD"
+      },
+      {
+        "label": "orchestrator evidence reconciliation payload",
+        "path": "v2/frontend/public/orchestrator_decision_evidence_reconciliation/latest/operator_dashboard_payload.json",
+        "classification": "V2_PROOF_ARTIFACT",
+        "generated_at": "2026-05-11T22:38:44.000Z",
+        "age_seconds": 4753,
+        "is_realtime": false,
+        "is_static_fixture": false,
+        "stale": false,
+        "missing": false,
+        "status": "CURRENT_SNAPSHOT"
+      },
+      {
+        "label": "readonly market exchange data plane",
+        "path": "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
+        "classification": "V2_PROOF_ARTIFACT",
+        "generated_at": "2026-05-10T00:00:00.000Z",
+        "age_seconds": 172677,
+        "is_realtime": false,
+        "is_static_fixture": false,
+        "stale": true,
+        "missing": false,
+        "status": "STALE_PAYLOAD"
+      },
+      {
+        "label": "paper runtime status",
+        "path": "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json",
+        "classification": "V2_PROOF_ARTIFACT",
+        "generated_at": "2026-05-09T20:28:03.010Z",
+        "age_seconds": 185394,
+        "is_realtime": false,
+        "is_static_fixture": false,
+        "stale": true,
+        "missing": false,
+        "status": "STALE_PAYLOAD"
+      }
+    ],
+    "public_json_count": 68
+  },
+  "static_fixture_panels": [
+    {
+      "label": "enterprise cockpit payload",
+      "path": "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
+      "classification": "STATIC_PROOF_FIXTURE",
+      "generated_at": "2026-05-09T23:59:00.000Z",
+      "age_seconds": 172737,
+      "is_realtime": false,
+      "is_static_fixture": true,
+      "stale": true,
+      "missing": false,
+      "status": "STATIC_PROOF_FIXTURE"
+    }
+  ],
+  "stale_payloads": [
+    {
+      "label": "supervisor current status",
+      "path": "claude_worklog/agent_supervisor/status/current_status.json",
+      "classification": "REALTIME_RUNTIME_EVIDENCE",
+      "generated_at": "2026-05-11T23:24:25.971Z",
+      "age_seconds": 2011,
+      "is_realtime": true,
+      "is_static_fixture": false,
+      "stale": true,
+      "missing": false,
+      "status": "STALE_PAYLOAD"
+    },
+    {
+      "label": "supervisor queue status",
+      "path": "claude_worklog/agent_supervisor/status/queue_status.json",
+      "classification": "REALTIME_RUNTIME_EVIDENCE",
+      "generated_at": "2026-05-11T23:24:26.002Z",
+      "age_seconds": 2011,
+      "is_realtime": true,
+      "is_static_fixture": false,
+      "stale": true,
+      "missing": false,
+      "status": "STALE_PAYLOAD"
+    },
+    {
+      "label": "master planner status",
+      "path": "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json",
+      "classification": "REALTIME_RUNTIME_EVIDENCE",
+      "generated_at": "2026-05-11T20:35:14.146Z",
+      "age_seconds": 12163,
+      "is_realtime": true,
+      "is_static_fixture": false,
+      "stale": true,
+      "missing": false,
+      "status": "STALE_PAYLOAD"
+    },
+    {
+      "label": "autonomous governor selection",
+      "path": "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json",
+      "classification": "RUNTIME_MONITOR_PAYLOAD",
+      "generated_at": "2026-05-11T07:45:58.228Z",
+      "age_seconds": 58319,
+      "is_realtime": false,
+      "is_static_fixture": false,
+      "stale": true,
+      "missing": false,
+      "status": "STALE_PAYLOAD"
+    },
+    {
+      "label": "enterprise cockpit payload",
+      "path": "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
+      "classification": "STATIC_PROOF_FIXTURE",
+      "generated_at": "2026-05-09T23:59:00.000Z",
+      "age_seconds": 172737,
+      "is_realtime": false,
+      "is_static_fixture": true,
+      "stale": true,
+      "missing": false,
+      "status": "STATIC_PROOF_FIXTURE"
+    },
+    {
+      "label": "realtime legacy runtime sources",
+      "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/current_runtime_sources.json",
+      "classification": "RUNTIME_MONITOR_PAYLOAD",
+      "generated_at": "2026-05-11T07:45:58.228Z",
+      "age_seconds": 58319,
+      "is_realtime": false,
+      "is_static_fixture": false,
+      "stale": true,
+      "missing": false,
+      "status": "STALE_PAYLOAD"
+    },
+    {
+      "label": "trainer prediction monitor status",
+      "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/trainer_prediction_monitor_status.json",
+      "classification": "RUNTIME_MONITOR_PAYLOAD",
+      "generated_at": "2026-05-11T07:45:58.228Z",
+      "age_seconds": 58319,
+      "is_realtime": false,
+      "is_static_fixture": false,
+      "stale": true,
+      "missing": false,
+      "status": "STALE_PAYLOAD"
+    },
+    {
+      "label": "signal execution monitor status",
+      "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/signal_execution_monitor_status.json",
+      "classification": "RUNTIME_MONITOR_PAYLOAD",
+      "generated_at": "2026-05-11T07:45:58.228Z",
+      "age_seconds": 58319,
+      "is_realtime": false,
+      "is_static_fixture": false,
+      "stale": true,
+      "missing": false,
+      "status": "STALE_PAYLOAD"
+    },
+    {
+      "label": "risk gateway observation status",
+      "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json",
+      "classification": "RUNTIME_MONITOR_PAYLOAD",
+      "generated_at": "2026-05-11T07:45:58.228Z",
+      "age_seconds": 58319,
+      "is_realtime": false,
+      "is_static_fixture": false,
+      "stale": true,
+      "missing": false,
+      "status": "STALE_PAYLOAD"
+    },
+    {
+      "label": "phase3c runtime monitor payload",
+      "path": "v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json",
+      "classification": "RUNTIME_MONITOR_PAYLOAD",
+      "generated_at": "2026-05-10T05:36:36.155Z",
+      "age_seconds": 152481,
+      "is_realtime": false,
+      "is_static_fixture": false,
+      "stale": true,
+      "missing": false,
+      "status": "STALE_PAYLOAD"
+    },
+    {
+      "label": "readonly market exchange data plane",
+      "path": "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
+      "classification": "V2_PROOF_ARTIFACT",
+      "generated_at": "2026-05-10T00:00:00.000Z",
+      "age_seconds": 172677,
+      "is_realtime": false,
+      "is_static_fixture": false,
+      "stale": true,
+      "missing": false,
+      "status": "STALE_PAYLOAD"
+    },
+    {
+      "label": "paper runtime status",
+      "path": "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json",
+      "classification": "V2_PROOF_ARTIFACT",
+      "generated_at": "2026-05-09T20:28:03.010Z",
+      "age_seconds": 185394,
+      "is_realtime": false,
+      "is_static_fixture": false,
+      "stale": true,
+      "missing": false,
+      "status": "STALE_PAYLOAD"
+    }
+  ],
+  "missing_evidence": [
+    {
+      "id": "TRAINER_PROCESS_NOT_OBSERVED",
+      "severity": "blocking_for_live",
+      "detail": "No rl.hybrid_trainer or monitor_trainer_predictions process was observed in the read-only process snapshot."
+    },
+    {
+      "id": "TRAINER_RUNTIME_EVIDENCE_MISSING",
+      "severity": "blocking_for_live",
+      "detail": "Trainer monitor evidence is missing or stale. Do not infer live trainer behavior from static fixtures."
+    },
+    {
+      "id": "SUPERVISOR_STATUS_STALE_OR_CONFLICTING",
+      "severity": "operator_visibility",
+      "detail": "Supervisor/planner status is stale or disagrees with current git/process reality."
+    }
+  ],
+  "current_blockers": [
+    {
+      "id": "TRAINER_PROCESS_NOT_OBSERVED",
+      "severity": "blocking_for_live",
+      "detail": "No rl.hybrid_trainer or monitor_trainer_predictions process was observed in the read-only process snapshot."
+    },
+    {
+      "id": "TRAINER_RUNTIME_EVIDENCE_MISSING",
+      "severity": "blocking_for_live",
+      "detail": "Trainer monitor evidence is missing or stale. Do not infer live trainer behavior from static fixtures."
+    },
+    {
+      "id": "SUPERVISOR_STATUS_STALE_OR_CONFLICTING",
+      "severity": "operator_visibility",
+      "detail": "Supervisor/planner status is stale or disagrees with current git/process reality."
+    },
+    {
+      "id": "STALE_SUPERVISOR_CURRENT_STATUS",
+      "severity": "operator_visibility",
+      "detail": "supervisor current status is STALE_PAYLOAD; age_seconds=2011; path=claude_worklog/agent_supervisor/status/current_status.json"
+    },
+    {
+      "id": "STALE_SUPERVISOR_QUEUE_STATUS",
+      "severity": "operator_visibility",
+      "detail": "supervisor queue status is STALE_PAYLOAD; age_seconds=2011; path=claude_worklog/agent_supervisor/status/queue_status.json"
+    },
+    {
+      "id": "STALE_MASTER_PLANNER_STATUS",
+      "severity": "operator_visibility",
+      "detail": "master planner status is STALE_PAYLOAD; age_seconds=12163; path=claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json"
+    },
+    {
+      "id": "STALE_AUTONOMOUS_GOVERNOR_SELECTION",
+      "severity": "freshness",
+      "detail": "autonomous governor selection is STALE_PAYLOAD; age_seconds=58319; path=claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json"
+    },
+    {
+      "id": "STALE_ENTERPRISE_COCKPIT_PAYLOAD",
+      "severity": "freshness",
+      "detail": "enterprise cockpit payload is STATIC_PROOF_FIXTURE; age_seconds=172737; path=v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json"
+    },
+    {
+      "id": "STALE_REALTIME_LEGACY_RUNTIME_SOURCES",
+      "severity": "freshness",
+      "detail": "realtime legacy runtime sources is STALE_PAYLOAD; age_seconds=58319; path=v2/frontend/public/realtime_legacy_monitoring_continuity/latest/current_runtime_sources.json"
+    },
+    {
+      "id": "STALE_TRAINER_PREDICTION_MONITOR_STATUS",
+      "severity": "freshness",
+      "detail": "trainer prediction monitor status is STALE_PAYLOAD; age_seconds=58319; path=v2/frontend/public/realtime_legacy_monitoring_continuity/latest/trainer_prediction_monitor_status.json"
+    },
+    {
+      "id": "STALE_SIGNAL_EXECUTION_MONITOR_STATUS",
+      "severity": "freshness",
+      "detail": "signal execution monitor status is STALE_PAYLOAD; age_seconds=58319; path=v2/frontend/public/realtime_legacy_monitoring_continuity/latest/signal_execution_monitor_status.json"
+    },
+    {
+      "id": "STALE_RISK_GATEWAY_OBSERVATION_STATUS",
+      "severity": "freshness",
+      "detail": "risk gateway observation status is STALE_PAYLOAD; age_seconds=58319; path=v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json"
+    },
+    {
+      "id": "STALE_PHASE3C_RUNTIME_MONITOR_PAYLOAD",
+      "severity": "freshness",
+      "detail": "phase3c runtime monitor payload is STALE_PAYLOAD; age_seconds=152481; path=v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json"
+    },
+    {
+      "id": "STALE_READONLY_MARKET_EXCHANGE_DATA_PLANE",
+      "severity": "freshness",
+      "detail": "readonly market exchange data plane is STALE_PAYLOAD; age_seconds=172677; path=v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json"
+    },
+    {
+      "id": "STALE_PAPER_RUNTIME_STATUS",
+      "severity": "freshness",
+      "detail": "paper runtime status is STALE_PAYLOAD; age_seconds=185394; path=v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json"
+    },
+    {
+      "id": "LIVE_GATE_BLOCKED_HUMAN_ONLY",
+      "severity": "expected_safety_gate",
+      "detail": "Live trading remains blocked_human_only."
+    },
+    {
+      "id": "REDIS_TRIM_DEFERRED_NON_BLOCKING",
+      "severity": "non_blocking",
+      "detail": "Redis trim approval file absent; no XTRIM may run."
+    }
+  ],
+  "current_next_task": "codex_recover_173_phase2r_consolidated_python_source_and_task_json_end_file_leakage_cleanup",
+  "live_gate_status": "blocked_human_only",
+  "redis_trim_status": "deferred_non_blocking",
+  "proof_artifact_statuses": [
+    {
+      "label": "enterprise cockpit payload",
+      "path": "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
+      "classification": "STATIC_PROOF_FIXTURE",
+      "generated_at": "2026-05-09T23:59:00.000Z",
+      "age_seconds": 172737,
+      "is_realtime": false,
+      "is_static_fixture": true,
+      "stale": true,
+      "missing": false,
+      "status": "STATIC_PROOF_FIXTURE"
+    },
+    {
+      "label": "orchestrator evidence reconciliation payload",
+      "path": "v2/frontend/public/orchestrator_decision_evidence_reconciliation/latest/operator_dashboard_payload.json",
+      "classification": "V2_PROOF_ARTIFACT",
+      "generated_at": "2026-05-11T22:38:44.000Z",
+      "age_seconds": 4753,
+      "is_realtime": false,
+      "is_static_fixture": false,
+      "stale": false,
+      "missing": false,
+      "status": "CURRENT_SNAPSHOT"
+    },
+    {
+      "label": "readonly market exchange data plane",
+      "path": "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
+      "classification": "V2_PROOF_ARTIFACT",
+      "generated_at": "2026-05-10T00:00:00.000Z",
+      "age_seconds": 172677,
+      "is_realtime": false,
+      "is_static_fixture": false,
+      "stale": true,
+      "missing": false,
+      "status": "STALE_PAYLOAD"
+    },
+    {
+      "label": "paper runtime status",
+      "path": "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json",
+      "classification": "V2_PROOF_ARTIFACT",
+      "generated_at": "2026-05-09T20:28:03.010Z",
+      "age_seconds": 185394,
+      "is_realtime": false,
+      "is_static_fixture": false,
+      "stale": true,
+      "missing": false,
+      "status": "STALE_PAYLOAD"
+    }
+  ],
+  "classifications": {
+    "REALTIME_RUNTIME_EVIDENCE": "Current process/status snapshot generated by this read-only collection.",
+    "READONLY_MARKET_FEED": "Read-only market data feed; no order capability.",
+    "READONLY_ACCOUNT_FEED": "Read-only account state; no order capability.",
+    "RUNTIME_MONITOR_PAYLOAD": "Monitor payload generated by local tooling; must pass freshness checks.",
+    "V2_PROOF_ARTIFACT": "Generated proof artifact; useful evidence but not necessarily live runtime.",
+    "STATIC_PROOF_FIXTURE": "Static fixture/proof data; not live truth.",
+    "STALE_PAYLOAD": "Generated artifact is older than its freshness threshold.",
+    "MISSING_EVIDENCE": "Evidence missing — cannot explain without guessing.",
+    "DESIGN_MOCK_DATA_TO_REMOVE": "Design prototype values must not ship as runtime truth."
+  }
+}

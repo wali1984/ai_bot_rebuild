@@ -1,0 +1,41 @@
+{
+  "generated_at": "2026-05-11T23:57:56.729Z",
+  "status": "TRAINER_RUNTIME_EVIDENCE_MISSING",
+  "trainer_processes": [],
+  "prediction_worker_alive_from_stale_payload": true,
+  "latest_trainer_status_from_payload": "DEGRADED",
+  "payload_age_seconds": 58319,
+  "prediction_lineage_gap": "runtime evidence still has missing prediction/feature snapshot links",
+  "latest_prediction": {
+    "classification": "STATIC_PROOF_FIXTURE",
+    "prediction_id": "hist_pred_day03_btc_winner_preserved",
+    "symbol": "BTCUSDT",
+    "timeframe": "5m",
+    "model_checkpoint": "hybrid_trainer_v2026_05 / ckpt_btc_fixture",
+    "confidence_raw": "0.84",
+    "confidence_calibrated": "0.81",
+    "feature_snapshot_id": "hist_fs_day03_btc_winner_preserved",
+    "top_positive": [
+      "fresh_features",
+      "positive_regime",
+      "volume_confirmation"
+    ],
+    "top_negative": [
+      "funding_watch"
+    ],
+    "source": "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
+    "warning": "This is proof fixture data, not real-time trainer output."
+  },
+  "missing_evidence": [
+    {
+      "id": "TRAINER_PROCESS_NOT_OBSERVED",
+      "severity": "blocking_for_live",
+      "detail": "No rl.hybrid_trainer or monitor_trainer_predictions process was observed in the read-only process snapshot."
+    },
+    {
+      "id": "TRAINER_RUNTIME_EVIDENCE_MISSING",
+      "severity": "blocking_for_live",
+      "detail": "Trainer monitor evidence is missing or stale. Do not infer live trainer behavior from static fixtures."
+    }
+  ]
+}

@@ -41,6 +41,7 @@ const artifactSets = [
   'root_route_redirect_to_v2_mission_control',
   'root_route_mission_control',
   'claude_design_full_visual_implementation',
+  'operator_truth_recovery',
   'online_readiness_control_plane',
   'post_mvp_non_live_gap_audit',
 ];

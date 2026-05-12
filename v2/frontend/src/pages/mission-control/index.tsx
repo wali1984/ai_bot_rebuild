@@ -6,11 +6,14 @@ import { AutonomousGovernorPanel, ChartPanel, CockpitLoading, ConfigTable, Decis
 import type { AutonomousGovernorPayload, CockpitPayload } from '../cockpitData';
 import { statusClass, useCockpitPayload, valueText } from '../cockpitData';
 import { MissionControlReadinessBanner } from '../../components/banners/MissionControlReadinessBanner';
+import { useOperatorTruthPayload } from '../operatorTruthData';
+import { LegacyRuntimeMonitorPanel, MissingEvidencePanel, OperatorTruthLoading, PayloadFreshnessPanel, SignalLineageTruthPanel, TrainerPredictionTruthPanel, TruthStatusStrip, WhatIsWorkingPanel } from '../operatorTruthComponents';
 
 const EVIDENCE_MISSING = 'Evidence missing - cannot explain without guessing.';
 
 export default function MissionControlPage(): JSX.Element {
   const { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, redisExportCapacity, redisFullExport, redisSafeTrimPacket, autonomousGovernor, error } = useCockpitPayload();
+  const { payload: truthPayload, error: truthError } = useOperatorTruthPayload();
 
   if (!payload) {
     return (
@@ -25,7 +28,16 @@ export default function MissionControlPage(): JSX.Element {
   return (
     <article className="enterprise-cockpit-page mission-control-design-page grid-bg" data-testid="page-mission-control" data-page-id={meta.id} data-page-path={route.path} data-page-min-role={rbac.minRole}>
       <MissionControlReadinessBanner />
+      {truthPayload ? <TruthStatusStrip payload={truthPayload} /> : <OperatorTruthLoading error={truthError} />}
       <MissionCommandHero payload={payload} marketFeedSource={marketFeedSource} />
+      {truthPayload ? (
+        <section className="mission-system-grid" aria-label="Current operator truth and runtime evidence">
+          <LegacyRuntimeMonitorPanel payload={truthPayload} />
+          <TrainerPredictionTruthPanel payload={truthPayload} />
+          <SignalLineageTruthPanel payload={truthPayload} />
+        </section>
+      ) : null}
+      {truthPayload ? <WhatIsWorkingPanel payload={truthPayload} /> : null}
       <SafetyTopBar payload={payload} />
       <SubsystemStrip payload={payload} autonomousGovernor={autonomousGovernor} marketFeedSource={marketFeedSource} />
       <div className="mission-command-layout">
@@ -59,6 +71,8 @@ export default function MissionControlPage(): JSX.Element {
           <RedisSafeTrimPacketPanel payload={redisSafeTrimPacket} />
         </div>
       </section>
+      {truthPayload ? <PayloadFreshnessPanel payload={truthPayload} /> : null}
+      {truthPayload ? <MissingEvidencePanel payload={truthPayload} /> : null}
       <FreshnessAndBlockersPanel payload={payload} />
       <footer className="modern-dashboard-marker" data-testid="modern-dashboard-loaded">
         AI BOT V2 Modern Dashboard Loaded

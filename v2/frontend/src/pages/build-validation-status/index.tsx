@@ -4,12 +4,16 @@ import route from './route';
 import { CockpitLoading, Panel } from '../cockpitComponents';
 import { useCockpitPayload } from '../cockpitData';
 import { DesignPageShell, SourceRibbon } from '../designShell';
+import { useOperatorTruthPayload } from '../operatorTruthData';
+import { OperatorTruthLoading, PayloadFreshnessPanel } from '../operatorTruthComponents';
 
 export default function BuildValidationStatusPage(): JSX.Element {
   const { payload, error } = useCockpitPayload();
+  const { payload: truthPayload, error: truthError } = useOperatorTruthPayload();
   return (
     <DesignPageShell meta={meta} rbac={rbac} route={route} eyebrow="Build Validation Status" source="V2_PROOF_ARTIFACT / GO-NO-GO markers">
       <SourceRibbon labels={['proof freshness', 'GO_NO_GO markers', 'Codex review status', 'missing evidence gaps']} />
+      {truthPayload ? <PayloadFreshnessPanel payload={truthPayload} /> : <OperatorTruthLoading error={truthError} />}
       {payload ? (
         <Panel id="build-validation-proof-freshness" title="Proof Freshness And Blockers" right={<span className="chip solid-paper">Evidence page summary</span>}>
           <div className="cockpit-card-grid">
