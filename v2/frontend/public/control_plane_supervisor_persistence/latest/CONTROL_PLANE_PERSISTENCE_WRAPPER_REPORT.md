@@ -46,3 +46,7 @@ The wrapper manages only rebuild-control-plane daemons:
 - Codex watchdog alive: `True`
 - Master planner alive: `False`
 - Master planner policy: `not started by rebuild control-plane wrapper unless separately allowed`
+
+## Watchdog Compatibility Repair
+
+`codex_non_live_watchdog.py` was patched so its planner recovery helper no longer stops `agent_supervisor.py`. The persistent queue supervisor is now owned by the rebuild control-plane wrapper; watchdog recovery may still stop planner/autonomous-planner sessions, but it must preserve the supervisor daemon.

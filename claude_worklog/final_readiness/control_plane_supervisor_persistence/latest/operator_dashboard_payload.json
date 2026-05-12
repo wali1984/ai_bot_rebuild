@@ -1,11 +1,12 @@
 {
+  "agent_supervisor_current_args": "--daemon --dry-run --poll-seconds 30",
   "agent_supervisor_process_count_after_180s": 2,
   "agent_supervisor_session": true,
   "codex_result": "CONTROL_PLANE_SUPERVISOR_PERSISTENCE_CODEX_PASS",
   "codex_watchdog_running": true,
   "current_heartbeat_age_seconds": 5,
   "exchange_touched": false,
-  "generated_at": "2026-05-12T05:49:07.268576+00:00",
+  "generated_at": "2026-05-12T05:52:26.729389+00:00",
   "git_status_before_final_commit": [
     "M claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation_REPORT.md",
     " M claude_worklog/tools/start_rebuild_control_plane.sh",
@@ -30,5 +31,6 @@
   "queue_status_age_after_180s": 13,
   "redis_trim_status": "deferred_non_blocking",
   "scheduler_running": true,
-  "supervisor_persistent": true
+  "supervisor_persistent": true,
+  "watchdog_preserves_agent_supervisor": true
 }

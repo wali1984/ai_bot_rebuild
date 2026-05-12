@@ -28,3 +28,9 @@ A second robustness gap was found in `agent_supervisor.py`: while a child `claud
 - Keep scheduler and Codex watchdog sessions persistent.
 - Keep master planner status explicit but do not start Claude planner in this task unless separately allowed.
 - Keep legacy trainer/trader/orchestrator/Redis/VPN outside wrapper scope.
+
+## Watchdog Interference Found and Repaired
+
+During post-proof validation, the Codex watchdog recovery path was found calling `stop_agent_supervisor_daemon.sh` from `stop_planner()`. That made watchdog recovery capable of killing the newly persistent `agent_supervisor.py` session, which explains why the supervisor could disappear after an otherwise successful persistence proof.
+
+Repair applied: `claude_worklog/tools/codex_non_live_watchdog.py` now preserves the persistent agent supervisor and records `codex_watchdog_preserved_agent_supervisor_daemon` instead of stopping it. Planner/autonomous-planner stop behavior remains scoped to planner sessions.

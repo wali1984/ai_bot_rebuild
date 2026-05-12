@@ -22,3 +22,7 @@ Generated: `2026-05-12T05:49:07.268576+00:00`
 ## Residual Notes
 
 The master planner status file is still stale and the planner process is not running. This task did not restart the Claude master planner because the requested recovery was supervisor persistence only and live services were out of scope. The wrapper status reports that state explicitly instead of hiding it.
+
+## Additional Watchdog Challenge
+
+Codex also challenged whether another rebuild-control-plane daemon could kill the supervisor after the proof. That check found and fixed the watchdog `stop_planner()` call that previously stopped `agent_supervisor.py`. With that patch, watchdog recovery preserves the supervisor daemon.

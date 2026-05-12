@@ -276,7 +276,10 @@ def commit_all(message: str) -> bool:
 def stop_planner() -> None:
     run("./claude_worklog/tools/stop_claude_master_rebuild_planner.sh || true")
     run("./claude_worklog/tools/stop_autonomous_agent_supervisor.sh || true")
-    run("./claude_worklog/tools/stop_agent_supervisor_daemon.sh || true")
+    append_event({
+        "event": "codex_watchdog_preserved_agent_supervisor_daemon",
+        "reason": "agent_supervisor.py persistence is owned by rebuild control-plane wrapper",
+    })
 
 
 def start_planner() -> None:

@@ -35,3 +35,7 @@ No legacy bot code was modified. No old Redis write/delete/trim command was run.
 ## Next Milestone
 
 `LEGACY_TRAINER_GPU_PARITY_AND_V2_WRAPPER_VALIDATION_READY`
+
+## Watchdog Compatibility
+
+Post-proof validation found that Codex watchdog recovery could still stop `agent_supervisor.py`. This was repaired by scoping `codex_non_live_watchdog.py::stop_planner()` away from the persistent queue supervisor. Final status after the repair shows supervisor alive with heartbeat age `5` seconds.

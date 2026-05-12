@@ -35,3 +35,13 @@ After the active persistence proof, the agent supervisor tmux session was restar
 ## Safety
 
 No live trainer/trader/orchestrator/Redis/VPN restart was performed. No old Redis write was performed. No exchange action, leverage change, margin change, or live enablement was performed.
+
+## Final Watchdog-Compatible State
+
+After patching the watchdog not to stop the persistent supervisor, the agent supervisor was restarted in dry-run persistence mode and rechecked:
+
+- Agent supervisor alive: `True`
+- Agent supervisor heartbeat age seconds: `5`
+- Agent supervisor tmux session: `True`
+- Scheduler alive: `True`
+- Codex watchdog alive: `True`
