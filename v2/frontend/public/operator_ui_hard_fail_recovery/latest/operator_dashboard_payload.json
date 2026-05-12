@@ -1,0 +1,45 @@
+{
+  "status": "OPERATOR_UI_HARD_FAIL_DESIGN_TO_CODE_AND_RUNTIME_TRUTH_RECOVERY_READY",
+  "generated_at": "2026-05-11T20:20:48-04:00",
+  "route": "/admin/mission-control?role=admin",
+  "root_redirect": "/admin/mission-control?role=admin",
+  "browser_screenshot_evidence": {
+    "before": [
+      "screenshots/before_mission_control.png",
+      "screenshots/before_monitor_center.png",
+      "screenshots/before_trainer_prediction.png",
+      "screenshots/before_signal_explainability.png"
+    ],
+    "after": [
+      "screenshots/after_mission_control.png",
+      "screenshots/after_monitor_center.png",
+      "screenshots/after_trainer_prediction.png",
+      "screenshots/after_signal_explainability.png"
+    ],
+    "mission_control_command_deck_visible": true,
+    "runtime_truth_matrix_visible": true,
+    "secondary_route_truth_summary_visible": true
+  },
+  "truth_surface": {
+    "supervisor": "SUPERVISOR_STATUS_STALE_OR_CONFLICTING",
+    "trainer_runtime": "TRAINER_RUNTIME_EVIDENCE_MISSING",
+    "signal_lineage": "STATIC_PROOF_FIXTURE",
+    "stale_payloads_visible": true,
+    "missing_evidence_visible": true,
+    "static_fixtures_labeled": true,
+    "raw_payload_tables_not_primary": true
+  },
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "human_input_required": "no_unless_final_live_capital_gate",
+    "redis_trim": "deferred_non_blocking",
+    "legacy_mutation": "not_performed",
+    "redis_write": "not_performed",
+    "exchange_action": "not_performed"
+  },
+  "next_runtime_work": [
+    "repair supervisor stale/conflicting state",
+    "recover real trainer runtime evidence",
+    "continue orchestrator/risk/execution evidence reconciliation"
+  ]
+}
