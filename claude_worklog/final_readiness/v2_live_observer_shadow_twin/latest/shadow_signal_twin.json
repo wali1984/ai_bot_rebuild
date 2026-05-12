@@ -1,56 +1,56 @@
 {
   "classification": "REALTIME_RUNTIME_EVIDENCE",
-  "generated_at": "2026-05-12T20:14:37Z",
+  "generated_at": "2026-05-12T20:27:47Z",
   "legacy_source": {
-    "age_seconds": 17,
+    "age_seconds": 23,
     "can_reach_legacy_trader": "UNKNOWN_NEEDS_EVIDENCE",
     "executed_signal_observed": true,
-    "last_event_at": "2026-05-12T20:14:20Z",
-    "latest_executed_signal_age_seconds": 3365,
+    "last_event_at": "2026-05-12T20:27:24Z",
+    "latest_executed_signal_age_seconds": 537,
     "stream": "signals:trading:primary",
-    "stream_id": "1778616860527-0"
+    "stream_id": "1778617644858-0"
   },
   "normalized_signal": {
     "action": "SET_TAKE_PROFIT",
     "confidence": 1.0,
     "feature_snapshot_id": null,
     "prediction_id": null,
-    "signal_id": "a1f1de89-7cc4-4745-afc5-36a858e78f24",
+    "signal_id": "228f0586-9c8b-4637-b64d-f12d3d3adab7",
     "source_freshness": "CURRENT",
     "source_type": "LEGACY_REDIS_READONLY_STREAM",
-    "symbol": "SOLUSDT"
+    "symbol": "LINKUSDT"
   },
   "orchestrator_adapter_decision": {
     "adapter": "legacy_live_observer_adapter_v1",
     "cannot_bypass_risk_gateway": true,
     "decision_action": "SET_TAKE_PROFIT",
-    "orchestrator_decision_id": "1778616860524-SOLUSDT-multi-primary",
+    "orchestrator_decision_id": "1778617644854-LINKUSDT-multi-primary",
     "risk_gateway_required": true,
     "role": "propose_enrich_deconflict_only",
-    "signal_id": "a1f1de89-7cc4-4745-afc5-36a858e78f24"
+    "signal_id": "228f0586-9c8b-4637-b64d-f12d3d3adab7"
   },
   "paper_execution_intent": {
     "exchange_order_allowed": false,
-    "execution_intent_id": "shadow_intent_1778616877635",
+    "execution_intent_id": "shadow_intent_1778617667119",
     "intent_action": "paper_shadow_noop_blocked",
     "paper_only": true,
-    "risk_decision_id": "risk_shadow_1778616877635",
-    "signal_id": "a1f1de89-7cc4-4745-afc5-36a858e78f24"
+    "risk_decision_id": "risk_shadow_1778617667119",
+    "signal_id": "228f0586-9c8b-4637-b64d-f12d3d3adab7"
   },
   "paper_ledger_entry": {
     "exchange_order_id": null,
-    "execution_intent_id": "shadow_intent_1778616877635",
+    "execution_intent_id": "shadow_intent_1778617667119",
     "fee_rate": 0.0004,
     "funding_assumption": "zero_until_funding_feed_adapter_current",
     "legacy_redis_write": false,
     "live_order": false,
-    "paper_ledger_entry_id": "shadow_ledger_1778616877635",
-    "paper_price_reference": 80725.2,
+    "paper_ledger_entry_id": "shadow_ledger_1778617667119",
+    "paper_price_reference": 80753.3,
     "paper_result": "NO_FILL_RISK_BLOCKED",
-    "risk_decision_id": "risk_shadow_1778616877635",
-    "signal_id": "a1f1de89-7cc4-4745-afc5-36a858e78f24",
+    "risk_decision_id": "risk_shadow_1778617667119",
+    "signal_id": "228f0586-9c8b-4637-b64d-f12d3d3adab7",
     "slippage_bps": 2.0,
-    "symbol": "SOLUSDT"
+    "symbol": "LINKUSDT"
   },
   "risk_decision": {
     "exchange_order_allowed": false,
@@ -61,7 +61,7 @@
       "prediction_id",
       "feature_snapshot_id"
     ],
-    "orchestrator_decision_id": "1778616860524-SOLUSDT-multi-primary",
+    "orchestrator_decision_id": "1778617644854-LINKUSDT-multi-primary",
     "prediction_id": null,
     "required_blocks_checked": [
       "missing_signal_id",
@@ -79,9 +79,9 @@
       "untraceable_execution"
     ],
     "risk_action": "block",
-    "risk_decision_id": "risk_shadow_1778616877635",
+    "risk_decision_id": "risk_shadow_1778617667119",
     "risk_reason_code": "deny_missing_required_lineage_fields",
     "risk_result": "BLOCKED",
-    "signal_id": "a1f1de89-7cc4-4745-afc5-36a858e78f24"
+    "signal_id": "228f0586-9c8b-4637-b64d-f12d3d3adab7"
   }
 }

@@ -1,14 +1,14 @@
 # Supervisor State Reconciliation
 
-Generated at: 2026-05-12T20:14:37.744Z
+Generated at: 2026-05-12T20:27:47.226Z
 
-- Queue status age seconds: 728
-- Planner status age seconds: 85164
+- Queue status age seconds: 38
+- Planner status age seconds: 85953
 - Supervisor daemon observed: no
 - Master planner observed: no
 - Autonomous governor observed: no
 - Current running task: none
-- Last completed task: codex_parallel_review_20260512_200006_08_historical_pnl_integration
+- Last completed task: codex_parallel_review_20260512_202241_10_no_live_side_effects
 - Next pending task: codex_recover_codex_recover_codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation
 - Dashboard state: CURRENT_SNAPSHOT
 

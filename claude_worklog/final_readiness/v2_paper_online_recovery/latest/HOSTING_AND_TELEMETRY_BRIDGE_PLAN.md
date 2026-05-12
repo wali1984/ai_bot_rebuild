@@ -1,6 +1,6 @@
 # Hosting And Telemetry Bridge Plan
 
-Generated at: 2026-05-12T20:14:37Z
+Generated at: 2026-05-12T20:27:46Z
 
 Current local hosting path: Vite serves V2 frontend at `http://127.0.0.1:5173`.
 

@@ -1,17 +1,17 @@
 {
   "events": [
     {
-      "audit_event_id": "audit_live_bridge_1778616877635",
+      "audit_event_id": "audit_live_bridge_1778617667119",
       "event_type": "LEGACY_LIVE_BRIDGE_IMPORT",
       "exchange_order": false,
-      "generated_at": "2026-05-12T20:14:37Z",
+      "generated_at": "2026-05-12T20:27:47Z",
       "legacy_redis_write": false,
       "source": "legacy Redis read-only streams + process list"
     },
     {
-      "audit_event_id": "audit_shadow_risk_risk_shadow_1778616877635",
+      "audit_event_id": "audit_shadow_risk_risk_shadow_1778617667119",
       "event_type": "V2_SHADOW_RISK_DECISION",
-      "generated_at": "2026-05-12T20:14:37Z",
+      "generated_at": "2026-05-12T20:27:47Z",
       "risk_decision": {
         "exchange_order_allowed": false,
         "feature_snapshot_id": null,
@@ -21,7 +21,7 @@
           "prediction_id",
           "feature_snapshot_id"
         ],
-        "orchestrator_decision_id": "1778616860524-SOLUSDT-multi-primary",
+        "orchestrator_decision_id": "1778617644854-LINKUSDT-multi-primary",
         "prediction_id": null,
         "required_blocks_checked": [
           "missing_signal_id",
@@ -39,30 +39,30 @@
           "untraceable_execution"
         ],
         "risk_action": "block",
-        "risk_decision_id": "risk_shadow_1778616877635",
+        "risk_decision_id": "risk_shadow_1778617667119",
         "risk_reason_code": "deny_missing_required_lineage_fields",
         "risk_result": "BLOCKED",
-        "signal_id": "a1f1de89-7cc4-4745-afc5-36a858e78f24"
+        "signal_id": "228f0586-9c8b-4637-b64d-f12d3d3adab7"
       }
     },
     {
-      "audit_event_id": "audit_shadow_paper_shadow_ledger_1778616877635",
+      "audit_event_id": "audit_shadow_paper_shadow_ledger_1778617667119",
       "event_type": "V2_SHADOW_PAPER_LEDGER",
-      "generated_at": "2026-05-12T20:14:37Z",
+      "generated_at": "2026-05-12T20:27:47Z",
       "paper_ledger_entry": {
         "exchange_order_id": null,
-        "execution_intent_id": "shadow_intent_1778616877635",
+        "execution_intent_id": "shadow_intent_1778617667119",
         "fee_rate": 0.0004,
         "funding_assumption": "zero_until_funding_feed_adapter_current",
         "legacy_redis_write": false,
         "live_order": false,
-        "paper_ledger_entry_id": "shadow_ledger_1778616877635",
-        "paper_price_reference": 80725.2,
+        "paper_ledger_entry_id": "shadow_ledger_1778617667119",
+        "paper_price_reference": 80753.3,
         "paper_result": "NO_FILL_RISK_BLOCKED",
-        "risk_decision_id": "risk_shadow_1778616877635",
-        "signal_id": "a1f1de89-7cc4-4745-afc5-36a858e78f24",
+        "risk_decision_id": "risk_shadow_1778617667119",
+        "signal_id": "228f0586-9c8b-4637-b64d-f12d3d3adab7",
         "slippage_bps": 2.0,
-        "symbol": "SOLUSDT"
+        "symbol": "LINKUSDT"
       }
     }
   ],

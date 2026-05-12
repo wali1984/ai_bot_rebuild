@@ -1,6 +1,6 @@
 # Route Acceptance Matrix
 
-Generated at: 2026-05-12T20:14:37.744Z
+Generated at: 2026-05-12T20:27:47.226Z
 
 | Route | Production ready | Needs runtime payload | Stale payload | Static fixture only | Placeholder only | Visual old layout | Broken chart | Broken route | Safety OK | Operator useful | Screenshot |
 |---|---|---|---|---|---|---|---|---|---|---|---|
