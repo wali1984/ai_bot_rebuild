@@ -48,6 +48,7 @@ const artifactSets = [
   'realtime_control_plane_trainer_monitor_recovery',
   'realtime_control_plane_recovery',
   'online_readiness_control_plane',
+  'v2_paper_online_recovery',
   'post_mvp_non_live_gap_audit',
 ];
 

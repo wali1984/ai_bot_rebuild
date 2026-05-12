@@ -1,0 +1,33 @@
+{
+  "decisions": [
+    {
+      "feature_snapshot_id": "fs_paper_tick_1778556782455",
+      "generated_at": "2026-05-12T03:33:02Z",
+      "live_blocked": true,
+      "missing_fields": [],
+      "orchestrator_decision_id": "orch_paper_tick_1778556782455",
+      "prediction_id": "pred_paper_tick_1778556782455",
+      "required_blocks_checked": [
+        "missing_signal_id",
+        "missing_prediction_id",
+        "missing_feature_snapshot_id",
+        "missing_confidence",
+        "stale_signal",
+        "duplicate_signal_execution",
+        "cross_margin_live_mode",
+        "leverage_above_cap",
+        "adjust_leverage_disabled",
+        "missing_stop_policy",
+        "disabled_kill_switch",
+        "daily_loss_breach",
+        "untraceable_execution"
+      ],
+      "risk_action": "deny",
+      "risk_decision_id": "risk_paper_tick_1778556782455",
+      "risk_reason_code": "deny_low_confidence",
+      "risk_result": "BLOCKED",
+      "signal_id": "sig_paper_tick_1778556782455"
+    }
+  ],
+  "generated_at": "2026-05-12T03:33:02Z"
+}

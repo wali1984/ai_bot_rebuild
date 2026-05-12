@@ -11,10 +11,35 @@ export default function RiskControlPage(): JSX.Element {
   const { payload, error } = useCockpitPayload();
   const { payload: truthPayload, error: truthError } = useOperatorTruthPayload();
   const decision = payload?.decisions[0];
+  const currentRisk = truthPayload?.signal_lineage_status.latest_signal;
   return (
     <DesignPageShell meta={meta} rbac={rbac} route={route} eyebrow="Risk Control" source="V2_PROOF_ARTIFACT / fail-closed policy" status="DANGEROUS CONTROLS DISABLED">
       <SourceRibbon labels={['kill switch default-deny', 'Risk Gateway final authority', 'no ADJUST_LEVERAGE bypass', 'live approval required']} />
       {truthPayload ? <RouteTruthSummary payload={truthPayload} title="Risk Control" /> : <OperatorTruthLoading error={truthError} />}
+      {truthPayload ? (
+        <Panel id="risk-control-current-v2-paper-risk" title="Current V2 Paper Risk Decision" right={<span className="chip solid-ok">REALTIME_RUNTIME_EVIDENCE</span>}>
+          <div className="cockpit-lineage-grid">
+            {([
+              ['signal_id', currentRisk?.signal_id ?? 'MISSING'],
+              ['prediction_id', currentRisk?.prediction_id ?? 'MISSING'],
+              ['feature_snapshot_id', currentRisk?.feature_snapshot_id ?? 'MISSING'],
+              ['orchestrator_decision_id', currentRisk?.orchestrator_decision_id ?? 'MISSING'],
+              ['risk_decision_id', currentRisk?.risk_decision_id ?? 'MISSING'],
+              ['execution_intent_id', currentRisk?.execution_intent_id ?? 'MISSING'],
+              ['risk reason', currentRisk?.risk_reason ?? 'MISSING'],
+              ['paper result', currentRisk?.result ?? 'MISSING'],
+            ] satisfies Array<[string, unknown]>).map(([label, value]) => (
+              <div key={label}>
+                <span>{label}</span>
+                <strong>{valueText(value)}</strong>
+              </div>
+            ))}
+          </div>
+          <p className="cockpit-evidence-note">
+            Risk Gateway remains final authority. Orchestrator can propose and deconflict, but paper execution consumes only this risk decision.
+          </p>
+        </Panel>
+      ) : null}
       {payload ? (
         <Panel id="risk-control-fail-closed-gates" title="Fail-Closed Risk Gates" right={<span className="chip solid-block">LIVE BLOCKED</span>}>
           <div className="cockpit-lineage-grid">

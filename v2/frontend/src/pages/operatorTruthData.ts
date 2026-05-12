@@ -126,6 +126,10 @@ export interface PaperOnlineRuntimePayload {
     open_position_count: number;
     position_source: string;
   };
+  trainer_prediction?: Record<string, unknown>;
+  current_signal_lineage?: Record<string, unknown>;
+  current_risk_decision?: Record<string, unknown>;
+  paper_ledger_tail?: Array<Record<string, unknown>>;
   last_paper_event: Record<string, unknown>;
   safety: Record<string, unknown>;
   blockers: Array<{ id: string; severity: string; detail: string }>;

@@ -1,9 +1,35 @@
 {
-  "generated_at": "2026-05-12T03:20:00.556Z",
-  "classification": "TRAINER_RUNTIME_EVIDENCE_MISSING",
-  "current_prediction_available": false,
-  "latest_real_prediction": null,
-  "fixture_prediction_hidden_from_current_view": true,
+  "generated_at": "2026-05-12T03:33:51.749Z",
+  "classification": "V2_PAPER_TRAINER_WRAPPER_CURRENT",
+  "current_prediction_available": true,
+  "latest_real_prediction": {
+    "classification": "REALTIME_RUNTIME_EVIDENCE",
+    "prediction_id": "pred_paper_tick_1778556803788",
+    "symbol": "BTCUSDT",
+    "timeframe": "1m",
+    "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
+    "confidence_raw": 0.631657,
+    "confidence_calibrated": 0.611657,
+    "feature_snapshot_id": "fs_paper_tick_1778556803788",
+    "top_positive": [
+      {
+        "name": "return_5m",
+        "value": -0.00010105
+      },
+      {
+        "name": "return_15m",
+        "value": -0.0003782
+      },
+      {
+        "name": "volatility_10",
+        "value": 0.00017254
+      }
+    ],
+    "top_negative": [],
+    "source": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+    "warning": "V2 paper-only trainer wrapper evidence; non-live and paper-only."
+  },
+  "fixture_prediction_hidden_from_current_view": false,
   "required_sources": [
     "rl.hybrid_trainer process",
     "monitor_trainer_predictions.py process",
@@ -11,16 +37,5 @@
     "current V2 trainer monitor payload",
     "prediction_id + feature_snapshot_id + model/checkpoint evidence"
   ],
-  "missing_evidence": [
-    {
-      "id": "TRAINER_PROCESS_NOT_OBSERVED",
-      "severity": "blocking_for_live",
-      "detail": "No rl.hybrid_trainer or monitor_trainer_predictions process was observed in the read-only process snapshot."
-    },
-    {
-      "id": "TRAINER_RUNTIME_EVIDENCE_MISSING",
-      "severity": "blocking_for_live",
-      "detail": "Trainer monitor evidence is missing or stale. Do not infer live trainer behavior from static fixtures."
-    }
-  ]
+  "missing_evidence": []
 }

@@ -1,6 +1,6 @@
 # Browser Operator Acceptance Report
 
-Generated at: 2026-05-12T03:20:00.556Z
+Generated at: 2026-05-12T03:33:51.749Z
 
 Screenshots are stored under:
 
@@ -14,7 +14,7 @@ Acceptance:
 
 - Mission Control is not a proof dump.
 - First screen shows current truth.
-- Trainer runtime state is obvious: TRAINER_RUNTIME_EVIDENCE_MISSING.
+- Trainer runtime state is obvious: V2_PAPER_TRAINER_WRAPPER_CURRENT.
 - Supervisor stale/conflict state is obvious when present.
 - Fixture data is separated from current runtime data.
 - Stale payloads are obvious.

@@ -1,6 +1,6 @@
 # Browser Visual Acceptance Report
 
-Generated at: 2026-05-12T03:20:00.556Z
+Generated at: 2026-05-12T03:33:51.749Z
 
 Screenshots captured from the active Vite dev server at http://127.0.0.1:5173:
 
@@ -14,7 +14,7 @@ Acceptance observations:
 
 - Mission Control now starts with the truth deck, actual runtime process panel, runtime matrix, critical systems, chart, signal stream, risk boundary, governor, and monitor table.
 - Long proof/payload/static fixture details are collapsed below the operating surface.
-- Trainer runtime evidence remains explicit: TRAINER_RUNTIME_EVIDENCE_MISSING.
+- Trainer runtime evidence remains explicit: V2_PAPER_TRAINER_WRAPPER_CURRENT.
 - Stale/conflicting supervisor state remains visible instead of hidden.
 - Live blocked banner remains visible through the shared admin route shell.
 - No live, Redis write, exchange, leverage, margin, or legacy-code mutation was performed.

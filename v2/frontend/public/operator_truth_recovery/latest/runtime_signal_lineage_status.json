@@ -1,20 +1,20 @@
 {
-  "generated_at": "2026-05-12T03:20:00.556Z",
-  "status": "STATIC_PROOF_FIXTURE",
+  "generated_at": "2026-05-12T03:33:51.749Z",
+  "status": "REALTIME_RUNTIME_EVIDENCE",
   "latest_signal": {
-    "classification": "STATIC_PROOF_FIXTURE",
-    "signal_id": "sig_btc_001",
-    "prediction_id": "hist_pred_day03_btc_winner_preserved",
-    "feature_snapshot_id": "hist_fs_day03_btc_winner_preserved",
-    "orchestrator_decision_id": "hist_dec_day03_btc_winner_preserved",
-    "risk_decision_id": "hist_risk_day03_btc_winner_preserved",
-    "execution_intent_id": "hist_intent_day03_btc_winner_preserved",
-    "signal_reason": "fresh_features_and_positive_regime",
-    "orchestrator_reason": "paper_long_intent_only",
-    "risk_reason": "allow_paper_only",
-    "result": "paper_pnl +84.25; live blocked",
+    "classification": "REALTIME_RUNTIME_EVIDENCE",
+    "signal_id": "sig_paper_tick_1778556803788",
+    "prediction_id": "pred_paper_tick_1778556803788",
+    "feature_snapshot_id": "fs_paper_tick_1778556803788",
+    "orchestrator_decision_id": "orch_paper_tick_1778556803788",
+    "risk_decision_id": "risk_paper_tick_1778556803788",
+    "execution_intent_id": "pei_paper_tick_1778556803788",
+    "signal_reason": "open_short",
+    "orchestrator_reason": "paper_momentum_signal_routed",
+    "risk_reason": "allow_proceed_short",
+    "result": "APPROVED_FOR_PAPER_ONLY",
     "evidence_links": [
-      "/historical_30d_replay_and_paper_proof/latest/legacy_vs_v2_decision_comparison.json"
+      "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json"
     ]
   },
   "monitor_payloads": {

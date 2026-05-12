@@ -1,0 +1,9 @@
+{
+  "age_seconds": 0,
+  "feature_snapshot_id": "fs_paper_tick_1778556782455",
+  "generated_at": "2026-05-12T03:33:02Z",
+  "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
+  "prediction_id": "pred_paper_tick_1778556782455",
+  "source": "v2.backend.app.cli.paper_online_runtime",
+  "status": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
+}

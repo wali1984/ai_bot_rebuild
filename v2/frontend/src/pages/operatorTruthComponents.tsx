@@ -389,7 +389,7 @@ export function LegacyRuntimeMonitorPanel({ payload }: { payload: OperatorTruthP
 export function TrainerPredictionTruthPanel({ payload }: { payload: OperatorTruthPayload; }): JSX.Element {
   const trainer = payload.trainer_monitor_status;
   const latest = trainer.latest_prediction;
-  const hasCurrentTrainer = trainer.status === 'REALTIME_RUNTIME_EVIDENCE';
+  const hasCurrentTrainer = trainer.status === 'REALTIME_RUNTIME_EVIDENCE' || trainer.status === 'V2_PAPER_TRAINER_WRAPPER_CURRENT';
   return (
     <Panel id="operator-truth-trainer-prediction" title="Trainer Prediction Monitor Preview" right={sourceChip(trainer.status)}>
       <div className="cockpit-lineage-grid">

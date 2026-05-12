@@ -1,0 +1,118 @@
+{
+  "classification": "REALTIME_RUNTIME_EVIDENCE",
+  "execution_intent": {
+    "exchange_order_allowed": false,
+    "execution_intent_id": "pei_paper_tick_1778556782455",
+    "generated_at": "2026-05-12T03:33:02Z",
+    "intent_action": "paper_noop_blocked",
+    "paper_only": true,
+    "risk_decision_id": "risk_paper_tick_1778556782455",
+    "side": "long",
+    "signal_id": "sig_paper_tick_1778556782455",
+    "symbol": "BTCUSDT"
+  },
+  "feature_snapshot": {
+    "feature_snapshot_id": "fs_paper_tick_1778556782455",
+    "features": {
+      "return_15m": -0.00042124,
+      "return_1m": 0.00023171,
+      "return_5m": 0.00032295,
+      "volatility_10": 0.00020879,
+      "volume_avg_10": 35.3753,
+      "volume_last": 44.276
+    },
+    "freshness_state": "CURRENT",
+    "generated_at": "2026-05-12T03:32:59Z",
+    "market_age_seconds": 12,
+    "source_type": "READONLY_MARKET_FEED",
+    "symbol": "BTCUSDT"
+  },
+  "generated_at": "2026-05-12T03:33:02Z",
+  "lineage_ids": {
+    "execution_intent_id": "pei_paper_tick_1778556782455",
+    "feature_snapshot_id": "fs_paper_tick_1778556782455",
+    "orchestrator_decision_id": "orch_paper_tick_1778556782455",
+    "prediction_id": "pred_paper_tick_1778556782455",
+    "risk_decision_id": "risk_paper_tick_1778556782455",
+    "signal_id": "sig_paper_tick_1778556782455"
+  },
+  "orchestrator_decision": {
+    "cannot_bypass_risk_gateway": true,
+    "decision_action": "open_long",
+    "decision_reason": "paper_momentum_signal_routed",
+    "generated_at": "2026-05-12T03:33:02Z",
+    "orchestrator_decision_id": "orch_paper_tick_1778556782455",
+    "risk_gateway_required": true,
+    "signal_id": "sig_paper_tick_1778556782455"
+  },
+  "risk_decision": {
+    "feature_snapshot_id": "fs_paper_tick_1778556782455",
+    "generated_at": "2026-05-12T03:33:02Z",
+    "live_blocked": true,
+    "missing_fields": [],
+    "orchestrator_decision_id": "orch_paper_tick_1778556782455",
+    "prediction_id": "pred_paper_tick_1778556782455",
+    "required_blocks_checked": [
+      "missing_signal_id",
+      "missing_prediction_id",
+      "missing_feature_snapshot_id",
+      "missing_confidence",
+      "stale_signal",
+      "duplicate_signal_execution",
+      "cross_margin_live_mode",
+      "leverage_above_cap",
+      "adjust_leverage_disabled",
+      "missing_stop_policy",
+      "disabled_kill_switch",
+      "daily_loss_breach",
+      "untraceable_execution"
+    ],
+    "risk_action": "deny",
+    "risk_decision_id": "risk_paper_tick_1778556782455",
+    "risk_reason_code": "deny_low_confidence",
+    "risk_result": "BLOCKED",
+    "signal_id": "sig_paper_tick_1778556782455"
+  },
+  "signal": {
+    "confidence": 0.573418,
+    "feature_snapshot_id": "fs_paper_tick_1778556782455",
+    "generated_at": "2026-05-12T03:33:02Z",
+    "prediction_id": "pred_paper_tick_1778556782455",
+    "proposed_action": "open_long",
+    "signal_id": "sig_paper_tick_1778556782455",
+    "source_freshness": "CURRENT",
+    "symbol": "BTCUSDT"
+  },
+  "trainer_prediction": {
+    "confidence_calibrated": 0.573418,
+    "confidence_raw": 0.593418,
+    "feature_snapshot_id": "fs_paper_tick_1778556782455",
+    "freshness_state": "CURRENT",
+    "generated_at": "2026-05-12T03:32:59Z",
+    "market_age_seconds": 12,
+    "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
+    "prediction_id": "pred_paper_tick_1778556782455",
+    "raw_output": {
+      "momentum_score": 0.0334182,
+      "side": "long"
+    },
+    "source_type": "V2_PAPER_TRAINER_WRAPPER",
+    "symbol": "BTCUSDT",
+    "timeframe": "1m",
+    "top_features": [
+      {
+        "name": "return_5m",
+        "value": 0.00032295
+      },
+      {
+        "name": "return_15m",
+        "value": -0.00042124
+      },
+      {
+        "name": "volatility_10",
+        "value": 0.00020879
+      }
+    ],
+    "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
+  }
+}

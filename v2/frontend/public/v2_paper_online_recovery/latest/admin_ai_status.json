@@ -1,0 +1,17 @@
+{
+  "can_answer": [
+    "latest paper prediction",
+    "current signal lineage",
+    "risk decision",
+    "paper PnL",
+    "live blockers"
+  ],
+  "forbidden_actions": [
+    "enable_live_trading",
+    "change_leverage",
+    "change_margin",
+    "place_or_cancel_orders"
+  ],
+  "generated_at": "2026-05-12T03:33:02Z",
+  "status": "NON_LIVE_QUERY_SURFACE_READY_FROM_OPERATOR_PAYLOADS"
+}

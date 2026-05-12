@@ -1,6 +1,6 @@
 # Trainer Monitor UI Repair Report
 
-Generated at: 2026-05-12T03:20:00.556Z
+Generated at: 2026-05-12T03:33:51.749Z
 
 Trainer Prediction Monitor layout contract:
 
@@ -10,6 +10,6 @@ Trainer Prediction Monitor layout contract:
 4. Missing evidence panel when unavailable.
 5. Historical/static proof examples collapsed under Static proof examples.
 
-Current state: TRAINER_RUNTIME_EVIDENCE_MISSING
+Current state: V2_PAPER_TRAINER_WRAPPER_CURRENT
 
 Fixture predictions must not be displayed as current trainer output.

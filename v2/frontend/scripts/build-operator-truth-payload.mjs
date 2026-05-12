@@ -185,7 +185,7 @@ function latestJsonLine(textResult) {
 const gitStatus = run("git status --short -- . ':(exclude)claude_worklog/final_readiness/operator_truth_recovery/latest' ':(exclude)claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest' ':(exclude)claude_worklog/final_readiness/realtime_control_plane_recovery/latest' ':(exclude)claude_worklog/final_readiness/production_dashboard_wajidali_us_repair/latest' ':(exclude)v2/frontend/public/operator_truth/latest' ':(exclude)v2/frontend/public/operator_truth_recovery/latest' ':(exclude)v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest' ':(exclude)v2/frontend/public/realtime_control_plane_recovery/latest' ':(exclude)v2/frontend/public/production_dashboard_wajidali_us_repair/latest'");
 const gitHead = run('git log --oneline -1');
 const psOutput = run('ps -eo pid,ppid,etimes,cmd');
-const runtimeProcessPattern = /claude_master_rebuild_planner|autonomous_governor|parallel_scheduler|codex_watchdog|agent_supervisor\.py|claude --print|codex exec|ollama run|rl\.hybrid_trainer|monitor_trainer_predictions|orchestrator|trading\/trader|ingest\/live_|live_binance|live_coinank|feature_pipeline/i;
+const runtimeProcessPattern = /claude_master_rebuild_planner|autonomous_governor|parallel_scheduler|codex_watchdog|agent_supervisor\.py|claude --print|codex exec|ollama run|paper_online_runtime|rl\.hybrid_trainer|monitor_trainer_predictions|orchestrator|trading\/trader|ingest\/live_|live_binance|live_coinank|feature_pipeline/i;
 const activeProcesses = psOutput
   .split('\n')
   .filter((line) => runtimeProcessPattern.test(line))
@@ -233,27 +233,33 @@ const latestEvent = latestJsonLine(eventsText);
 const readonlyMarketFeedStatus = sourceStatuses.find((row) => row.label === 'readonly market exchange data plane') ?? null;
 const paperRuntimeStatus = sourceStatuses.find((row) => row.label === 'paper runtime status') ?? null;
 const paperOnlineRuntimeStatus = sourceStatuses.find((row) => row.label === 'v2 paper online runtime') ?? null;
+const hasCurrentPaperRuntime =
+  paperOnlineRuntime.ok &&
+  paperOnlineRuntimeStatus?.status === 'CURRENT' &&
+  paperOnlineRuntime.data?.runtime_state === 'PAPER_RUNTIME_ONLINE_ACTIVE';
+const paperTrainerPrediction = hasCurrentPaperRuntime ? paperOnlineRuntime.data?.trainer_prediction ?? null : null;
+const paperSignalLineage = hasCurrentPaperRuntime ? paperOnlineRuntime.data?.current_signal_lineage ?? null : null;
 
 const stalePayloads = sourceStatuses.filter((row) => row.stale || row.status === 'STALE' || row.status === 'STALE_PAYLOAD');
 const warnPayloads = sourceStatuses.filter((row) => row.status === 'WARN');
 const staticFixturePanels = sourceStatuses.filter((row) => row.is_static_fixture);
 const missingEvidence = [];
 
-if (trainerProcesses.length === 0) {
+if (trainerProcesses.length === 0 && !paperTrainerPrediction) {
   missingEvidence.push({
     id: 'TRAINER_PROCESS_NOT_OBSERVED',
     severity: 'blocking_for_live',
     detail: 'No rl.hybrid_trainer or monitor_trainer_predictions process was observed in the read-only process snapshot.',
   });
 }
-if (!realtimeTrainer.ok || (sourceStatuses.find((row) => row.label === 'trainer prediction monitor status')?.stale ?? true)) {
+if (!paperTrainerPrediction && (!realtimeTrainer.ok || (sourceStatuses.find((row) => row.label === 'trainer prediction monitor status')?.stale ?? true))) {
   missingEvidence.push({
     id: 'TRAINER_RUNTIME_EVIDENCE_MISSING',
     severity: 'blocking_for_live',
     detail: 'Trainer monitor evidence is missing or stale. Do not infer live trainer behavior from static fixtures.',
   });
 }
-if (!latestDecision) {
+if (!paperSignalLineage && !latestDecision) {
   missingEvidence.push({
     id: 'SIGNAL_LINEAGE_SAMPLE_MISSING',
     severity: 'blocks_explainability',
@@ -314,15 +320,30 @@ const supervisorStatus = {
 
 const trainerStatus = {
   generated_at: nowIso,
-  status: trainerProcesses.length > 0 && !missingEvidence.some((row) => row.id === 'TRAINER_RUNTIME_EVIDENCE_MISSING')
-    ? 'REALTIME_RUNTIME_EVIDENCE'
-    : 'TRAINER_RUNTIME_EVIDENCE_MISSING',
+  status: paperTrainerPrediction
+    ? 'V2_PAPER_TRAINER_WRAPPER_CURRENT'
+    : trainerProcesses.length > 0 && !missingEvidence.some((row) => row.id === 'TRAINER_RUNTIME_EVIDENCE_MISSING')
+      ? 'REALTIME_RUNTIME_EVIDENCE'
+      : 'TRAINER_RUNTIME_EVIDENCE_MISSING',
   trainer_processes: trainerProcesses,
   prediction_worker_alive_from_stale_payload: realtimeTrainer.ok ? realtimeTrainer.data?.prediction_worker_alive ?? null : null,
   latest_trainer_status_from_payload: realtimeTrainer.ok ? realtimeTrainer.data?.latest_trainer_status ?? null : null,
   payload_age_seconds: sourceStatuses.find((row) => row.label === 'trainer prediction monitor status')?.age_seconds ?? null,
   prediction_lineage_gap: realtimeTrainer.ok ? realtimeTrainer.data?.prediction_lineage_gap ?? null : null,
-  latest_prediction: latestDecision ? {
+  latest_prediction: paperTrainerPrediction ? {
+    classification: 'REALTIME_RUNTIME_EVIDENCE',
+    prediction_id: paperTrainerPrediction.prediction_id ?? null,
+    symbol: paperTrainerPrediction.symbol ?? null,
+    timeframe: paperTrainerPrediction.timeframe ?? null,
+    model_checkpoint: paperTrainerPrediction.model_checkpoint ?? null,
+    confidence_raw: paperTrainerPrediction.confidence_raw ?? null,
+    confidence_calibrated: paperTrainerPrediction.confidence_calibrated ?? null,
+    feature_snapshot_id: paperTrainerPrediction.feature_snapshot_id ?? null,
+    top_positive: paperTrainerPrediction.top_features ?? [],
+    top_negative: [],
+    source: paperOnlineRuntimeRelPath,
+    warning: 'V2 paper-only trainer wrapper evidence; non-live and paper-only.',
+  } : latestDecision ? {
     classification: 'STATIC_PROOF_FIXTURE',
     prediction_id: latestDecision.prediction_id ?? null,
     symbol: latestDecision.symbol ?? null,
@@ -342,9 +363,9 @@ const trainerStatus = {
 const trainerCurrentEvidence = {
   generated_at: nowIso,
   classification: trainerStatus.status,
-  current_prediction_available: trainerStatus.status === 'REALTIME_RUNTIME_EVIDENCE',
-  latest_real_prediction: trainerStatus.status === 'REALTIME_RUNTIME_EVIDENCE' ? trainerStatus.latest_prediction : null,
-  fixture_prediction_hidden_from_current_view: trainerStatus.status !== 'REALTIME_RUNTIME_EVIDENCE',
+  current_prediction_available: trainerStatus.status === 'REALTIME_RUNTIME_EVIDENCE' || trainerStatus.status === 'V2_PAPER_TRAINER_WRAPPER_CURRENT',
+  latest_real_prediction: trainerStatus.status === 'REALTIME_RUNTIME_EVIDENCE' || trainerStatus.status === 'V2_PAPER_TRAINER_WRAPPER_CURRENT' ? trainerStatus.latest_prediction : null,
+  fixture_prediction_hidden_from_current_view: trainerStatus.status !== 'REALTIME_RUNTIME_EVIDENCE' && trainerStatus.status !== 'V2_PAPER_TRAINER_WRAPPER_CURRENT',
   required_sources: [
     'rl.hybrid_trainer process',
     'monitor_trainer_predictions.py process',
@@ -364,7 +385,7 @@ const legacyStatus = {
   market_ingestor_processes: marketIngestorProcesses,
   feature_pipeline_processes: featurePipelineProcesses,
   orchestrator_status: orchestratorProcesses.length > 0 ? 'PROCESS_OBSERVED_READONLY' : 'MISSING_EVIDENCE',
-  trainer_status: trainerProcesses.length > 0 ? 'PROCESS_OBSERVED_READONLY' : 'TRAINER_RUNTIME_EVIDENCE_MISSING',
+  trainer_status: paperTrainerPrediction ? 'V2_PAPER_TRAINER_WRAPPER_CURRENT' : trainerProcesses.length > 0 ? 'PROCESS_OBSERVED_READONLY' : 'TRAINER_RUNTIME_EVIDENCE_MISSING',
   trader_status: traderProcesses.length > 0 ? 'PROCESS_OBSERVED_READONLY' : 'TRADER_PROCESS_NOT_OBSERVED_OR_INTENTIONALLY_DISABLED',
   market_ingestor_status: marketIngestorProcesses.length > 0 ? 'PROCESS_OBSERVED_READONLY' : 'MISSING_EVIDENCE',
   feature_pipeline_status: featurePipelineProcesses.length > 0 ? 'PROCESS_OBSERVED_READONLY' : 'MISSING_EVIDENCE',
@@ -378,8 +399,21 @@ const legacyStatus = {
 
 const signalLineageStatus = {
   generated_at: nowIso,
-  status: latestDecision ? 'STATIC_PROOF_FIXTURE' : 'MISSING_EVIDENCE',
-  latest_signal: latestDecision ? {
+  status: paperSignalLineage ? 'REALTIME_RUNTIME_EVIDENCE' : latestDecision ? 'STATIC_PROOF_FIXTURE' : 'MISSING_EVIDENCE',
+  latest_signal: paperSignalLineage ? {
+    classification: 'REALTIME_RUNTIME_EVIDENCE',
+    signal_id: paperSignalLineage.lineage_ids?.signal_id ?? null,
+    prediction_id: paperSignalLineage.lineage_ids?.prediction_id ?? null,
+    feature_snapshot_id: paperSignalLineage.lineage_ids?.feature_snapshot_id ?? null,
+    orchestrator_decision_id: paperSignalLineage.lineage_ids?.orchestrator_decision_id ?? null,
+    risk_decision_id: paperSignalLineage.lineage_ids?.risk_decision_id ?? null,
+    execution_intent_id: paperSignalLineage.lineage_ids?.execution_intent_id ?? null,
+    signal_reason: paperSignalLineage.signal?.proposed_action ?? null,
+    orchestrator_reason: paperSignalLineage.orchestrator_decision?.decision_reason ?? null,
+    risk_reason: paperSignalLineage.risk_decision?.risk_reason_code ?? null,
+    result: paperSignalLineage.risk_decision?.risk_result ?? null,
+    evidence_links: [paperOnlineRuntimeRelPath],
+  } : latestDecision ? {
     classification: 'STATIC_PROOF_FIXTURE',
     signal_id: latestDecision.signal_id ?? null,
     prediction_id: latestDecision.prediction_id ?? null,
@@ -398,7 +432,7 @@ const signalLineageStatus = {
     risk_observation: riskObservation.ok ? riskObservation.data : null,
     phase3c: phase3cPayload.ok ? phase3cPayload.data : null,
   },
-  missing_evidence: latestDecision ? [] : [{ id: 'SIGNAL_LINEAGE_SAMPLE_MISSING', detail: MISSING }],
+  missing_evidence: paperSignalLineage || latestDecision ? [] : [{ id: 'SIGNAL_LINEAGE_SAMPLE_MISSING', detail: MISSING }],
 };
 
 const dashboardFreshnessStatus = {

@@ -1,0 +1,32 @@
+{
+  "confidence_calibrated": 0.573418,
+  "confidence_raw": 0.593418,
+  "feature_snapshot_id": "fs_paper_tick_1778556782455",
+  "freshness_state": "CURRENT",
+  "generated_at": "2026-05-12T03:32:59Z",
+  "market_age_seconds": 12,
+  "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
+  "prediction_id": "pred_paper_tick_1778556782455",
+  "raw_output": {
+    "momentum_score": 0.0334182,
+    "side": "long"
+  },
+  "source_type": "V2_PAPER_TRAINER_WRAPPER",
+  "symbol": "BTCUSDT",
+  "timeframe": "1m",
+  "top_features": [
+    {
+      "name": "return_5m",
+      "value": 0.00032295
+    },
+    {
+      "name": "return_15m",
+      "value": -0.00042124
+    },
+    {
+      "name": "volatility_10",
+      "value": 0.00020879
+    }
+  ],
+  "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
+}

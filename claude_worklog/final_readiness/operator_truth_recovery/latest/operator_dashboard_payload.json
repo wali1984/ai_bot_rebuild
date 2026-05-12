@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-05-12T03:20:00.556Z",
+  "generated_at": "2026-05-12T03:33:51.749Z",
   "status": "OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_RECOVERY_READY",
   "live_gate_status": "blocked_human_only",
   "supervisor_truth_status": "SUPERVISOR_STATUS_STALE_OR_CONFLICTING",
-  "trainer_monitor_status": "TRAINER_RUNTIME_EVIDENCE_MISSING",
+  "trainer_monitor_status": "V2_PAPER_TRAINER_WRAPPER_CURRENT",
   "legacy_monitor_status": "PROCESS_OBSERVED_READONLY",
   "current_next_task": "codex_recover_173_phase2r_consolidated_python_source_and_task_json_end_file_leakage_cleanup",
   "stale_payload_count": 12,
-  "missing_evidence_count": 3,
+  "missing_evidence_count": 1,
   "redis_trim_status": "deferred_non_blocking",
   "browser_screenshot_evidence": [
     "screenshots/mission_control.png",

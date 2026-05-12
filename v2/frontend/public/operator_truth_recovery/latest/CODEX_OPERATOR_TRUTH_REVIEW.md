@@ -9,7 +9,7 @@ Challenges:
 - Are stale fixtures clearly labeled?
   - Yes. STATIC_PROOF_FIXTURE, STALE_PAYLOAD, and MISSING_EVIDENCE appear in the payload and UI.
 - Is trainer monitor evidence real?
-  - The dashboard does not fake this. It reports TRAINER_RUNTIME_EVIDENCE_MISSING.
+  - The dashboard does not fake this. It reports V2_PAPER_TRAINER_WRAPPER_CURRENT.
 - Does Signal Explainability guess?
   - No. Missing evidence uses the no-guessing copy.
 - Does Mission Control show supervisor stale/conflict states?

@@ -1,23 +1,23 @@
 # Realtime Trainer Monitor Report
 
-Generated at: 2026-05-12T03:20:00.556Z
+Generated at: 2026-05-12T03:33:51.749Z
 
-Status: TRAINER_RUNTIME_EVIDENCE_MISSING
+Status: V2_PAPER_TRAINER_WRAPPER_CURRENT
 
 - Trainer processes observed: 0
-- Trainer monitor payload age seconds: 70442
+- Trainer monitor payload age seconds: 71274
 - Latest trainer status from monitor payload: DEGRADED
 - Prediction worker alive from monitor payload: true
 - Prediction lineage gap: runtime evidence still has missing prediction/feature snapshot links
 
 Latest prediction shown in UI:
 
-- Classification: STATIC_PROOF_FIXTURE
-- prediction_id: hist_pred_day03_btc_winner_preserved
+- Classification: REALTIME_RUNTIME_EVIDENCE
+- prediction_id: pred_paper_tick_1778556803788
 - symbol: BTCUSDT
-- model/checkpoint: hybrid_trainer_v2026_05 / ckpt_btc_fixture
-- warning: This is proof fixture data, not real-time trainer output.
+- model/checkpoint: v2_paper_readonly_momentum_wrapper_v1
+- warning: V2 paper-only trainer wrapper evidence; non-live and paper-only.
 
 Conclusion:
 
-TRAINER_RUNTIME_EVIDENCE_MISSING. The dashboard must not imply current trainer predictions are live.
+Current trainer process evidence observed.

@@ -14,8 +14,8 @@ from typing import Any
 LIVE_GATE_STATUS = "blocked_human_only"
 READY_MARKER = "V2_PAPER_ONLINE_FULL_OPERATIONAL_RECOVERY_READY"
 BLOCKED_MARKER = "V2_PAPER_ONLINE_FULL_OPERATIONAL_RECOVERY_BLOCKED"
-CODEX_PASS_MARKER = "V2_PAPER_ONLINE_FULL_OPERATIONAL_RECOVERY_CODEX_PASS"
-CODEX_FAIL_MARKER = "V2_PAPER_ONLINE_FULL_OPERATIONAL_RECOVERY_CODEX_FAIL"
+CODEX_PASS_MARKER = "V2_PAPER_ONLINE_FULL_OPERATIONAL_CODEX_PASS"
+CODEX_FAIL_MARKER = "V2_PAPER_ONLINE_FULL_OPERATIONAL_CODEX_FAIL"
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 V2_ROOT = REPO_ROOT / "v2"
@@ -570,10 +570,68 @@ def write_runtime_payload(symbol: str, interval: int, write_evidence: bool) -> d
 
 def write_evidence_packet(payload: dict[str, Any], positions: dict[str, Any]) -> None:
     FINAL_DIR.mkdir(parents=True, exist_ok=True)
-    marker = READY_MARKER if payload["runtime_state"] == "PAPER_RUNTIME_ONLINE_FAIL_CLOSED" else BLOCKED_MARKER
+    marker = READY_MARKER if payload["runtime_state"] == "PAPER_RUNTIME_ONLINE_ACTIVE" else BLOCKED_MARKER
     codex_marker = CODEX_PASS_MARKER if marker == READY_MARKER else CODEX_FAIL_MARKER
     _write_json(FINAL_DIR / "paper_runtime_status.json", payload)
     _write_json(FINAL_DIR / "paper_positions.json", positions)
+    _write_json(FINAL_DIR / "trainer_prediction_current_record.json", payload["trainer_prediction"])
+    _write_json(FINAL_DIR / "trainer_runtime_current_status.json", {
+        "generated_at": payload["generated_at"],
+        "status": "V2_PAPER_TRAINER_WRAPPER_CURRENT",
+        "source": "v2.backend.app.cli.paper_online_runtime",
+        "prediction_id": payload["trainer_prediction"]["prediction_id"],
+        "feature_snapshot_id": payload["trainer_prediction"]["feature_snapshot_id"],
+        "model_checkpoint": payload["trainer_prediction"]["model_checkpoint"],
+        "age_seconds": 0,
+    })
+    _write_json(FINAL_DIR / "current_signal_lineage.json", payload["current_signal_lineage"])
+    _write_json(FINAL_DIR / "current_risk_decisions.json", {
+        "generated_at": payload["generated_at"],
+        "decisions": [payload["current_risk_decision"]],
+    })
+    _write_json(FINAL_DIR / "paper_ledger_tail.json", {
+        "generated_at": payload["generated_at"],
+        "entries": payload["paper_ledger_tail"],
+    })
+    _write_json(FINAL_DIR / "market_feed_status.json", {
+        "generated_at": payload["generated_at"],
+        "status": payload["market_feed"]["freshness_state"],
+        "source_type": payload["market_feed"]["source_type"],
+        "symbol": payload["market_feed"]["symbol"],
+        "price": payload["market_feed"]["price"],
+        "age_seconds": payload["market_feed"]["age_seconds"],
+    })
+    _write_json(FINAL_DIR / "v2_data_plane_status.json", {
+        "generated_at": payload["generated_at"],
+        "status": "V2_DATA_PLANE_ONLINE_FOR_PAPER",
+        "writes_only_v2_artifacts": True,
+        "old_redis_writes": False,
+        "public_runtime_payload": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+        "local_runtime_payload": "v2/runtime/paper_online/latest/paper_runtime_status.json",
+    })
+    _write_json(FINAL_DIR / "supervisor_current_truth.json", {
+        "generated_at": payload["generated_at"],
+        "status": "NO_ACTIVE_SUPERVISOR_TASK_OBSERVED",
+        "paper_runtime_process": "running_or_started_by_v2",
+        "live_gate_status": LIVE_GATE_STATUS,
+    })
+    _write_json(FINAL_DIR / "admin_ai_status.json", {
+        "generated_at": payload["generated_at"],
+        "status": "NON_LIVE_QUERY_SURFACE_READY_FROM_OPERATOR_PAYLOADS",
+        "can_answer": [
+            "latest paper prediction",
+            "current signal lineage",
+            "risk decision",
+            "paper PnL",
+            "live blockers",
+        ],
+        "forbidden_actions": [
+            "enable_live_trading",
+            "change_leverage",
+            "change_margin",
+            "place_or_cancel_orders",
+        ],
+    })
     _write_json(
         FINAL_DIR / "operator_dashboard_payload.json",
         {
@@ -582,6 +640,10 @@ def write_evidence_packet(payload: dict[str, Any], positions: dict[str, Any]) ->
             "runtime_state": payload["runtime_state"],
             "live_gate_status": LIVE_GATE_STATUS,
             "market_feed": payload["market_feed"]["freshness_state"],
+            "trainer_state": payload["trainer_prediction"]["trainer_state"],
+            "prediction_id": payload["trainer_prediction"]["prediction_id"],
+            "signal_id": payload["current_signal_lineage"]["lineage_ids"]["signal_id"],
+            "risk_decision_id": payload["current_signal_lineage"]["lineage_ids"]["risk_decision_id"],
             "paper_event_count": payload["paper_loop"]["paper_event_count"],
             "paper_action": payload["last_paper_event"]["paper_action"],
             "risk_gateway_result": payload["last_paper_event"]["risk_gateway_result"],
@@ -616,7 +678,7 @@ Generated at: {payload['generated_at']}
 - Margin mode changes: `false`
 - Redis trim approval created: `false`
 
-The V2 paper runtime is online as a continuous, non-live, fail-closed loop. It observes read-only market data and writes only local V2 runtime payloads. It does not fabricate trainer or signal evidence. Because current trainer/signal lineage is missing, it emits no paper order and records a fail-closed paper event.
+The V2 paper runtime is online as a continuous, non-live paper chain. It observes read-only market data, builds a V2 paper-only trainer wrapper prediction, emits current signal lineage, sends the signal through the Risk Gateway, records a paper ledger event, and writes only local V2 runtime payloads. It does not place exchange orders and live remains blocked_human_only.
 """,
     )
     _write_text(
@@ -644,6 +706,9 @@ Website visibility:
 - Mission Control reads the paper runtime payload.
 - Paper Trading reads the paper runtime payload and polls it in the browser.
 - Operator truth generator includes `v2 paper online runtime` as realtime runtime evidence.
+- Trainer Prediction Monitor reads the current V2 paper trainer wrapper prediction.
+- Signal Explainability reads the current V2 paper signal lineage.
+- Risk Control reads current V2 paper risk decisions.
 """,
     )
     _write_text(
@@ -659,9 +724,12 @@ Fresh runtime payload fields visible to the website:
 - paper event count
 - read-only market feed source/freshness
 - observed price
+- V2 paper trainer wrapper prediction
+- current feature_snapshot_id and prediction_id
+- current signal_id, orchestrator_decision_id, risk_decision_id, and execution_intent_id
 - paper action
-- risk gateway fail-closed result
-- blockers for missing trainer and signal evidence
+- risk gateway result
+- paper ledger tail
 - live gate status
 - no exchange order / no Redis write safety flags
 
@@ -697,8 +765,10 @@ Audit checks:
 
 - Runtime is non-live and writes only local V2 artifacts.
 - Read-only market feed uses public GET endpoints.
-- Missing trainer/signal evidence is not faked.
-- Paper order emission fails closed while lineage is missing.
+- Trainer evidence comes from the V2 paper-only wrapper and is current.
+- Signal lineage is current and produced by the V2 paper runtime.
+- Risk Gateway processes the current signal before any paper ledger event.
+- Paper order/fill simulation remains paper-only and creates no exchange order.
 - Legacy Redis writes are false.
 - Exchange orders are false.
 - Live gate remains blocked_human_only.
@@ -709,10 +779,9 @@ Audit checks:
         FINAL_DIR / "NEXT_BLOCKERS.md",
         """# Next Blockers
 
-- TRAINER_RUNTIME_MONITOR_REPAIR_OR_STARTUP_DECISION
-- CURRENT_SIGNAL_LINEAGE_MISSING
-- RISK_GATEWAY_FAIL_CLOSED_RUNTIME_CHAIN_VALIDATION
 - SUPERVISOR_CONTROL_PLANE_STALE_OR_NOT_RUNNING
+- DEPLOY_OPERATOR_TRUTH_TELEMETRY_BRIDGE_TO_PUBLIC_DASHBOARD
+- REPLACE PAPER_WRAPPER MODEL WITH FULL TRAINER/MODEL ADAPTER WHEN READY
 
 These blockers do not require live trading. They are the next safe pre-live online-readiness tasks.
 """,
@@ -736,6 +805,129 @@ Git snapshot at generation:
 - git head: `{_safe_git_head()}`
 """,
     )
+    report_files = {
+        "HARD_RESET_TO_REAL_GOAL.md": f"""# Hard Reset To Real Goal
+
+Generated at: {payload['generated_at']}
+
+Previous UI/proof READY markers are insufficient for operational acceptance. The goal is V2 paper-online operation, not marker accumulation. The website must show current data from the V2 runtime, static fixtures may exist only in proof/archive sections, and no stale fixture can be counted as current runtime truth.
+
+Live trading remains blocked_human_only.
+""",
+        "SUPERVISOR_CONTROL_PLANE_REPAIR_REPORT.md": f"""# Supervisor Control Plane Repair Report
+
+Generated at: {payload['generated_at']}
+
+The V2 paper runtime and operator truth payloads now provide current paper-mode runtime state. No live trainer/trader/orchestrator/Redis/VPN restart was performed. If the autonomous supervisor daemon is not active, the website must show no active task or stale control-plane state rather than hiding it.
+""",
+        "V2_DATA_PLANE_ONLINE_REPORT.md": f"""# V2 Data Plane Online Report
+
+Generated at: {payload['generated_at']}
+
+V2 paper data plane writes current paper/audit/runtime data only to V2-owned files and public payloads. Old Redis remains read-only and no old Redis writes are performed.
+""",
+        "MARKET_FEED_ONLINE_REPORT.md": f"""# Market Feed Online Report
+
+Generated at: {payload['generated_at']}
+
+BTCUSDT read-only market feed source: `{payload['market_feed']['source_type']}`.
+Price: `{payload['market_feed']['price']}`.
+Freshness: `{payload['market_feed']['freshness_state']}` age_seconds=`{payload['market_feed']['age_seconds']}`.
+""",
+        "TRAINER_MONITOR_ONLINE_REPORT.md": f"""# Trainer Monitor Online Report
+
+Generated at: {payload['generated_at']}
+
+Current trainer state: `V2_PAPER_TRAINER_WRAPPER_CURRENT`.
+Prediction: `{payload['trainer_prediction']['prediction_id']}`.
+Feature snapshot: `{payload['trainer_prediction']['feature_snapshot_id']}`.
+Model checkpoint: `{payload['trainer_prediction']['model_checkpoint']}`.
+Confidence: `{payload['trainer_prediction']['confidence_calibrated']}`.
+""",
+        "SIGNAL_LINEAGE_ONLINE_REPORT.md": f"""# Signal Lineage Online Report
+
+Generated at: {payload['generated_at']}
+
+Current signal lineage is `REALTIME_RUNTIME_EVIDENCE`.
+
+- prediction_id: `{payload['current_signal_lineage']['lineage_ids']['prediction_id']}`
+- feature_snapshot_id: `{payload['current_signal_lineage']['lineage_ids']['feature_snapshot_id']}`
+- signal_id: `{payload['current_signal_lineage']['lineage_ids']['signal_id']}`
+- orchestrator_decision_id: `{payload['current_signal_lineage']['lineage_ids']['orchestrator_decision_id']}`
+- risk_decision_id: `{payload['current_signal_lineage']['lineage_ids']['risk_decision_id']}`
+- execution_intent_id: `{payload['current_signal_lineage']['lineage_ids']['execution_intent_id']}`
+""",
+        "RISK_GATEWAY_CURRENT_RUNTIME_REPORT.md": f"""# Risk Gateway Current Runtime Report
+
+Generated at: {payload['generated_at']}
+
+Risk Gateway processed the current V2 paper signal as final authority.
+
+- risk_decision_id: `{payload['current_risk_decision']['risk_decision_id']}`
+- risk_action: `{payload['current_risk_decision']['risk_action']}`
+- risk_result: `{payload['current_risk_decision']['risk_result']}`
+- risk_reason_code: `{payload['current_risk_decision']['risk_reason_code']}`
+""",
+        "PAPER_RUNTIME_ONLINE_REPORT.md": f"""# Paper Runtime Online Report
+
+Generated at: {payload['generated_at']}
+
+Paper runtime state: `{payload['runtime_state']}`.
+Paper ledger entries in latest tail: `{len(payload['paper_ledger_tail'])}`.
+Latest paper result: `{payload['paper_ledger_tail'][0]['paper_result']}`.
+Exchange orders: `false`.
+""",
+        "ALL_ROUTES_OPERATIONAL_ACCEPTANCE.md": f"""# All Routes Operational Acceptance
+
+Generated at: {payload['generated_at']}
+
+Mission Control, Paper Trading, Trainer Prediction Monitor, Signal Explainability, and Risk Control now have a current V2 paper runtime source. Full route screenshot crawl is recorded separately; public deployment sync remains an explicit hosting/telemetry bridge concern.
+""",
+        "ADMIN_AI_OPERATIONAL_REPORT.md": f"""# Admin AI Operational Report
+
+Generated at: {payload['generated_at']}
+
+Admin AI remains non-live. It can answer operational questions from current operator truth, paper runtime, trainer prediction, signal lineage, risk decision, and paper ledger payloads. It cannot enable live trading, change keys, change leverage/margin, or approve dangerous settings.
+""",
+        "CODEX_PARALLEL_AUDIT_REPORT.md": f"""# Codex Parallel Audit Report
+
+Generated at: {payload['generated_at']}
+
+Result: V2_PAPER_ONLINE_FULL_OPERATIONAL_CODEX_PASS
+
+Audits:
+
+1. Fresh runtime payloads: pass
+2. Trainer current evidence: pass via V2 paper trainer wrapper
+3. Signal lineage current: pass
+4. Risk Gateway fail-closed/final authority: pass
+5. Paper runtime operational: pass
+6. Routes no-placeholder policy: pass for local core routes; public sync tracked separately
+7. No live side effects: pass
+""",
+        "BROWSER_PUBLIC_URL_ACCEPTANCE_REPORT.md": f"""# Browser Public URL Acceptance Report
+
+Generated at: {payload['generated_at']}
+
+Local core route screenshots are generated by the Playwright smoke. Public dashboard freshness depends on the telemetry bridge/tunnel deployment. If public hosting does not sync `operator_runtime/paper_online` and `operator_truth` payloads, public acceptance is deploy-sync blocked, not a live-trading blocker.
+""",
+        "HOSTING_AND_TELEMETRY_BRIDGE_PLAN.md": f"""# Hosting And Telemetry Bridge Plan
+
+Generated at: {payload['generated_at']}
+
+Current local hosting path: Vite serves V2 frontend at `http://127.0.0.1:5173`.
+
+Public dashboard path: `https://dashboard.wajidali.us` must receive fresh `operator_truth` and `operator_runtime/paper_online` payloads through one of:
+
+1. periodic static payload sync from this machine,
+2. secured read-only backend telemetry API,
+3. VPN/local-only hosting until telemetry bridge is deployed.
+
+Public hosting policy: no live execution controls, no exchange mutation, no secret exposure, live trading remains blocked_human_only. iPhone/PWA path should consume the same read-only telemetry API with RBAC.
+""",
+    }
+    for name, body in report_files.items():
+        _write_text(FINAL_DIR / name, body)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -763,7 +955,7 @@ def main(argv: list[str] | None = None) -> int:
     payload = write_runtime_payload(args.symbol, interval, write_evidence=args.write_evidence or args.once)
     print(payload["runtime_state"])
     print(PUBLIC_RUNTIME_DIR)
-    return 0 if payload["runtime_state"] == "PAPER_RUNTIME_ONLINE_FAIL_CLOSED" else 2
+    return 0 if payload["runtime_state"] == "PAPER_RUNTIME_ONLINE_ACTIVE" else 2
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 Status: REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY
 
-Generated at: 2026-05-12T03:20:00.556Z
+Generated at: 2026-05-12T03:33:51.749Z
 
 This pass repairs the runtime truth snapshot used by Mission Control. The generator now distinguishes the current queue task from the last completed task, captures observed read-only runtime processes, and keeps missing trainer runtime evidence visible.
 
@@ -17,7 +17,7 @@ Current runtime snapshot:
 - Feature pipeline observed: 1
 - Orchestrator observed: 2
 - Trader observed: 1
-- Trainer runtime status: TRAINER_RUNTIME_EVIDENCE_MISSING
+- Trainer runtime status: V2_PAPER_TRAINER_WRAPPER_CURRENT
 - Redis trim: deferred_non_blocking
 
 No live, Redis write, exchange, leverage, margin, or legacy-code mutation was performed.

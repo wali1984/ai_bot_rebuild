@@ -1,0 +1,7 @@
+# Next Blockers
+
+- SUPERVISOR_CONTROL_PLANE_STALE_OR_NOT_RUNNING
+- DEPLOY_OPERATOR_TRUTH_TELEMETRY_BRIDGE_TO_PUBLIC_DASHBOARD
+- REPLACE PAPER_WRAPPER MODEL WITH FULL TRAINER/MODEL ADAPTER WHEN READY
+
+These blockers do not require live trading. They are the next safe pre-live online-readiness tasks.
