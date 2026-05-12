@@ -71,7 +71,7 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
   const supervisorState = supervisor.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT_RUNTIME_SNAPSHOT';
   const plannerState = supervisor.master_planner_running ? 'MASTER_PLANNER_RUNNING' : 'MASTER_PLANNER_NOT_RUNNING';
   const governorState = supervisor.autonomous_governor_active ? 'AUTONOMOUS_GOVERNOR_ACTIVE' : 'AUTONOMOUS_GOVERNOR_NOT_OBSERVED';
-  const runningTask = supervisor.current_running_task ?? 'no active supervisor task';
+  const runningTask = supervisor.current_running_task ?? 'NO_ACTIVE_SUPERVISOR_TASK';
   const nextTask = payload.current_next_task ?? supervisor.true_next_task ?? supervisor.next_pending_task ?? 'MISSING_NEXT_TASK';
 
   return (
@@ -103,7 +103,7 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
         <TruthStateCard
           label="Current task"
           value={runningTask}
-          detail={`Next: ${nextTask}`}
+          detail={`Last completed: ${supervisor.last_completed_task ?? 'none'}; next: ${nextTask}`}
           source="agent_supervisor/status"
         />
         <TruthStateCard
@@ -116,6 +116,18 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
           label="Legacy orchestrator"
           value={runtime.orchestrator_status}
           detail={`observed rows ${runtime.orchestrator_processes.length}; trader ${runtime.trader_status}`}
+          source="READONLY_PROCESS_LIST"
+        />
+        <TruthStateCard
+          label="Market ingest"
+          value={runtime.market_ingestor_status ?? 'MISSING_EVIDENCE'}
+          detail={`observed rows ${runtime.market_ingestor_processes?.length ?? 0}; read-only process observation`}
+          source="READONLY_PROCESS_LIST"
+        />
+        <TruthStateCard
+          label="Feature pipeline"
+          value={runtime.feature_pipeline_status ?? 'MISSING_EVIDENCE'}
+          detail={`observed rows ${runtime.feature_pipeline_processes?.length ?? 0}; no service mutation`}
           source="READONLY_PROCESS_LIST"
         />
         <TruthStateCard
@@ -156,8 +168,11 @@ export function RuntimeTruthMatrix({ payload }: { payload: OperatorTruthPayload 
   const redis = payload.runtime_monitor_status.redis_memory_pressure_status;
   const rows = [
     ['Supervisor', payload.supervisor_status.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT_RUNTIME_SNAPSHOT', 'agent_supervisor/status/current_status.json'],
+    ['Current task', payload.supervisor_status.current_running_task ?? 'NO_ACTIVE_SUPERVISOR_TASK', `last completed: ${payload.supervisor_status.last_completed_task ?? 'none'}`],
     ['Master planner', payload.supervisor_status.master_planner_running ? 'RUNNING' : 'NOT_RUNNING', 'process list + status payload'],
     ['Autonomous governor', payload.supervisor_status.autonomous_governor_active ? 'ACTIVE' : 'NOT_OBSERVED', 'process list + status payload'],
+    ['Market ingestors', payload.runtime_monitor_status.market_ingestor_status ?? 'MISSING_EVIDENCE', `${payload.runtime_monitor_status.market_ingestor_processes?.length ?? 0} process rows`],
+    ['Feature pipeline', payload.runtime_monitor_status.feature_pipeline_status ?? 'MISSING_EVIDENCE', `${payload.runtime_monitor_status.feature_pipeline_processes?.length ?? 0} process rows`],
     ['Trainer process', payload.runtime_monitor_status.trainer_status, 'read-only process scan'],
     ['Trainer prediction stream', payload.trainer_monitor_status.status, 'trainer monitor payload'],
     ['Signal explainability', payload.signal_lineage_status.status, 'signal lineage payload'],
@@ -176,6 +191,80 @@ export function RuntimeTruthMatrix({ payload }: { payload: OperatorTruthPayload 
         </div>
       ))}
     </section>
+  );
+}
+
+function RuntimeProcessGroup({ label, status, rows, note }: { label: string; status: string; rows: string[]; note: string }): JSX.Element {
+  return (
+    <div className={`runtime-process-group runtime-process-group--${truthTone(status)}`}>
+      <div className="runtime-process-group__head">
+        <span>{label}</span>
+        <strong className={statusClass(status)}>{status}</strong>
+      </div>
+      <p>{note}</p>
+      <details className="truth-details">
+        <summary>{rows.length} read-only observed process row{rows.length === 1 ? '' : 's'}</summary>
+        <div className="truth-raw-list">
+          {rows.length ? rows.map((line) => (
+            <code key={`${label}-${line}`}>{line}</code>
+          )) : <p className="cockpit-evidence-gap">No process rows observed for this group.</p>}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+export function ActualRuntimeNowPanel({ payload }: { payload: OperatorTruthPayload }): JSX.Element {
+  const runtime = payload.runtime_monitor_status;
+  const supervisor = payload.supervisor_status;
+  const groups = [
+    {
+      label: 'Control plane',
+      status: supervisor.is_supervisor_alive ? 'PROCESS_OBSERVED_READONLY' : 'NO_SUPERVISOR_DAEMON_OBSERVED',
+      rows: supervisor.supervisor_processes,
+      note: `Current task: ${supervisor.current_running_task ?? 'none'}; last completed: ${supervisor.last_completed_task ?? 'none'}; next: ${payload.current_next_task ?? 'missing'}.`,
+    },
+    {
+      label: 'Market ingestors',
+      status: runtime.market_ingestor_status ?? 'MISSING_EVIDENCE',
+      rows: runtime.market_ingestor_processes ?? [],
+      note: 'Observed from process list only. This dashboard did not start, stop, or mutate market ingest services.',
+    },
+    {
+      label: 'Feature pipeline',
+      status: runtime.feature_pipeline_status ?? 'MISSING_EVIDENCE',
+      rows: runtime.feature_pipeline_processes ?? [],
+      note: 'Feature pipeline process evidence is read-only observation; feature freshness still requires payload evidence.',
+    },
+    {
+      label: 'Orchestrator',
+      status: runtime.orchestrator_status,
+      rows: runtime.orchestrator_processes,
+      note: 'Orchestrator can propose/enrich/deconflict only. Risk Gateway remains final authority.',
+    },
+    {
+      label: 'Trader',
+      status: runtime.trader_status,
+      rows: runtime.trader_processes,
+      note: 'Process observation only. No order, cancel, leverage, margin, or live action was performed by this dashboard.',
+    },
+    {
+      label: 'Trainer runtime',
+      status: payload.trainer_monitor_status.status,
+      rows: payload.trainer_monitor_status.trainer_processes,
+      note: payload.trainer_monitor_status.status === 'TRAINER_RUNTIME_EVIDENCE_MISSING'
+        ? 'Trainer runtime evidence is missing. Fixture predictions are separated from current trainer state.'
+        : 'Trainer process evidence is present in the read-only process snapshot.',
+    },
+  ];
+  return (
+    <Panel id="actual-runtime-now" title="Actual Runtime Now" right={<span className="chip solid-warn">Read-only observation</span>}>
+      <div className="actual-runtime-grid">
+        {groups.map((group) => (
+          <RuntimeProcessGroup key={group.label} {...group} />
+        ))}
+      </div>
+    </Panel>
   );
 }
 
@@ -225,6 +314,8 @@ export function LegacyRuntimeMonitorPanel({ payload }: { payload: OperatorTruthP
         <div><span>orchestrator</span><strong>{runtime.orchestrator_status}</strong></div>
         <div><span>trainer</span><strong>{runtime.trainer_status}</strong></div>
         <div><span>trader</span><strong>{runtime.trader_status}</strong></div>
+        <div><span>market ingestors</span><strong>{runtime.market_ingestor_status ?? 'MISSING_EVIDENCE'}</strong></div>
+        <div><span>feature pipeline</span><strong>{runtime.feature_pipeline_status ?? 'MISSING_EVIDENCE'}</strong></div>
         <div><span>active process rows</span><strong>{runtime.active_processes.length}</strong></div>
         <div><span>redis memory pressure</span><strong>{runtime.redis_memory_pressure_status?.status ?? 'MISSING_EVIDENCE'}</strong></div>
         <div><span>evidence source</span><strong>operator_truth_payload.json</strong></div>

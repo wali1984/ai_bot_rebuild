@@ -1,11 +1,11 @@
 # Realtime Trainer Monitor Report
 
-Generated at: 2026-05-12T00:29:57.739Z
+Generated at: 2026-05-12T02:03:33.238Z
 
 Status: TRAINER_RUNTIME_EVIDENCE_MISSING
 
 - Trainer processes observed: 0
-- Trainer monitor payload age seconds: 60240
+- Trainer monitor payload age seconds: 65855
 - Latest trainer status from monitor payload: DEGRADED
 - Prediction worker alive from monitor payload: true
 - Prediction lineage gap: runtime evidence still has missing prediction/feature snapshot links

@@ -1,6 +1,6 @@
 # Missing Evidence Register
 
-Generated at: 2026-05-12T00:29:57.739Z
+Generated at: 2026-05-12T02:03:33.238Z
 
 - TRAINER_PROCESS_NOT_OBSERVED [blocking_for_live]: No rl.hybrid_trainer or monitor_trainer_predictions process was observed in the read-only process snapshot.
 - TRAINER_RUNTIME_EVIDENCE_MISSING [blocking_for_live]: Trainer monitor evidence is missing or stale. Do not infer live trainer behavior from static fixtures.

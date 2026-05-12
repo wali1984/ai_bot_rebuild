@@ -1,0 +1,20 @@
+{
+  "generated_at": "2026-05-12T02:03:33.238Z",
+  "status": "REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY",
+  "live_gate_status": "blocked_human_only",
+  "supervisor_truth_status": "SUPERVISOR_STATUS_STALE_OR_CONFLICTING",
+  "supervisor_alive": true,
+  "current_running_task": "codex_parallel_review_20260512_020029_04_paper_execution_ledger",
+  "last_completed_task": null,
+  "next_pending_task": "codex_recover_173_phase2r_consolidated_python_source_and_task_json_end_file_leakage_cleanup",
+  "market_ingestor_status": "PROCESS_OBSERVED_READONLY",
+  "market_ingestor_count": 6,
+  "feature_pipeline_status": "PROCESS_OBSERVED_READONLY",
+  "orchestrator_status": "PROCESS_OBSERVED_READONLY",
+  "trader_status": "PROCESS_OBSERVED_READONLY",
+  "trainer_monitor_status": "TRAINER_RUNTIME_EVIDENCE_MISSING",
+  "stale_payload_count": 10,
+  "missing_evidence_count": 3,
+  "redis_trim_status": "deferred_non_blocking",
+  "human_input_required": "false_unless_final_live_capital_gate"
+}

@@ -25,6 +25,8 @@ export interface OperatorTruthPayload {
     master_planner_running: boolean;
     autonomous_governor_active: boolean;
     current_running_task: string | null;
+    last_completed_task?: string | null;
+    last_task_status?: string | null;
     next_pending_task: string | null;
     true_next_task: string | null;
     stale_or_conflicting: boolean;
@@ -37,9 +39,13 @@ export interface OperatorTruthPayload {
     orchestrator_processes: string[];
     trainer_processes: string[];
     trader_processes: string[];
+    market_ingestor_processes?: string[];
+    feature_pipeline_processes?: string[];
     orchestrator_status: string;
     trainer_status: string;
     trader_status: string;
+    market_ingestor_status?: string;
+    feature_pipeline_status?: string;
     redis_memory_pressure_status?: OperatorTruthStatusRow;
   };
   trainer_monitor_status: {

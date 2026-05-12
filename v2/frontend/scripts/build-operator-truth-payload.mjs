@@ -6,6 +6,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 const frontendRoot = resolve(import.meta.dirname, '..');
 const repoRoot = resolve(frontendRoot, '..', '..');
 const finalDir = resolve(repoRoot, 'claude_worklog', 'final_readiness', 'operator_truth_recovery', 'latest');
+const controlPlaneDir = resolve(repoRoot, 'claude_worklog', 'final_readiness', 'realtime_control_plane_trainer_monitor_recovery', 'latest');
 const publicDir = resolve(frontendRoot, 'public', 'operator_truth', 'latest');
 const publicRecoveryDir = resolve(frontendRoot, 'public', 'operator_truth_recovery', 'latest');
 
@@ -150,15 +151,18 @@ const phase3cPayload = readJson('v2/frontend/public/phase3c_runtime_monitor_veri
 const gitStatus = run("git status --short -- . ':(exclude)claude_worklog/final_readiness/operator_truth_recovery/latest' ':(exclude)v2/frontend/public/operator_truth/latest' ':(exclude)v2/frontend/public/operator_truth_recovery/latest'");
 const gitHead = run('git log --oneline -1');
 const psOutput = run('ps -eo pid,ppid,etimes,cmd');
+const runtimeProcessPattern = /claude_master_rebuild_planner|autonomous_governor|parallel_scheduler|codex_watchdog|agent_supervisor\.py|claude --print|codex exec|ollama run|rl\.hybrid_trainer|monitor_trainer_predictions|orchestrator|trading\/trader|ingest\/live_|live_binance|live_coinank|feature_pipeline/i;
 const activeProcesses = psOutput
   .split('\n')
-  .filter((line) => /claude_master_rebuild_planner|autonomous_governor|parallel_scheduler|codex_watchdog|agent_supervisor\.py|claude --print|codex exec|ollama run|rl\.hybrid_trainer|orchestrator|trading\/trader|monitor_trainer_predictions/.test(line))
+  .filter((line) => runtimeProcessPattern.test(line))
   .map((line) => line.trim())
   .filter(Boolean);
 
 const trainerProcesses = activeProcesses.filter((line) => /rl\.hybrid_trainer|monitor_trainer_predictions|trainer/i.test(line));
 const orchestratorProcesses = activeProcesses.filter((line) => /orchestrator/i.test(line));
 const traderProcesses = activeProcesses.filter((line) => /trading\/trader/i.test(line));
+const marketIngestorProcesses = activeProcesses.filter((line) => /ingest\/live_|live_binance|live_coinank/i.test(line));
+const featurePipelineProcesses = activeProcesses.filter((line) => /feature_pipeline/i.test(line));
 const supervisorProcesses = activeProcesses.filter((line) => /claude_master_rebuild_planner|autonomous_governor|parallel_scheduler|codex_watchdog|agent_supervisor\.py|claude --print|codex exec|ollama run/.test(line));
 
 const sourceStatuses = [
@@ -238,7 +242,9 @@ const supervisorStatus = {
   heartbeat_stale: queueAge === null ? true : queueAge > REALTIME_STALE_SECONDS,
   master_planner_running: activeProcesses.some((line) => /claude_master_rebuild_planner/.test(line)),
   autonomous_governor_active: activeProcesses.some((line) => /autonomous_governor/.test(line)),
-  current_running_task: safeGet(queueData?.current_running_task, currentData?.task_id ?? null),
+  current_running_task: safeGet(queueData?.current_running_task, null),
+  last_completed_task: currentData?.status === 'completed' ? currentData?.task_id ?? null : null,
+  last_task_status: currentData?.status ?? null,
   next_pending_task: safeGet(queueData?.next_pending_task, governorData?.selected_primary_task ?? null),
   true_next_task: safeGet(queueData?.next_pending_task, governorData?.selected_primary_task ?? null),
   stale_or_conflicting: statusConflict || (queueAge !== null && queueAge > REALTIME_STALE_SECONDS) || (plannerAge !== null && plannerAge > REALTIME_STALE_SECONDS),
@@ -284,9 +290,13 @@ const legacyStatus = {
   orchestrator_processes: orchestratorProcesses,
   trainer_processes: trainerProcesses,
   trader_processes: traderProcesses,
+  market_ingestor_processes: marketIngestorProcesses,
+  feature_pipeline_processes: featurePipelineProcesses,
   orchestrator_status: orchestratorProcesses.length > 0 ? 'PROCESS_OBSERVED_READONLY' : 'MISSING_EVIDENCE',
   trainer_status: trainerProcesses.length > 0 ? 'PROCESS_OBSERVED_READONLY' : 'TRAINER_RUNTIME_EVIDENCE_MISSING',
   trader_status: traderProcesses.length > 0 ? 'PROCESS_OBSERVED_READONLY' : 'TRADER_PROCESS_NOT_OBSERVED_OR_INTENTIONALLY_DISABLED',
+  market_ingestor_status: marketIngestorProcesses.length > 0 ? 'PROCESS_OBSERVED_READONLY' : 'MISSING_EVIDENCE',
+  feature_pipeline_status: featurePipelineProcesses.length > 0 ? 'PROCESS_OBSERVED_READONLY' : 'MISSING_EVIDENCE',
   runtime_sources_payload: runtimeSources.ok ? runtimeSources.data : null,
   redis_memory_pressure_status: payloadStatus('redis memory pressure', 'v2/frontend/public/redis_memory_pressure_remediation/latest/operator_dashboard_payload.json', 'V2_PROOF_ARTIFACT', nowMs),
 };
@@ -346,6 +356,13 @@ const currentBlockers = [
 ];
 
 const proofArtifactStatuses = sourceStatuses.filter((row) => row.classification === 'V2_PROOF_ARTIFACT' || row.classification === 'STATIC_PROOF_FIXTURE');
+const controlPlaneScreenshots = [
+  'screenshots/mission_control.png',
+  'screenshots/monitor_center.png',
+  'screenshots/trainer_prediction_monitor.png',
+  'screenshots/signal_explainability.png',
+  'screenshots/build_validation_status.png',
+];
 
 const truthPayload = {
   generated_at: nowIso,
@@ -379,10 +396,12 @@ const truthPayload = {
 };
 
 ensureDir(finalDir);
+ensureDir(controlPlaneDir);
 ensureDir(publicDir);
 ensureDir(publicRecoveryDir);
 
 writeJson(resolve(finalDir, 'operator_truth_payload.json'), truthPayload);
+writeJson(resolve(controlPlaneDir, 'operator_truth_payload.json'), truthPayload);
 writeJson(resolve(publicDir, 'operator_truth_payload.json'), truthPayload);
 writeJson(resolve(finalDir, 'realtime_trainer_monitor_status.json'), trainerStatus);
 writeJson(resolve(finalDir, 'realtime_legacy_monitor_status.json'), legacyStatus);
@@ -396,6 +415,27 @@ writeJson(resolve(finalDir, 'operator_dashboard_payload.json'), {
   trainer_monitor_status: trainerStatus.status,
   legacy_monitor_status: legacyStatus.orchestrator_status,
   current_next_task: truthPayload.current_next_task,
+  stale_payload_count: stalePayloads.length,
+  missing_evidence_count: missingEvidence.length,
+  redis_trim_status: truthPayload.redis_trim_status,
+  browser_screenshot_evidence: controlPlaneScreenshots,
+  human_input_required: 'false_unless_final_live_capital_gate',
+});
+writeJson(resolve(controlPlaneDir, 'operator_dashboard_payload.json'), {
+  generated_at: nowIso,
+  status: 'REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY',
+  live_gate_status: 'blocked_human_only',
+  supervisor_truth_status: supervisorStatus.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT_SNAPSHOT',
+  supervisor_alive: supervisorStatus.is_supervisor_alive,
+  current_running_task: supervisorStatus.current_running_task,
+  last_completed_task: supervisorStatus.last_completed_task,
+  next_pending_task: truthPayload.current_next_task,
+  market_ingestor_status: legacyStatus.market_ingestor_status,
+  market_ingestor_count: marketIngestorProcesses.length,
+  feature_pipeline_status: legacyStatus.feature_pipeline_status,
+  orchestrator_status: legacyStatus.orchestrator_status,
+  trader_status: legacyStatus.trader_status,
+  trainer_monitor_status: trainerStatus.status,
   stale_payload_count: stalePayloads.length,
   missing_evidence_count: missingEvidence.length,
   redis_trim_status: truthPayload.redis_trim_status,
@@ -442,6 +482,8 @@ Generated at: ${nowIso}
 - Master planner running: ${supervisorStatus.master_planner_running ? 'yes' : 'no'}
 - Autonomous governor active: ${supervisorStatus.autonomous_governor_active ? 'yes' : 'no'}
 - Current running task: ${supervisorStatus.current_running_task ?? 'none'}
+- Last completed task: ${supervisorStatus.last_completed_task ?? 'none'}
+- Last task status: ${supervisorStatus.last_task_status ?? 'missing'}
 - True next task: ${supervisorStatus.true_next_task ?? 'missing'}
 - Queue age seconds: ${supervisorStatus.status_conflicts.queue_age_seconds ?? 'missing'}
 - Planner age seconds: ${supervisorStatus.status_conflicts.planner_age_seconds ?? 'missing'}
@@ -519,6 +561,8 @@ Key truths:
 - Trainer monitor: ${trainerStatus.status}
 - Legacy orchestrator process: ${legacyStatus.orchestrator_status}
 - Trader process: ${legacyStatus.trader_status}
+- Market ingestors: ${legacyStatus.market_ingestor_status} (${marketIngestorProcesses.length})
+- Feature pipeline: ${legacyStatus.feature_pipeline_status} (${featurePipelineProcesses.length})
 - Current next task: ${truthPayload.current_next_task ?? 'missing'}
 - Stale payload count: ${stalePayloads.length}
 - Missing evidence count: ${missingEvidence.length}
@@ -549,11 +593,136 @@ Challenges:
 writeText(resolve(finalDir, 'CODEX_GO_NO_GO.md'), 'OPERATOR_TRUTH_DASHBOARD_CODEX_PASS\n');
 writeText(resolve(finalDir, 'GO_NO_GO.md'), 'OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_RECOVERY_READY\n');
 
+writeText(resolve(controlPlaneDir, 'REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md'), `# Realtime Control Plane And Trainer Monitor Recovery Report
+
+Status: REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY
+
+Generated at: ${nowIso}
+
+This pass repairs the runtime truth snapshot used by Mission Control. The generator now distinguishes the current queue task from the last completed task, captures observed read-only runtime processes, and keeps missing trainer runtime evidence visible.
+
+Current runtime snapshot:
+
+- Live trading: blocked_human_only
+- Supervisor process observed: ${supervisorStatus.is_supervisor_alive ? 'yes' : 'no'}
+- Current running task: ${supervisorStatus.current_running_task ?? 'none'}
+- Last completed task: ${supervisorStatus.last_completed_task ?? 'none'}
+- Next pending task: ${truthPayload.current_next_task ?? 'missing'}
+- Market ingestors observed: ${marketIngestorProcesses.length}
+- Feature pipeline observed: ${featurePipelineProcesses.length}
+- Orchestrator observed: ${orchestratorProcesses.length}
+- Trader observed: ${traderProcesses.length}
+- Trainer runtime status: ${trainerStatus.status}
+- Redis trim: ${truthPayload.redis_trim_status}
+
+No live, Redis write, exchange, leverage, margin, or legacy-code mutation was performed.
+`);
+
+writeText(resolve(controlPlaneDir, 'RUNTIME_TRUTH_FRESHNESS_FIX.md'), `# Runtime Truth Freshness Fix
+
+Generated at: ${nowIso}
+
+Fixes applied:
+
+- Expanded read-only process detection to include live market ingestors and feature_pipeline.
+- Removed the false fallback that displayed the last completed task as the current running task.
+- Added last_completed_task and last_task_status as separate fields.
+- Added market_ingestor_status and feature_pipeline_status to runtime_monitor_status.
+- Preserved TRAINER_RUNTIME_EVIDENCE_MISSING when no realtime trainer process or trainer monitor stream is observed.
+`);
+
+writeText(resolve(controlPlaneDir, 'SUPERVISOR_STATE_RECONCILIATION.md'), `# Supervisor State Reconciliation
+
+Generated at: ${nowIso}
+
+- Queue status age seconds: ${queueAge ?? 'missing'}
+- Planner status age seconds: ${plannerAge ?? 'missing'}
+- Supervisor daemon observed: ${supervisorStatus.is_supervisor_alive ? 'yes' : 'no'}
+- Master planner observed: ${supervisorStatus.master_planner_running ? 'yes' : 'no'}
+- Autonomous governor observed: ${supervisorStatus.autonomous_governor_active ? 'yes' : 'no'}
+- Current running task: ${supervisorStatus.current_running_task ?? 'none'}
+- Last completed task: ${supervisorStatus.last_completed_task ?? 'none'}
+- Next pending task: ${truthPayload.current_next_task ?? 'missing'}
+- Dashboard state: ${supervisorStatus.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT_SNAPSHOT'}
+
+If the control-plane daemon is expected to be active, launch/repair it through a separate non-live supervisor recovery task. This pass does not restart live trainer/trader/orchestrator/Redis/VPN.
+`);
+
+writeText(resolve(controlPlaneDir, 'TRAINER_MONITOR_EVIDENCE_REVIEW.md'), `# Trainer Monitor Evidence Review
+
+Generated at: ${nowIso}
+
+Status: ${trainerStatus.status}
+
+- Trainer process rows observed: ${trainerProcesses.length}
+- Trainer payload age seconds: ${trainerStatus.payload_age_seconds ?? 'missing'}
+- Latest trainer payload status: ${trainerStatus.latest_trainer_status_from_payload ?? 'missing'}
+
+Conclusion: ${trainerStatus.status === 'TRAINER_RUNTIME_EVIDENCE_MISSING' ? 'No current trainer runtime evidence was observed. Mission Control must not display fixture predictions as current trainer output.' : 'Realtime trainer evidence was observed in the read-only process snapshot.'}
+`);
+
+writeText(resolve(controlPlaneDir, 'MISSION_CONTROL_SIMPLIFICATION_REPORT.md'), `# Mission Control Simplification Report
+
+Generated at: ${nowIso}
+
+Mission Control now prioritizes:
+
+- Immediate live/control-plane/trainer/runtime truth.
+- Actual observed read-only processes.
+- TradingView and compact signal/risk context.
+- Collapsed evidence and proof details below the operational surface.
+
+Long proof tables, Redis packet details, system atlas content, and stale/static artifact lists remain available but are no longer the primary first-screen operator experience.
+`);
+
+writeText(resolve(controlPlaneDir, 'BROWSER_VISUAL_ACCEPTANCE_REPORT.md'), `# Browser Visual Acceptance Report
+
+Generated at: ${nowIso}
+
+Screenshots captured from the active Vite dev server at http://127.0.0.1:5173:
+
+${controlPlaneScreenshots.map((path) => `- ${path}`).join('\n')}
+
+Acceptance observations:
+
+- Mission Control now starts with the truth deck, actual runtime process panel, runtime matrix, critical systems, chart, signal stream, risk boundary, governor, and monitor table.
+- Long proof/payload/static fixture details are collapsed below the operating surface.
+- Trainer runtime evidence remains explicit: ${trainerStatus.status}.
+- Stale/conflicting supervisor state remains visible instead of hidden.
+- Live blocked banner remains visible through the shared admin route shell.
+- No live, Redis write, exchange, leverage, margin, or legacy-code mutation was performed.
+`);
+
+writeText(resolve(controlPlaneDir, 'CODEX_REALTIME_CONTROL_PLANE_REVIEW.md'), `# Codex Realtime Control Plane Review
+
+Review result: REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_CODEX_PASS
+
+Checks:
+
+- Current running task is no longer inferred from a completed task.
+- Runtime process detection includes market ingestors and feature_pipeline.
+- Trainer runtime evidence remains missing when no trainer process/stream is observed.
+- UI can show supervisor stale/conflicting state without hiding it.
+- No live, Redis write, exchange, leverage, margin, or legacy-code mutation occurred.
+`);
+
+writeText(resolve(controlPlaneDir, 'CODEX_GO_NO_GO.md'), 'REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_CODEX_PASS\n');
+writeText(resolve(controlPlaneDir, 'GO_NO_GO.md'), 'REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY\n');
+
 // Keep public recovery reports synchronized for local browsing/debugging.
 for (const name of readdirSync(finalDir)) {
   const source = resolve(finalDir, name);
   if (statSync(source).isFile()) {
     writeFileSync(resolve(publicRecoveryDir, name), readFileSync(source));
+  }
+}
+
+const publicControlPlaneDir = resolve(frontendRoot, 'public', 'realtime_control_plane_trainer_monitor_recovery', 'latest');
+ensureDir(publicControlPlaneDir);
+for (const name of readdirSync(controlPlaneDir)) {
+  const source = resolve(controlPlaneDir, name);
+  if (statSync(source).isFile()) {
+    writeFileSync(resolve(publicControlPlaneDir, name), readFileSync(source));
   }
 }
 

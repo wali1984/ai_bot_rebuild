@@ -7,7 +7,7 @@ import type { AutonomousGovernorPayload, CockpitPayload } from '../cockpitData';
 import { statusClass, useCockpitPayload, valueText } from '../cockpitData';
 import { MissionControlReadinessBanner } from '../../components/banners/MissionControlReadinessBanner';
 import { useOperatorTruthPayload } from '../operatorTruthData';
-import { LegacyRuntimeMonitorPanel, MissingEvidencePanel, OperatorTruthCommandDeck, OperatorTruthLoading, PayloadFreshnessPanel, RuntimeTruthMatrix, SignalLineageTruthPanel, TrainerPredictionTruthPanel, WhatIsWorkingPanel } from '../operatorTruthComponents';
+import { ActualRuntimeNowPanel, LegacyRuntimeMonitorPanel, MissingEvidencePanel, OperatorTruthCommandDeck, OperatorTruthLoading, PayloadFreshnessPanel, RuntimeTruthMatrix, SignalLineageTruthPanel, TrainerPredictionTruthPanel, WhatIsWorkingPanel } from '../operatorTruthComponents';
 
 const EVIDENCE_MISSING = 'Evidence missing - cannot explain without guessing.';
 
@@ -29,25 +29,13 @@ export default function MissionControlPage(): JSX.Element {
     <article className="enterprise-cockpit-page mission-control-design-page grid-bg" data-testid="page-mission-control" data-page-id={meta.id} data-page-path={route.path} data-page-min-role={rbac.minRole}>
       <MissionControlReadinessBanner />
       {truthPayload ? <OperatorTruthCommandDeck payload={truthPayload} /> : <OperatorTruthLoading error={truthError} />}
-      <MissionCommandHero payload={payload} marketFeedSource={marketFeedSource} truthPayloadReady={Boolean(truthPayload)} />
+      {truthPayload ? <ActualRuntimeNowPanel payload={truthPayload} /> : null}
       {truthPayload ? <RuntimeTruthMatrix payload={truthPayload} /> : null}
       {truthPayload ? <MissionCriticalSystemsGrid payload={payload} truthPayload={truthPayload} /> : null}
-      {truthPayload ? (
-        <section className="operator-truth-preview-grid" aria-label="Current operator truth and runtime evidence">
-          <LegacyRuntimeMonitorPanel payload={truthPayload} />
-          <TrainerPredictionTruthPanel payload={truthPayload} />
-          <SignalLineageTruthPanel payload={truthPayload} />
-        </section>
-      ) : null}
-      {truthPayload ? <WhatIsWorkingPanel payload={truthPayload} /> : null}
-      <SafetyTopBar payload={payload} />
-      <SubsystemStrip payload={payload} autonomousGovernor={autonomousGovernor} marketFeedSource={marketFeedSource} />
       <div className="mission-command-layout">
         <div className="mission-command-main">
           <ChartPanel candles={payload.candles} decisions={payload.decisions} sourceType={marketFeedSource} />
           <SignalStreamCompactPanel payload={payload} />
-          <DecisionDrawers rows={payload.decisions} />
-          <MarketPulse payload={payload} />
         </div>
         <aside className="mission-command-side">
           <RiskBoundaryPanel payload={payload} />
@@ -55,28 +43,57 @@ export default function MissionControlPage(): JSX.Element {
           <MonitorTable rows={payload.monitors} />
         </aside>
       </div>
-      <section className="mission-system-grid" aria-label="V2 online-readiness evidence surfaces">
-        <div className="mission-system-column">
-          <ConfigTable rows={payload.settings} />
-          <ExchangeManager rows={payload.exchanges} />
-          <Phase3cRuntimeMonitorPanel payload={phase3cRuntimeMonitor} />
+      <details className="mission-evidence-details">
+        <summary>
+          <span>Open proof, payload, and subsystem evidence</span>
+          <small>Static fixtures and stale payloads stay available here, away from the primary operating surface.</small>
+        </summary>
+        <div className="mission-evidence-details__body">
+          <MissionCommandHero payload={payload} marketFeedSource={marketFeedSource} truthPayloadReady={Boolean(truthPayload)} />
+          {truthPayload ? (
+            <section className="operator-truth-preview-grid" aria-label="Current operator truth and runtime evidence">
+              <LegacyRuntimeMonitorPanel payload={truthPayload} />
+              <TrainerPredictionTruthPanel payload={truthPayload} />
+              <SignalLineageTruthPanel payload={truthPayload} />
+            </section>
+          ) : null}
+          {truthPayload ? <WhatIsWorkingPanel payload={truthPayload} /> : null}
+          <SafetyTopBar payload={payload} />
+          <SubsystemStrip payload={payload} autonomousGovernor={autonomousGovernor} marketFeedSource={marketFeedSource} />
+          <div className="mission-command-layout">
+            <div className="mission-command-main">
+              <DecisionDrawers rows={payload.decisions} />
+              <MarketPulse payload={payload} />
+            </div>
+            <aside className="mission-command-side">
+              <Phase3cRuntimeMonitorPanel payload={phase3cRuntimeMonitor} />
+              <QuarantinePanel payload={quarantine} />
+            </aside>
+          </div>
+          <section className="mission-system-grid" aria-label="V2 online-readiness evidence surfaces">
+            <div className="mission-system-column">
+              <ConfigTable rows={payload.settings} />
+              <ExchangeManager rows={payload.exchanges} />
+              <Phase3cRuntimeMonitorPanel payload={phase3cRuntimeMonitor} />
+            </div>
+            <div className="mission-system-column">
+              <QuarantinePanel payload={quarantine} />
+              <SystemAtlasPanel payload={systemAtlas} />
+              <SystemAtlasGapRemediationPanel payload={systemAtlasGapRemediation} />
+            </div>
+            <div className="mission-system-column">
+              <RedisMemoryPressurePanel payload={redisMemoryPressure} />
+              <RedisHumanApprovalPanel payload={redisHumanApproval} />
+              <RedisExportCapacityPanel payload={redisExportCapacity} />
+              <RedisFullExportPanel payload={redisFullExport} />
+              <RedisSafeTrimPacketPanel payload={redisSafeTrimPacket} />
+            </div>
+          </section>
+          {truthPayload ? <PayloadFreshnessPanel payload={truthPayload} /> : null}
+          {truthPayload ? <MissingEvidencePanel payload={truthPayload} /> : null}
+          <FreshnessAndBlockersPanel payload={payload} />
         </div>
-        <div className="mission-system-column">
-          <QuarantinePanel payload={quarantine} />
-          <SystemAtlasPanel payload={systemAtlas} />
-          <SystemAtlasGapRemediationPanel payload={systemAtlasGapRemediation} />
-        </div>
-        <div className="mission-system-column">
-          <RedisMemoryPressurePanel payload={redisMemoryPressure} />
-          <RedisHumanApprovalPanel payload={redisHumanApproval} />
-          <RedisExportCapacityPanel payload={redisExportCapacity} />
-          <RedisFullExportPanel payload={redisFullExport} />
-          <RedisSafeTrimPacketPanel payload={redisSafeTrimPacket} />
-        </div>
-      </section>
-      {truthPayload ? <PayloadFreshnessPanel payload={truthPayload} /> : null}
-      {truthPayload ? <MissingEvidencePanel payload={truthPayload} /> : null}
-      <FreshnessAndBlockersPanel payload={payload} />
+      </details>
       <footer className="modern-dashboard-marker" data-testid="modern-dashboard-loaded">
         AI BOT V2 Modern Dashboard Loaded
       </footer>

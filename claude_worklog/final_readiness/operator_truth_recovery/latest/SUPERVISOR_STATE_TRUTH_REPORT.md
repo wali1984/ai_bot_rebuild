@@ -1,21 +1,35 @@
 # Supervisor State Truth Report
 
-Generated at: 2026-05-12T00:29:57.739Z
+Generated at: 2026-05-12T02:03:33.238Z
 
-- Supervisor alive: no
-- Heartbeat stale: yes
+- Supervisor alive: yes
+- Heartbeat stale: no
 - Master planner running: no
 - Autonomous governor active: no
-- Current running task: parallel_capacity_readonly_review_phase2f_b_evidence_reconciliation_passed
+- Current running task: codex_parallel_review_20260512_020029_04_paper_execution_ledger
+- Last completed task: none
+- Last task status: running
 - True next task: codex_recover_173_phase2r_consolidated_python_source_and_task_json_end_file_leakage_cleanup
-- Queue age seconds: 3932
-- Planner age seconds: 14084
+- Queue age seconds: 29
+- Planner age seconds: 19699
 - Dashboard conflict state: SUPERVISOR_STATUS_STALE_OR_CONFLICTING
 
 Active automation processes:
 
-- `1042465 1011413  238906 python3 -m rl.orchestrator_worker`
-- `1272209 1272100  194731 tail -f Desktop/AI BOT/logs/orchestrator_worker.log`
+- `1035556 1011413  244766 python3 ingest/live_binance.py`
+- `1035713 1011413  244755 python3 ingest/live_kucoin.py`
+- `1035811 1011413  244748 python3 ingest/live_coinank.py`
+- `1035965 1011413  244739 python3 ingest/live_coinank_global_aggregator.py`
+- `1036143 1011413  244728 python3 ingest/live_binance_liquidations.py`
+- `1038292 1011413  244640 python3 feature_pipeline.py`
+- `1038859 1011413  244614 python3 ingest/live_technical_analysis.py`
+- `1042465 1011413  244521 python3 -m rl.orchestrator_worker`
+- `1272209 1272100  200346 tail -f Desktop/AI BOT/logs/orchestrator_worker.log`
+- `3324271 1011413    2143 /bin/bash -O extglob -c snap=$(command cat <&3) && builtin shopt -s extglob && builtin eval -- "$snap" && { builtin set +u 2>/dev/null || true; builtin eval "${__CURSOR_SANDBOX_ENV_RESTORE:-}" 2>/dev/null; builtin export PWD="$(builtin pwd)"; builtin shopt -s expand_aliases 2>/dev/null; builtin eval "$1"; }; COMMAND_EXIT_CODE=$?; dump_bash_state >&4; builtin exit $COMMAND_EXIT_CODE -- cd "/home/wali/Desktop/AI BOT" && mkdir -p .logs && nohup python3 -u trading/trader.py >> .logs/trader.log 2>&1 & disown; sleep 1; pgrep -af "python3( -u)? trading/trader\.py" || true`
+- `3324274 3324271    2143 python3 -u trading/trader.py`
+- `3349490 2399536      29 python3 claude_worklog/tools/agent_supervisor.py --task-id codex_parallel_review_20260512_020029_04_paper_execution_ledger`
+- `3349492 3349490      29 node /home/wali/.local/bin/codex exec You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD.  READ-ONLY PARALLEL REVIEW MODE.  Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not delete Redis keys. Do not restart live services. Do not place/cancel orders. Do not change leverage/margin. Do not enable live trading. Do not deploy. Do not expose secrets.  Review topic: Paper Execution Ledger MVP  Inputs to inspect: - v2/backend/app - v2/backend/tests - claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl - claude_worklog/phase2_core_rebuild/paper_mode_impl  Checks: - paper open/close/reduce/hedge/block ledger events - PnL accounting - risk decision linkage - execution_intent_id linkage - no real exchange actions  Write exactly two BEGIN_FILE blocks: 1. claude_worklog/codex_parallel_reviews/20260512_020029_04_paper_execution_ledger_REPORT.md 2. claude_worklog/codex_parallel_reviews/20260512_020029_04_paper_execution_ledger_GO_NO_GO.md  The GO/NO-GO file must contain exactly one line: CODEX_PARALLEL_REVIEW_READY or CODEX_PARALLEL_REVIEW_BLOCKED  If blocked, the report must include concrete blockers and proposed non-live autofix tasks.`
+- `3349503 3349492      29 /home/wali/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex/codex exec You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD.  READ-ONLY PARALLEL REVIEW MODE.  Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not delete Redis keys. Do not restart live services. Do not place/cancel orders. Do not change leverage/margin. Do not enable live trading. Do not deploy. Do not expose secrets.  Review topic: Paper Execution Ledger MVP  Inputs to inspect: - v2/backend/app - v2/backend/tests - claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl - claude_worklog/phase2_core_rebuild/paper_mode_impl  Checks: - paper open/close/reduce/hedge/block ledger events - PnL accounting - risk decision linkage - execution_intent_id linkage - no real exchange actions  Write exactly two BEGIN_FILE blocks: 1. claude_worklog/codex_parallel_reviews/20260512_020029_04_paper_execution_ledger_REPORT.md 2. claude_worklog/codex_parallel_reviews/20260512_020029_04_paper_execution_ledger_GO_NO_GO.md  The GO/NO-GO file must contain exactly one line: CODEX_PARALLEL_REVIEW_READY or CODEX_PARALLEL_REVIEW_BLOCKED  If blocked, the report must include concrete blockers and proposed non-live autofix tasks.`
 
 Repair needed:
 
