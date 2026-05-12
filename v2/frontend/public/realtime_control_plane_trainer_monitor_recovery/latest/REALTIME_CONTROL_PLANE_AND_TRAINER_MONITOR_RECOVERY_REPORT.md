@@ -2,7 +2,7 @@
 
 Status: REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY
 
-Generated at: 2026-05-12T03:03:18.684Z
+Generated at: 2026-05-12T03:04:31.442Z
 
 This pass repairs the runtime truth snapshot used by Mission Control. The generator now distinguishes the current queue task from the last completed task, captures observed read-only runtime processes, and keeps missing trainer runtime evidence visible.
 

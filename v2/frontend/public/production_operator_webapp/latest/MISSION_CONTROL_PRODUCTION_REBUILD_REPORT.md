@@ -1,6 +1,6 @@
 # Mission Control Production Rebuild Report
 
-Generated at: 2026-05-12T03:03:18.684Z
+Generated at: 2026-05-12T03:04:31.442Z
 
 Mission Control first screen now prioritizes live gate, supervisor truth, Claude/Codex/Ollama/control-plane state, current and next tasks, trainer runtime, orchestrator/risk/execution status, market/chart status, paper/shadow status, top blockers, payload freshness, and detail-page links.
 
