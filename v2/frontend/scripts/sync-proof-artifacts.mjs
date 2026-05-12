@@ -57,6 +57,7 @@ const artifactSets = [
   'v2_live_observer_shadow_twin',
   'tonight_live_like_paper_shadow',
   'production_website_public_route_rebuild',
+  'production_website_full_rebuild',
   'post_mvp_non_live_gap_audit',
 ];
 
