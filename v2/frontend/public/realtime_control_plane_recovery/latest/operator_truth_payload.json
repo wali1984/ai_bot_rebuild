@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-12T03:33:51.749Z",
+  "generated_at": "2026-05-12T04:35:02.264Z",
   "source_files": [
     "claude_worklog/agent_supervisor/status/current_status.json",
     "claude_worklog/agent_supervisor/status/queue_status.json",
@@ -16,20 +16,31 @@
     "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
     "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json"
   ],
+  "canonical_truth_bridge": {
+    "status": "PAPER_ONLINE_CANONICAL_TRUTH_ACTIVE",
+    "source": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+    "generated_at": "2026-05-12T04:34:58Z",
+    "paper_runtime_age_seconds": 4,
+    "operator_truth_was_stale": false,
+    "runtime_state": "PAPER_RUNTIME_ONLINE_ACTIVE",
+    "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT",
+    "signal_lineage": "REALTIME_RUNTIME_EVIDENCE",
+    "live_gate_status": "blocked_human_only"
+  },
   "supervisor_status": {
-    "generated_at": "2026-05-12T03:33:51.749Z",
+    "generated_at": "2026-05-12T04:35:02.264Z",
     "current_status_path": "claude_worklog/agent_supervisor/status/current_status.json",
     "queue_status_path": "claude_worklog/agent_supervisor/status/queue_status.json",
     "master_planner_status_path": "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json",
     "current_status": {
-      "task_id": "codex_parallel_review_20260512_021504_06_paper_mode",
+      "task_id": "codex_parallel_review_20260512_042102_09_website_explainability_contracts",
       "agent": "codex",
       "risk_level": "L1",
-      "start_time": "2026-05-12T02:17:44.229112+00:00",
-      "end_time": "2026-05-12T02:20:30.032711+00:00",
+      "start_time": "2026-05-12T04:24:58.438122+00:00",
+      "end_time": "2026-05-12T04:27:00.723385+00:00",
       "status": "completed",
-      "stdout_path": "claude_worklog/agent_supervisor/runs/codex_parallel_review_20260512_021504_06_paper_mode/stdout.txt",
-      "stderr_path": "claude_worklog/agent_supervisor/runs/codex_parallel_review_20260512_021504_06_paper_mode/stderr.txt",
+      "stdout_path": "claude_worklog/agent_supervisor/runs/codex_parallel_review_20260512_042102_09_website_explainability_contracts/stdout.txt",
+      "stderr_path": "claude_worklog/agent_supervisor/runs/codex_parallel_review_20260512_042102_09_website_explainability_contracts/stderr.txt",
       "summary": "agent run status: completed",
       "next_recommended_action": "inspect run output",
       "materialized_files": [],
@@ -42,10 +53,10 @@
       "timed_out": false,
       "attention_reason": null,
       "last_retry_reason": null,
-      "run_pid": 3370911
+      "run_pid": 3488936
     },
     "queue_status": {
-      "generated_at": "2026-05-12T02:20:30.062784+00:00",
+      "generated_at": "2026-05-12T04:27:00.757103+00:00",
       "next_pending_task": "codex_recover_173_phase2r_consolidated_python_source_and_task_json_end_file_leakage_cleanup",
       "current_running_task": null,
       "blocked_quota": null,
@@ -66,7 +77,7 @@
       "counts": {
         "pending": 9,
         "running": 0,
-        "completed": 371,
+        "completed": 374,
         "failed": 2,
         "blocked": 10,
         "retry_scheduled": 8,
@@ -168,77 +179,48 @@
       "prompt_path": "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt"
     },
     "active_processes": [
-      "1035556 1011413 250185 python3 ingest/live_binance.py",
-      "1035713 1011413 250174 python3 ingest/live_kucoin.py",
-      "1035811 1011413 250167 python3 ingest/live_coinank.py",
-      "1035965 1011413 250158 python3 ingest/live_coinank_global_aggregator.py",
-      "1036143 1011413 250147 python3 ingest/live_binance_liquidations.py",
-      "1038292 1011413 250059 python3 feature_pipeline.py",
-      "1038859 1011413 250033 python3 ingest/live_technical_analysis.py",
-      "1042465 1011413 249940 python3 -m rl.orchestrator_worker",
-      "1272209 1272100 205765 tail -f Desktop/AI BOT/logs/orchestrator_worker.log",
-      "3324271 1011413 7562 /bin/bash -O extglob -c snap=$(command cat <&3) && builtin shopt -s extglob && builtin eval -- \"$snap\" && { builtin set +u 2>/dev/null || true; builtin eval \"${__CURSOR_SANDBOX_ENV_RESTORE:-}\" 2>/dev/null; builtin export...",
-      "3324274 3324271 7562 python3 -u trading/trader.py",
-      "3446733 1011413 31 python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30"
+      "1035556 1011413 253855 python3 ingest/live_binance.py",
+      "1035713 1011413 253844 python3 ingest/live_kucoin.py",
+      "1035811 1011413 253837 python3 ingest/live_coinank.py",
+      "1035965 1011413 253828 python3 ingest/live_coinank_global_aggregator.py",
+      "1036143 1011413 253817 python3 ingest/live_binance_liquidations.py",
+      "1038292 1011413 253729 python3 feature_pipeline.py",
+      "1038859 1011413 253703 python3 ingest/live_technical_analysis.py",
+      "1042465 1011413 253610 python3 -m rl.orchestrator_worker",
+      "1272209 1272100 209435 tail -f Desktop/AI BOT/logs/orchestrator_worker.log",
+      "3324271 1011413 11233 /bin/bash -O extglob -c snap=$(command cat <&3) && builtin shopt -s extglob && builtin eval -- \"$snap\" && { builtin set +u 2>/dev/null || true; builtin eval \"${__CURSOR_SANDBOX_ENV_RESTORE:-}\" 2>/dev/null; builtin export...",
+      "3324274 3324271 11233 python3 -u trading/trader.py",
+      "3446733 1011413 3701 python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30"
     ],
     "supervisor_processes": [],
     "is_supervisor_alive": false,
     "heartbeat_stale": true,
+    "control_plane_status": "CONTROL_PLANE_DAEMON_NOT_OBSERVED",
+    "canonical_snapshot_fresh": true,
+    "historical_status_files_stale": true,
     "master_planner_running": false,
     "autonomous_governor_active": false,
     "current_running_task": null,
-    "last_completed_task": "codex_parallel_review_20260512_021504_06_paper_mode",
+    "last_completed_task": "codex_parallel_review_20260512_042102_09_website_explainability_contracts",
     "last_task_status": "completed",
     "next_pending_task": "codex_recover_173_phase2r_consolidated_python_source_and_task_json_end_file_leakage_cleanup",
     "true_next_task": "codex_recover_173_phase2r_consolidated_python_source_and_task_json_end_file_leakage_cleanup",
-    "stale_or_conflicting": true,
+    "stale_or_conflicting": false,
     "status_conflicts": {
       "git_status_conflict": true,
-      "current_git_status": "M claude_worklog/final_readiness/production_operator_webapp/latest/ADMIN_SHELL_REBUILD_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/ALL_ROUTES_PRODUCTION_CONTENT_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/BROWSER_PRODUCTION_ACCEPTANCE_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/MISSION_CONTROL_PRODUCTION_REBUILD_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/MONITOR_CENTER_PRODUCTION_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/OPERATOR_TRUTH_GENERATOR_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/PRODUCTION_OPERATOR_WEBAPP_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/ROUTE_ACCEPTANCE_MATRIX.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/SIGNAL_EXPLAINABILITY_PRODUCTION_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/SUPERVISOR_FRESHNESS_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/TRADINGVIEW_PRODUCTION_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/TRAINER_MONITOR_PRODUCTION_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/UI_ACCEPTANCE_FAILURE.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/operator_dashboard_payload.json\n M v2/backend/app/cli/paper_online_runtime.py\n M v2/frontend/public/production_operator_webapp/latest/ADMIN_SHELL_REBUILD_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/ALL_ROUTES_PRODUCTION_CONTENT_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/BROWSER_PRODUCTION_ACCEPTANCE_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/MISSION_CONTROL_PRODUCTION_REBUILD_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/MONITOR_CENTER_PRODUCTION_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/OPERATOR_TRUTH_GENERATOR_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/PRODUCTION_OPERATOR_WEBAPP_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/ROUTE_ACCEPTANCE_MATRIX.md\n M v2/frontend/public/production_operator_webapp/latest/SIGNAL_EXPLAINABILITY_PRODUCTION_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/SUPERVISOR_FRESHNESS_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/TRADINGVIEW_PRODUCTION_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/TRAINER_MONITOR_PRODUCTION_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/UI_ACCEPTANCE_FAILURE.md\n M v2/frontend/public/production_operator_webapp/latest/operator_dashboard_payload.json\n M v2/frontend/scripts/build-operator-truth-payload.mjs\n M v2/frontend/src/pages/operatorTruthComponents.tsx\n M v2/frontend/src/pages/operatorTruthData.ts\n M v2/frontend/src/pages/risk-control/index.tsx\n M v2/frontend/src/pages/signal-explainability/index.tsx\n?? claude_worklog/final_readiness/v2_paper_online_recovery/",
+      "current_git_status": "M v2/frontend/scripts/build-operator-truth-payload.mjs\n M v2/frontend/scripts/sync-proof-artifacts.mjs\n M v2/frontend/src/pages/operatorTruthComponents.tsx\n M v2/frontend/src/pages/operatorTruthData.ts\n M v2/frontend/src/pages/trainer-prediction-monitor/index.tsx",
       "planner_reported_git_status": "?? claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/CODEX_GO_NO_GO.md\n?? claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/CODEX_ONLINE_READINESS_AGGREGATOR_FRESHNESS_REVIEW.md",
-      "queue_age_seconds": 4402,
-      "planner_age_seconds": 25118
+      "queue_age_seconds": 482,
+      "planner_age_seconds": 28788,
+      "historical_status_files_stale": true,
+      "canonical_truth_source": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json"
     },
     "latest_event": {
-      "event": "parallel_capacity_scheduler_cycle",
-      "mode": "actions_enabled",
-      "claude_lane_status": "idle",
-      "codex_review_lane_status": "idle",
-      "codex_autofix_lane_status": "idle",
-      "codex_watchdog_lane_status": "active",
-      "codex_idle_while_work_available": true,
-      "next_safe_codex_task": "run Codex watchdog dirty-tree recovery",
-      "actions": [
-        {
-          "action": "ran_watchdog_dirty_tree_recovery",
-          "returncode": 0
-        },
-        {
-          "action": "created_codex_parallel_review_batch",
-          "created": [],
-          "skipped_recent": [
-            "trainer_prediction_output",
-            "orchestrator_decision",
-            "risk_gateway_default_deny",
-            "paper_execution_ledger",
-            "replay_backtest_runner",
-            "paper_mode",
-            "shadow_readiness",
-            "historical_pnl_integration",
-            "website_explainability_contracts",
-            "no_live_side_effects"
-          ],
-          "returncode": 0,
-          "stderr_tail": ""
-        },
-        {
-          "action": "started_master_planner"
-        }
-      ],
-      "ts": "2026-05-12T03:30:58.802560+00:00"
+      "event": "codex_watchdog_restarted_planner",
+      "ts": "2026-05-12T04:30:59.672759+00:00"
     },
-    "git_status": "M claude_worklog/final_readiness/production_operator_webapp/latest/ADMIN_SHELL_REBUILD_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/ALL_ROUTES_PRODUCTION_CONTENT_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/BROWSER_PRODUCTION_ACCEPTANCE_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/MISSION_CONTROL_PRODUCTION_REBUILD_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/MONITOR_CENTER_PRODUCTION_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/OPERATOR_TRUTH_GENERATOR_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/PRODUCTION_OPERATOR_WEBAPP_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/ROUTE_ACCEPTANCE_MATRIX.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/SIGNAL_EXPLAINABILITY_PRODUCTION_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/SUPERVISOR_FRESHNESS_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/TRADINGVIEW_PRODUCTION_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/TRAINER_MONITOR_PRODUCTION_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/UI_ACCEPTANCE_FAILURE.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/operator_dashboard_payload.json\n M v2/backend/app/cli/paper_online_runtime.py\n M v2/frontend/public/production_operator_webapp/latest/ADMIN_SHELL_REBUILD_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/ALL_ROUTES_PRODUCTION_CONTENT_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/BROWSER_PRODUCTION_ACCEPTANCE_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/MISSION_CONTROL_PRODUCTION_REBUILD_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/MONITOR_CENTER_PRODUCTION_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/OPERATOR_TRUTH_GENERATOR_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/PRODUCTION_OPERATOR_WEBAPP_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/ROUTE_ACCEPTANCE_MATRIX.md\n M v2/frontend/public/production_operator_webapp/latest/SIGNAL_EXPLAINABILITY_PRODUCTION_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/SUPERVISOR_FRESHNESS_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/TRADINGVIEW_PRODUCTION_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/TRAINER_MONITOR_PRODUCTION_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/UI_ACCEPTANCE_FAILURE.md\n M v2/frontend/public/production_operator_webapp/latest/operator_dashboard_payload.json\n M v2/frontend/scripts/build-operator-truth-payload.mjs\n M v2/frontend/src/pages/operatorTruthComponents.tsx\n M v2/frontend/src/pages/operatorTruthData.ts\n M v2/frontend/src/pages/risk-control/index.tsx\n M v2/frontend/src/pages/signal-explainability/index.tsx\n?? claude_worklog/final_readiness/v2_paper_online_recovery/",
-    "latest_commit": "bd10848 Codex watchdog recover dirty non-live automation artifacts",
+    "git_status": "M v2/frontend/scripts/build-operator-truth-payload.mjs\n M v2/frontend/scripts/sync-proof-artifacts.mjs\n M v2/frontend/src/pages/operatorTruthComponents.tsx\n M v2/frontend/src/pages/operatorTruthData.ts\n M v2/frontend/src/pages/trainer-prediction-monitor/index.tsx",
+    "latest_commit": "cf409b4 Add Codex parallel review batch results",
     "freshness_model": {
       "current_seconds": 120,
       "warn_seconds": 300,
@@ -246,39 +228,39 @@
     }
   },
   "runtime_monitor_status": {
-    "generated_at": "2026-05-12T03:33:51.749Z",
+    "generated_at": "2026-05-12T04:35:02.264Z",
     "active_processes": [
-      "1035556 1011413 250185 python3 ingest/live_binance.py",
-      "1035713 1011413 250174 python3 ingest/live_kucoin.py",
-      "1035811 1011413 250167 python3 ingest/live_coinank.py",
-      "1035965 1011413 250158 python3 ingest/live_coinank_global_aggregator.py",
-      "1036143 1011413 250147 python3 ingest/live_binance_liquidations.py",
-      "1038292 1011413 250059 python3 feature_pipeline.py",
-      "1038859 1011413 250033 python3 ingest/live_technical_analysis.py",
-      "1042465 1011413 249940 python3 -m rl.orchestrator_worker",
-      "1272209 1272100 205765 tail -f Desktop/AI BOT/logs/orchestrator_worker.log",
-      "3324271 1011413 7562 /bin/bash -O extglob -c snap=$(command cat <&3) && builtin shopt -s extglob && builtin eval -- \"$snap\" && { builtin set +u 2>/dev/null || true; builtin eval \"${__CURSOR_SANDBOX_ENV_RESTORE:-}\" 2>/dev/null; builtin export...",
-      "3324274 3324271 7562 python3 -u trading/trader.py",
-      "3446733 1011413 31 python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30"
+      "1035556 1011413 253855 python3 ingest/live_binance.py",
+      "1035713 1011413 253844 python3 ingest/live_kucoin.py",
+      "1035811 1011413 253837 python3 ingest/live_coinank.py",
+      "1035965 1011413 253828 python3 ingest/live_coinank_global_aggregator.py",
+      "1036143 1011413 253817 python3 ingest/live_binance_liquidations.py",
+      "1038292 1011413 253729 python3 feature_pipeline.py",
+      "1038859 1011413 253703 python3 ingest/live_technical_analysis.py",
+      "1042465 1011413 253610 python3 -m rl.orchestrator_worker",
+      "1272209 1272100 209435 tail -f Desktop/AI BOT/logs/orchestrator_worker.log",
+      "3324271 1011413 11233 /bin/bash -O extglob -c snap=$(command cat <&3) && builtin shopt -s extglob && builtin eval -- \"$snap\" && { builtin set +u 2>/dev/null || true; builtin eval \"${__CURSOR_SANDBOX_ENV_RESTORE:-}\" 2>/dev/null; builtin export...",
+      "3324274 3324271 11233 python3 -u trading/trader.py",
+      "3446733 1011413 3701 python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30"
     ],
     "orchestrator_processes": [
-      "1042465 1011413 249940 python3 -m rl.orchestrator_worker",
-      "1272209 1272100 205765 tail -f Desktop/AI BOT/logs/orchestrator_worker.log"
+      "1042465 1011413 253610 python3 -m rl.orchestrator_worker",
+      "1272209 1272100 209435 tail -f Desktop/AI BOT/logs/orchestrator_worker.log"
     ],
     "trainer_processes": [],
     "trader_processes": [
-      "3324274 3324271 7562 python3 -u trading/trader.py"
+      "3324274 3324271 11233 python3 -u trading/trader.py"
     ],
     "market_ingestor_processes": [
-      "1035556 1011413 250185 python3 ingest/live_binance.py",
-      "1035713 1011413 250174 python3 ingest/live_kucoin.py",
-      "1035811 1011413 250167 python3 ingest/live_coinank.py",
-      "1035965 1011413 250158 python3 ingest/live_coinank_global_aggregator.py",
-      "1036143 1011413 250147 python3 ingest/live_binance_liquidations.py",
-      "1038859 1011413 250033 python3 ingest/live_technical_analysis.py"
+      "1035556 1011413 253855 python3 ingest/live_binance.py",
+      "1035713 1011413 253844 python3 ingest/live_kucoin.py",
+      "1035811 1011413 253837 python3 ingest/live_coinank.py",
+      "1035965 1011413 253828 python3 ingest/live_coinank_global_aggregator.py",
+      "1036143 1011413 253817 python3 ingest/live_binance_liquidations.py",
+      "1038859 1011413 253703 python3 ingest/live_technical_analysis.py"
     ],
     "feature_pipeline_processes": [
-      "1038292 1011413 250059 python3 feature_pipeline.py"
+      "1038292 1011413 253729 python3 feature_pipeline.py"
     ],
     "orchestrator_status": "PROCESS_OBSERVED_READONLY",
     "trainer_status": "V2_PAPER_TRAINER_WRAPPER_CURRENT",
@@ -311,7 +293,7 @@
       "path": "v2/frontend/public/redis_memory_pressure_remediation/latest/operator_dashboard_payload.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-10T05:48:56.400Z",
-      "age_seconds": 164695,
+      "age_seconds": 168366,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -323,7 +305,7 @@
       "path": "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-10T00:00:00.000Z",
-      "age_seconds": 185632,
+      "age_seconds": 189302,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -335,7 +317,7 @@
       "path": "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-09T20:28:03.010Z",
-      "age_seconds": 198349,
+      "age_seconds": 202019,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -346,8 +328,8 @@
       "label": "v2 paper online runtime",
       "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
       "classification": "REALTIME_RUNTIME_EVIDENCE",
-      "generated_at": "2026-05-12T03:33:23.000Z",
-      "age_seconds": 29,
+      "generated_at": "2026-05-12T04:34:58.000Z",
+      "age_seconds": 4,
       "is_realtime": true,
       "is_static_fixture": false,
       "stale": false,
@@ -357,30 +339,30 @@
     "paper_online_runtime": {
       "audit_events": [
         {
-          "audit_event_id": "audit_paper_tick_1778556803788",
+          "audit_event_id": "audit_paper_tick_1778560498536",
           "event_type": "V2_PAPER_RUNTIME_TICK",
-          "generated_at": "2026-05-12T03:33:23Z",
+          "generated_at": "2026-05-12T04:34:58Z",
           "lineage_ids": {
-            "execution_intent_id": "pei_paper_tick_1778556803788",
-            "feature_snapshot_id": "fs_paper_tick_1778556803788",
-            "orchestrator_decision_id": "orch_paper_tick_1778556803788",
-            "prediction_id": "pred_paper_tick_1778556803788",
-            "risk_decision_id": "risk_paper_tick_1778556803788",
-            "signal_id": "sig_paper_tick_1778556803788"
+            "execution_intent_id": "pei_paper_tick_1778560498536",
+            "feature_snapshot_id": "fs_paper_tick_1778560498536",
+            "orchestrator_decision_id": "orch_paper_tick_1778560498536",
+            "prediction_id": "pred_paper_tick_1778560498536",
+            "risk_decision_id": "risk_paper_tick_1778560498536",
+            "signal_id": "sig_paper_tick_1778560498536"
           },
           "live_gate_status": "blocked_human_only",
-          "paper_ledger_entry_id": "pledger_paper_tick_1778556803788"
+          "paper_ledger_entry_id": "pledger_paper_tick_1778560498536"
         }
       ],
       "blockers": [],
       "continuous_loop_available": true,
       "current_risk_decision": {
-        "feature_snapshot_id": "fs_paper_tick_1778556803788",
-        "generated_at": "2026-05-12T03:33:23Z",
+        "feature_snapshot_id": "fs_paper_tick_1778560498536",
+        "generated_at": "2026-05-12T04:34:58Z",
         "live_blocked": true,
         "missing_fields": [],
-        "orchestrator_decision_id": "orch_paper_tick_1778556803788",
-        "prediction_id": "pred_paper_tick_1778556803788",
+        "orchestrator_decision_id": "orch_paper_tick_1778560498536",
+        "prediction_id": "pred_paper_tick_1778560498536",
         "required_blocks_checked": [
           "missing_signal_id",
           "missing_prediction_id",
@@ -397,65 +379,65 @@
           "untraceable_execution"
         ],
         "risk_action": "allow",
-        "risk_decision_id": "risk_paper_tick_1778556803788",
-        "risk_reason_code": "allow_proceed_short",
+        "risk_decision_id": "risk_paper_tick_1778560498536",
+        "risk_reason_code": "allow_proceed_long",
         "risk_result": "APPROVED_FOR_PAPER_ONLY",
-        "signal_id": "sig_paper_tick_1778556803788"
+        "signal_id": "sig_paper_tick_1778560498536"
       },
       "current_signal_lineage": {
         "classification": "REALTIME_RUNTIME_EVIDENCE",
         "execution_intent": {
           "exchange_order_allowed": false,
-          "execution_intent_id": "pei_paper_tick_1778556803788",
-          "generated_at": "2026-05-12T03:33:23Z",
+          "execution_intent_id": "pei_paper_tick_1778560498536",
+          "generated_at": "2026-05-12T04:34:58Z",
           "intent_action": "paper_fill_simulation",
           "paper_only": true,
-          "risk_decision_id": "risk_paper_tick_1778556803788",
-          "side": "short",
-          "signal_id": "sig_paper_tick_1778556803788",
+          "risk_decision_id": "risk_paper_tick_1778560498536",
+          "side": "long",
+          "signal_id": "sig_paper_tick_1778560498536",
           "symbol": "BTCUSDT"
         },
         "feature_snapshot": {
-          "feature_snapshot_id": "fs_paper_tick_1778556803788",
+          "feature_snapshot_id": "fs_paper_tick_1778560498536",
           "features": {
-            "return_15m": -0.0003782,
-            "return_1m": -0.00013678,
-            "return_5m": -0.00010105,
-            "volatility_10": 0.00017254,
-            "volume_avg_10": 29.1115,
-            "volume_last": 6.818
+            "return_15m": 0.00071,
+            "return_1m": 0.00003079,
+            "return_5m": 0.0000579,
+            "volatility_10": 0.00008773,
+            "volume_avg_10": 43.7107,
+            "volume_last": 49.576
           },
           "freshness_state": "CURRENT",
-          "generated_at": "2026-05-12T03:33:20Z",
-          "market_age_seconds": 7,
+          "generated_at": "2026-05-12T04:34:55Z",
+          "market_age_seconds": 6,
           "source_type": "READONLY_MARKET_FEED",
           "symbol": "BTCUSDT"
         },
-        "generated_at": "2026-05-12T03:33:23Z",
+        "generated_at": "2026-05-12T04:34:58Z",
         "lineage_ids": {
-          "execution_intent_id": "pei_paper_tick_1778556803788",
-          "feature_snapshot_id": "fs_paper_tick_1778556803788",
-          "orchestrator_decision_id": "orch_paper_tick_1778556803788",
-          "prediction_id": "pred_paper_tick_1778556803788",
-          "risk_decision_id": "risk_paper_tick_1778556803788",
-          "signal_id": "sig_paper_tick_1778556803788"
+          "execution_intent_id": "pei_paper_tick_1778560498536",
+          "feature_snapshot_id": "fs_paper_tick_1778560498536",
+          "orchestrator_decision_id": "orch_paper_tick_1778560498536",
+          "prediction_id": "pred_paper_tick_1778560498536",
+          "risk_decision_id": "risk_paper_tick_1778560498536",
+          "signal_id": "sig_paper_tick_1778560498536"
         },
         "orchestrator_decision": {
           "cannot_bypass_risk_gateway": true,
-          "decision_action": "open_short",
+          "decision_action": "open_long",
           "decision_reason": "paper_momentum_signal_routed",
-          "generated_at": "2026-05-12T03:33:23Z",
-          "orchestrator_decision_id": "orch_paper_tick_1778556803788",
+          "generated_at": "2026-05-12T04:34:58Z",
+          "orchestrator_decision_id": "orch_paper_tick_1778560498536",
           "risk_gateway_required": true,
-          "signal_id": "sig_paper_tick_1778556803788"
+          "signal_id": "sig_paper_tick_1778560498536"
         },
         "risk_decision": {
-          "feature_snapshot_id": "fs_paper_tick_1778556803788",
-          "generated_at": "2026-05-12T03:33:23Z",
+          "feature_snapshot_id": "fs_paper_tick_1778560498536",
+          "generated_at": "2026-05-12T04:34:58Z",
           "live_blocked": true,
           "missing_fields": [],
-          "orchestrator_decision_id": "orch_paper_tick_1778556803788",
-          "prediction_id": "pred_paper_tick_1778556803788",
+          "orchestrator_decision_id": "orch_paper_tick_1778560498536",
+          "prediction_id": "pred_paper_tick_1778560498536",
           "required_blocks_checked": [
             "missing_signal_id",
             "missing_prediction_id",
@@ -472,33 +454,33 @@
             "untraceable_execution"
           ],
           "risk_action": "allow",
-          "risk_decision_id": "risk_paper_tick_1778556803788",
-          "risk_reason_code": "allow_proceed_short",
+          "risk_decision_id": "risk_paper_tick_1778560498536",
+          "risk_reason_code": "allow_proceed_long",
           "risk_result": "APPROVED_FOR_PAPER_ONLY",
-          "signal_id": "sig_paper_tick_1778556803788"
+          "signal_id": "sig_paper_tick_1778560498536"
         },
         "signal": {
-          "confidence": 0.611657,
-          "feature_snapshot_id": "fs_paper_tick_1778556803788",
-          "generated_at": "2026-05-12T03:33:23Z",
-          "prediction_id": "pred_paper_tick_1778556803788",
-          "proposed_action": "open_short",
-          "signal_id": "sig_paper_tick_1778556803788",
+          "confidence": 0.640254,
+          "feature_snapshot_id": "fs_paper_tick_1778560498536",
+          "generated_at": "2026-05-12T04:34:58Z",
+          "prediction_id": "pred_paper_tick_1778560498536",
+          "proposed_action": "open_long",
+          "signal_id": "sig_paper_tick_1778560498536",
           "source_freshness": "CURRENT",
           "symbol": "BTCUSDT"
         },
         "trainer_prediction": {
-          "confidence_calibrated": 0.611657,
-          "confidence_raw": 0.631657,
-          "feature_snapshot_id": "fs_paper_tick_1778556803788",
+          "confidence_calibrated": 0.640254,
+          "confidence_raw": 0.660254,
+          "feature_snapshot_id": "fs_paper_tick_1778560498536",
           "freshness_state": "CURRENT",
-          "generated_at": "2026-05-12T03:33:20Z",
-          "market_age_seconds": 7,
+          "generated_at": "2026-05-12T04:34:55Z",
+          "market_age_seconds": 6,
           "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-          "prediction_id": "pred_paper_tick_1778556803788",
+          "prediction_id": "pred_paper_tick_1778560498536",
           "raw_output": {
-            "momentum_score": -0.071657,
-            "side": "short"
+            "momentum_score": 0.100254,
+            "side": "long"
           },
           "source_type": "V2_PAPER_TRAINER_WRAPPER",
           "symbol": "BTCUSDT",
@@ -506,15 +488,15 @@
           "top_features": [
             {
               "name": "return_5m",
-              "value": -0.00010105
+              "value": 0.0000579
             },
             {
               "name": "return_15m",
-              "value": -0.0003782
+              "value": 0.00071
             },
             {
               "name": "volatility_10",
-              "value": 0.00017254
+              "value": 0.00008773
             }
           ],
           "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
@@ -522,41 +504,41 @@
       },
       "exchange_orders": false,
       "feature_snapshot": {
-        "feature_snapshot_id": "fs_paper_tick_1778556803788",
+        "feature_snapshot_id": "fs_paper_tick_1778560498536",
         "features": {
-          "return_15m": -0.0003782,
-          "return_1m": -0.00013678,
-          "return_5m": -0.00010105,
-          "volatility_10": 0.00017254,
-          "volume_avg_10": 29.1115,
-          "volume_last": 6.818
+          "return_15m": 0.00071,
+          "return_1m": 0.00003079,
+          "return_5m": 0.0000579,
+          "volatility_10": 0.00008773,
+          "volume_avg_10": 43.7107,
+          "volume_last": 49.576
         },
         "freshness_state": "CURRENT",
-        "generated_at": "2026-05-12T03:33:20Z",
-        "market_age_seconds": 7,
+        "generated_at": "2026-05-12T04:34:55Z",
+        "market_age_seconds": 6,
         "source_type": "READONLY_MARKET_FEED",
         "symbol": "BTCUSDT"
       },
       "freshness": {
-        "generated_at": "2026-05-12T03:33:23Z",
-        "market_age_seconds": 7,
+        "generated_at": "2026-05-12T04:34:58Z",
+        "market_age_seconds": 6,
         "runtime_age_seconds": 0,
         "source_type": "REALTIME_RUNTIME_EVIDENCE",
         "status": "CURRENT"
       },
-      "generated_at": "2026-05-12T03:33:23Z",
+      "generated_at": "2026-05-12T04:34:58Z",
       "last_paper_event": {
         "exchange_order_id": null,
-        "generated_at": "2026-05-12T03:33:23Z",
+        "generated_at": "2026-05-12T04:34:58Z",
         "legacy_redis_write": false,
         "live_order": false,
         "market_source_type": "READONLY_MARKET_FEED",
-        "observed_price": 81142.7,
+        "observed_price": 81184.9,
         "paper_action": "PAPER_FILL_SIMULATED",
-        "paper_reason": "allow_proceed_short",
+        "paper_reason": "allow_proceed_long",
         "risk_gateway_result": "APPROVED_FOR_PAPER_ONLY",
         "symbol": "BTCUSDT",
-        "tick_id": "paper_tick_1778556803788"
+        "tick_id": "paper_tick_1778560498536"
       },
       "legacy_redis_writes": false,
       "leverage_changes": false,
@@ -564,284 +546,284 @@
       "loop_interval_seconds": 30,
       "margin_mode_changes": false,
       "market_feed": {
-        "age_seconds": 7,
+        "age_seconds": 6,
         "candles": [
           {
-            "close": 81191.5,
-            "high": 81217.2,
-            "low": 81186.8,
-            "open": 81217.1,
+            "close": 81001,
+            "high": 81018.7,
+            "low": 80990.8,
+            "open": 80999.6,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:04:00Z",
-            "volume": 98.385
+            "time": "2026-05-12T04:05:00Z",
+            "volume": 67.532
           },
           {
-            "close": 81197.8,
-            "high": 81198.1,
-            "low": 81156,
-            "open": 81191.6,
+            "close": 81011.2,
+            "high": 81014.4,
+            "low": 80998.6,
+            "open": 81001,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:05:00Z",
-            "volume": 90.474
+            "time": "2026-05-12T04:06:00Z",
+            "volume": 56.829
           },
           {
-            "close": 81207.7,
-            "high": 81207.8,
-            "low": 81189,
-            "open": 81197.8,
+            "close": 81030.5,
+            "high": 81043.5,
+            "low": 81011.1,
+            "open": 81011.2,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:06:00Z",
-            "volume": 25.26
+            "time": "2026-05-12T04:07:00Z",
+            "volume": 78.596
           },
           {
-            "close": 81239.9,
-            "high": 81240,
-            "low": 81207.7,
-            "open": 81207.8,
+            "close": 81019.4,
+            "high": 81030.5,
+            "low": 81019.4,
+            "open": 81030.4,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:07:00Z",
-            "volume": 36.964
+            "time": "2026-05-12T04:08:00Z",
+            "volume": 29.825
           },
           {
-            "close": 81208.6,
-            "high": 81240,
-            "low": 81208.6,
-            "open": 81240,
+            "close": 81015.1,
+            "high": 81030.7,
+            "low": 81015,
+            "open": 81019.4,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:08:00Z",
-            "volume": 28.543
+            "time": "2026-05-12T04:09:00Z",
+            "volume": 50.052
           },
           {
-            "close": 81208,
-            "high": 81218.3,
-            "low": 81208,
-            "open": 81208.7,
+            "close": 81012.9,
+            "high": 81015.1,
+            "low": 81012.8,
+            "open": 81015,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:09:00Z",
-            "volume": 16.517
+            "time": "2026-05-12T04:10:00Z",
+            "volume": 14.576
           },
           {
-            "close": 81200,
-            "high": 81220.9,
-            "low": 81200,
-            "open": 81208,
+            "close": 80986.4,
+            "high": 81012.9,
+            "low": 80982.3,
+            "open": 81012.9,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:10:00Z",
-            "volume": 46.813
+            "time": "2026-05-12T04:11:00Z",
+            "volume": 50.24
           },
           {
-            "close": 81186.8,
-            "high": 81200.1,
-            "low": 81186.8,
-            "open": 81200,
+            "close": 80986.5,
+            "high": 80999.1,
+            "low": 80977.6,
+            "open": 80986.4,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:11:00Z",
-            "volume": 35.24
+            "time": "2026-05-12T04:12:00Z",
+            "volume": 71.01
           },
           {
-            "close": 81164.4,
-            "high": 81186.8,
-            "low": 81143.6,
-            "open": 81186.8,
+            "close": 80977,
+            "high": 80986.5,
+            "low": 80973.2,
+            "open": 80986.4,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:12:00Z",
-            "volume": 81.108
+            "time": "2026-05-12T04:13:00Z",
+            "volume": 32.874
           },
           {
-            "close": 81149.9,
-            "high": 81164.4,
-            "low": 81149.3,
-            "open": 81164.3,
+            "close": 80968.8,
+            "high": 80999.4,
+            "low": 80968.8,
+            "open": 80977,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:13:00Z",
-            "volume": 19.999
+            "time": "2026-05-12T04:14:00Z",
+            "volume": 64.118
           },
           {
-            "close": 81183.2,
-            "high": 81183.3,
-            "low": 81150,
-            "open": 81150,
+            "close": 81069,
+            "high": 81069,
+            "low": 80964.4,
+            "open": 80968.9,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:14:00Z",
-            "volume": 32.583
+            "time": "2026-05-12T04:15:00Z",
+            "volume": 86.928
           },
           {
-            "close": 81164.9,
-            "high": 81183.3,
-            "low": 81164.8,
-            "open": 81183.3,
+            "close": 81098.8,
+            "high": 81126.9,
+            "low": 81063.3,
+            "open": 81069,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:15:00Z",
-            "volume": 47.712
+            "time": "2026-05-12T04:16:00Z",
+            "volume": 149.602
           },
           {
-            "close": 81187.4,
-            "high": 81194.7,
-            "low": 81164.8,
-            "open": 81164.8,
+            "close": 81123.3,
+            "high": 81130,
+            "low": 81098.8,
+            "open": 81098.9,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:16:00Z",
-            "volume": 26.695
+            "time": "2026-05-12T04:17:00Z",
+            "volume": 75.116
           },
           {
-            "close": 81188,
-            "high": 81195,
-            "low": 81187.5,
-            "open": 81187.5,
+            "close": 81101,
+            "high": 81123.3,
+            "low": 81098.8,
+            "open": 81123.2,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:17:00Z",
-            "volume": 19.201
+            "time": "2026-05-12T04:18:00Z",
+            "volume": 50.029
           },
           {
-            "close": 81173.4,
-            "high": 81201.8,
-            "low": 81173.3,
-            "open": 81188.1,
+            "close": 81127.3,
+            "high": 81136.1,
+            "low": 81100.9,
+            "open": 81100.9,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:18:00Z",
-            "volume": 53.862
-          },
-          {
-            "close": 81178.3,
-            "high": 81187.2,
-            "low": 81173.3,
-            "open": 81173.3,
-            "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:19:00Z",
-            "volume": 30.263
-          },
-          {
-            "close": 81167,
-            "high": 81178.1,
-            "low": 81167,
-            "open": 81178,
-            "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:20:00Z",
-            "volume": 11.845
-          },
-          {
-            "close": 81171.9,
-            "high": 81183.6,
-            "low": 81167,
-            "open": 81167,
-            "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:21:00Z",
-            "volume": 35.14
-          },
-          {
-            "close": 81156,
-            "high": 81171.9,
-            "low": 81156,
-            "open": 81171.9,
-            "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:22:00Z",
-            "volume": 19.68
+            "time": "2026-05-12T04:19:00Z",
+            "volume": 64.239
           },
           {
             "close": 81125.2,
-            "high": 81170.4,
-            "low": 81125.1,
-            "open": 81156,
+            "high": 81127.4,
+            "low": 81118.8,
+            "open": 81127.3,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:23:00Z",
-            "volume": 70.521
+            "time": "2026-05-12T04:20:00Z",
+            "volume": 23.617
           },
           {
-            "close": 81162.7,
-            "high": 81165.5,
+            "close": 81135.2,
+            "high": 81138,
             "low": 81125.1,
             "open": 81125.2,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:24:00Z",
-            "volume": 29.833
+            "time": "2026-05-12T04:21:00Z",
+            "volume": 26.65
           },
           {
-            "close": 81156.5,
-            "high": 81162.6,
-            "low": 81156.4,
-            "open": 81162.6,
+            "close": 81156.2,
+            "high": 81156.2,
+            "low": 81135.1,
+            "open": 81135.2,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:25:00Z",
-            "volume": 20.205
+            "time": "2026-05-12T04:22:00Z",
+            "volume": 29.448
           },
           {
-            "close": 81156.4,
-            "high": 81160.5,
-            "low": 81156,
-            "open": 81156.4,
+            "close": 81140.5,
+            "high": 81156.2,
+            "low": 81140.5,
+            "open": 81156.2,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:26:00Z",
-            "volume": 16.123
+            "time": "2026-05-12T04:23:00Z",
+            "volume": 70.677
           },
           {
-            "close": 81127.6,
-            "high": 81156.5,
-            "low": 81111,
-            "open": 81156.5,
-            "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:27:00Z",
-            "volume": 58.054
-          },
-          {
-            "close": 81150.9,
-            "high": 81151,
-            "low": 81127.6,
-            "open": 81127.7,
-            "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:28:00Z",
-            "volume": 26.038
-          },
-          {
-            "close": 81134,
-            "high": 81150.9,
-            "low": 81133.9,
-            "open": 81150.9,
-            "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:29:00Z",
-            "volume": 18.178
-          },
-          {
-            "close": 81144.9,
+            "close": 81129.4,
             "high": 81158.4,
-            "low": 81133.9,
-            "open": 81133.9,
+            "low": 81129.4,
+            "open": 81140.5,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:30:00Z",
-            "volume": 31.8
+            "time": "2026-05-12T04:24:00Z",
+            "volume": 63.359
           },
           {
-            "close": 81135,
-            "high": 81145,
-            "low": 81125.1,
-            "open": 81145,
+            "close": 81160.4,
+            "high": 81168.8,
+            "low": 81129.4,
+            "open": 81129.4,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:31:00Z",
-            "volume": 38.725
+            "time": "2026-05-12T04:25:00Z",
+            "volume": 37.42
           },
           {
-            "close": 81153.8,
-            "high": 81158.7,
-            "low": 81126.8,
-            "open": 81134.9,
+            "close": 81188.8,
+            "high": 81193.4,
+            "low": 81151.6,
+            "open": 81160.5,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:32:00Z",
-            "volume": 45.341
+            "time": "2026-05-12T04:26:00Z",
+            "volume": 94.243
           },
           {
-            "close": 81142.7,
-            "high": 81153.9,
-            "low": 81142.7,
-            "open": 81153.8,
+            "close": 81188,
+            "high": 81200,
+            "low": 81169.5,
+            "open": 81188.8,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T03:33:00Z",
-            "volume": 6.818
+            "time": "2026-05-12T04:27:00Z",
+            "volume": 91.659
+          },
+          {
+            "close": 81192,
+            "high": 81200,
+            "low": 81187.9,
+            "open": 81188,
+            "source_type": "READONLY_MARKET_FEED",
+            "time": "2026-05-12T04:28:00Z",
+            "volume": 34.107
+          },
+          {
+            "close": 81180.2,
+            "high": 81192.1,
+            "low": 81180.2,
+            "open": 81192,
+            "source_type": "READONLY_MARKET_FEED",
+            "time": "2026-05-12T04:29:00Z",
+            "volume": 24.965
+          },
+          {
+            "close": 81187.3,
+            "high": 81187.3,
+            "low": 81171.4,
+            "open": 81180.2,
+            "source_type": "READONLY_MARKET_FEED",
+            "time": "2026-05-12T04:30:00Z",
+            "volume": 39.958
+          },
+          {
+            "close": 81180.2,
+            "high": 81200,
+            "low": 81180.2,
+            "open": 81187.3,
+            "source_type": "READONLY_MARKET_FEED",
+            "time": "2026-05-12T04:31:00Z",
+            "volume": 30.61
+          },
+          {
+            "close": 81182.5,
+            "high": 81197.9,
+            "low": 81180.2,
+            "open": 81180.3,
+            "source_type": "READONLY_MARKET_FEED",
+            "time": "2026-05-12T04:32:00Z",
+            "volume": 26.365
+          },
+          {
+            "close": 81182.4,
+            "high": 81182.5,
+            "low": 81182.4,
+            "open": 81182.5,
+            "source_type": "READONLY_MARKET_FEED",
+            "time": "2026-05-12T04:33:00Z",
+            "volume": 8.204
+          },
+          {
+            "close": 81184.9,
+            "high": 81185,
+            "low": 81167,
+            "open": 81182.5,
+            "source_type": "READONLY_MARKET_FEED",
+            "time": "2026-05-12T04:34:00Z",
+            "volume": 49.576
           }
         ],
         "errors": [],
         "freshness_state": "CURRENT",
-        "generated_at": "2026-05-12T03:33:20Z",
-        "last_event_at": "2026-05-12T03:33:16Z",
-        "price": 81142.7,
+        "generated_at": "2026-05-12T04:34:55Z",
+        "last_event_at": "2026-05-12T04:34:52Z",
+        "price": 81184.9,
         "source": "binance_usdm_public_get_only",
         "source_pointer": "/fapi/v1/ticker/price + /fapi/v1/klines",
         "source_type": "READONLY_MARKET_FEED",
@@ -850,42 +832,42 @@
       "mode": "paper_only_non_live",
       "paper_account": {
         "currency": "USDT",
-        "equity": 9999.99,
+        "equity": 9999.04,
         "open_position_count": 1,
         "position_source": "V2_PAPER_RUNTIME_SIMULATED_FILL",
-        "realized_pnl": -0.01,
+        "realized_pnl": -0.96,
         "starting_equity": 10000,
         "unrealized_pnl": 0
       },
       "paper_ledger_tail": [
         {
           "exchange_order_id": null,
-          "execution_intent_id": "pei_paper_tick_1778556803788",
+          "execution_intent_id": "pei_paper_tick_1778560498536",
           "fee_rate": 0.0004,
           "fee_usdt": 0.01,
-          "fill_price": 81126.47146,
+          "fill_price": 81201.13698,
           "funding_assumption": "zero_until_funding_feed_adapter_current",
-          "generated_at": "2026-05-12T03:33:23Z",
+          "generated_at": "2026-05-12T04:34:58Z",
           "ledger_action": "PAPER_FILL_SIMULATED",
           "legacy_redis_write": false,
           "live_order": false,
           "notional_usdt": 25,
-          "paper_ledger_entry_id": "pledger_paper_tick_1778556803788",
+          "paper_ledger_entry_id": "pledger_paper_tick_1778560498536",
           "paper_result": "FILLED_PAPER_ONLY",
-          "risk_decision_id": "risk_paper_tick_1778556803788",
-          "signal_id": "sig_paper_tick_1778556803788",
+          "risk_decision_id": "risk_paper_tick_1778560498536",
+          "signal_id": "sig_paper_tick_1778560498536",
           "slippage_bps": 2,
           "symbol": "BTCUSDT"
         }
       ],
       "paper_loop": {
-        "last_paper_event_count": 21,
+        "last_paper_event_count": 133,
         "last_risk_block_count": 0,
         "last_shadow_decision_count": 1,
-        "last_tick_at": "2026-05-12T03:33:23Z",
-        "paper_event_count": 21,
+        "last_tick_at": "2026-05-12T04:34:58Z",
+        "paper_event_count": 133,
         "state": "PAPER_RUNTIME_ONLINE_ACTIVE",
-        "tick_id": "paper_tick_1778556803788"
+        "tick_id": "paper_tick_1778560498536"
       },
       "redis_trim_approval_created": false,
       "runtime": "v2_paper_online",
@@ -902,17 +884,17 @@
         "public_runtime_status": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json"
       },
       "trainer_prediction": {
-        "confidence_calibrated": 0.611657,
-        "confidence_raw": 0.631657,
-        "feature_snapshot_id": "fs_paper_tick_1778556803788",
+        "confidence_calibrated": 0.640254,
+        "confidence_raw": 0.660254,
+        "feature_snapshot_id": "fs_paper_tick_1778560498536",
         "freshness_state": "CURRENT",
-        "generated_at": "2026-05-12T03:33:20Z",
-        "market_age_seconds": 7,
+        "generated_at": "2026-05-12T04:34:55Z",
+        "market_age_seconds": 6,
         "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-        "prediction_id": "pred_paper_tick_1778556803788",
+        "prediction_id": "pred_paper_tick_1778560498536",
         "raw_output": {
-          "momentum_score": -0.071657,
-          "side": "short"
+          "momentum_score": 0.100254,
+          "side": "long"
         },
         "source_type": "V2_PAPER_TRAINER_WRAPPER",
         "symbol": "BTCUSDT",
@@ -920,51 +902,60 @@
         "top_features": [
           {
             "name": "return_5m",
-            "value": -0.00010105
+            "value": 0.0000579
           },
           {
             "name": "return_15m",
-            "value": -0.0003782
+            "value": 0.00071
           },
           {
             "name": "volatility_10",
-            "value": 0.00017254
+            "value": 0.00008773
           }
         ],
         "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
       },
       "writes_only_local_v2_artifacts": true
+    },
+    "legacy_trader_containment": {
+      "status": "LEGACY_TRADER_PROCESS_OBSERVED_READONLY_CONTAINED",
+      "action": "observation_only_no_restart_no_kill_no_order_action",
+      "process_rows": [
+        "3324274 3324271 11233 python3 -u trading/trader.py"
+      ],
+      "evidence_source": "read-only process list",
+      "live_gate_status": "blocked_human_only"
     }
   },
   "trainer_monitor_status": {
-    "generated_at": "2026-05-12T03:33:51.749Z",
+    "generated_at": "2026-05-12T04:35:02.264Z",
     "status": "V2_PAPER_TRAINER_WRAPPER_CURRENT",
     "trainer_processes": [],
     "prediction_worker_alive_from_stale_payload": true,
     "latest_trainer_status_from_payload": "DEGRADED",
-    "payload_age_seconds": 71274,
+    "payload_age_seconds": 74944,
     "prediction_lineage_gap": "runtime evidence still has missing prediction/feature snapshot links",
     "latest_prediction": {
       "classification": "REALTIME_RUNTIME_EVIDENCE",
-      "prediction_id": "pred_paper_tick_1778556803788",
+      "prediction_id": "pred_paper_tick_1778560498536",
       "symbol": "BTCUSDT",
       "timeframe": "1m",
       "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-      "confidence_raw": 0.631657,
-      "confidence_calibrated": 0.611657,
-      "feature_snapshot_id": "fs_paper_tick_1778556803788",
+      "confidence_raw": 0.660254,
+      "confidence_calibrated": 0.640254,
+      "feature_snapshot_id": "fs_paper_tick_1778560498536",
       "top_positive": [
         {
           "name": "return_5m",
-          "value": -0.00010105
+          "value": 0.0000579
         },
         {
           "name": "return_15m",
-          "value": -0.0003782
+          "value": 0.00071
         },
         {
           "name": "volatility_10",
-          "value": 0.00017254
+          "value": 0.00008773
         }
       ],
       "top_negative": [],
@@ -974,19 +965,19 @@
     "missing_evidence": []
   },
   "signal_lineage_status": {
-    "generated_at": "2026-05-12T03:33:51.749Z",
+    "generated_at": "2026-05-12T04:35:02.264Z",
     "status": "REALTIME_RUNTIME_EVIDENCE",
     "latest_signal": {
       "classification": "REALTIME_RUNTIME_EVIDENCE",
-      "signal_id": "sig_paper_tick_1778556803788",
-      "prediction_id": "pred_paper_tick_1778556803788",
-      "feature_snapshot_id": "fs_paper_tick_1778556803788",
-      "orchestrator_decision_id": "orch_paper_tick_1778556803788",
-      "risk_decision_id": "risk_paper_tick_1778556803788",
-      "execution_intent_id": "pei_paper_tick_1778556803788",
-      "signal_reason": "open_short",
+      "signal_id": "sig_paper_tick_1778560498536",
+      "prediction_id": "pred_paper_tick_1778560498536",
+      "feature_snapshot_id": "fs_paper_tick_1778560498536",
+      "orchestrator_decision_id": "orch_paper_tick_1778560498536",
+      "risk_decision_id": "risk_paper_tick_1778560498536",
+      "execution_intent_id": "pei_paper_tick_1778560498536",
+      "signal_reason": "open_long",
       "orchestrator_reason": "paper_momentum_signal_routed",
-      "risk_reason": "allow_proceed_short",
+      "risk_reason": "allow_proceed_long",
       "result": "APPROVED_FOR_PAPER_ONLY",
       "evidence_links": [
         "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json"
@@ -1176,19 +1167,19 @@
     "missing_evidence": []
   },
   "dashboard_freshness_status": {
-    "generated_at": "2026-05-12T03:33:51.749Z",
+    "generated_at": "2026-05-12T04:35:02.264Z",
     "payloads_checked": 14,
     "stale_payload_count": 12,
     "warn_payload_count": 0,
-    "missing_evidence_count": 1,
+    "missing_evidence_count": 0,
     "static_fixture_count": 1,
     "payload_statuses": [
       {
         "label": "supervisor current status",
         "path": "claude_worklog/agent_supervisor/status/current_status.json",
         "classification": "REALTIME_RUNTIME_EVIDENCE",
-        "generated_at": "2026-05-12T02:20:30.032Z",
-        "age_seconds": 4402,
+        "generated_at": "2026-05-12T04:27:00.723Z",
+        "age_seconds": 482,
         "is_realtime": true,
         "is_static_fixture": false,
         "stale": true,
@@ -1199,8 +1190,8 @@
         "label": "supervisor queue status",
         "path": "claude_worklog/agent_supervisor/status/queue_status.json",
         "classification": "REALTIME_RUNTIME_EVIDENCE",
-        "generated_at": "2026-05-12T02:20:30.062Z",
-        "age_seconds": 4402,
+        "generated_at": "2026-05-12T04:27:00.757Z",
+        "age_seconds": 482,
         "is_realtime": true,
         "is_static_fixture": false,
         "stale": true,
@@ -1212,7 +1203,7 @@
         "path": "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json",
         "classification": "REALTIME_RUNTIME_EVIDENCE",
         "generated_at": "2026-05-11T20:35:14.146Z",
-        "age_seconds": 25118,
+        "age_seconds": 28788,
         "is_realtime": true,
         "is_static_fixture": false,
         "stale": true,
@@ -1224,7 +1215,7 @@
         "path": "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json",
         "classification": "RUNTIME_MONITOR_PAYLOAD",
         "generated_at": "2026-05-11T07:45:58.228Z",
-        "age_seconds": 71274,
+        "age_seconds": 74944,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -1236,7 +1227,7 @@
         "path": "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
         "classification": "STATIC_PROOF_FIXTURE",
         "generated_at": "2026-05-09T23:59:00.000Z",
-        "age_seconds": 185692,
+        "age_seconds": 189362,
         "is_realtime": false,
         "is_static_fixture": true,
         "stale": true,
@@ -1248,7 +1239,7 @@
         "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/current_runtime_sources.json",
         "classification": "RUNTIME_MONITOR_PAYLOAD",
         "generated_at": "2026-05-11T07:45:58.228Z",
-        "age_seconds": 71274,
+        "age_seconds": 74944,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -1260,7 +1251,7 @@
         "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/trainer_prediction_monitor_status.json",
         "classification": "RUNTIME_MONITOR_PAYLOAD",
         "generated_at": "2026-05-11T07:45:58.228Z",
-        "age_seconds": 71274,
+        "age_seconds": 74944,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -1272,7 +1263,7 @@
         "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/signal_execution_monitor_status.json",
         "classification": "RUNTIME_MONITOR_PAYLOAD",
         "generated_at": "2026-05-11T07:45:58.228Z",
-        "age_seconds": 71274,
+        "age_seconds": 74944,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -1284,7 +1275,7 @@
         "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json",
         "classification": "RUNTIME_MONITOR_PAYLOAD",
         "generated_at": "2026-05-11T07:45:58.228Z",
-        "age_seconds": 71274,
+        "age_seconds": 74944,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -1296,7 +1287,7 @@
         "path": "v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json",
         "classification": "RUNTIME_MONITOR_PAYLOAD",
         "generated_at": "2026-05-10T05:36:36.155Z",
-        "age_seconds": 165436,
+        "age_seconds": 169106,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -1307,8 +1298,8 @@
         "label": "v2 paper online runtime",
         "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
         "classification": "REALTIME_RUNTIME_EVIDENCE",
-        "generated_at": "2026-05-12T03:33:23.000Z",
-        "age_seconds": 29,
+        "generated_at": "2026-05-12T04:34:58.000Z",
+        "age_seconds": 4,
         "is_realtime": true,
         "is_static_fixture": false,
         "stale": false,
@@ -1320,7 +1311,7 @@
         "path": "v2/frontend/public/orchestrator_decision_evidence_reconciliation/latest/operator_dashboard_payload.json",
         "classification": "V2_PROOF_ARTIFACT",
         "generated_at": "2026-05-11T22:38:44.000Z",
-        "age_seconds": 17708,
+        "age_seconds": 21378,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": false,
@@ -1332,7 +1323,7 @@
         "path": "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
         "classification": "V2_PROOF_ARTIFACT",
         "generated_at": "2026-05-10T00:00:00.000Z",
-        "age_seconds": 185632,
+        "age_seconds": 189302,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -1344,7 +1335,7 @@
         "path": "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json",
         "classification": "V2_PROOF_ARTIFACT",
         "generated_at": "2026-05-09T20:28:03.010Z",
-        "age_seconds": 198349,
+        "age_seconds": 202019,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -1352,7 +1343,7 @@
         "status": "STALE"
       }
     ],
-    "public_json_count": 93
+    "public_json_count": 106
   },
   "static_fixture_panels": [
     {
@@ -1360,7 +1351,7 @@
       "path": "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
       "classification": "STATIC_PROOF_FIXTURE",
       "generated_at": "2026-05-09T23:59:00.000Z",
-      "age_seconds": 185692,
+      "age_seconds": 189362,
       "is_realtime": false,
       "is_static_fixture": true,
       "stale": true,
@@ -1373,8 +1364,8 @@
       "label": "supervisor current status",
       "path": "claude_worklog/agent_supervisor/status/current_status.json",
       "classification": "REALTIME_RUNTIME_EVIDENCE",
-      "generated_at": "2026-05-12T02:20:30.032Z",
-      "age_seconds": 4402,
+      "generated_at": "2026-05-12T04:27:00.723Z",
+      "age_seconds": 482,
       "is_realtime": true,
       "is_static_fixture": false,
       "stale": true,
@@ -1385,8 +1376,8 @@
       "label": "supervisor queue status",
       "path": "claude_worklog/agent_supervisor/status/queue_status.json",
       "classification": "REALTIME_RUNTIME_EVIDENCE",
-      "generated_at": "2026-05-12T02:20:30.062Z",
-      "age_seconds": 4402,
+      "generated_at": "2026-05-12T04:27:00.757Z",
+      "age_seconds": 482,
       "is_realtime": true,
       "is_static_fixture": false,
       "stale": true,
@@ -1398,7 +1389,7 @@
       "path": "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json",
       "classification": "REALTIME_RUNTIME_EVIDENCE",
       "generated_at": "2026-05-11T20:35:14.146Z",
-      "age_seconds": 25118,
+      "age_seconds": 28788,
       "is_realtime": true,
       "is_static_fixture": false,
       "stale": true,
@@ -1410,7 +1401,7 @@
       "path": "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json",
       "classification": "RUNTIME_MONITOR_PAYLOAD",
       "generated_at": "2026-05-11T07:45:58.228Z",
-      "age_seconds": 71274,
+      "age_seconds": 74944,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -1422,7 +1413,7 @@
       "path": "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
       "classification": "STATIC_PROOF_FIXTURE",
       "generated_at": "2026-05-09T23:59:00.000Z",
-      "age_seconds": 185692,
+      "age_seconds": 189362,
       "is_realtime": false,
       "is_static_fixture": true,
       "stale": true,
@@ -1434,7 +1425,7 @@
       "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/current_runtime_sources.json",
       "classification": "RUNTIME_MONITOR_PAYLOAD",
       "generated_at": "2026-05-11T07:45:58.228Z",
-      "age_seconds": 71274,
+      "age_seconds": 74944,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -1446,7 +1437,7 @@
       "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/trainer_prediction_monitor_status.json",
       "classification": "RUNTIME_MONITOR_PAYLOAD",
       "generated_at": "2026-05-11T07:45:58.228Z",
-      "age_seconds": 71274,
+      "age_seconds": 74944,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -1458,7 +1449,7 @@
       "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/signal_execution_monitor_status.json",
       "classification": "RUNTIME_MONITOR_PAYLOAD",
       "generated_at": "2026-05-11T07:45:58.228Z",
-      "age_seconds": 71274,
+      "age_seconds": 74944,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -1470,7 +1461,7 @@
       "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json",
       "classification": "RUNTIME_MONITOR_PAYLOAD",
       "generated_at": "2026-05-11T07:45:58.228Z",
-      "age_seconds": 71274,
+      "age_seconds": 74944,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -1482,7 +1473,7 @@
       "path": "v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json",
       "classification": "RUNTIME_MONITOR_PAYLOAD",
       "generated_at": "2026-05-10T05:36:36.155Z",
-      "age_seconds": 165436,
+      "age_seconds": 169106,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -1494,7 +1485,7 @@
       "path": "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-10T00:00:00.000Z",
-      "age_seconds": 185632,
+      "age_seconds": 189302,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -1506,7 +1497,7 @@
       "path": "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-09T20:28:03.010Z",
-      "age_seconds": 198349,
+      "age_seconds": 202019,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -1514,78 +1505,17 @@
       "status": "STALE"
     }
   ],
-  "missing_evidence": [
-    {
-      "id": "SUPERVISOR_STATUS_STALE_OR_CONFLICTING",
-      "severity": "operator_visibility",
-      "detail": "Supervisor/planner status is stale or disagrees with current git/process reality."
-    }
-  ],
+  "missing_evidence": [],
   "current_blockers": [
     {
-      "id": "SUPERVISOR_STATUS_STALE_OR_CONFLICTING",
+      "id": "CONTROL_PLANE_DAEMON_NOT_OBSERVED",
       "severity": "operator_visibility",
-      "detail": "Supervisor/planner status is stale or disagrees with current git/process reality."
+      "detail": "No rebuild supervisor/governor daemon was observed in the read-only process snapshot. V2 paper runtime remains canonical, but the autonomous control plane must be recovered separately."
     },
     {
-      "id": "STALE_SUPERVISOR_CURRENT_STATUS",
-      "severity": "operator_visibility",
-      "detail": "supervisor current status is STALE; age_seconds=4402; path=claude_worklog/agent_supervisor/status/current_status.json"
-    },
-    {
-      "id": "STALE_SUPERVISOR_QUEUE_STATUS",
-      "severity": "operator_visibility",
-      "detail": "supervisor queue status is STALE; age_seconds=4402; path=claude_worklog/agent_supervisor/status/queue_status.json"
-    },
-    {
-      "id": "STALE_MASTER_PLANNER_STATUS",
-      "severity": "operator_visibility",
-      "detail": "master planner status is STALE; age_seconds=25118; path=claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json"
-    },
-    {
-      "id": "STALE_AUTONOMOUS_GOVERNOR_SELECTION",
-      "severity": "freshness",
-      "detail": "autonomous governor selection is STALE; age_seconds=71274; path=claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json"
-    },
-    {
-      "id": "STALE_ENTERPRISE_COCKPIT_PAYLOAD",
-      "severity": "freshness",
-      "detail": "enterprise cockpit payload is STATIC_PROOF_FIXTURE; age_seconds=185692; path=v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json"
-    },
-    {
-      "id": "STALE_REALTIME_LEGACY_RUNTIME_SOURCES",
-      "severity": "freshness",
-      "detail": "realtime legacy runtime sources is STALE; age_seconds=71274; path=v2/frontend/public/realtime_legacy_monitoring_continuity/latest/current_runtime_sources.json"
-    },
-    {
-      "id": "STALE_TRAINER_PREDICTION_MONITOR_STATUS",
-      "severity": "freshness",
-      "detail": "trainer prediction monitor status is STALE; age_seconds=71274; path=v2/frontend/public/realtime_legacy_monitoring_continuity/latest/trainer_prediction_monitor_status.json"
-    },
-    {
-      "id": "STALE_SIGNAL_EXECUTION_MONITOR_STATUS",
-      "severity": "freshness",
-      "detail": "signal execution monitor status is STALE; age_seconds=71274; path=v2/frontend/public/realtime_legacy_monitoring_continuity/latest/signal_execution_monitor_status.json"
-    },
-    {
-      "id": "STALE_RISK_GATEWAY_OBSERVATION_STATUS",
-      "severity": "freshness",
-      "detail": "risk gateway observation status is STALE; age_seconds=71274; path=v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json"
-    },
-    {
-      "id": "STALE_PHASE3C_RUNTIME_MONITOR_PAYLOAD",
-      "severity": "freshness",
-      "detail": "phase3c runtime monitor payload is STALE; age_seconds=165436; path=v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json"
-    },
-    {
-      "id": "STALE_READONLY_MARKET_EXCHANGE_DATA_PLANE",
-      "severity": "freshness",
-      "detail": "readonly market exchange data plane is STALE; age_seconds=185632; path=v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json"
-    },
-    {
-      "id": "STALE_PAPER_RUNTIME_STATUS",
-      "severity": "freshness",
-      "detail": "paper runtime status is STALE; age_seconds=198349; path=v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json"
+      "id": "LEGACY_TRADER_PROCESS_OBSERVED_READONLY_CONTAINED",
+      "severity": "safety_visibility",
+      "detail": "A legacy trading/trader.py process is visible. This recovery only observed it read-only and did not restart, kill, command, or modify it."
     },
     {
       "id": "LIVE_GATE_BLOCKED_HUMAN_ONLY",
@@ -1607,7 +1537,7 @@
       "path": "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
       "classification": "STATIC_PROOF_FIXTURE",
       "generated_at": "2026-05-09T23:59:00.000Z",
-      "age_seconds": 185692,
+      "age_seconds": 189362,
       "is_realtime": false,
       "is_static_fixture": true,
       "stale": true,
@@ -1619,7 +1549,7 @@
       "path": "v2/frontend/public/orchestrator_decision_evidence_reconciliation/latest/operator_dashboard_payload.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-11T22:38:44.000Z",
-      "age_seconds": 17708,
+      "age_seconds": 21378,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": false,
@@ -1631,7 +1561,7 @@
       "path": "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-10T00:00:00.000Z",
-      "age_seconds": 185632,
+      "age_seconds": 189302,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -1643,7 +1573,7 @@
       "path": "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-09T20:28:03.010Z",
-      "age_seconds": 198349,
+      "age_seconds": 202019,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,

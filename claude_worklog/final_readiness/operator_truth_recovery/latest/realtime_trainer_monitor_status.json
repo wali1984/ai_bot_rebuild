@@ -1,32 +1,32 @@
 {
-  "generated_at": "2026-05-12T03:33:51.749Z",
+  "generated_at": "2026-05-12T04:35:02.264Z",
   "status": "V2_PAPER_TRAINER_WRAPPER_CURRENT",
   "trainer_processes": [],
   "prediction_worker_alive_from_stale_payload": true,
   "latest_trainer_status_from_payload": "DEGRADED",
-  "payload_age_seconds": 71274,
+  "payload_age_seconds": 74944,
   "prediction_lineage_gap": "runtime evidence still has missing prediction/feature snapshot links",
   "latest_prediction": {
     "classification": "REALTIME_RUNTIME_EVIDENCE",
-    "prediction_id": "pred_paper_tick_1778556803788",
+    "prediction_id": "pred_paper_tick_1778560498536",
     "symbol": "BTCUSDT",
     "timeframe": "1m",
     "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-    "confidence_raw": 0.631657,
-    "confidence_calibrated": 0.611657,
-    "feature_snapshot_id": "fs_paper_tick_1778556803788",
+    "confidence_raw": 0.660254,
+    "confidence_calibrated": 0.640254,
+    "feature_snapshot_id": "fs_paper_tick_1778560498536",
     "top_positive": [
       {
         "name": "return_5m",
-        "value": -0.00010105
+        "value": 0.0000579
       },
       {
         "name": "return_15m",
-        "value": -0.0003782
+        "value": 0.00071
       },
       {
         "name": "volatility_10",
-        "value": 0.00017254
+        "value": 0.00008773
       }
     ],
     "top_negative": [],

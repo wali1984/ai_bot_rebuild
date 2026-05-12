@@ -49,6 +49,7 @@ const artifactSets = [
   'realtime_control_plane_recovery',
   'online_readiness_control_plane',
   'v2_paper_online_recovery',
+  'paper_online_canonical_truth_bridge',
   'post_mvp_non_live_gap_audit',
 ];
 

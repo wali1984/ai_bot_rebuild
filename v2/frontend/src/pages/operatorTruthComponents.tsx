@@ -32,6 +32,11 @@ function evidenceClassLabel(row?: OperatorTruthStatusRow): string {
   return row.classification;
 }
 
+function controlPlaneValue(payload: OperatorTruthPayload): string {
+  return payload.supervisor_status.control_plane_status
+    ?? (payload.supervisor_status.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT_RUNTIME_SNAPSHOT');
+}
+
 function formatAge(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined) return 'unknown age';
   if (seconds < 60) return `${seconds}s`;
@@ -68,12 +73,13 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
   const trainer = payload.trainer_monitor_status;
   const signal = payload.signal_lineage_status;
   const freshness = payload.dashboard_freshness_status;
-  const supervisorState = supervisor.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT_RUNTIME_SNAPSHOT';
+  const supervisorState = controlPlaneValue(payload);
   const plannerState = supervisor.master_planner_running ? 'MASTER_PLANNER_RUNNING' : 'MASTER_PLANNER_NOT_RUNNING';
   const governorState = supervisor.autonomous_governor_active ? 'AUTONOMOUS_GOVERNOR_ACTIVE' : 'AUTONOMOUS_GOVERNOR_NOT_OBSERVED';
   const runningTask = supervisor.current_running_task ?? 'NO_ACTIVE_SUPERVISOR_TASK';
   const nextTask = payload.current_next_task ?? supervisor.true_next_task ?? supervisor.next_pending_task ?? 'MISSING_NEXT_TASK';
-  const trainerPredictionDetail = trainer.status === 'REALTIME_RUNTIME_EVIDENCE'
+  const hasCurrentTrainer = trainer.status === 'REALTIME_RUNTIME_EVIDENCE' || trainer.status === 'V2_PAPER_TRAINER_WRAPPER_CURRENT';
+  const trainerPredictionDetail = hasCurrentTrainer
     ? `latest prediction ${valueText(trainer.latest_prediction?.prediction_id)}`
     : 'current prediction unavailable; fixture examples are separated';
   const signalLineageDetail = signal.status === 'REALTIME_RUNTIME_EVIDENCE'
@@ -94,8 +100,9 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
         </div>
         <div className="operator-command-deck__status">
           <span className="chip solid-block">LIVE TRADING: {payload.live_gate_status}</span>
-          <span className="chip solid-warn">{supervisorState}</span>
-          <span className="chip solid-warn">{trainer.status}</span>
+          <span className={`chip ${truthTone(supervisorState) === 'good' ? 'solid-ok' : 'solid-warn'}`}>{supervisorState}</span>
+          <span className={`chip ${hasCurrentTrainer ? 'solid-ok' : 'solid-warn'}`}>{trainer.status}</span>
+          {payload.canonical_truth_bridge ? <span className="chip solid-ok">{payload.canonical_truth_bridge.status}</span> : null}
           <span className="chip solid-paper">Redis trim: {payload.redis_trim_status}</span>
         </div>
       </div>
@@ -103,8 +110,8 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
         <TruthStateCard
           label="Supervisor heartbeat"
           value={supervisorState}
-          detail={`${plannerState}; ${governorState}; active workers ${supervisor.supervisor_processes.length}`}
-          source="RUNTIME_MONITOR_PAYLOAD"
+          detail={`${plannerState}; ${governorState}; active workers ${supervisor.supervisor_processes.length}; snapshot ${supervisor.canonical_snapshot_fresh ? 'fresh' : 'status-file based'}`}
+          source={payload.canonical_truth_bridge ? 'PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE' : 'RUNTIME_MONITOR_PAYLOAD'}
         />
         <TruthStateCard
           label="Current task"
@@ -174,13 +181,14 @@ export function RuntimeTruthMatrix({ payload }: { payload: OperatorTruthPayload 
   const redis = payload.runtime_monitor_status.redis_memory_pressure_status;
   const paperOnline = payload.runtime_monitor_status.paper_online_runtime_status;
   const rows = [
-    ['Supervisor', payload.supervisor_status.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT_RUNTIME_SNAPSHOT', 'agent_supervisor/status/current_status.json'],
+    ['Canonical truth source', payload.canonical_truth_bridge?.status ?? 'OPERATOR_TRUTH_PAYLOAD', payload.canonical_truth_bridge?.source ?? 'operator_truth/latest/operator_truth_payload.json'],
+    ['Control plane', controlPlaneValue(payload), payload.supervisor_status.canonical_snapshot_fresh ? 'fresh process/runtime bridge snapshot' : 'agent_supervisor/status/current_status.json'],
     ['Current task', payload.supervisor_status.current_running_task ?? 'NO_ACTIVE_SUPERVISOR_TASK', `last completed: ${payload.supervisor_status.last_completed_task ?? 'none'}`],
     ['Master planner', payload.supervisor_status.master_planner_running ? 'RUNNING' : 'NOT_RUNNING', 'process list + status payload'],
     ['Autonomous governor', payload.supervisor_status.autonomous_governor_active ? 'ACTIVE' : 'NOT_OBSERVED', 'process list + status payload'],
     ['Market ingestors', payload.runtime_monitor_status.market_ingestor_status ?? 'MISSING_EVIDENCE', `${payload.runtime_monitor_status.market_ingestor_processes?.length ?? 0} process rows`],
     ['Feature pipeline', payload.runtime_monitor_status.feature_pipeline_status ?? 'MISSING_EVIDENCE', `${payload.runtime_monitor_status.feature_pipeline_processes?.length ?? 0} process rows`],
-    ['Trainer process', payload.runtime_monitor_status.trainer_status, 'read-only process scan'],
+    ['Trainer process', payload.runtime_monitor_status.trainer_status, 'read-only process scan / V2 paper wrapper'],
     ['Trainer prediction stream', payload.trainer_monitor_status.status, 'trainer monitor payload'],
     ['Signal explainability', payload.signal_lineage_status.status, 'signal lineage payload'],
     ['V2 paper online', paperOnline?.status ?? 'MISSING_EVIDENCE', paperOnline?.path ?? 'operator_runtime/paper_online/latest'],
@@ -231,7 +239,7 @@ export function PaperOnlineRuntimeStatusPanel({ payload }: { payload: PaperOnlin
       </div>
       <p className="cockpit-evidence-note">
         {payload
-          ? 'Continuous V2 paper runtime is online and fail-closed. It writes local V2 runtime payloads only; it emits no paper order while current trainer/signal/risk lineage is missing.'
+          ? 'Continuous V2 paper runtime is online and fail-closed. It writes local V2 runtime payloads only; every paper event remains non-live and exchange orders stay blocked.'
           : 'Evidence missing — cannot explain without guessing. Start the non-live paper runtime with npm run build:paper-online or npm run run:paper-online.'}
       </p>
       {payload?.blockers?.length ? (
@@ -274,7 +282,7 @@ export function ActualRuntimeNowPanel({ payload }: { payload: OperatorTruthPaylo
   const groups = [
     {
       label: 'Control plane',
-      status: supervisor.is_supervisor_alive ? 'PROCESS_OBSERVED_READONLY' : 'NO_SUPERVISOR_DAEMON_OBSERVED',
+      status: controlPlaneValue(payload),
       rows: supervisor.supervisor_processes,
       note: `Current task: ${supervisor.current_running_task ?? 'none'}; last completed: ${supervisor.last_completed_task ?? 'none'}; next: ${payload.current_next_task ?? 'missing'}.`,
     },
@@ -308,7 +316,9 @@ export function ActualRuntimeNowPanel({ payload }: { payload: OperatorTruthPaylo
       rows: payload.trainer_monitor_status.trainer_processes,
       note: payload.trainer_monitor_status.status === 'TRAINER_RUNTIME_EVIDENCE_MISSING'
         ? 'Trainer runtime evidence is missing. Fixture predictions are separated from current trainer state.'
-        : 'Trainer process evidence is present in the read-only process snapshot.',
+        : payload.trainer_monitor_status.status === 'V2_PAPER_TRAINER_WRAPPER_CURRENT'
+          ? 'Current V2 paper-only trainer wrapper evidence is present; legacy trainer process parity is still a separate live-readiness blocker.'
+          : 'Trainer process evidence is present in the read-only process snapshot.',
     },
   ];
   return (
@@ -332,7 +342,7 @@ export function RouteTruthSummary({ payload, title }: { payload: OperatorTruthPa
         <h2>Current evidence state</h2>
       </div>
       <div className="route-truth-summary__grid">
-        <TruthStateCard label="Supervisor" value={payload.supervisor_status.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT_RUNTIME_SNAPSHOT'} detail="Dashboard must disclose stale/conflicting control-plane state." source="RUNTIME_MONITOR_PAYLOAD" />
+        <TruthStateCard label="Control plane" value={controlPlaneValue(payload)} detail="Dashboard must disclose missing control-plane daemons and stale historical status files separately." source={payload.canonical_truth_bridge ? 'PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE' : 'RUNTIME_MONITOR_PAYLOAD'} />
         <TruthStateCard label="Trainer" value={payload.trainer_monitor_status.status} detail="No prediction can be explained unless runtime evidence exists." source="REALTIME_RUNTIME_EVIDENCE" />
         <TruthStateCard label="Signal lineage" value={payload.signal_lineage_status.status} detail="Static proof lineage is not current runtime truth." source={payload.signal_lineage_status.status} />
         <TruthStateCard label="Payloads" value={`${payload.dashboard_freshness_status.stale_payload_count} stale`} detail={`${payload.dashboard_freshness_status.static_fixture_count} static fixtures; ${payload.dashboard_freshness_status.missing_evidence_count} missing.`} source="PUBLIC_PAYLOAD_AUDIT" />
@@ -347,7 +357,7 @@ export function TruthStatusStrip({ payload }: { payload: OperatorTruthPayload })
   return (
     <section className="truth-status-strip" data-testid="operator-truth-status-strip" aria-label="Current operator truth status">
       <Metric label="Live gate" value={payload.live_gate_status} />
-      <Metric label="Supervisor" value={supervisor.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT_SNAPSHOT'} />
+      <Metric label="Control plane" value={controlPlaneValue(payload)} />
       <Metric label="Master planner running" value={boolStatus(supervisor.master_planner_running)} />
       <Metric label="Autonomous governor" value={boolStatus(supervisor.autonomous_governor_active)} />
       <Metric label="Active workers" value={String(supervisor.supervisor_processes.length)} />
@@ -374,6 +384,11 @@ export function LegacyRuntimeMonitorPanel({ payload }: { payload: OperatorTruthP
         <div><span>redis memory pressure</span><strong>{runtime.redis_memory_pressure_status?.status ?? 'MISSING_EVIDENCE'}</strong></div>
         <div><span>evidence source</span><strong>operator_truth_payload.json</strong></div>
       </div>
+      {runtime.legacy_trader_containment ? (
+        <p className="cockpit-evidence-gap">
+          {runtime.legacy_trader_containment.status}: {runtime.legacy_trader_containment.action}. The dashboard did not restart, kill, or command legacy trader state.
+        </p>
+      ) : null}
       <details className="truth-details">
         <summary>Read-only observed process rows ({runtime.active_processes.length})</summary>
         <div className="truth-raw-list">
@@ -448,7 +463,7 @@ export function SignalLineageTruthPanel({ payload }: { payload: OperatorTruthPay
 
 export function WhatIsWorkingPanel({ payload }: { payload: OperatorTruthPayload }): JSX.Element {
   const rows = [
-    ['realtime monitor', payload.supervisor_status.stale_or_conflicting ? 'STALE_OR_CONFLICTING' : 'CURRENT_SNAPSHOT'],
+    ['control-plane truth bridge', controlPlaneValue(payload)],
     ['read-only market feed', payload.proof_artifact_statuses.find((row) => row.label.includes('readonly market'))?.status ?? 'MISSING_EVIDENCE'],
     ['trainer predictions', payload.trainer_monitor_status.status],
     ['signal lineage', payload.signal_lineage_status.status],

@@ -9,8 +9,10 @@ const finalDir = resolve(repoRoot, 'claude_worklog', 'final_readiness', 'operato
 const controlPlaneDir = resolve(repoRoot, 'claude_worklog', 'final_readiness', 'realtime_control_plane_trainer_monitor_recovery', 'latest');
 const canonicalControlPlaneDir = resolve(repoRoot, 'claude_worklog', 'final_readiness', 'realtime_control_plane_recovery', 'latest');
 const productionWebappDir = resolve(repoRoot, 'claude_worklog', 'final_readiness', 'production_operator_webapp', 'latest');
+const canonicalTruthBridgeDir = resolve(repoRoot, 'claude_worklog', 'final_readiness', 'paper_online_canonical_truth_bridge', 'latest');
 const publicDir = resolve(frontendRoot, 'public', 'operator_truth', 'latest');
 const publicRecoveryDir = resolve(frontendRoot, 'public', 'operator_truth_recovery', 'latest');
+const publicCanonicalTruthBridgeDir = resolve(frontendRoot, 'public', 'paper_online_canonical_truth_bridge', 'latest');
 const paperOnlineRuntimeRelPath = 'v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json';
 
 const REALTIME_CURRENT_SECONDS = 120;
@@ -239,6 +241,40 @@ const hasCurrentPaperRuntime =
   paperOnlineRuntime.data?.runtime_state === 'PAPER_RUNTIME_ONLINE_ACTIVE';
 const paperTrainerPrediction = hasCurrentPaperRuntime ? paperOnlineRuntime.data?.trainer_prediction ?? null : null;
 const paperSignalLineage = hasCurrentPaperRuntime ? paperOnlineRuntime.data?.current_signal_lineage ?? null : null;
+const controlPlaneStatus = supervisorProcesses.length > 0
+  ? 'CONTROL_PLANE_DAEMON_OBSERVED'
+  : 'CONTROL_PLANE_DAEMON_NOT_OBSERVED';
+const historicalStatusFilesStale = statusConflict || (queueAge !== null && queueAge > REALTIME_STALE_SECONDS) || (plannerAge !== null && plannerAge > REALTIME_STALE_SECONDS);
+const canonicalTruthBridge = hasCurrentPaperRuntime ? {
+  status: 'PAPER_ONLINE_CANONICAL_TRUTH_ACTIVE',
+  source: paperOnlineRuntimeRelPath,
+  generated_at: paperOnlineRuntime.data.generated_at,
+  paper_runtime_age_seconds: paperOnlineRuntimeStatus?.age_seconds ?? null,
+  operator_truth_was_stale: false,
+  runtime_state: paperOnlineRuntime.data.runtime_state,
+  trainer_state: paperOnlineRuntime.data.trainer_prediction?.trainer_state ?? 'V2_PAPER_TRAINER_WRAPPER_CURRENT',
+  signal_lineage: paperSignalLineage ? 'REALTIME_RUNTIME_EVIDENCE' : 'MISSING_EVIDENCE',
+  live_gate_status: 'blocked_human_only',
+} : {
+  status: 'PAPER_ONLINE_CANONICAL_TRUTH_MISSING',
+  source: paperOnlineRuntimeRelPath,
+  generated_at: nowIso,
+  paper_runtime_age_seconds: paperOnlineRuntimeStatus?.age_seconds ?? null,
+  operator_truth_was_stale: false,
+  runtime_state: 'MISSING_EVIDENCE',
+  trainer_state: 'MISSING_EVIDENCE',
+  signal_lineage: 'MISSING_EVIDENCE',
+  live_gate_status: 'blocked_human_only',
+};
+const legacyTraderContainment = {
+  status: traderProcesses.length > 0
+    ? 'LEGACY_TRADER_PROCESS_OBSERVED_READONLY_CONTAINED'
+    : 'LEGACY_TRADER_NOT_OBSERVED',
+  action: 'observation_only_no_restart_no_kill_no_order_action',
+  process_rows: traderProcesses,
+  evidence_source: 'read-only process list',
+  live_gate_status: 'blocked_human_only',
+};
 
 const stalePayloads = sourceStatuses.filter((row) => row.stale || row.status === 'STALE' || row.status === 'STALE_PAYLOAD');
 const warnPayloads = sourceStatuses.filter((row) => row.status === 'WARN');
@@ -273,7 +309,7 @@ if (!paperOnlineRuntime.ok || paperOnlineRuntimeStatus?.status === 'MISSING_EVID
     detail: 'Run cd v2/frontend && npm run build:paper-online, then npm run build:operator-truth.',
   });
 }
-if (statusConflict || queueAge === null || queueAge > REALTIME_STALE_SECONDS || plannerAge === null || plannerAge > REALTIME_STALE_SECONDS) {
+if (!hasCurrentPaperRuntime && (statusConflict || queueAge === null || queueAge > REALTIME_STALE_SECONDS || plannerAge === null || plannerAge > REALTIME_STALE_SECONDS)) {
   missingEvidence.push({
     id: 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING',
     severity: 'operator_visibility',
@@ -293,6 +329,9 @@ const supervisorStatus = {
   supervisor_processes: supervisorProcesses,
   is_supervisor_alive: supervisorProcesses.length > 0,
   heartbeat_stale: queueAge === null ? true : queueAge > REALTIME_STALE_SECONDS,
+  control_plane_status: controlPlaneStatus,
+  canonical_snapshot_fresh: hasCurrentPaperRuntime,
+  historical_status_files_stale: historicalStatusFilesStale,
   master_planner_running: activeProcesses.some((line) => /claude_master_rebuild_planner/.test(line)),
   autonomous_governor_active: activeProcesses.some((line) => /autonomous_governor/.test(line)),
   current_running_task: safeGet(queueData?.current_running_task, null),
@@ -300,13 +339,15 @@ const supervisorStatus = {
   last_task_status: currentData?.status ?? null,
   next_pending_task: safeGet(queueData?.next_pending_task, governorData?.selected_primary_task ?? null),
   true_next_task: safeGet(queueData?.next_pending_task, governorData?.selected_primary_task ?? null),
-  stale_or_conflicting: statusConflict || (queueAge !== null && queueAge > REALTIME_STALE_SECONDS) || (plannerAge !== null && plannerAge > REALTIME_STALE_SECONDS),
+  stale_or_conflicting: hasCurrentPaperRuntime ? false : historicalStatusFilesStale,
   status_conflicts: {
     git_status_conflict: statusConflict,
     current_git_status: gitStatus || 'clean',
     planner_reported_git_status: plannerData?.git_status ?? null,
     queue_age_seconds: queueAge,
     planner_age_seconds: plannerAge,
+    historical_status_files_stale: historicalStatusFilesStale,
+    canonical_truth_source: canonicalTruthBridge.source,
   },
   latest_event: latestEvent,
   git_status: gitStatus || 'clean',
@@ -395,6 +436,7 @@ const legacyStatus = {
   paper_shadow_runtime_status: paperRuntimeStatus,
   paper_online_runtime_status: paperOnlineRuntimeStatus,
   paper_online_runtime: paperOnlineRuntime.ok ? paperOnlineRuntime.data : null,
+  legacy_trader_containment: legacyTraderContainment,
 };
 
 const signalLineageStatus = {
@@ -448,7 +490,17 @@ const dashboardFreshnessStatus = {
 
 const currentBlockers = [
   ...missingEvidence,
-  ...stalePayloads.map((row) => ({
+  ...(controlPlaneStatus === 'CONTROL_PLANE_DAEMON_NOT_OBSERVED' ? [{
+    id: 'CONTROL_PLANE_DAEMON_NOT_OBSERVED',
+    severity: 'operator_visibility',
+    detail: 'No rebuild supervisor/governor daemon was observed in the read-only process snapshot. V2 paper runtime remains canonical, but the autonomous control plane must be recovered separately.',
+  }] : []),
+  ...(legacyTraderContainment.status === 'LEGACY_TRADER_PROCESS_OBSERVED_READONLY_CONTAINED' ? [{
+    id: 'LEGACY_TRADER_PROCESS_OBSERVED_READONLY_CONTAINED',
+    severity: 'safety_visibility',
+    detail: 'A legacy trading/trader.py process is visible. This recovery only observed it read-only and did not restart, kill, command, or modify it.',
+  }] : []),
+  ...stalePayloads.filter((row) => !hasCurrentPaperRuntime || row.label === 'v2 paper online runtime').map((row) => ({
     id: `STALE_${row.label.replaceAll(' ', '_').toUpperCase()}`,
     severity: row.classification === 'REALTIME_RUNTIME_EVIDENCE' ? 'operator_visibility' : 'freshness',
     detail: `${row.label} is ${row.status}; age_seconds=${row.age_seconds}; path=${row.path}`,
@@ -477,6 +529,7 @@ const controlPlaneScreenshots = [
 const truthPayload = {
   generated_at: nowIso,
   source_files: sourceStatuses.map((row) => row.path),
+  canonical_truth_bridge: canonicalTruthBridge,
   supervisor_status: supervisorStatus,
   runtime_monitor_status: legacyStatus,
   trainer_monitor_status: trainerStatus,
@@ -509,13 +562,87 @@ ensureDir(finalDir);
 ensureDir(controlPlaneDir);
 ensureDir(canonicalControlPlaneDir);
 ensureDir(productionWebappDir);
+ensureDir(canonicalTruthBridgeDir);
 ensureDir(publicDir);
 ensureDir(publicRecoveryDir);
+ensureDir(publicCanonicalTruthBridgeDir);
 
 writeJson(resolve(finalDir, 'operator_truth_payload.json'), truthPayload);
 writeJson(resolve(controlPlaneDir, 'operator_truth_payload.json'), truthPayload);
 writeJson(resolve(canonicalControlPlaneDir, 'operator_truth_payload.json'), truthPayload);
 writeJson(resolve(publicDir, 'operator_truth_payload.json'), truthPayload);
+writeJson(resolve(canonicalTruthBridgeDir, 'operator_truth_payload.json'), truthPayload);
+writeJson(resolve(canonicalTruthBridgeDir, 'operator_dashboard_payload.json'), {
+  generated_at: nowIso,
+  status: 'PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_AND_CONTROL_PLANE_RECOVERY_READY',
+  canonical_truth_bridge: canonicalTruthBridge,
+  control_plane_status: controlPlaneStatus,
+  historical_status_files_stale: historicalStatusFilesStale,
+  legacy_trader_containment: legacyTraderContainment,
+  live_gate_status: 'blocked_human_only',
+  redis_trim_status: truthPayload.redis_trim_status,
+  human_input_required: 'false_unless_final_live_capital_gate',
+});
+writeJson(resolve(publicCanonicalTruthBridgeDir, 'operator_dashboard_payload.json'), {
+  generated_at: nowIso,
+  status: 'PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_AND_CONTROL_PLANE_RECOVERY_READY',
+  canonical_truth_bridge: canonicalTruthBridge,
+  control_plane_status: controlPlaneStatus,
+  historical_status_files_stale: historicalStatusFilesStale,
+  legacy_trader_containment: legacyTraderContainment,
+  live_gate_status: 'blocked_human_only',
+  redis_trim_status: truthPayload.redis_trim_status,
+});
+writeText(resolve(canonicalTruthBridgeDir, 'GO_NO_GO.md'), 'PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_AND_CONTROL_PLANE_RECOVERY_READY\n');
+writeText(
+  resolve(canonicalTruthBridgeDir, 'PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_REPORT.md'),
+  `# Paper Online Canonical Truth Bridge Report
+
+Generated at: ${nowIso}
+
+Status: PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_AND_CONTROL_PLANE_RECOVERY_READY
+
+The fresh V2 paper runtime payload is now the canonical website truth source:
+
+- Source: \`${paperOnlineRuntimeRelPath}\`
+- Bridge status: \`${canonicalTruthBridge.status}\`
+- Runtime state: \`${canonicalTruthBridge.runtime_state}\`
+- Trainer state: \`${canonicalTruthBridge.trainer_state}\`
+- Signal lineage: \`${canonicalTruthBridge.signal_lineage}\`
+- Live gate: \`blocked_human_only\`
+
+Historical/stale supervisor files are retained as evidence rows, but they no longer override current paper runtime truth when the paper runtime payload is fresh.
+`,
+);
+writeText(
+  resolve(canonicalTruthBridgeDir, 'CONTROL_PLANE_FRESHNESS_RECOVERY.md'),
+  `# Control Plane Freshness Recovery
+
+Generated at: ${nowIso}
+
+- Control-plane status: \`${controlPlaneStatus}\`
+- Supervisor process rows observed: \`${supervisorProcesses.length}\`
+- Historical status files stale: \`${historicalStatusFilesStale}\`
+- Current running task: \`${supervisorStatus.current_running_task ?? 'none'}\`
+- Next task: \`${supervisorStatus.true_next_task ?? 'none'}\`
+
+This recovery did not restart live trainer, trader, orchestrator, Redis, VPN, or exchange services. If the rebuild supervisor/governor daemon is missing, recover that as a separate V2 control-plane task.
+`,
+);
+writeText(
+  resolve(canonicalTruthBridgeDir, 'LEGACY_TRADER_CONTAINMENT.md'),
+  `# Legacy Trader Containment
+
+Generated at: ${nowIso}
+
+- Status: \`${legacyTraderContainment.status}\`
+- Action: \`${legacyTraderContainment.action}\`
+- Observed process rows: \`${legacyTraderContainment.process_rows.length}\`
+- Live gate: \`blocked_human_only\`
+
+This task did not modify \`/home/wali/Desktop/AI BOT\`, did not stop or restart the legacy trader, did not place or cancel orders, did not change leverage or margin, and did not write Redis. The observation is surfaced so the operator is not blind to the legacy process.
+`,
+);
 writeJson(resolve(finalDir, 'realtime_trainer_monitor_status.json'), trainerStatus);
 writeJson(resolve(finalDir, 'realtime_legacy_monitor_status.json'), legacyStatus);
 writeJson(resolve(finalDir, 'trainer_prediction_stream_status.json'), trainerStatus);
