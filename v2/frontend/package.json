@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "build:operator-truth": "node scripts/build-operator-truth-payload.mjs",
+    "crawl:dashboard": "node scripts/crawl-dashboard-routes.mjs",
     "sync:proof-artifacts": "node scripts/sync-proof-artifacts.mjs",
     "typecheck": "tsc -b --noEmit",
     "test:e2e": "playwright test"
