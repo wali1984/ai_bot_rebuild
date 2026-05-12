@@ -1,5 +1,5 @@
 import { Panel, Metric } from './cockpitComponents';
-import type { OperatorTruthPayload, OperatorTruthStatusRow } from './operatorTruthData';
+import type { OperatorTruthPayload, OperatorTruthStatusRow, PaperOnlineRuntimePayload } from './operatorTruthData';
 import { statusClass, valueText } from './cockpitData';
 
 const MISSING = 'Evidence missing — cannot explain without guessing.';
@@ -172,6 +172,7 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
 
 export function RuntimeTruthMatrix({ payload }: { payload: OperatorTruthPayload }): JSX.Element {
   const redis = payload.runtime_monitor_status.redis_memory_pressure_status;
+  const paperOnline = payload.runtime_monitor_status.paper_online_runtime_status;
   const rows = [
     ['Supervisor', payload.supervisor_status.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT_RUNTIME_SNAPSHOT', 'agent_supervisor/status/current_status.json'],
     ['Current task', payload.supervisor_status.current_running_task ?? 'NO_ACTIVE_SUPERVISOR_TASK', `last completed: ${payload.supervisor_status.last_completed_task ?? 'none'}`],
@@ -182,6 +183,7 @@ export function RuntimeTruthMatrix({ payload }: { payload: OperatorTruthPayload 
     ['Trainer process', payload.runtime_monitor_status.trainer_status, 'read-only process scan'],
     ['Trainer prediction stream', payload.trainer_monitor_status.status, 'trainer monitor payload'],
     ['Signal explainability', payload.signal_lineage_status.status, 'signal lineage payload'],
+    ['V2 paper online', paperOnline?.status ?? 'MISSING_EVIDENCE', paperOnline?.path ?? 'operator_runtime/paper_online/latest'],
     ['Redis memory pressure', redis?.status ?? 'MISSING_EVIDENCE', redis?.path ?? 'Redis read-only state / payload audit'],
     ['Static fixture count', String(payload.dashboard_freshness_status.static_fixture_count), 'public payload audit'],
     ['Stale payload count', String(payload.dashboard_freshness_status.stale_payload_count), 'public payload audit'],
@@ -197,6 +199,52 @@ export function RuntimeTruthMatrix({ payload }: { payload: OperatorTruthPayload 
         </div>
       ))}
     </section>
+  );
+}
+
+export function PaperOnlineRuntimeStatusPanel({ payload }: { payload: PaperOnlineRuntimePayload | null }): JSX.Element {
+  const state = payload?.runtime_state ?? 'PAPER_ONLINE_RUNTIME_MISSING';
+  const market = payload?.market_feed;
+  return (
+    <Panel
+      id="v2-paper-online-runtime"
+      title="V2 Paper Online Runtime"
+      right={<span className={payload ? 'chip solid-ok' : 'chip solid-warn'}>{payload ? 'REALTIME_RUNTIME_EVIDENCE' : 'MISSING_EVIDENCE'}</span>}
+    >
+      <div className="cockpit-analytics-grid">
+        <Metric label="Runtime state" value={state} />
+        <Metric label="Loop available" value={String(payload?.continuous_loop_available ?? false)} />
+        <Metric label="Last tick" value={payload?.paper_loop?.last_tick_at ?? 'MISSING_EVIDENCE'} />
+        <Metric label="Paper events" value={payload?.paper_loop?.paper_event_count ?? 'MISSING_EVIDENCE'} />
+        <Metric label="Paper action" value={payload?.last_paper_event?.paper_action ?? 'MISSING_EVIDENCE'} />
+        <Metric label="Risk result" value={payload?.last_paper_event?.risk_gateway_result ?? 'MISSING_EVIDENCE'} />
+        <Metric label="Observed price" value={market?.price ?? 'MISSING_EVIDENCE'} />
+        <Metric label="Market source" value={market?.source_type ?? 'MISSING_EVIDENCE'} />
+      </div>
+      <div className="cockpit-lineage-grid">
+        <div><span>exchange orders</span><strong>{String(payload?.exchange_orders ?? false)}</strong></div>
+        <div><span>legacy Redis writes</span><strong>{String(payload?.legacy_redis_writes ?? false)}</strong></div>
+        <div><span>leverage changes</span><strong>{String(payload?.leverage_changes ?? false)}</strong></div>
+        <div><span>margin mode changes</span><strong>{String(payload?.margin_mode_changes ?? false)}</strong></div>
+        <div><span>live gate</span><strong>{payload?.live_gate_status ?? 'blocked_human_only'}</strong></div>
+        <div><span>market age</span><strong>{formatAge(market?.age_seconds)}</strong></div>
+      </div>
+      <p className="cockpit-evidence-note">
+        {payload
+          ? 'Continuous V2 paper runtime is online and fail-closed. It writes local V2 runtime payloads only; it emits no paper order while current trainer/signal/risk lineage is missing.'
+          : 'Evidence missing — cannot explain without guessing. Start the non-live paper runtime with npm run build:paper-online or npm run run:paper-online.'}
+      </p>
+      {payload?.blockers?.length ? (
+        <div className="missing-evidence-board">
+          {payload.blockers.map((row) => (
+            <div className="missing-evidence-card" key={row.id}>
+              <strong>{row.id}</strong>
+              <p>{row.severity}: {row.detail}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </Panel>
   );
 }
 
@@ -405,7 +453,8 @@ export function WhatIsWorkingPanel({ payload }: { payload: OperatorTruthPayload 
     ['trainer predictions', payload.trainer_monitor_status.status],
     ['signal lineage', payload.signal_lineage_status.status],
     ['risk gateway', payload.source_files.some((path) => path.includes('risk_gateway')) ? 'V2_PROOF_ARTIFACT' : 'MISSING_EVIDENCE'],
-    ['paper/shadow', payload.proof_artifact_statuses.find((row) => row.label.includes('paper'))?.status ?? 'MISSING_EVIDENCE'],
+    ['paper online', payload.runtime_monitor_status.paper_online_runtime_status?.status ?? 'MISSING_EVIDENCE'],
+    ['paper/shadow proof', payload.proof_artifact_statuses.find((row) => row.label.includes('paper'))?.status ?? 'MISSING_EVIDENCE'],
     ['website payload freshness', payload.dashboard_freshness_status.stale_payload_count ? 'STALE_PAYLOADS_PRESENT' : 'CURRENT_SNAPSHOT'],
   ];
   return (

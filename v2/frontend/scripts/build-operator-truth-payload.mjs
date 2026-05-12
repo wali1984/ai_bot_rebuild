@@ -11,6 +11,7 @@ const canonicalControlPlaneDir = resolve(repoRoot, 'claude_worklog', 'final_read
 const productionWebappDir = resolve(repoRoot, 'claude_worklog', 'final_readiness', 'production_operator_webapp', 'latest');
 const publicDir = resolve(frontendRoot, 'public', 'operator_truth', 'latest');
 const publicRecoveryDir = resolve(frontendRoot, 'public', 'operator_truth_recovery', 'latest');
+const paperOnlineRuntimeRelPath = 'v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json';
 
 const REALTIME_CURRENT_SECONDS = 120;
 const REALTIME_STALE_SECONDS = 300;
@@ -165,6 +166,7 @@ const runtimeSources = readJson('v2/frontend/public/realtime_legacy_monitoring_c
 const signalExecution = readJson('v2/frontend/public/realtime_legacy_monitoring_continuity/latest/signal_execution_monitor_status.json');
 const riskObservation = readJson('v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json');
 const phase3cPayload = readJson('v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json');
+const paperOnlineRuntime = readJson(paperOnlineRuntimeRelPath);
 const eventsText = readText('claude_worklog/agent_supervisor/events.jsonl');
 
 function latestJsonLine(textResult) {
@@ -208,6 +210,7 @@ const sourceStatuses = [
   payloadStatus('signal execution monitor status', 'v2/frontend/public/realtime_legacy_monitoring_continuity/latest/signal_execution_monitor_status.json', 'RUNTIME_MONITOR_PAYLOAD', nowMs),
   payloadStatus('risk gateway observation status', 'v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json', 'RUNTIME_MONITOR_PAYLOAD', nowMs),
   payloadStatus('phase3c runtime monitor payload', 'v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json', 'RUNTIME_MONITOR_PAYLOAD', nowMs),
+  payloadStatus('v2 paper online runtime', paperOnlineRuntimeRelPath, 'REALTIME_RUNTIME_EVIDENCE', nowMs),
   payloadStatus('orchestrator evidence reconciliation payload', 'v2/frontend/public/orchestrator_decision_evidence_reconciliation/latest/operator_dashboard_payload.json', 'V2_PROOF_ARTIFACT', nowMs),
   payloadStatus('readonly market exchange data plane', 'v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json', 'V2_PROOF_ARTIFACT', nowMs),
   payloadStatus('paper runtime status', 'v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json', 'V2_PROOF_ARTIFACT', nowMs),
@@ -229,6 +232,7 @@ const statusConflict = Boolean(
 const latestEvent = latestJsonLine(eventsText);
 const readonlyMarketFeedStatus = sourceStatuses.find((row) => row.label === 'readonly market exchange data plane') ?? null;
 const paperRuntimeStatus = sourceStatuses.find((row) => row.label === 'paper runtime status') ?? null;
+const paperOnlineRuntimeStatus = sourceStatuses.find((row) => row.label === 'v2 paper online runtime') ?? null;
 
 const stalePayloads = sourceStatuses.filter((row) => row.stale || row.status === 'STALE' || row.status === 'STALE_PAYLOAD');
 const warnPayloads = sourceStatuses.filter((row) => row.status === 'WARN');
@@ -254,6 +258,13 @@ if (!latestDecision) {
     id: 'SIGNAL_LINEAGE_SAMPLE_MISSING',
     severity: 'blocks_explainability',
     detail: MISSING,
+  });
+}
+if (!paperOnlineRuntime.ok || paperOnlineRuntimeStatus?.status === 'MISSING_EVIDENCE' || paperOnlineRuntimeStatus?.status === 'STALE') {
+  missingEvidence.push({
+    id: 'V2_PAPER_ONLINE_RUNTIME_MISSING_OR_STALE',
+    severity: 'blocks_continuous_paper_visibility',
+    detail: 'Run cd v2/frontend && npm run build:paper-online, then npm run build:operator-truth.',
   });
 }
 if (statusConflict || queueAge === null || queueAge > REALTIME_STALE_SECONDS || plannerAge === null || plannerAge > REALTIME_STALE_SECONDS) {
@@ -361,6 +372,8 @@ const legacyStatus = {
   redis_memory_pressure_status: payloadStatus('redis memory pressure', 'v2/frontend/public/redis_memory_pressure_remediation/latest/operator_dashboard_payload.json', 'V2_PROOF_ARTIFACT', nowMs),
   readonly_market_feed_status: readonlyMarketFeedStatus,
   paper_shadow_runtime_status: paperRuntimeStatus,
+  paper_online_runtime_status: paperOnlineRuntimeStatus,
+  paper_online_runtime: paperOnlineRuntime.ok ? paperOnlineRuntime.data : null,
 };
 
 const signalLineageStatus = {

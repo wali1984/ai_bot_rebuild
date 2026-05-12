@@ -49,6 +49,8 @@ export interface OperatorTruthPayload {
     redis_memory_pressure_status?: OperatorTruthStatusRow;
     read_only_market_feed_status?: OperatorTruthStatusRow;
     paper_shadow_runtime_status?: OperatorTruthStatusRow;
+    paper_online_runtime_status?: OperatorTruthStatusRow;
+    paper_online_runtime?: PaperOnlineRuntimePayload | null;
   };
   trainer_monitor_status: {
     status: string;
@@ -80,7 +82,64 @@ export interface OperatorTruthPayload {
   classifications: Record<string, string>;
 }
 
+export interface PaperOnlineRuntimePayload {
+  generated_at: string;
+  runtime: string;
+  runtime_state: string;
+  live_gate_status: string;
+  mode: string;
+  continuous_loop_available: boolean;
+  loop_interval_seconds: number;
+  writes_only_local_v2_artifacts: boolean;
+  legacy_redis_writes: boolean;
+  exchange_orders: boolean;
+  leverage_changes: boolean;
+  margin_mode_changes: boolean;
+  redis_trim_approval_created: boolean;
+  market_feed: {
+    symbol: string;
+    price: number | null;
+    source_type: string;
+    source: string;
+    source_pointer: string;
+    generated_at: string;
+    last_event_at: string | null;
+    age_seconds: number | null;
+    freshness_state: string;
+    errors: string[];
+  };
+  paper_loop: {
+    state: string;
+    tick_id: string;
+    last_tick_at: string;
+    paper_event_count: number;
+    last_paper_event_count: number;
+    last_shadow_decision_count: number;
+    last_risk_block_count: number;
+  };
+  paper_account: {
+    currency: string;
+    starting_equity: number;
+    equity: number;
+    realized_pnl: number;
+    unrealized_pnl: number;
+    open_position_count: number;
+    position_source: string;
+  };
+  last_paper_event: Record<string, unknown>;
+  safety: Record<string, unknown>;
+  blockers: Array<{ id: string; severity: string; detail: string }>;
+  freshness: {
+    status: string;
+    generated_at: string;
+    runtime_age_seconds: number;
+    market_age_seconds: number | null;
+    source_type: string;
+  };
+}
+
 const operatorTruthPayloadPath = '/operator_truth/latest/operator_truth_payload.json';
+const paperOnlineRuntimePayloadPath = '/operator_runtime/paper_online/latest/paper_runtime_status.json';
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: 'no-store' });
@@ -112,6 +171,40 @@ export function useOperatorTruthPayload(): {
       active = false;
     };
   }, []);
+
+  return { payload, error };
+}
+
+export function usePaperOnlineRuntimePayload(intervalMs = 10_000): {
+  payload: PaperOnlineRuntimePayload | null;
+  error: string | null;
+} {
+  const [payload, setPayload] = useState<PaperOnlineRuntimePayload | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    let timer: number | undefined;
+    const load = (): void => {
+      fetchJson<PaperOnlineRuntimePayload>(`${paperOnlineRuntimePayloadPath}?ts=${Date.now()}`)
+        .then((data) => {
+          if (!active) return;
+          setPayload(data);
+          setError(null);
+        })
+        .catch((err: unknown) => {
+          if (!active) return;
+          setPayload(null);
+          setError(err instanceof Error ? err.message : String(err));
+        });
+    };
+    load();
+    timer = window.setInterval(load, intervalMs);
+    return () => {
+      active = false;
+      if (timer !== undefined) window.clearInterval(timer);
+    };
+  }, [intervalMs]);
 
   return { payload, error };
 }

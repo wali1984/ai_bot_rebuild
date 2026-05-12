@@ -6,14 +6,15 @@ import { AutonomousGovernorPanel, ChartPanel, CockpitLoading, ConfigTable, Decis
 import type { AutonomousGovernorPayload, CockpitPayload } from '../cockpitData';
 import { statusClass, useCockpitPayload, valueText } from '../cockpitData';
 import { MissionControlReadinessBanner } from '../../components/banners/MissionControlReadinessBanner';
-import { useOperatorTruthPayload } from '../operatorTruthData';
-import { ActualRuntimeNowPanel, LegacyRuntimeMonitorPanel, MissingEvidencePanel, OperatorTruthCommandDeck, OperatorTruthLoading, PayloadFreshnessPanel, RuntimeTruthMatrix, SignalLineageTruthPanel, TrainerPredictionTruthPanel, WhatIsWorkingPanel } from '../operatorTruthComponents';
+import { useOperatorTruthPayload, usePaperOnlineRuntimePayload, type PaperOnlineRuntimePayload } from '../operatorTruthData';
+import { ActualRuntimeNowPanel, LegacyRuntimeMonitorPanel, MissingEvidencePanel, OperatorTruthCommandDeck, OperatorTruthLoading, PaperOnlineRuntimeStatusPanel, PayloadFreshnessPanel, RuntimeTruthMatrix, SignalLineageTruthPanel, TrainerPredictionTruthPanel, WhatIsWorkingPanel } from '../operatorTruthComponents';
 
 const EVIDENCE_MISSING = 'Evidence missing - cannot explain without guessing.';
 
 export default function MissionControlPage(): JSX.Element {
   const { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, redisExportCapacity, redisFullExport, redisSafeTrimPacket, autonomousGovernor, error } = useCockpitPayload();
   const { payload: truthPayload, error: truthError } = useOperatorTruthPayload();
+  const { payload: paperRuntime } = usePaperOnlineRuntimePayload();
 
   if (!payload) {
     return (
@@ -31,7 +32,8 @@ export default function MissionControlPage(): JSX.Element {
       {truthPayload ? <OperatorTruthCommandDeck payload={truthPayload} /> : <OperatorTruthLoading error={truthError} />}
       {truthPayload ? <ActualRuntimeNowPanel payload={truthPayload} /> : null}
       {truthPayload ? <RuntimeTruthMatrix payload={truthPayload} /> : null}
-      {truthPayload ? <MissionCriticalSystemsGrid payload={payload} truthPayload={truthPayload} /> : null}
+      <PaperOnlineRuntimeStatusPanel payload={paperRuntime} />
+      {truthPayload ? <MissionCriticalSystemsGrid payload={payload} truthPayload={truthPayload} paperRuntime={paperRuntime} /> : null}
       <OperatorDetailLinksPanel />
       <div className="mission-command-layout">
         <div className="mission-command-main">
@@ -78,14 +80,16 @@ function OperatorDetailLinksPanel(): JSX.Element {
   );
 }
 
-function MissionCriticalSystemsGrid({ payload, truthPayload }: { payload: CockpitPayload; truthPayload: NonNullable<ReturnType<typeof useOperatorTruthPayload>['payload']> }): JSX.Element {
+function MissionCriticalSystemsGrid({ payload, truthPayload, paperRuntime }: { payload: CockpitPayload; truthPayload: NonNullable<ReturnType<typeof useOperatorTruthPayload>['payload']>; paperRuntime: PaperOnlineRuntimePayload | null }): JSX.Element {
   const decision = payload.decisions[0];
   const cards = [
     {
       label: 'Paper / shadow equity',
-      value: payload.account_mode,
-      detail: 'No live exchange execution. Paper/shadow state is proof-only until continuous runtime is current.',
-      source: 'V2_PROOF_ARTIFACT',
+      value: paperRuntime?.paper_account?.equity ?? payload.account_mode,
+      detail: paperRuntime
+        ? `Runtime ${paperRuntime.runtime_state}; last tick ${paperRuntime.paper_loop.last_tick_at}; no exchange execution.`
+        : 'No live exchange execution. Paper/shadow state is missing until V2 paper online runtime is started.',
+      source: paperRuntime ? 'REALTIME_RUNTIME_EVIDENCE / V2_PAPER_RUNTIME' : 'MISSING_EVIDENCE',
     },
     {
       label: 'Trainer state',
@@ -107,9 +111,11 @@ function MissionCriticalSystemsGrid({ payload, truthPayload }: { payload: Cockpi
     },
     {
       label: 'Execution / paper',
-      value: truthPayload.runtime_monitor_status.paper_shadow_runtime_status?.status ?? 'PAPER_SHADOW_RUNTIME_MISSING',
-      detail: 'Current paper/shadow runtime must be fresh before this supports live-readiness.',
-      source: 'V2_PROOF_ARTIFACT / RUNTIME_STATUS',
+      value: paperRuntime?.runtime_state ?? truthPayload.runtime_monitor_status.paper_online_runtime_status?.status ?? 'PAPER_ONLINE_RUNTIME_MISSING',
+      detail: paperRuntime
+        ? `${paperRuntime.last_paper_event.paper_action}; risk ${paperRuntime.last_paper_event.risk_gateway_result}`
+        : 'Current paper runtime must be fresh before this supports paper readiness.',
+      source: paperRuntime ? 'REALTIME_RUNTIME_EVIDENCE' : 'MISSING_EVIDENCE',
     },
     {
       label: 'Redis / V2 data plane',

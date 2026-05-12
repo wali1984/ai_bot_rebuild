@@ -1,6 +1,6 @@
 # TradingView Production Repair Report
 
-Generated at: 2026-05-12T03:04:31.442Z
+Generated at: 2026-05-12T03:20:00.556Z
 
 - Mission Control uses TradingViewWidget as the primary chart component.
 - The chart container has data-testid="tradingview-widget".

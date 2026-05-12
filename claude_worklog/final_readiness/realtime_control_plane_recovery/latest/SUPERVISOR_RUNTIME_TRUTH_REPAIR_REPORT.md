@@ -1,6 +1,6 @@
 # Supervisor Runtime Truth Repair Report
 
-Generated at: 2026-05-12T03:04:31.442Z
+Generated at: 2026-05-12T03:20:00.556Z
 
 Inspection sources:
 
@@ -16,8 +16,8 @@ Findings:
 - Master planner process observed: no
 - Autonomous governor process observed: no
 - Current status stale/conflicting: yes
-- Queue age seconds: 2641
-- Planner age seconds: 23357
+- Queue age seconds: 3570
+- Planner age seconds: 24286
 - Current running task: none
 - Last completed task: codex_parallel_review_20260512_021504_06_paper_mode
 - Next pending task: codex_recover_173_phase2r_consolidated_python_source_and_task_json_end_file_leakage_cleanup
