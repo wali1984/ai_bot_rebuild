@@ -1,12 +1,12 @@
 # Route Acceptance Matrix
 
-Generated at: 2026-05-12T02:29:15.058Z
+Generated at: 2026-05-12T02:32:59.471Z
 
 | Route | Production ready | Needs runtime payload | Stale payload | Static fixture only | Placeholder only | Visual old layout | Broken chart | Broken route | Safety OK | Operator useful | Screenshot |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | / | yes | no | visible | no | no | no | not_applicable | no | yes | yes | screenshots/_.png |
 | /admin | yes | no | visible | no | no | no | not_applicable | no | yes | yes | screenshots/_admin.png |
-| /admin/mission-control?role=admin | yes | no | visible | no | no | no | no_tradingview_primary_or_labeled_fallback | no | yes | yes | screenshots/_admin_mission-control_role_admin.png |
+| /admin/mission-control?role=admin | yes | no | visible | no | no | no | no_primary_chart_breakage_tradingview_or_labeled_fallback | no | yes | yes | screenshots/_admin_mission-control_role_admin.png |
 | /admin/monitor-center?role=admin | yes | no | visible | no | no | no | not_applicable | no | yes | yes | screenshots/_admin_monitor-center_role_admin.png |
 | /admin/coverage-system-atlas?role=admin | yes | no | visible | no | no | no | not_applicable | no | yes | yes | screenshots/_admin_coverage-system-atlas_role_admin.png |
 | /admin/script-registry?role=admin | yes | no | visible | no | no | no | not_applicable | no | yes | yes | screenshots/_admin_script-registry_role_admin.png |

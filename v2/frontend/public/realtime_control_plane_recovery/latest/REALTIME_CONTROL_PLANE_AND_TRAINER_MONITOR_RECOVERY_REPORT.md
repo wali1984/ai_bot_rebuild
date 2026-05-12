@@ -2,7 +2,7 @@
 
 Status: REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY
 
-Generated at: 2026-05-12T02:29:15.058Z
+Generated at: 2026-05-12T02:32:59.471Z
 
 Mission Control is now treated as an operational truth surface, not a proof dump. The first screen prioritizes live/safety state, actual observed runtime processes, current/next task, trainer runtime status, orchestrator/risk/execution status, signal lineage classification, payload freshness, blockers, and links to detail pages.
 

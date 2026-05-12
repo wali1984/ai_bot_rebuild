@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-05-12T02:29:15.058Z",
+  "generated_at": "2026-05-12T02:32:59.471Z",
   "status": "TRAINER_RUNTIME_EVIDENCE_MISSING",
   "trainer_processes": [],
   "prediction_worker_alive_from_stale_payload": true,
   "latest_trainer_status_from_payload": "DEGRADED",
-  "payload_age_seconds": 67397,
+  "payload_age_seconds": 67621,
   "prediction_lineage_gap": "runtime evidence still has missing prediction/feature snapshot links",
   "latest_prediction": {
     "classification": "STATIC_PROOF_FIXTURE",

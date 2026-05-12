@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-12T02:29:15.058Z",
+  "generated_at": "2026-05-12T02:32:59.471Z",
   "source_files": [
     "claude_worklog/agent_supervisor/status/current_status.json",
     "claude_worklog/agent_supervisor/status/queue_status.json",
@@ -16,7 +16,7 @@
     "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json"
   ],
   "supervisor_status": {
-    "generated_at": "2026-05-12T02:29:15.058Z",
+    "generated_at": "2026-05-12T02:32:59.471Z",
     "current_status_path": "claude_worklog/agent_supervisor/status/current_status.json",
     "queue_status_path": "claude_worklog/agent_supervisor/status/queue_status.json",
     "master_planner_status_path": "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json",
@@ -167,17 +167,17 @@
       "prompt_path": "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt"
     },
     "active_processes": [
-      "1035556 1011413 246308 python3 ingest/live_binance.py",
-      "1035713 1011413 246297 python3 ingest/live_kucoin.py",
-      "1035811 1011413 246290 python3 ingest/live_coinank.py",
-      "1035965 1011413 246281 python3 ingest/live_coinank_global_aggregator.py",
-      "1036143 1011413 246270 python3 ingest/live_binance_liquidations.py",
-      "1038292 1011413 246182 python3 feature_pipeline.py",
-      "1038859 1011413 246156 python3 ingest/live_technical_analysis.py",
-      "1042465 1011413 246063 python3 -m rl.orchestrator_worker",
-      "1272209 1272100 201888 tail -f Desktop/AI BOT/logs/orchestrator_worker.log",
-      "3324271 1011413 3685 /bin/bash -O extglob -c snap=$(command cat <&3) && builtin shopt -s extglob && builtin eval -- \"$snap\" && { builtin set +u 2>/dev/null || true; builtin eval \"${__CURSOR_SANDBOX_ENV_RESTORE:-}\" 2>/dev/null; builtin export...",
-      "3324274 3324271 3685 python3 -u trading/trader.py"
+      "1035556 1011413 246532 python3 ingest/live_binance.py",
+      "1035713 1011413 246521 python3 ingest/live_kucoin.py",
+      "1035811 1011413 246514 python3 ingest/live_coinank.py",
+      "1035965 1011413 246506 python3 ingest/live_coinank_global_aggregator.py",
+      "1036143 1011413 246494 python3 ingest/live_binance_liquidations.py",
+      "1038292 1011413 246407 python3 feature_pipeline.py",
+      "1038859 1011413 246380 python3 ingest/live_technical_analysis.py",
+      "1042465 1011413 246288 python3 -m rl.orchestrator_worker",
+      "1272209 1272100 202113 tail -f Desktop/AI BOT/logs/orchestrator_worker.log",
+      "3324271 1011413 3910 /bin/bash -O extglob -c snap=$(command cat <&3) && builtin shopt -s extglob && builtin eval -- \"$snap\" && { builtin set +u 2>/dev/null || true; builtin eval \"${__CURSOR_SANDBOX_ENV_RESTORE:-}\" 2>/dev/null; builtin export...",
+      "3324274 3324271 3910 python3 -u trading/trader.py"
     ],
     "supervisor_processes": [],
     "is_supervisor_alive": false,
@@ -192,17 +192,51 @@
     "stale_or_conflicting": true,
     "status_conflicts": {
       "git_status_conflict": true,
-      "current_git_status": "M v2/frontend/scripts/build-operator-truth-payload.mjs\n?? claude_worklog/final_readiness/production_operator_webapp/\n?? v2/frontend/public/production_operator_webapp/",
+      "current_git_status": "M v2/frontend/scripts/build-operator-truth-payload.mjs",
       "planner_reported_git_status": "?? claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/CODEX_GO_NO_GO.md\n?? claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/CODEX_ONLINE_READINESS_AGGREGATOR_FRESHNESS_REVIEW.md",
-      "queue_age_seconds": 525,
-      "planner_age_seconds": 21241
+      "queue_age_seconds": 749,
+      "planner_age_seconds": 21465
     },
     "latest_event": {
-      "event": "codex_watchdog_restarted_planner",
-      "ts": "2026-05-12T02:25:39.113972+00:00"
+      "event": "parallel_capacity_scheduler_cycle",
+      "mode": "actions_enabled",
+      "claude_lane_status": "idle",
+      "codex_review_lane_status": "idle",
+      "codex_autofix_lane_status": "idle",
+      "codex_watchdog_lane_status": "active",
+      "codex_idle_while_work_available": true,
+      "next_safe_codex_task": "run Codex watchdog dirty-tree recovery",
+      "actions": [
+        {
+          "action": "ran_watchdog_dirty_tree_recovery",
+          "returncode": 0
+        },
+        {
+          "action": "created_codex_parallel_review_batch",
+          "created": [],
+          "skipped_recent": [
+            "trainer_prediction_output",
+            "orchestrator_decision",
+            "risk_gateway_default_deny",
+            "paper_execution_ledger",
+            "replay_backtest_runner",
+            "paper_mode",
+            "shadow_readiness",
+            "historical_pnl_integration",
+            "website_explainability_contracts",
+            "no_live_side_effects"
+          ],
+          "returncode": 0,
+          "stderr_tail": ""
+        },
+        {
+          "action": "started_master_planner"
+        }
+      ],
+      "ts": "2026-05-12T02:30:41.523159+00:00"
     },
-    "git_status": "M v2/frontend/scripts/build-operator-truth-payload.mjs\n?? claude_worklog/final_readiness/production_operator_webapp/\n?? v2/frontend/public/production_operator_webapp/",
-    "latest_commit": "82c0602 Codex watchdog recover dirty non-live automation artifacts",
+    "git_status": "M v2/frontend/scripts/build-operator-truth-payload.mjs",
+    "latest_commit": "13536ca Codex watchdog recover dirty non-live automation artifacts",
     "freshness_model": {
       "current_seconds": 120,
       "warn_seconds": 300,
@@ -210,38 +244,38 @@
     }
   },
   "runtime_monitor_status": {
-    "generated_at": "2026-05-12T02:29:15.058Z",
+    "generated_at": "2026-05-12T02:32:59.471Z",
     "active_processes": [
-      "1035556 1011413 246308 python3 ingest/live_binance.py",
-      "1035713 1011413 246297 python3 ingest/live_kucoin.py",
-      "1035811 1011413 246290 python3 ingest/live_coinank.py",
-      "1035965 1011413 246281 python3 ingest/live_coinank_global_aggregator.py",
-      "1036143 1011413 246270 python3 ingest/live_binance_liquidations.py",
-      "1038292 1011413 246182 python3 feature_pipeline.py",
-      "1038859 1011413 246156 python3 ingest/live_technical_analysis.py",
-      "1042465 1011413 246063 python3 -m rl.orchestrator_worker",
-      "1272209 1272100 201888 tail -f Desktop/AI BOT/logs/orchestrator_worker.log",
-      "3324271 1011413 3685 /bin/bash -O extglob -c snap=$(command cat <&3) && builtin shopt -s extglob && builtin eval -- \"$snap\" && { builtin set +u 2>/dev/null || true; builtin eval \"${__CURSOR_SANDBOX_ENV_RESTORE:-}\" 2>/dev/null; builtin export...",
-      "3324274 3324271 3685 python3 -u trading/trader.py"
+      "1035556 1011413 246532 python3 ingest/live_binance.py",
+      "1035713 1011413 246521 python3 ingest/live_kucoin.py",
+      "1035811 1011413 246514 python3 ingest/live_coinank.py",
+      "1035965 1011413 246506 python3 ingest/live_coinank_global_aggregator.py",
+      "1036143 1011413 246494 python3 ingest/live_binance_liquidations.py",
+      "1038292 1011413 246407 python3 feature_pipeline.py",
+      "1038859 1011413 246380 python3 ingest/live_technical_analysis.py",
+      "1042465 1011413 246288 python3 -m rl.orchestrator_worker",
+      "1272209 1272100 202113 tail -f Desktop/AI BOT/logs/orchestrator_worker.log",
+      "3324271 1011413 3910 /bin/bash -O extglob -c snap=$(command cat <&3) && builtin shopt -s extglob && builtin eval -- \"$snap\" && { builtin set +u 2>/dev/null || true; builtin eval \"${__CURSOR_SANDBOX_ENV_RESTORE:-}\" 2>/dev/null; builtin export...",
+      "3324274 3324271 3910 python3 -u trading/trader.py"
     ],
     "orchestrator_processes": [
-      "1042465 1011413 246063 python3 -m rl.orchestrator_worker",
-      "1272209 1272100 201888 tail -f Desktop/AI BOT/logs/orchestrator_worker.log"
+      "1042465 1011413 246288 python3 -m rl.orchestrator_worker",
+      "1272209 1272100 202113 tail -f Desktop/AI BOT/logs/orchestrator_worker.log"
     ],
     "trainer_processes": [],
     "trader_processes": [
-      "3324274 3324271 3685 python3 -u trading/trader.py"
+      "3324274 3324271 3910 python3 -u trading/trader.py"
     ],
     "market_ingestor_processes": [
-      "1035556 1011413 246308 python3 ingest/live_binance.py",
-      "1035713 1011413 246297 python3 ingest/live_kucoin.py",
-      "1035811 1011413 246290 python3 ingest/live_coinank.py",
-      "1035965 1011413 246281 python3 ingest/live_coinank_global_aggregator.py",
-      "1036143 1011413 246270 python3 ingest/live_binance_liquidations.py",
-      "1038859 1011413 246156 python3 ingest/live_technical_analysis.py"
+      "1035556 1011413 246532 python3 ingest/live_binance.py",
+      "1035713 1011413 246521 python3 ingest/live_kucoin.py",
+      "1035811 1011413 246514 python3 ingest/live_coinank.py",
+      "1035965 1011413 246506 python3 ingest/live_coinank_global_aggregator.py",
+      "1036143 1011413 246494 python3 ingest/live_binance_liquidations.py",
+      "1038859 1011413 246380 python3 ingest/live_technical_analysis.py"
     ],
     "feature_pipeline_processes": [
-      "1038292 1011413 246182 python3 feature_pipeline.py"
+      "1038292 1011413 246407 python3 feature_pipeline.py"
     ],
     "orchestrator_status": "PROCESS_OBSERVED_READONLY",
     "trainer_status": "TRAINER_RUNTIME_EVIDENCE_MISSING",
@@ -274,7 +308,7 @@
       "path": "v2/frontend/public/redis_memory_pressure_remediation/latest/operator_dashboard_payload.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-10T05:48:56.400Z",
-      "age_seconds": 160819,
+      "age_seconds": 161043,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -286,7 +320,7 @@
       "path": "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-10T00:00:00.000Z",
-      "age_seconds": 181755,
+      "age_seconds": 181979,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -298,7 +332,7 @@
       "path": "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-09T20:28:03.010Z",
-      "age_seconds": 194472,
+      "age_seconds": 194696,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -307,12 +341,12 @@
     }
   },
   "trainer_monitor_status": {
-    "generated_at": "2026-05-12T02:29:15.058Z",
+    "generated_at": "2026-05-12T02:32:59.471Z",
     "status": "TRAINER_RUNTIME_EVIDENCE_MISSING",
     "trainer_processes": [],
     "prediction_worker_alive_from_stale_payload": true,
     "latest_trainer_status_from_payload": "DEGRADED",
-    "payload_age_seconds": 67397,
+    "payload_age_seconds": 67621,
     "prediction_lineage_gap": "runtime evidence still has missing prediction/feature snapshot links",
     "latest_prediction": {
       "classification": "STATIC_PROOF_FIXTURE",
@@ -348,7 +382,7 @@
     ]
   },
   "signal_lineage_status": {
-    "generated_at": "2026-05-12T02:29:15.058Z",
+    "generated_at": "2026-05-12T02:32:59.471Z",
     "status": "STATIC_PROOF_FIXTURE",
     "latest_signal": {
       "classification": "STATIC_PROOF_FIXTURE",
@@ -550,7 +584,7 @@
     "missing_evidence": []
   },
   "dashboard_freshness_status": {
-    "generated_at": "2026-05-12T02:29:15.058Z",
+    "generated_at": "2026-05-12T02:32:59.471Z",
     "payloads_checked": 13,
     "stale_payload_count": 12,
     "warn_payload_count": 0,
@@ -562,7 +596,7 @@
         "path": "claude_worklog/agent_supervisor/status/current_status.json",
         "classification": "REALTIME_RUNTIME_EVIDENCE",
         "generated_at": "2026-05-12T02:20:30.032Z",
-        "age_seconds": 525,
+        "age_seconds": 749,
         "is_realtime": true,
         "is_static_fixture": false,
         "stale": true,
@@ -574,7 +608,7 @@
         "path": "claude_worklog/agent_supervisor/status/queue_status.json",
         "classification": "REALTIME_RUNTIME_EVIDENCE",
         "generated_at": "2026-05-12T02:20:30.062Z",
-        "age_seconds": 525,
+        "age_seconds": 749,
         "is_realtime": true,
         "is_static_fixture": false,
         "stale": true,
@@ -586,7 +620,7 @@
         "path": "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json",
         "classification": "REALTIME_RUNTIME_EVIDENCE",
         "generated_at": "2026-05-11T20:35:14.146Z",
-        "age_seconds": 21241,
+        "age_seconds": 21465,
         "is_realtime": true,
         "is_static_fixture": false,
         "stale": true,
@@ -598,7 +632,7 @@
         "path": "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json",
         "classification": "RUNTIME_MONITOR_PAYLOAD",
         "generated_at": "2026-05-11T07:45:58.228Z",
-        "age_seconds": 67397,
+        "age_seconds": 67621,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -610,7 +644,7 @@
         "path": "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
         "classification": "STATIC_PROOF_FIXTURE",
         "generated_at": "2026-05-09T23:59:00.000Z",
-        "age_seconds": 181815,
+        "age_seconds": 182039,
         "is_realtime": false,
         "is_static_fixture": true,
         "stale": true,
@@ -622,7 +656,7 @@
         "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/current_runtime_sources.json",
         "classification": "RUNTIME_MONITOR_PAYLOAD",
         "generated_at": "2026-05-11T07:45:58.228Z",
-        "age_seconds": 67397,
+        "age_seconds": 67621,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -634,7 +668,7 @@
         "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/trainer_prediction_monitor_status.json",
         "classification": "RUNTIME_MONITOR_PAYLOAD",
         "generated_at": "2026-05-11T07:45:58.228Z",
-        "age_seconds": 67397,
+        "age_seconds": 67621,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -646,7 +680,7 @@
         "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/signal_execution_monitor_status.json",
         "classification": "RUNTIME_MONITOR_PAYLOAD",
         "generated_at": "2026-05-11T07:45:58.228Z",
-        "age_seconds": 67397,
+        "age_seconds": 67621,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -658,7 +692,7 @@
         "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json",
         "classification": "RUNTIME_MONITOR_PAYLOAD",
         "generated_at": "2026-05-11T07:45:58.228Z",
-        "age_seconds": 67397,
+        "age_seconds": 67621,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -670,7 +704,7 @@
         "path": "v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json",
         "classification": "RUNTIME_MONITOR_PAYLOAD",
         "generated_at": "2026-05-10T05:36:36.155Z",
-        "age_seconds": 161559,
+        "age_seconds": 161783,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -682,7 +716,7 @@
         "path": "v2/frontend/public/orchestrator_decision_evidence_reconciliation/latest/operator_dashboard_payload.json",
         "classification": "V2_PROOF_ARTIFACT",
         "generated_at": "2026-05-11T22:38:44.000Z",
-        "age_seconds": 13831,
+        "age_seconds": 14055,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": false,
@@ -694,7 +728,7 @@
         "path": "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
         "classification": "V2_PROOF_ARTIFACT",
         "generated_at": "2026-05-10T00:00:00.000Z",
-        "age_seconds": 181755,
+        "age_seconds": 181979,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -706,7 +740,7 @@
         "path": "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json",
         "classification": "V2_PROOF_ARTIFACT",
         "generated_at": "2026-05-09T20:28:03.010Z",
-        "age_seconds": 194472,
+        "age_seconds": 194696,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -722,7 +756,7 @@
       "path": "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
       "classification": "STATIC_PROOF_FIXTURE",
       "generated_at": "2026-05-09T23:59:00.000Z",
-      "age_seconds": 181815,
+      "age_seconds": 182039,
       "is_realtime": false,
       "is_static_fixture": true,
       "stale": true,
@@ -736,7 +770,7 @@
       "path": "claude_worklog/agent_supervisor/status/current_status.json",
       "classification": "REALTIME_RUNTIME_EVIDENCE",
       "generated_at": "2026-05-12T02:20:30.032Z",
-      "age_seconds": 525,
+      "age_seconds": 749,
       "is_realtime": true,
       "is_static_fixture": false,
       "stale": true,
@@ -748,7 +782,7 @@
       "path": "claude_worklog/agent_supervisor/status/queue_status.json",
       "classification": "REALTIME_RUNTIME_EVIDENCE",
       "generated_at": "2026-05-12T02:20:30.062Z",
-      "age_seconds": 525,
+      "age_seconds": 749,
       "is_realtime": true,
       "is_static_fixture": false,
       "stale": true,
@@ -760,7 +794,7 @@
       "path": "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json",
       "classification": "REALTIME_RUNTIME_EVIDENCE",
       "generated_at": "2026-05-11T20:35:14.146Z",
-      "age_seconds": 21241,
+      "age_seconds": 21465,
       "is_realtime": true,
       "is_static_fixture": false,
       "stale": true,
@@ -772,7 +806,7 @@
       "path": "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json",
       "classification": "RUNTIME_MONITOR_PAYLOAD",
       "generated_at": "2026-05-11T07:45:58.228Z",
-      "age_seconds": 67397,
+      "age_seconds": 67621,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -784,7 +818,7 @@
       "path": "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
       "classification": "STATIC_PROOF_FIXTURE",
       "generated_at": "2026-05-09T23:59:00.000Z",
-      "age_seconds": 181815,
+      "age_seconds": 182039,
       "is_realtime": false,
       "is_static_fixture": true,
       "stale": true,
@@ -796,7 +830,7 @@
       "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/current_runtime_sources.json",
       "classification": "RUNTIME_MONITOR_PAYLOAD",
       "generated_at": "2026-05-11T07:45:58.228Z",
-      "age_seconds": 67397,
+      "age_seconds": 67621,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -808,7 +842,7 @@
       "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/trainer_prediction_monitor_status.json",
       "classification": "RUNTIME_MONITOR_PAYLOAD",
       "generated_at": "2026-05-11T07:45:58.228Z",
-      "age_seconds": 67397,
+      "age_seconds": 67621,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -820,7 +854,7 @@
       "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/signal_execution_monitor_status.json",
       "classification": "RUNTIME_MONITOR_PAYLOAD",
       "generated_at": "2026-05-11T07:45:58.228Z",
-      "age_seconds": 67397,
+      "age_seconds": 67621,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -832,7 +866,7 @@
       "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json",
       "classification": "RUNTIME_MONITOR_PAYLOAD",
       "generated_at": "2026-05-11T07:45:58.228Z",
-      "age_seconds": 67397,
+      "age_seconds": 67621,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -844,7 +878,7 @@
       "path": "v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json",
       "classification": "RUNTIME_MONITOR_PAYLOAD",
       "generated_at": "2026-05-10T05:36:36.155Z",
-      "age_seconds": 161559,
+      "age_seconds": 161783,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -856,7 +890,7 @@
       "path": "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-10T00:00:00.000Z",
-      "age_seconds": 181755,
+      "age_seconds": 181979,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -868,7 +902,7 @@
       "path": "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-09T20:28:03.010Z",
-      "age_seconds": 194472,
+      "age_seconds": 194696,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -912,62 +946,62 @@
     {
       "id": "STALE_SUPERVISOR_CURRENT_STATUS",
       "severity": "operator_visibility",
-      "detail": "supervisor current status is STALE; age_seconds=525; path=claude_worklog/agent_supervisor/status/current_status.json"
+      "detail": "supervisor current status is STALE; age_seconds=749; path=claude_worklog/agent_supervisor/status/current_status.json"
     },
     {
       "id": "STALE_SUPERVISOR_QUEUE_STATUS",
       "severity": "operator_visibility",
-      "detail": "supervisor queue status is STALE; age_seconds=525; path=claude_worklog/agent_supervisor/status/queue_status.json"
+      "detail": "supervisor queue status is STALE; age_seconds=749; path=claude_worklog/agent_supervisor/status/queue_status.json"
     },
     {
       "id": "STALE_MASTER_PLANNER_STATUS",
       "severity": "operator_visibility",
-      "detail": "master planner status is STALE; age_seconds=21241; path=claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json"
+      "detail": "master planner status is STALE; age_seconds=21465; path=claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json"
     },
     {
       "id": "STALE_AUTONOMOUS_GOVERNOR_SELECTION",
       "severity": "freshness",
-      "detail": "autonomous governor selection is STALE; age_seconds=67397; path=claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json"
+      "detail": "autonomous governor selection is STALE; age_seconds=67621; path=claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json"
     },
     {
       "id": "STALE_ENTERPRISE_COCKPIT_PAYLOAD",
       "severity": "freshness",
-      "detail": "enterprise cockpit payload is STATIC_PROOF_FIXTURE; age_seconds=181815; path=v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json"
+      "detail": "enterprise cockpit payload is STATIC_PROOF_FIXTURE; age_seconds=182039; path=v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json"
     },
     {
       "id": "STALE_REALTIME_LEGACY_RUNTIME_SOURCES",
       "severity": "freshness",
-      "detail": "realtime legacy runtime sources is STALE; age_seconds=67397; path=v2/frontend/public/realtime_legacy_monitoring_continuity/latest/current_runtime_sources.json"
+      "detail": "realtime legacy runtime sources is STALE; age_seconds=67621; path=v2/frontend/public/realtime_legacy_monitoring_continuity/latest/current_runtime_sources.json"
     },
     {
       "id": "STALE_TRAINER_PREDICTION_MONITOR_STATUS",
       "severity": "freshness",
-      "detail": "trainer prediction monitor status is STALE; age_seconds=67397; path=v2/frontend/public/realtime_legacy_monitoring_continuity/latest/trainer_prediction_monitor_status.json"
+      "detail": "trainer prediction monitor status is STALE; age_seconds=67621; path=v2/frontend/public/realtime_legacy_monitoring_continuity/latest/trainer_prediction_monitor_status.json"
     },
     {
       "id": "STALE_SIGNAL_EXECUTION_MONITOR_STATUS",
       "severity": "freshness",
-      "detail": "signal execution monitor status is STALE; age_seconds=67397; path=v2/frontend/public/realtime_legacy_monitoring_continuity/latest/signal_execution_monitor_status.json"
+      "detail": "signal execution monitor status is STALE; age_seconds=67621; path=v2/frontend/public/realtime_legacy_monitoring_continuity/latest/signal_execution_monitor_status.json"
     },
     {
       "id": "STALE_RISK_GATEWAY_OBSERVATION_STATUS",
       "severity": "freshness",
-      "detail": "risk gateway observation status is STALE; age_seconds=67397; path=v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json"
+      "detail": "risk gateway observation status is STALE; age_seconds=67621; path=v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json"
     },
     {
       "id": "STALE_PHASE3C_RUNTIME_MONITOR_PAYLOAD",
       "severity": "freshness",
-      "detail": "phase3c runtime monitor payload is STALE; age_seconds=161559; path=v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json"
+      "detail": "phase3c runtime monitor payload is STALE; age_seconds=161783; path=v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json"
     },
     {
       "id": "STALE_READONLY_MARKET_EXCHANGE_DATA_PLANE",
       "severity": "freshness",
-      "detail": "readonly market exchange data plane is STALE; age_seconds=181755; path=v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json"
+      "detail": "readonly market exchange data plane is STALE; age_seconds=181979; path=v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json"
     },
     {
       "id": "STALE_PAPER_RUNTIME_STATUS",
       "severity": "freshness",
-      "detail": "paper runtime status is STALE; age_seconds=194472; path=v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json"
+      "detail": "paper runtime status is STALE; age_seconds=194696; path=v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json"
     },
     {
       "id": "LIVE_GATE_BLOCKED_HUMAN_ONLY",
@@ -989,7 +1023,7 @@
       "path": "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
       "classification": "STATIC_PROOF_FIXTURE",
       "generated_at": "2026-05-09T23:59:00.000Z",
-      "age_seconds": 181815,
+      "age_seconds": 182039,
       "is_realtime": false,
       "is_static_fixture": true,
       "stale": true,
@@ -1001,7 +1035,7 @@
       "path": "v2/frontend/public/orchestrator_decision_evidence_reconciliation/latest/operator_dashboard_payload.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-11T22:38:44.000Z",
-      "age_seconds": 13831,
+      "age_seconds": 14055,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": false,
@@ -1013,7 +1047,7 @@
       "path": "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-10T00:00:00.000Z",
-      "age_seconds": 181755,
+      "age_seconds": 181979,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -1025,7 +1059,7 @@
       "path": "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-09T20:28:03.010Z",
-      "age_seconds": 194472,
+      "age_seconds": 194696,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,

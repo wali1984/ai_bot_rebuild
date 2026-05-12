@@ -1093,7 +1093,7 @@ const routeMatrixRows = requiredRoutes.map((path) => {
     static_fixture_only: staticFixtureOnly ? 'yes_labeled' : 'no',
     placeholder_only: 'no',
     visual_old_layout: 'no',
-    broken_chart: path.includes('mission-control') ? 'no_tradingview_primary_or_labeled_fallback' : 'not_applicable',
+    broken_chart: path.includes('mission-control') ? 'no_primary_chart_breakage_tradingview_or_labeled_fallback' : 'not_applicable',
     broken_route: 'no',
     safety_ok: 'yes',
     operator_useful: 'yes',
