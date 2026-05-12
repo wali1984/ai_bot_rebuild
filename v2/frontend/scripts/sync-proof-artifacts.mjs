@@ -54,6 +54,7 @@ const artifactSets = [
   'control_plane_supervisor_persistence',
   'legacy_trainer_gpu_parity',
   'legacy_trainer_restart_runtime',
+  'v2_live_observer_shadow_twin',
   'post_mvp_non_live_gap_audit',
 ];
 

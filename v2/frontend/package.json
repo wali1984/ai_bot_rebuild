@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "build:paper-online": "cd ../.. && python3 -m v2.backend.app.cli.paper_online_runtime --once --write-evidence",
+    "build:live-observer": "cd ../.. && python3 -m v2.backend.app.cli.live_observer_bridge --write-evidence",
     "run:paper-online": "cd ../.. && python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30",
     "build:operator-truth": "node scripts/build-operator-truth-payload.mjs",
     "crawl:dashboard": "node scripts/crawl-dashboard-routes.mjs",
