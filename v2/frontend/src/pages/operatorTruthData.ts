@@ -208,6 +208,8 @@ function synthesizeTruthFromPaperRuntime(
   paperRuntime: PaperOnlineRuntimePayload,
 ): OperatorTruthPayload {
   const age = ageSeconds(paperRuntime.generated_at);
+  const staleTruthAge = ageSeconds(staleTruth?.generated_at);
+  const staleTruthIsFresh = staleTruthAge !== null && staleTruthAge <= RUNTIME_CURRENT_SECONDS;
   const paperStatus = makeStatusRow(
     'v2 paper online runtime',
     'v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json',
@@ -215,15 +217,17 @@ function synthesizeTruthFromPaperRuntime(
     paperRuntime.generated_at,
     age,
   );
-  const oldSupervisor = staleTruth?.supervisor_status;
-  const oldRuntime = staleTruth?.runtime_monitor_status;
+  const oldSupervisor = staleTruthIsFresh ? staleTruth?.supervisor_status : undefined;
+  const oldRuntime = staleTruthIsFresh ? staleTruth?.runtime_monitor_status : undefined;
   const legacyTraderRows = oldRuntime?.trader_processes ?? [];
   const persistentControlPlaneObserved = oldSupervisor?.supervisor_processes.some((line) => /--daemon|claude_master_rebuild_planner|autonomous_governor|parallel_scheduler|codex_watchdog/.test(line)) ?? false;
   const controlPlaneStatus = persistentControlPlaneObserved
     ? 'CONTROL_PLANE_DAEMON_OBSERVED'
     : oldSupervisor?.is_supervisor_alive
       ? 'CONTROL_PLANE_WORKER_OBSERVED'
-      : 'CONTROL_PLANE_DAEMON_NOT_OBSERVED';
+      : staleTruthIsFresh
+        ? 'CONTROL_PLANE_DAEMON_NOT_OBSERVED'
+        : 'CONTROL_PLANE_CURRENT_EVIDENCE_REQUIRES_OPERATOR_TRUTH_REFRESH';
   const latestPrediction = paperRuntime.trainer_prediction ?? null;
   const lineage = paperRuntime.current_signal_lineage ?? null;
   const lineageIds = (lineage?.lineage_ids ?? {}) as Record<string, unknown>;
@@ -238,9 +242,11 @@ function synthesizeTruthFromPaperRuntime(
       : []),
     ...(!oldSupervisor?.is_supervisor_alive
       ? [{
-          id: 'CONTROL_PLANE_DAEMON_NOT_OBSERVED',
+          id: staleTruthIsFresh ? 'CONTROL_PLANE_DAEMON_NOT_OBSERVED' : 'CONTROL_PLANE_CURRENT_EVIDENCE_REQUIRES_OPERATOR_TRUTH_REFRESH',
           severity: 'operator_visibility',
-          detail: 'No rebuild supervisor/governor daemon was observed. This is a control-plane availability issue, not evidence that V2 paper runtime is stale.',
+          detail: staleTruthIsFresh
+            ? 'No rebuild supervisor/governor daemon was observed. This is a control-plane availability issue, not evidence that V2 paper runtime is stale.'
+            : 'The operator truth payload is stale, so browser-side paper runtime truth cannot prove current supervisor process state. Refresh operator truth from the local control plane.',
         }]
       : []),
     {
