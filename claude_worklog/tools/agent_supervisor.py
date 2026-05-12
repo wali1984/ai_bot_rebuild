@@ -645,6 +645,7 @@ def run_cmd_with_pid(
     stderr_path: pathlib.Path,
     timeout_seconds: Optional[int] = None,
     on_start: Optional[Callable[[int], None]] = None,
+    on_poll: Optional[Callable[[], None]] = None,
 ) -> Tuple[int, Optional[int], bool]:
     """Run a child process bounded by timeout. Returns (returncode, pid, timed_out).
     On timeout, kills entire process group; returncode forced to 124."""
@@ -664,8 +665,23 @@ def run_cmd_with_pid(
             except Exception:
                 pass
         try:
-            rc = proc.wait(timeout=timeout_seconds)
-            return rc, proc.pid, False
+            deadline = time.monotonic() + timeout_seconds if timeout_seconds is not None else None
+            while True:
+                rc = proc.poll()
+                if rc is not None:
+                    return rc, proc.pid, False
+                if on_poll is not None:
+                    try:
+                        on_poll()
+                    except Exception:
+                        pass
+                if deadline is not None:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise subprocess.TimeoutExpired(cmd, timeout_seconds)
+                    time.sleep(min(10, max(0.5, remaining)))
+                else:
+                    time.sleep(10)
         except subprocess.TimeoutExpired:
             timed_out = True
             err.write(f"\n[agent_supervisor] subprocess timeout after {timeout_seconds}s; terminating process tree\n")
@@ -2415,7 +2431,11 @@ def write_heartbeat(loop_count: int, current_task: Optional[str], started_at: st
 # ---------------------------------------------------------------------------
 
 
-def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
+def run_task(
+    task_path: pathlib.Path,
+    dry_run: bool = False,
+    on_progress: Optional[Callable[[], None]] = None,
+) -> Dict[str, Any]:
     task = load_task(task_path)
     task_id = str(task.get("task_id", task_path.stem))
     agent = str(task.get("agent", ""))
@@ -2550,7 +2570,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                                 rc, run_pid, timed_out = run_cmd_with_pid(
                                     ["claude", "--print", prompt, "--output-format", "text"],
                                     cwd, stdout_path, stderr_path,
-                                    timeout_seconds=hard_timeout_s, on_start=_mark_run_pid,
+                                    timeout_seconds=hard_timeout_s, on_start=_mark_run_pid, on_poll=on_progress,
                                 )
                                 result["status"] = "completed" if rc == 0 else "failed"
                         elif agent == "codex":
@@ -2562,7 +2582,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                                 rc, run_pid, timed_out = run_cmd_with_pid(
                                     ["codex", "exec", prompt],
                                     cwd, stdout_path, stderr_path,
-                                    timeout_seconds=hard_timeout_s, on_start=_mark_run_pid,
+                                    timeout_seconds=hard_timeout_s, on_start=_mark_run_pid, on_poll=on_progress,
                                 )
                                 result["status"] = "completed" if rc == 0 else "failed"
                         elif agent == "ollama":
@@ -2575,7 +2595,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                                 rc, run_pid, timed_out = run_cmd_with_pid(
                                     ["ollama", "run", model, prompt],
                                     cwd, stdout_path, stderr_path,
-                                    timeout_seconds=hard_timeout_s, on_start=_mark_run_pid,
+                                    timeout_seconds=hard_timeout_s, on_start=_mark_run_pid, on_poll=on_progress,
                                 )
                                 result["status"] = "completed" if rc == 0 else "failed"
                         elif agent == "system_check":
@@ -2588,7 +2608,7 @@ def run_task(task_path: pathlib.Path, dry_run: bool = False) -> Dict[str, Any]:
                                 rc, run_pid, timed_out = run_cmd_with_pid(
                                     ["bash", "-lc", str(cmd)],
                                     cwd, stdout_path, stderr_path,
-                                    timeout_seconds=hard_timeout_s, on_start=_mark_run_pid,
+                                    timeout_seconds=hard_timeout_s, on_start=_mark_run_pid, on_poll=on_progress,
                                 )
                                 result["status"] = "completed" if rc == 0 else "failed"
 
@@ -2833,7 +2853,10 @@ def daemon_loop(poll_seconds: int, max_run_hours: Optional[float], stop_after_id
                 current_task = task_file.stem
             write_heartbeat(loop_count, current_task, started_iso, last_event_ts)
 
-            result = run_task(task_file, dry_run=dry_run)
+            def _task_progress_heartbeat() -> None:
+                write_heartbeat(loop_count, current_task, started_iso, last_event_ts)
+
+            result = run_task(task_file, dry_run=dry_run, on_progress=_task_progress_heartbeat)
             print(json.dumps(result, indent=2, ensure_ascii=False))
             last_event_ts = now_iso()
             current_task = None
