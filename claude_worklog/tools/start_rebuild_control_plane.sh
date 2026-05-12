@@ -28,6 +28,7 @@ clear_dead_supervisor_lock() {
   python3 - <<'PY'
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 root = Path.cwd()
@@ -53,7 +54,7 @@ else:
     lock.unlink(missing_ok=True)
     events.parent.mkdir(parents=True, exist_ok=True)
     with events.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps({"ts": __import__("datetime").datetime.datetime.now(__import__("datetime").datetime.timezone.utc).isoformat(), "event": "rebuild_control_plane_cleared_dead_supervisor_lock", "dead_pid": pid}) + "\n")
+        handle.write(json.dumps({"ts": datetime.now(timezone.utc).isoformat(), "event": "rebuild_control_plane_cleared_dead_supervisor_lock", "dead_pid": pid}) + "\n")
     print(f"cleared dead supervisor lock: pid={pid}")
 PY
 }

@@ -49,14 +49,16 @@ The recovery GO/NO-GO marker is present exactly:
 
 - Predecessor marker check passed: `PHASE2S_DECISION_EXPLAINABILITY_PAPER_LEDGER_PROJECTION_CODEX_PASS`.
 - Phase 2T marker check passed: `PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION_READY`.
+- Recovery marker check passed: `CODEX_NON_LIVE_RECOVERY_READY`.
+- Required file existence check passed for all four test-only files plus Phase 2T `06_IMPLEMENTATION_REPORT.md` and `07_GO_NO_GO.md`.
 - Pytest passed: `.venv/bin/python -m pytest v2/backend/tests/unit/decision_explainability_replay_backtest_projection/test_decision_explainability_replay_backtest_projection.py -v --no-header` returned `10 passed in 0.02s`.
-- Scoped status check passed: no uncommitted changes under `v2/backend/tests/unit/decision_explainability_replay_backtest_projection/`, `claude_worklog/phase2_core_rebuild/decision_explainability_replay_backtest_projection/`, or the two recovery output paths before this report refresh.
-- Production app diff check showed unrelated existing `v2/frontend/` dirty files in the broader worktree; no production `v2/backend/app/` diff was introduced by this recovery.
-- The Phase 2T test suite includes and passes forbidden-token / forbidden-import scans over the Phase 2T fixture and harness modules.
+- Scoped status check showed no uncommitted changes under `v2/backend/tests/unit/decision_explainability_replay_backtest_projection/` or `claude_worklog/phase2_core_rebuild/decision_explainability_replay_backtest_projection/`.
+- Production app diff check showed no `v2/backend/app/` changes and one unrelated existing `v2/frontend/scripts/sync-proof-artifacts.mjs` change outside this recovery scope.
+- Broader worktree dirty paths also include unrelated existing control-plane helper changes under `claude_worklog/tools/` and `claude_worklog/final_readiness/control_plane_supervisor_persistence/`; they were not modified or reverted.
 
 ## Safety Notes
 
-The broader repository worktree contains unrelated dirty final-readiness/frontend files that predate this recovery turn. They were not modified or reverted. This recovery touched only the in-scope automation-reliability report file; the existing recovery GO/NO-GO marker was already correct and was left unchanged.
+This recovery is non-live and evidence-only. The implementation artifacts are test-only plus Phase 2T documentation. The recovery report refresh touched only this allowed automation-reliability report path; the existing recovery GO/NO-GO marker was already correct and was left unchanged.
 
 ## Outcome
 

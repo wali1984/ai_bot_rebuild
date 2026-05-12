@@ -51,6 +51,7 @@ const artifactSets = [
   'v2_paper_online_recovery',
   'paper_online_canonical_truth_bridge',
   'paper_online_truth_verification',
+  'control_plane_supervisor_persistence',
   'post_mvp_non_live_gap_audit',
 ];
 
