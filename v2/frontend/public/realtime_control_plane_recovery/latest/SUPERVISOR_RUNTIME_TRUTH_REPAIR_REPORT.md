@@ -1,6 +1,6 @@
 # Supervisor Runtime Truth Repair Report
 
-Generated at: 2026-05-12T20:27:47.226Z
+Generated at: 2026-05-12T20:46:20.231Z
 
 Inspection sources:
 
@@ -16,8 +16,8 @@ Findings:
 - Master planner process observed: no
 - Autonomous governor process observed: no
 - Current status stale/conflicting: no
-- Queue age seconds: 38
-- Planner age seconds: 85953
+- Queue age seconds: 1151
+- Planner age seconds: 87066
 - Current running task: none
 - Last completed task: codex_parallel_review_20260512_202241_10_no_live_side_effects
 - Next pending task: codex_recover_codex_recover_codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation

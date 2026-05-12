@@ -2,7 +2,7 @@
 
 Status: REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY
 
-Generated at: 2026-05-12T20:27:47.226Z
+Generated at: 2026-05-12T20:46:20.231Z
 
 Mission Control is now treated as an operational truth surface, not a proof dump. The first screen prioritizes live/safety state, actual observed runtime processes, current/next task, trainer runtime status, orchestrator/risk/execution status, signal lineage classification, payload freshness, blockers, and links to detail pages.
 
@@ -19,8 +19,8 @@ Current facts:
 - Feature pipeline observed: 1
 - Orchestrator observed: 2
 - Trader observed: 1
-- Stale payloads: 11
+- Stale payloads: 14
 - Warning payloads: 1
-- Missing evidence rows: 0
+- Missing evidence rows: 1
 
 No live, Redis write, exchange, leverage, margin, or legacy-code mutation was performed.

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-12T20:27:47.226Z",
+  "generated_at": "2026-05-12T20:46:20.231Z",
   "status": "PRODUCTION_OPERATOR_WEBAPP_AND_RUNTIME_MONITOR_WIRING_READY",
   "live_gate_status": "blocked_human_only",
   "route_count": 31,
@@ -8,9 +8,9 @@
   "trainer_monitor_status": "V2_PAPER_TRAINER_WRAPPER_CURRENT",
   "signal_explainability_status": "REALTIME_RUNTIME_EVIDENCE",
   "monitor_center_status": "script_monitor_table_present",
-  "stale_payload_count": 11,
+  "stale_payload_count": 14,
   "warn_payload_count": 1,
-  "missing_evidence_count": 0,
+  "missing_evidence_count": 1,
   "supervisor_truth_status": "CURRENT",
   "redis_trim_status": "deferred_non_blocking",
   "codex_result": "PRODUCTION_OPERATOR_WEBAPP_CODEX_PASS",
