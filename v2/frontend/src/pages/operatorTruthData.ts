@@ -95,6 +95,7 @@ export interface OperatorTruthPayload {
   missing_evidence: Array<{ id: string; severity: string; detail: string }>;
   current_blockers: Array<{ id: string; severity: string; detail: string }>;
   proof_artifact_statuses: OperatorTruthStatusRow[];
+  legacy_trainer_restart_runtime?: Record<string, unknown> | null;
   classifications: Record<string, string>;
 }
 

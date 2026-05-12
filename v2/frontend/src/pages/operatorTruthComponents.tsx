@@ -32,6 +32,15 @@ function evidenceClassLabel(row?: OperatorTruthStatusRow): string {
   return row.classification;
 }
 
+function nestedText(source: Record<string, unknown> | null | undefined, path: string[], fallback = 'MISSING_EVIDENCE'): string {
+  let cursor: unknown = source;
+  for (const key of path) {
+    if (!cursor || typeof cursor !== 'object' || !(key in cursor)) return fallback;
+    cursor = (cursor as Record<string, unknown>)[key];
+  }
+  return valueText(cursor ?? fallback);
+}
+
 function controlPlaneValue(payload: OperatorTruthPayload): string {
   return payload.supervisor_status.control_plane_status
     ?? (payload.supervisor_status.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT_RUNTIME_SNAPSHOT');
@@ -74,6 +83,8 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
   const signal = payload.signal_lineage_status;
   const freshness = payload.dashboard_freshness_status;
   const supervisorState = controlPlaneValue(payload);
+  const restartRuntime = payload.legacy_trainer_restart_runtime;
+  const legacyRestartStatus = nestedText(restartRuntime, ['legacy_trainer', 'status'], '');
   const plannerState = supervisor.master_planner_running ? 'MASTER_PLANNER_RUNNING' : 'MASTER_PLANNER_NOT_RUNNING';
   const governorState = supervisor.autonomous_governor_active ? 'AUTONOMOUS_GOVERNOR_ACTIVE' : 'AUTONOMOUS_GOVERNOR_NOT_OBSERVED';
   const runningTask = supervisor.current_running_task ?? 'NO_ACTIVE_SUPERVISOR_TASK';
@@ -102,6 +113,7 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
           <span className="chip solid-block">LIVE TRADING: {payload.live_gate_status}</span>
           <span className={`chip ${truthTone(supervisorState) === 'good' ? 'solid-ok' : 'solid-warn'}`}>{supervisorState}</span>
           <span className={`chip ${hasCurrentTrainer ? 'solid-ok' : 'solid-warn'}`}>{trainer.status}</span>
+          {legacyRestartStatus ? <span className={`chip ${truthTone(legacyRestartStatus) === 'good' ? 'solid-ok' : 'solid-warn'}`}>Legacy trainer: {legacyRestartStatus}</span> : null}
           {payload.canonical_truth_bridge ? <span className="chip solid-ok">{payload.canonical_truth_bridge.status}</span> : null}
           <span className="chip solid-paper">Redis trim: {payload.redis_trim_status}</span>
         </div>
@@ -372,6 +384,7 @@ export function TruthStatusStrip({ payload }: { payload: OperatorTruthPayload })
 
 export function LegacyRuntimeMonitorPanel({ payload }: { payload: OperatorTruthPayload }): JSX.Element {
   const runtime = payload.runtime_monitor_status;
+  const restartRuntime = payload.legacy_trainer_restart_runtime;
   return (
     <Panel id="operator-truth-legacy-runtime" title="Old System / Legacy Runtime Monitor" right={sourceChip('REALTIME_RUNTIME_EVIDENCE')}>
       <div className="cockpit-lineage-grid">
@@ -389,6 +402,16 @@ export function LegacyRuntimeMonitorPanel({ payload }: { payload: OperatorTruthP
           {runtime.legacy_trader_containment.status}: {runtime.legacy_trader_containment.action}. The dashboard did not restart, kill, or command legacy trader state.
         </p>
       ) : null}
+      {restartRuntime ? (
+        <div className="cockpit-lineage-grid">
+          <div><span>legacy restart capture</span><strong>{nestedText(restartRuntime, ['status'])}</strong></div>
+          <div><span>legacy trainer</span><strong>{nestedText(restartRuntime, ['legacy_trainer', 'status'])}</strong></div>
+          <div><span>GPU state</span><strong>{nestedText(restartRuntime, ['gpu_runtime', 'status'])}</strong></div>
+          <div><span>publish risk</span><strong>{nestedText(restartRuntime, ['legacy_publish_risk', 'status'])}</strong></div>
+          <div><span>latest exchange order observed</span><strong>{nestedText(restartRuntime, ['legacy_publish_risk', 'latest_exchange_order_id'], 'none')}</strong></div>
+          <div><span>parity</span><strong>{nestedText(restartRuntime, ['parity', 'status'])}</strong></div>
+        </div>
+      ) : null}
       <details className="truth-details">
         <summary>Read-only observed process rows ({runtime.active_processes.length})</summary>
         <div className="truth-raw-list">
@@ -404,6 +427,7 @@ export function LegacyRuntimeMonitorPanel({ payload }: { payload: OperatorTruthP
 export function TrainerPredictionTruthPanel({ payload }: { payload: OperatorTruthPayload; }): JSX.Element {
   const trainer = payload.trainer_monitor_status;
   const latest = trainer.latest_prediction;
+  const restartRuntime = payload.legacy_trainer_restart_runtime;
   const hasCurrentTrainer = trainer.status === 'REALTIME_RUNTIME_EVIDENCE' || trainer.status === 'V2_PAPER_TRAINER_WRAPPER_CURRENT';
   return (
     <Panel id="operator-truth-trainer-prediction" title="Trainer Prediction Monitor Preview" right={sourceChip(trainer.status)}>
@@ -422,6 +446,23 @@ export function TrainerPredictionTruthPanel({ payload }: { payload: OperatorTrut
           ? 'Realtime trainer process evidence is present.'
           : 'TRAINER_RUNTIME_EVIDENCE_MISSING. Static proof predictions are not current trainer output and are only available in collapsed proof sections.'}
       </p>
+      {restartRuntime ? (
+        <>
+          <div className="cockpit-lineage-grid">
+            <div><span>legacy trainer after restart</span><strong>{nestedText(restartRuntime, ['legacy_trainer', 'status'])}</strong></div>
+            <div><span>legacy monitor</span><strong>{nestedText(restartRuntime, ['legacy_trainer', 'monitor_status'])}</strong></div>
+            <div><span>legacy output</span><strong>{nestedText(restartRuntime, ['legacy_trainer_output', 'status'])}</strong></div>
+            <div><span>latest legacy symbol</span><strong>{nestedText(restartRuntime, ['legacy_trainer_output', 'symbol'])}</strong></div>
+            <div><span>latest legacy confidence</span><strong>{nestedText(restartRuntime, ['legacy_trainer_output', 'confidence'])}</strong></div>
+            <div><span>legacy feature snapshot</span><strong>{nestedText(restartRuntime, ['feature_snapshot', 'status'])}</strong></div>
+            <div><span>V2 wrapper</span><strong>{nestedText(restartRuntime, ['v2_wrapper', 'status'])}</strong></div>
+            <div><span>parity</span><strong>{nestedText(restartRuntime, ['parity', 'status'])}</strong></div>
+          </div>
+          <p className="cockpit-evidence-gap">
+            Legacy restart evidence is shown separately from V2 paper wrapper evidence. Full parity is not claimed unless the parity status explicitly says so.
+          </p>
+        </>
+      ) : null}
     </Panel>
   );
 }
@@ -429,6 +470,7 @@ export function TrainerPredictionTruthPanel({ payload }: { payload: OperatorTrut
 export function SignalLineageTruthPanel({ payload }: { payload: OperatorTruthPayload }): JSX.Element {
   const signal = payload.signal_lineage_status;
   const latest = signal.latest_signal;
+  const restartRuntime = payload.legacy_trainer_restart_runtime;
   const hasCurrentSignal = signal.status === 'REALTIME_RUNTIME_EVIDENCE';
   return (
     <Panel id="operator-truth-signal-lineage" title="Signal Explainability Preview" right={sourceChip(signal.status)}>
@@ -456,6 +498,11 @@ export function SignalLineageTruthPanel({ payload }: { payload: OperatorTruthPay
       )}
       {!hasCurrentSignal ? (
         <p className="cockpit-evidence-gap">CURRENT_SIGNAL_LINEAGE_MISSING. Static proof examples are not shown as current signal lineage.</p>
+      ) : null}
+      {restartRuntime ? (
+        <p className="cockpit-evidence-gap">
+          Legacy restart publish risk: {nestedText(restartRuntime, ['legacy_publish_risk', 'status'])}. This dashboard did not stop, start, or command legacy execution.
+        </p>
       ) : null}
     </Panel>
   );
