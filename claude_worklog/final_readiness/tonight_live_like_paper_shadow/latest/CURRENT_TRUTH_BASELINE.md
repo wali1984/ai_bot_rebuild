@@ -1,15 +1,15 @@
 # Current Truth Baseline
 
-Generated at: 2026-05-12T20:05:32Z
+Generated at: 2026-05-12T20:11:31Z
 
-- V2 paper runtime: `VERIFIED_OPERATIONAL` age `1`
-- prediction_id: `pred_paper_tick_1778616331999`
-- feature_snapshot_id: `fs_paper_tick_1778616331999`
-- signal_id: `sig_paper_tick_1778616331999`
-- orchestrator_decision_id: `orch_paper_tick_1778616331999`
-- risk_decision_id: `risk_paper_tick_1778616331999`
-- execution_intent_id: `pei_paper_tick_1778616331999`
-- Legacy bridge: `CURRENT` age `0`
+- V2 paper runtime: `VERIFIED_OPERATIONAL` age `3`
+- prediction_id: `pred_paper_tick_1778616688422`
+- feature_snapshot_id: `fs_paper_tick_1778616688422`
+- signal_id: `sig_paper_tick_1778616688422`
+- orchestrator_decision_id: `orch_paper_tick_1778616688422`
+- risk_decision_id: `risk_paper_tick_1778616688422`
+- execution_intent_id: `pei_paper_tick_1778616688422`
+- Legacy bridge: `CURRENT` age `3`
 - Legacy trainer process: `CURRENT`
 - Legacy trader process: `RISK_OBSERVED`
 - Live gate: `blocked_human_only`

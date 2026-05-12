@@ -11,7 +11,37 @@ npm run build
 
 Git snapshot at generation:
 
-- git status: `M claude_worklog/final_readiness/v2_paper_online_recovery/latest/NO_LIVE_MUTATION_SAFETY_REPORT.md
+- git status: `M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/CANARY_PREFLIGHT_PACKET.md
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/CODEX_PARALLEL_AUDITS_REPORT.md
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/CURRENT_TRUTH_BASELINE.md
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/LEGACY_LIVE_BRIDGE_REPORT.md
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/LIVE_LIKE_RISK_PROFILE.md
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/PAPER_SHADOW_TWIN_RUNTIME_REPORT.md
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/PUBLIC_HOSTING_AND_TUNNEL_STATUS.md
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/TONIGHT_V2_LIVE_LIKE_PAPER_SHADOW_AND_CANARY_PREFLIGHT_REPORT.md
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/TRAINER_PARITY_BOARD_REPORT.md
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/WEBSITE_ROUTE_ACCEPTANCE_MATRIX_LOCAL.md
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/current_truth_baseline.json
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/live_like_risk_profile.json
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/operator_dashboard_payload.json
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/screenshots/local/_admin_audit-ledger_role_admin.png
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/screenshots/local/_admin_build-validation-status_role_admin.png
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/screenshots/local/_admin_claude-admin-ai_role_admin.png
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/screenshots/local/_admin_config-admin_role_admin.png
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/screenshots/local/_admin_executions_role_admin.png
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/screenshots/local/_admin_live-readiness_role_admin.png
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/screenshots/local/_admin_mission-control_role_admin.png
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/screenshots/local/_admin_mobile-iphone-readiness_role_admin.png
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/screenshots/local/_admin_monitor-center_role_admin.png
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/screenshots/local/_admin_operator-proof-dashboard_role_admin.png
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/screenshots/local/_admin_paper-trading_role_admin.png
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/screenshots/local/_admin_positions_role_admin.png
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/screenshots/local/_admin_replay_role_admin.png
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/screenshots/local/_admin_risk-control_role_admin.png
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/screenshots/local/_admin_signals_role_admin.png
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/screenshots/local/_admin_trainer-prediction-monitor_role_admin.png
+ M claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/website_route_acceptance_matrix_local.json
+ M claude_worklog/final_readiness/v2_paper_online_recovery/latest/NO_LIVE_MUTATION_SAFETY_REPORT.md
  M claude_worklog/final_readiness/v2_paper_online_recovery/latest/PAPER_RUNTIME_WIRING_REPORT.md
  M claude_worklog/final_readiness/v2_paper_online_recovery/latest/RUNTIME_DATA_VISIBILITY_REPORT.md
  M claude_worklog/final_readiness/v2_paper_online_recovery/latest/V2_PAPER_ONLINE_FULL_OPERATIONAL_RECOVERY_REPORT.md
@@ -27,10 +57,29 @@ Git snapshot at generation:
  M claude_worklog/final_readiness/v2_paper_online_recovery/latest/trainer_prediction_current_record.json
  M claude_worklog/final_readiness/v2_paper_online_recovery/latest/trainer_runtime_current_status.json
  M claude_worklog/final_readiness/v2_paper_online_recovery/latest/v2_data_plane_status.json
- M v2/frontend/package.json
- M v2/frontend/scripts/sync-proof-artifacts.mjs
- M v2/frontend/src/pages/live-readiness/index.tsx
- M v2/frontend/src/pages/operatorTruthData.ts
-?? v2/backend/app/cli/tonight_live_like_paper_shadow.py
-?? v2/frontend/scripts/crawl-tonight-routes.mjs`
-- git head: `075c81c Add Codex parallel review batch results`
+ M v2/backend/app/cli/tonight_live_like_paper_shadow.py
+ M v2/frontend/public/tonight_live_like_paper_shadow/latest/CANARY_PREFLIGHT_PACKET.md
+ M v2/frontend/public/tonight_live_like_paper_shadow/latest/CODEX_PARALLEL_AUDITS_REPORT.md
+ M v2/frontend/public/tonight_live_like_paper_shadow/latest/CURRENT_TRUTH_BASELINE.md
+ M v2/frontend/public/tonight_live_like_paper_shadow/latest/LEGACY_LIVE_BRIDGE_REPORT.md
+ M v2/frontend/public/tonight_live_like_paper_shadow/latest/LIVE_LIKE_RISK_PROFILE.md
+ M v2/frontend/public/tonight_live_like_paper_shadow/latest/PAPER_SHADOW_TWIN_RUNTIME_REPORT.md
+ M v2/frontend/public/tonight_live_like_paper_shadow/latest/PUBLIC_HOSTING_AND_TUNNEL_STATUS.md
+ M v2/frontend/public/tonight_live_like_paper_shadow/latest/TONIGHT_V2_LIVE_LIKE_PAPER_SHADOW_AND_CANARY_PREFLIGHT_REPORT.md
+ M v2/frontend/public/tonight_live_like_paper_shadow/latest/TRAINER_PARITY_BOARD_REPORT.md
+ M v2/frontend/public/tonight_live_like_paper_shadow/latest/current_truth_baseline.json
+ M v2/frontend/public/tonight_live_like_paper_shadow/latest/live_like_risk_profile.json
+ M v2/frontend/public/tonight_live_like_paper_shadow/latest/operator_dashboard_payload.json
+?? claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/WEBSITE_ROUTE_ACCEPTANCE_MATRIX.md
+?? claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/WEBSITE_ROUTE_ACCEPTANCE_MATRIX_PUBLIC.md
+?? claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/screenshots/public/
+?? claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/website_route_acceptance_matrix.json
+?? claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/website_route_acceptance_matrix_public.json
+?? v2/frontend/public/tonight_live_like_paper_shadow/latest/WEBSITE_ROUTE_ACCEPTANCE_MATRIX.md
+?? v2/frontend/public/tonight_live_like_paper_shadow/latest/WEBSITE_ROUTE_ACCEPTANCE_MATRIX_LOCAL.md
+?? v2/frontend/public/tonight_live_like_paper_shadow/latest/WEBSITE_ROUTE_ACCEPTANCE_MATRIX_PUBLIC.md
+?? v2/frontend/public/tonight_live_like_paper_shadow/latest/screenshots/
+?? v2/frontend/public/tonight_live_like_paper_shadow/latest/website_route_acceptance_matrix.json
+?? v2/frontend/public/tonight_live_like_paper_shadow/latest/website_route_acceptance_matrix_local.json
+?? v2/frontend/public/tonight_live_like_paper_shadow/latest/website_route_acceptance_matrix_public.json`
+- git head: `56f38d7 Codex watchdog recover dirty non-live automation artifacts`

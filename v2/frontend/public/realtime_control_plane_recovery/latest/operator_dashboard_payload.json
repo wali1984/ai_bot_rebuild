@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-12T20:05:32.357Z",
+  "generated_at": "2026-05-12T20:11:28.771Z",
   "status": "REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY",
   "live_gate_status": "blocked_human_only",
   "supervisor_truth_status": "CURRENT",
@@ -13,8 +13,8 @@
   "orchestrator_status": "PROCESS_OBSERVED_READONLY",
   "trader_status": "PROCESS_OBSERVED_READONLY",
   "trainer_monitor_status": "V2_PAPER_TRAINER_WRAPPER_CURRENT",
-  "stale_payload_count": 11,
-  "warn_payload_count": 3,
+  "stale_payload_count": 13,
+  "warn_payload_count": 1,
   "missing_evidence_count": 0,
   "redis_trim_status": "deferred_non_blocking",
   "browser_screenshot_evidence": [

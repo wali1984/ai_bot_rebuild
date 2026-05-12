@@ -1,6 +1,6 @@
 # Signal Explainability Production Repair Report
 
-Generated at: 2026-05-12T20:05:32.357Z
+Generated at: 2026-05-12T20:11:28.771Z
 
 Current signal lineage status: REALTIME_RUNTIME_EVIDENCE
 

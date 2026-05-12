@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import calendar
+import re
 import subprocess
 import time
 import urllib.error
@@ -91,9 +92,12 @@ def process_rows() -> list[str]:
             )
         ):
             compact = " ".join(line.split())
-            compact = compact.replace("--token ", "--token [redacted] ")
-            if "--token=" in compact:
-                compact = compact.split("--token=", 1)[0] + "--token=[redacted]"
+            compact = re.sub(r"--token(?:=|\s+)\S+", "--token [redacted]", compact)
+            compact = re.sub(
+                r"(?i)\b(api[_-]?key|secret|token|password)=\S+",
+                lambda match: f"{match.group(1)}=[redacted]",
+                compact,
+            )
             rows.append(compact[:500])
     return rows
 
@@ -244,7 +248,7 @@ def write_reports(
         and observer.get("safety", {}).get("live_gate_status") == LIVE_GATE_STATUS
     )
     marker = READY if paper_current and observer_current and local_ok and public_ok and safety_ok else BLOCKED
-    codex_marker = CODEX_PASS if paper_current and observer_current and safety_ok and public_crawled else CODEX_FAIL
+    codex_marker = CODEX_PASS if paper_current and observer_current and local_ok and public_ok and safety_ok and public_crawled else CODEX_FAIL
     blockers = []
     if not paper_current:
         blockers.append("V2_PAPER_RUNTIME_NOT_CURRENT")

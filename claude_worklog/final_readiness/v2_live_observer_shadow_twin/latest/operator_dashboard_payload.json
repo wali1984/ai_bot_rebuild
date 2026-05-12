@@ -2,7 +2,7 @@
   "audit_ledger_status": "V2_FILE_AUDIT_LEDGER_CURRENT_POSTGRES_SCHEMA_READY",
   "codex_result": "V2_LIVE_OBSERVER_SHADOW_TWIN_CODEX_PASS",
   "exchange_actions": false,
-  "generated_at": "2026-05-12T20:05:32Z",
+  "generated_at": "2026-05-12T20:11:28Z",
   "legacy_bridge_status": "LEGACY_LIVE_BRIDGE_IMPORTER_CURRENT",
   "legacy_trainer_status": "PROCESS_OBSERVED_READONLY",
   "live_gate_status": "blocked_human_only",

@@ -4,7 +4,7 @@
   "approval_file_required": "FINAL_HUMAN_CANARY_APPROVAL_REQUIRED_NOT_CREATED",
   "canary_enabled": false,
   "close_reduce_max_age_seconds": 60,
-  "generated_at": "2026-05-12T20:05:32Z",
+  "generated_at": "2026-05-12T20:11:31Z",
   "hedge_dca": "disabled_initially",
   "leverage_cap_for_canary": "1x",
   "live_enabled": false,

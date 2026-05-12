@@ -1,6 +1,6 @@
 # Control Plane Freshness Recovery
 
-Generated at: 2026-05-12T20:05:32.357Z
+Generated at: 2026-05-12T20:11:28.771Z
 
 - Control-plane status: `CONTROL_PLANE_DAEMON_NOT_OBSERVED`
 - Supervisor process rows observed: `0`

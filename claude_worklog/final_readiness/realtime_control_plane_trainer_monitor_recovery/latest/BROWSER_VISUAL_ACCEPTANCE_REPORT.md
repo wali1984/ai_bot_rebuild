@@ -1,6 +1,6 @@
 # Browser Visual Acceptance Report
 
-Generated at: 2026-05-12T20:05:32.357Z
+Generated at: 2026-05-12T20:11:28.771Z
 
 Screenshots captured from the active Vite dev server at http://127.0.0.1:5173:
 

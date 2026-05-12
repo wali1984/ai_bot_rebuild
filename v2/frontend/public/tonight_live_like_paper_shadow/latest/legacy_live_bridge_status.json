@@ -3,8 +3,8 @@
   "redis_memory_state": {
     "maxmemory_human": "16.00G",
     "mem_fragmentation_ratio": "1.00",
-    "used_memory": "14959023688",
-    "used_memory_human": "13.93G"
+    "used_memory": "14975166896",
+    "used_memory_human": "13.95G"
   },
   "redis_ping": "PONG",
   "status": "LEGACY_LIVE_BRIDGE_IMPORTER_CURRENT",
@@ -12,7 +12,7 @@
     "executed_signals": {
       "key": "executed_signals",
       "latest_entry": {
-        "age_seconds": 2820,
+        "age_seconds": 3176,
         "fields": {
           "data": {
             "account_id": "primary",
@@ -297,7 +297,7 @@
     "signals:trading:asjad": {
       "key": "signals:trading:asjad",
       "latest_entry": {
-        "age_seconds": 8340453,
+        "age_seconds": 8340809,
         "fields": {
           "data": {
             "_received_ts_ms": 1770275875571,
@@ -693,10 +693,10 @@
     "signals:trading:primary": {
       "key": "signals:trading:primary",
       "latest_entry": {
-        "age_seconds": 30,
+        "age_seconds": 14,
         "fields": {
           "data": {
-            "_received_ts_ms": 1778616302647,
+            "_received_ts_ms": 1778616674664,
             "_scores": {
               "capital_efficiency": 0.0,
               "data_quality": 1.0,
@@ -707,7 +707,7 @@
               "toxicity_score": 0.0,
               "utility": 4.95
             },
-            "_stream_id": "1778616301538-0",
+            "_stream_id": "1778616672735-0",
             "_utility": 4.95,
             "account_id": "primary",
             "action": "SET_TAKE_PROFIT",
@@ -719,84 +719,84 @@
             "breadth_vol": 0.682,
             "close_fraction": 0.0,
             "close_side": "LONG",
-            "cluster_liq_distance_pct": 0.1,
+            "cluster_liq_distance_pct": 0.0,
             "confidence": 1.0,
-            "created_ts_ms": 1778616302684,
-            "decision_id": "1778616302684-SOLUSDT-multi-primary",
-            "depth_spoof_score": 0.04949356614567382,
+            "created_ts_ms": 1778616674703,
+            "decision_id": "1778616674703-SOLUSDT-multi-primary",
+            "depth_spoof_score": 0.029709191216113144,
             "dq_confidence": 0.5,
             "dq_depth": 1.0,
             "dq_fallback_used": true,
             "dq_liq": 1.0,
             "dq_liq_distance": 1.0,
-            "dq_liqmap_age_ms": 51943,
+            "dq_liqmap_age_ms": 3262,
             "dq_ob": 1.0,
-            "dq_orderbook_age_ms": 465,
+            "dq_orderbook_age_ms": 520,
             "dq_score": 1.0,
-            "dq_volatility_age_ms": 465,
+            "dq_volatility_age_ms": 520,
             "event": "TRADING_SIGNAL",
             "expected_edge_net": 0.0,
-            "expected_profit_pct": 0.8215593512513242,
+            "expected_profit_pct": 0.7636804861109707,
             "expected_profit_usd": 0.0,
-            "fast_move_score": 0.2,
-            "features_age_ms": 51943,
-            "features_ts_ms": 1778616250706,
+            "fast_move_score": 0.3936,
+            "features_age_ms": 3262,
+            "features_ts_ms": 1778616671404,
             "leverage": 0.0,
-            "liq_distance_pct": 0.1,
-            "liq_imbalance": -1.5918,
+            "liq_distance_pct": 0.0,
+            "liq_imbalance": -1.3262,
             "liq_risk": 0.0,
-            "liqmap_ts_ms": 1778616250706,
-            "liquidation_long_strength": 34.78940386489352,
-            "liquidation_short_strength": 1248.559709069873,
+            "liqmap_ts_ms": 1778616671404,
+            "liquidation_long_strength": 30.952454404082367,
+            "liquidation_short_strength": 1110.8551217446359,
             "liquidity_score": 0.0,
             "margin_usd": 0.0,
             "market_context": {
-              "current_price": 94.79,
+              "current_price": 94.89723297,
               "decision": "TRAIL_TP",
               "entry_price": 94.42,
               "features_used": 2767,
-              "microstructure_signal": "NEUTRAL",
+              "microstructure_signal": "ADVERSE",
               "momentum_score": -0.25184991244842303,
               "reasons": [
-                "VOL_SMOOTH:score=0.450 atr=16.65% vol=0.19% bb=0.0 mult=1.065",
+                "VOL_SMOOTH:score=0.450 atr=16.65% vol=0.20% bb=0.0 mult=1.065",
                 "MOM_SMOOTH:score=-0.252 rsi=35 adx=22 di_diff=-13.1 tape=0.00 trail_urg=-0.465",
-                "LIQ_SMOOTH:squeeze=0.000 dist=0.1% strength=0.000 proximity=0.961 adj=1.000",
-                "MICRO_SMOOTH:net=0.070 flow=0.00 depth=0.40 spoof=0.05 intensity=0.00 adj=1.013",
+                "LIQ_SMOOTH:squeeze=0.000 dist=100.0% strength=0.000 proximity=0.000 adj=1.000",
+                "MICRO_SMOOTH:net=-0.251 flow=0.00 depth=-0.37 spoof=0.03 intensity=0.00 adj=0.955",
                 "OI_FUND_SMOOTH:adj=1.014 funding=-0.0140% oi_chg=0.0% ls_ratio=1.00",
                 "TP_DISTRIBUTION:0.75%"
               ],
               "side": "LONG",
-              "squeeze_potential": 1.7994044739381464e-05,
+              "squeeze_potential": 7.07895912521442e-23,
               "symbol": "SOLUSDT",
-              "tp_pct": 0.8215593512513242,
-              "tp_price": 95.1957163394515,
+              "tp_pct": 0.7636804861109707,
+              "tp_price": 95.14106711498599,
               "volatility_regime": "MEDIUM"
             },
             "market_regime": "FAST",
             "metadata": {
-              "depth_spoof_score": 0.04949356614567382,
+              "depth_spoof_score": 0.029709191216113144,
               "dq_confidence": 0.5,
               "dq_depth": 1.0,
               "dq_enrich_age_ms": {
-                "liq_distance_pct": 51943,
-                "orderbook_depth_usd": 465,
-                "volatility_pct": 465
+                "liq_distance_pct": 3262,
+                "orderbook_depth_usd": 520,
+                "volatility_pct": 520
               },
               "dq_enrich_sources": {
                 "liq_distance_pct": {
-                  "cluster_liq": 0.1,
+                  "cluster_liq": 0.0,
                   "pos_liq": null,
                   "split_enabled": true,
                   "tf": "5m",
-                  "ts_ms": 1778616250706
+                  "ts_ms": 1778616671404
                 },
                 "orderbook_depth_usd": {
                   "tf": "5m",
-                  "ts_ms": 1778616302184
+                  "ts_ms": 1778616674146
                 },
                 "volatility_pct": {
                   "tf": "5m",
-                  "ts_ms": 1778616302184
+                  "ts_ms": 1778616674146
                 }
               },
               "dq_enriched_fields": [
@@ -814,29 +814,29 @@
               "dq_fallback_used": true,
               "dq_liq": 1.0,
               "dq_liq_distance": 1.0,
-              "dq_liqmap_age_ms": 51943,
+              "dq_liqmap_age_ms": 3262,
               "dq_ob": 1.0,
-              "dq_orderbook_age_ms": 465,
+              "dq_orderbook_age_ms": 520,
               "dq_score": 1.0,
-              "dq_volatility_age_ms": 465,
-              "features_age_ms": 51943,
-              "features_ts_ms": 1778616250706,
+              "dq_volatility_age_ms": 520,
+              "features_age_ms": 3262,
+              "features_ts_ms": 1778616671404,
               "global_breadth": {
                 "breadth_corr": 0.3333,
                 "breadth_dir": 1,
                 "breadth_entropy": 0.994,
                 "breadth_fast_move": 0.7,
-                "breadth_liq_imbal": 1.0685,
+                "breadth_liq_imbal": 0.9737,
                 "breadth_strength": 0.36,
                 "breadth_vol": 0.682,
                 "n_long": 9,
                 "n_neutral": 9,
                 "n_short": 7,
                 "n_symbols_fresh": 25,
-                "updated_ts_ms": 1778616281591
+                "updated_ts_ms": 1778616655329
               },
-              "liquidation_long_strength": 34.78940386489352,
-              "liquidation_short_strength": 1248.559709069873,
+              "liquidation_long_strength": 30.952454404082367,
+              "liquidation_short_strength": 1110.8551217446359,
               "market_state_contract": {
                 "allocator_state": "DEFENSIVE",
                 "breadth": {
@@ -844,22 +844,33 @@
                   "breadth_dir": 1,
                   "breadth_entropy": 0.994,
                   "breadth_fast_move": 0.7,
-                  "breadth_liq_imbal": 1.0685,
+                  "breadth_liq_imbal": 0.9737,
                   "breadth_strength": 0.36,
                   "breadth_vol": 0.682,
                   "n_long": 9,
                   "n_neutral": 9,
                   "n_short": 7,
                   "n_symbols_fresh": 25,
-                  "updated_ts_ms": 1778616281591
+                  "updated_ts_ms": 1778616655329
                 },
                 "can_expand": true,
                 "data_health": {
                   "data_ok": true,
-                  "degraded_feeds": 0,
-                  "degraded_symbols": [],
-                  "health_pct": 1.0,
-                  "healthy_feeds": 25,
+                  "degraded_feeds": 10,
+                  "degraded_symbols": [
+                    "1000SHIBUSDT",
+                    "PIPPINUSDT",
+                    "1000PEPEUSDT",
+                    "1000BONKUSDT",
+                    "1000FLOKIUSDT",
+                    "RIVERUSDT",
+                    "BARDUSDT",
+                    "BANKUSDT",
+                    "AUCTIONUSDT",
+                    "ALICEUSDT"
+                  ],
+                  "health_pct": 0.6,
+                  "healthy_feeds": 15,
                   "missing_feeds": 0,
                   "total_feeds": 25
                 },
@@ -868,12 +879,12 @@
                 "regime_coverage_pct": 1.0,
                 "reversal_active": false,
                 "reversal_triggers": 0,
-                "updated_ts_ms": 1778616281664
+                "updated_ts_ms": 1778616655349
               },
               "operator_policy": {
                 "bias_present": false,
                 "bias_score": 0.0,
-                "cluster_liq_pct": 0.1,
+                "cluster_liq_pct": 0.0,
                 "coverage_band": {
                   "max": 0.42750000000000005,
                   "min": 0.25
@@ -883,7 +894,7 @@
                 "htf_aligned": true,
                 "htf_aligned_known": false,
                 "liq_band": "CRITICAL",
-                "liq_bps": 10.0,
+                "liq_bps": 0.0,
                 "liq_risk": 0.0,
                 "liquidity_score": 0.0,
                 "move_regime": "UNKNOWN",
@@ -893,7 +904,7 @@
                   "stress_fraction": 0.0,
                   "symbols_stressed": 0,
                   "symbols_total": 2,
-                  "updated_ms": 1778616302682
+                  "updated_ms": 1778616674702
                 },
                 "pos_liq_pct": null,
                 "shock_state": {
@@ -903,7 +914,7 @@
                   "reversal_to": "",
                   "state": "NORMAL",
                   "stress": false,
-                  "updated_ms": 1778616302682
+                  "updated_ms": 1778616674702
                 },
                 "signed_15_bps": null,
                 "signed_60_bps": null,
@@ -919,14 +930,14 @@
                   "breadth_dir": 1,
                   "breadth_entropy": 0.994,
                   "breadth_fast_move": 0.7,
-                  "breadth_liq_imbal": 1.0685,
+                  "breadth_liq_imbal": 0.9737,
                   "breadth_strength": 0.36,
                   "breadth_vol": 0.682,
                   "n_long": 9,
                   "n_neutral": 9,
                   "n_short": 7,
                   "n_symbols_fresh": 25,
-                  "updated_ts_ms": 1778616281591
+                  "updated_ts_ms": 1778616655329
                 },
                 "cadence_min_sec": 60,
                 "hedge_policy": "HEDGE_FIRST",
@@ -934,28 +945,28 @@
                 "reason": "LOW_BREADTH=0.36|HIGH_ENTROPY=0.99",
                 "risk_mult": 0.65,
                 "state": "DEFENSIVE",
-                "updated_ts_ms": 1778616281604
+                "updated_ts_ms": 1778616655331
               },
               "toxicity": {
                 "components": {
-                  "churn": 0.1501,
+                  "churn": 0.0432,
                   "depth_thin": 0.0,
-                  "fast_move": 0.2,
-                  "imbalance": 0.2218,
+                  "fast_move": 0.0,
+                  "imbalance": 0.293,
                   "quality_inv": 0.0,
                   "snapback": 0.0,
-                  "spoof": 0.0784,
+                  "spoof": 0.0959,
                   "spread_norm": 1.0
                 },
                 "execution_hint": "NORMAL",
                 "is_extreme": false,
                 "is_toxic": false,
-                "score": 0.2343,
+                "score": 0.2098,
                 "symbol": "SOLUSDT",
-                "updated_ts_ms": 1778616281668
+                "updated_ts_ms": 1778616655352
               },
-              "unified_features_age_ms": 465,
-              "unified_features_ts_ms": 1778616302184
+              "unified_features_age_ms": 520,
+              "unified_features_ts_ms": 1778616674146
             },
             "move_regime": "FAST",
             "move_score": 0.0,
@@ -966,7 +977,7 @@
             "operator_policy": {
               "bias_present": false,
               "bias_score": 0.0,
-              "cluster_liq_pct": 0.1,
+              "cluster_liq_pct": 0.0,
               "coverage_band": {
                 "max": 0.42750000000000005,
                 "min": 0.25
@@ -976,7 +987,7 @@
               "htf_aligned": true,
               "htf_aligned_known": false,
               "liq_band": "CRITICAL",
-              "liq_bps": 10.0,
+              "liq_bps": 0.0,
               "liq_risk": 0.0,
               "liquidity_score": 0.0,
               "move_regime": "UNKNOWN",
@@ -986,7 +997,7 @@
                 "stress_fraction": 0.0,
                 "symbols_stressed": 0,
                 "symbols_total": 2,
-                "updated_ms": 1778616302682
+                "updated_ms": 1778616674702
               },
               "pos_liq_pct": null,
               "shock_state": {
@@ -996,7 +1007,7 @@
                 "reversal_to": "",
                 "state": "NORMAL",
                 "stress": false,
-                "updated_ms": 1778616302682
+                "updated_ms": 1778616674702
               },
               "signed_15_bps": null,
               "signed_60_bps": null,
@@ -1007,16 +1018,16 @@
               "volatility_score": 0.0
             },
             "orch_approved": 1,
-            "orch_plan_sig": "1136a81064cccc9f",
-            "orch_ts_ms": 1778616302684,
+            "orch_plan_sig": "a128e6fad1d90d99",
+            "orch_ts_ms": 1778616674703,
             "order_side": "SELL",
-            "orderbook_depth_usd": 2601303.2591,
-            "orderbook_ts_ms": 1778616302184,
-            "plan_id": "plan_1778616302684_300faaa0",
+            "orderbook_depth_usd": 2403223.0499,
+            "orderbook_ts_ms": 1778616674146,
+            "plan_id": "plan_1778616674703_e19cb43a",
             "position_side": "LONG",
-            "proposal_id": "465b8cee-2ecd-472a-a387-68001b34e5c4",
+            "proposal_id": "d1ab1497-b251-43ba-8f7d-2979b2ce96d9",
             "published_by": "orchestrator_worker",
-            "published_ts_ms": 1778616302684,
+            "published_ts_ms": 1778616674703,
             "rba_cadence_min_sec": 60,
             "rba_hedge_policy": "HEDGE_FIRST",
             "rba_max_risk_symbols": 8,
@@ -1027,17 +1038,17 @@
             "regime": "FAST",
             "risk_add": 0,
             "side": "LONG",
-            "signal_id": "465b8cee-2ecd-472a-a387-68001b34e5c4",
+            "signal_id": "d1ab1497-b251-43ba-8f7d-2979b2ce96d9",
             "source": "dynamic_tp",
             "source_module": "dynamic_tp",
             "symbol": "SOLUSDT",
-            "take_profit": 95.1957163394515,
+            "take_profit": 95.14106711498599,
             "tf_alignment": 0.5,
             "tf_entropy": 0.5118,
             "timeframe": "multi",
-            "timestamp": 1778616302.6840441,
+            "timestamp": 1778616674.7038035,
             "toxicity_hint": "NORMAL",
-            "toxicity_score": 0.2343,
+            "toxicity_score": 0.2098,
             "trace_id": "",
             "trainer_bias_dir": 1,
             "trainer_consensus_confidence": 0.0,
@@ -1051,21 +1062,21 @@
             "trainer_tf_alignment": 0.5,
             "trainer_volatility_score": 0.4283,
             "trend_direction": "LONG",
-            "trigger_reason": "DYNAMIC_TP_UPDATE SOLUSDT LONG tp=95.195716 decision=TRAIL_TP",
-            "ts_ms": 1778616302684,
-            "unified_features_age_ms": 465,
-            "unified_features_ts_ms": 1778616302184,
+            "trigger_reason": "DYNAMIC_TP_UPDATE SOLUSDT LONG tp=95.141067 decision=TRAIL_TP",
+            "ts_ms": 1778616674703,
+            "unified_features_age_ms": 520,
+            "unified_features_ts_ms": 1778616674146,
             "urgency_score": 0.25184991244842303,
-            "volatility_pct": 20.01369357981753,
+            "volatility_pct": 10.547966879383397,
             "volatility_score": 0.0,
-            "volatility_ts_ms": 1778616302184
+            "volatility_ts_ms": 1778616674146
           },
-          "decision_id": "1778616302684-SOLUSDT-multi-primary",
+          "decision_id": "1778616674703-SOLUSDT-multi-primary",
           "symbol": "SOLUSDT",
           "timeframe": "multi"
         },
         "flat_fields": {
-          "_received_ts_ms": 1778616302647,
+          "_received_ts_ms": 1778616674664,
           "_scores": {
             "capital_efficiency": 0.0,
             "data_quality": 1.0,
@@ -1076,7 +1087,7 @@
             "toxicity_score": 0.0,
             "utility": 4.95
           },
-          "_stream_id": "1778616301538-0",
+          "_stream_id": "1778616672735-0",
           "_utility": 4.95,
           "account_id": "primary",
           "action": "SET_TAKE_PROFIT",
@@ -1088,11 +1099,11 @@
           "breadth_vol": 0.682,
           "close_fraction": 0.0,
           "close_side": "LONG",
-          "cluster_liq_distance_pct": 0.1,
+          "cluster_liq_distance_pct": 0.0,
           "confidence": 1.0,
-          "created_ts_ms": 1778616302684,
+          "created_ts_ms": 1778616674703,
           "data": {
-            "_received_ts_ms": 1778616302647,
+            "_received_ts_ms": 1778616674664,
             "_scores": {
               "capital_efficiency": 0.0,
               "data_quality": 1.0,
@@ -1103,7 +1114,7 @@
               "toxicity_score": 0.0,
               "utility": 4.95
             },
-            "_stream_id": "1778616301538-0",
+            "_stream_id": "1778616672735-0",
             "_utility": 4.95,
             "account_id": "primary",
             "action": "SET_TAKE_PROFIT",
@@ -1115,84 +1126,84 @@
             "breadth_vol": 0.682,
             "close_fraction": 0.0,
             "close_side": "LONG",
-            "cluster_liq_distance_pct": 0.1,
+            "cluster_liq_distance_pct": 0.0,
             "confidence": 1.0,
-            "created_ts_ms": 1778616302684,
-            "decision_id": "1778616302684-SOLUSDT-multi-primary",
-            "depth_spoof_score": 0.04949356614567382,
+            "created_ts_ms": 1778616674703,
+            "decision_id": "1778616674703-SOLUSDT-multi-primary",
+            "depth_spoof_score": 0.029709191216113144,
             "dq_confidence": 0.5,
             "dq_depth": 1.0,
             "dq_fallback_used": true,
             "dq_liq": 1.0,
             "dq_liq_distance": 1.0,
-            "dq_liqmap_age_ms": 51943,
+            "dq_liqmap_age_ms": 3262,
             "dq_ob": 1.0,
-            "dq_orderbook_age_ms": 465,
+            "dq_orderbook_age_ms": 520,
             "dq_score": 1.0,
-            "dq_volatility_age_ms": 465,
+            "dq_volatility_age_ms": 520,
             "event": "TRADING_SIGNAL",
             "expected_edge_net": 0.0,
-            "expected_profit_pct": 0.8215593512513242,
+            "expected_profit_pct": 0.7636804861109707,
             "expected_profit_usd": 0.0,
-            "fast_move_score": 0.2,
-            "features_age_ms": 51943,
-            "features_ts_ms": 1778616250706,
+            "fast_move_score": 0.3936,
+            "features_age_ms": 3262,
+            "features_ts_ms": 1778616671404,
             "leverage": 0.0,
-            "liq_distance_pct": 0.1,
-            "liq_imbalance": -1.5918,
+            "liq_distance_pct": 0.0,
+            "liq_imbalance": -1.3262,
             "liq_risk": 0.0,
-            "liqmap_ts_ms": 1778616250706,
-            "liquidation_long_strength": 34.78940386489352,
-            "liquidation_short_strength": 1248.559709069873,
+            "liqmap_ts_ms": 1778616671404,
+            "liquidation_long_strength": 30.952454404082367,
+            "liquidation_short_strength": 1110.8551217446359,
             "liquidity_score": 0.0,
             "margin_usd": 0.0,
             "market_context": {
-              "current_price": 94.79,
+              "current_price": 94.89723297,
               "decision": "TRAIL_TP",
               "entry_price": 94.42,
               "features_used": 2767,
-              "microstructure_signal": "NEUTRAL",
+              "microstructure_signal": "ADVERSE",
               "momentum_score": -0.25184991244842303,
               "reasons": [
-                "VOL_SMOOTH:score=0.450 atr=16.65% vol=0.19% bb=0.0 mult=1.065",
+                "VOL_SMOOTH:score=0.450 atr=16.65% vol=0.20% bb=0.0 mult=1.065",
                 "MOM_SMOOTH:score=-0.252 rsi=35 adx=22 di_diff=-13.1 tape=0.00 trail_urg=-0.465",
-                "LIQ_SMOOTH:squeeze=0.000 dist=0.1% strength=0.000 proximity=0.961 adj=1.000",
-                "MICRO_SMOOTH:net=0.070 flow=0.00 depth=0.40 spoof=0.05 intensity=0.00 adj=1.013",
+                "LIQ_SMOOTH:squeeze=0.000 dist=100.0% strength=0.000 proximity=0.000 adj=1.000",
+                "MICRO_SMOOTH:net=-0.251 flow=0.00 depth=-0.37 spoof=0.03 intensity=0.00 adj=0.955",
                 "OI_FUND_SMOOTH:adj=1.014 funding=-0.0140% oi_chg=0.0% ls_ratio=1.00",
                 "TP_DISTRIBUTION:0.75%"
               ],
               "side": "LONG",
-              "squeeze_potential": 1.7994044739381464e-05,
+              "squeeze_potential": 7.07895912521442e-23,
               "symbol": "SOLUSDT",
-              "tp_pct": 0.8215593512513242,
-              "tp_price": 95.1957163394515,
+              "tp_pct": 0.7636804861109707,
+              "tp_price": 95.14106711498599,
               "volatility_regime": "MEDIUM"
             },
             "market_regime": "FAST",
             "metadata": {
-              "depth_spoof_score": 0.04949356614567382,
+              "depth_spoof_score": 0.029709191216113144,
               "dq_confidence": 0.5,
               "dq_depth": 1.0,
               "dq_enrich_age_ms": {
-                "liq_distance_pct": 51943,
-                "orderbook_depth_usd": 465,
-                "volatility_pct": 465
+                "liq_distance_pct": 3262,
+                "orderbook_depth_usd": 520,
+                "volatility_pct": 520
               },
               "dq_enrich_sources": {
                 "liq_distance_pct": {
-                  "cluster_liq": 0.1,
+                  "cluster_liq": 0.0,
                   "pos_liq": null,
                   "split_enabled": true,
                   "tf": "5m",
-                  "ts_ms": 1778616250706
+                  "ts_ms": 1778616671404
                 },
                 "orderbook_depth_usd": {
                   "tf": "5m",
-                  "ts_ms": 1778616302184
+                  "ts_ms": 1778616674146
                 },
                 "volatility_pct": {
                   "tf": "5m",
-                  "ts_ms": 1778616302184
+                  "ts_ms": 1778616674146
                 }
               },
               "dq_enriched_fields": [
@@ -1210,29 +1221,29 @@
               "dq_fallback_used": true,
               "dq_liq": 1.0,
               "dq_liq_distance": 1.0,
-              "dq_liqmap_age_ms": 51943,
+              "dq_liqmap_age_ms": 3262,
               "dq_ob": 1.0,
-              "dq_orderbook_age_ms": 465,
+              "dq_orderbook_age_ms": 520,
               "dq_score": 1.0,
-              "dq_volatility_age_ms": 465,
-              "features_age_ms": 51943,
-              "features_ts_ms": 1778616250706,
+              "dq_volatility_age_ms": 520,
+              "features_age_ms": 3262,
+              "features_ts_ms": 1778616671404,
               "global_breadth": {
                 "breadth_corr": 0.3333,
                 "breadth_dir": 1,
                 "breadth_entropy": 0.994,
                 "breadth_fast_move": 0.7,
-                "breadth_liq_imbal": 1.0685,
+                "breadth_liq_imbal": 0.9737,
                 "breadth_strength": 0.36,
                 "breadth_vol": 0.682,
                 "n_long": 9,
                 "n_neutral": 9,
                 "n_short": 7,
                 "n_symbols_fresh": 25,
-                "updated_ts_ms": 1778616281591
+                "updated_ts_ms": 1778616655329
               },
-              "liquidation_long_strength": 34.78940386489352,
-              "liquidation_short_strength": 1248.559709069873,
+              "liquidation_long_strength": 30.952454404082367,
+              "liquidation_short_strength": 1110.8551217446359,
               "market_state_contract": {
                 "allocator_state": "DEFENSIVE",
                 "breadth": {
@@ -1240,22 +1251,33 @@
                   "breadth_dir": 1,
                   "breadth_entropy": 0.994,
                   "breadth_fast_move": 0.7,
-                  "breadth_liq_imbal": 1.0685,
+                  "breadth_liq_imbal": 0.9737,
                   "breadth_strength": 0.36,
                   "breadth_vol": 0.682,
                   "n_long": 9,
                   "n_neutral": 9,
                   "n_short": 7,
                   "n_symbols_fresh": 25,
-                  "updated_ts_ms": 1778616281591
+                  "updated_ts_ms": 1778616655329
                 },
                 "can_expand": true,
                 "data_health": {
                   "data_ok": true,
-                  "degraded_feeds": 0,
-                  "degraded_symbols": [],
-                  "health_pct": 1.0,
-                  "healthy_feeds": 25,
+                  "degraded_feeds": 10,
+                  "degraded_symbols": [
+                    "1000SHIBUSDT",
+                    "PIPPINUSDT",
+                    "1000PEPEUSDT",
+                    "1000BONKUSDT",
+                    "1000FLOKIUSDT",
+                    "RIVERUSDT",
+                    "BARDUSDT",
+                    "BANKUSDT",
+                    "AUCTIONUSDT",
+                    "ALICEUSDT"
+                  ],
+                  "health_pct": 0.6,
+                  "healthy_feeds": 15,
                   "missing_feeds": 0,
                   "total_feeds": 25
                 },
@@ -1264,12 +1286,12 @@
                 "regime_coverage_pct": 1.0,
                 "reversal_active": false,
                 "reversal_triggers": 0,
-                "updated_ts_ms": 1778616281664
+                "updated_ts_ms": 1778616655349
               },
               "operator_policy": {
                 "bias_present": false,
                 "bias_score": 0.0,
-                "cluster_liq_pct": 0.1,
+                "cluster_liq_pct": 0.0,
                 "coverage_band": {
                   "max": 0.42750000000000005,
                   "min": 0.25
@@ -1279,7 +1301,7 @@
                 "htf_aligned": true,
                 "htf_aligned_known": false,
                 "liq_band": "CRITICAL",
-                "liq_bps": 10.0,
+                "liq_bps": 0.0,
                 "liq_risk": 0.0,
                 "liquidity_score": 0.0,
                 "move_regime": "UNKNOWN",
@@ -1289,7 +1311,7 @@
                   "stress_fraction": 0.0,
                   "symbols_stressed": 0,
                   "symbols_total": 2,
-                  "updated_ms": 1778616302682
+                  "updated_ms": 1778616674702
                 },
                 "pos_liq_pct": null,
                 "shock_state": {
@@ -1299,7 +1321,7 @@
                   "reversal_to": "",
                   "state": "NORMAL",
                   "stress": false,
-                  "updated_ms": 1778616302682
+                  "updated_ms": 1778616674702
                 },
                 "signed_15_bps": null,
                 "signed_60_bps": null,
@@ -1315,14 +1337,14 @@
                   "breadth_dir": 1,
                   "breadth_entropy": 0.994,
                   "breadth_fast_move": 0.7,
-                  "breadth_liq_imbal": 1.0685,
+                  "breadth_liq_imbal": 0.9737,
                   "breadth_strength": 0.36,
                   "breadth_vol": 0.682,
                   "n_long": 9,
                   "n_neutral": 9,
                   "n_short": 7,
                   "n_symbols_fresh": 25,
-                  "updated_ts_ms": 1778616281591
+                  "updated_ts_ms": 1778616655329
                 },
                 "cadence_min_sec": 60,
                 "hedge_policy": "HEDGE_FIRST",
@@ -1330,28 +1352,28 @@
                 "reason": "LOW_BREADTH=0.36|HIGH_ENTROPY=0.99",
                 "risk_mult": 0.65,
                 "state": "DEFENSIVE",
-                "updated_ts_ms": 1778616281604
+                "updated_ts_ms": 1778616655331
               },
               "toxicity": {
                 "components": {
-                  "churn": 0.1501,
+                  "churn": 0.0432,
                   "depth_thin": 0.0,
-                  "fast_move": 0.2,
-                  "imbalance": 0.2218,
+                  "fast_move": 0.0,
+                  "imbalance": 0.293,
                   "quality_inv": 0.0,
                   "snapback": 0.0,
-                  "spoof": 0.0784,
+                  "spoof": 0.0959,
                   "spread_norm": 1.0
                 },
                 "execution_hint": "NORMAL",
                 "is_extreme": false,
                 "is_toxic": false,
-                "score": 0.2343,
+                "score": 0.2098,
                 "symbol": "SOLUSDT",
-                "updated_ts_ms": 1778616281668
+                "updated_ts_ms": 1778616655352
               },
-              "unified_features_age_ms": 465,
-              "unified_features_ts_ms": 1778616302184
+              "unified_features_age_ms": 520,
+              "unified_features_ts_ms": 1778616674146
             },
             "move_regime": "FAST",
             "move_score": 0.0,
@@ -1362,7 +1384,7 @@
             "operator_policy": {
               "bias_present": false,
               "bias_score": 0.0,
-              "cluster_liq_pct": 0.1,
+              "cluster_liq_pct": 0.0,
               "coverage_band": {
                 "max": 0.42750000000000005,
                 "min": 0.25
@@ -1372,7 +1394,7 @@
               "htf_aligned": true,
               "htf_aligned_known": false,
               "liq_band": "CRITICAL",
-              "liq_bps": 10.0,
+              "liq_bps": 0.0,
               "liq_risk": 0.0,
               "liquidity_score": 0.0,
               "move_regime": "UNKNOWN",
@@ -1382,7 +1404,7 @@
                 "stress_fraction": 0.0,
                 "symbols_stressed": 0,
                 "symbols_total": 2,
-                "updated_ms": 1778616302682
+                "updated_ms": 1778616674702
               },
               "pos_liq_pct": null,
               "shock_state": {
@@ -1392,7 +1414,7 @@
                 "reversal_to": "",
                 "state": "NORMAL",
                 "stress": false,
-                "updated_ms": 1778616302682
+                "updated_ms": 1778616674702
               },
               "signed_15_bps": null,
               "signed_60_bps": null,
@@ -1403,16 +1425,16 @@
               "volatility_score": 0.0
             },
             "orch_approved": 1,
-            "orch_plan_sig": "1136a81064cccc9f",
-            "orch_ts_ms": 1778616302684,
+            "orch_plan_sig": "a128e6fad1d90d99",
+            "orch_ts_ms": 1778616674703,
             "order_side": "SELL",
-            "orderbook_depth_usd": 2601303.2591,
-            "orderbook_ts_ms": 1778616302184,
-            "plan_id": "plan_1778616302684_300faaa0",
+            "orderbook_depth_usd": 2403223.0499,
+            "orderbook_ts_ms": 1778616674146,
+            "plan_id": "plan_1778616674703_e19cb43a",
             "position_side": "LONG",
-            "proposal_id": "465b8cee-2ecd-472a-a387-68001b34e5c4",
+            "proposal_id": "d1ab1497-b251-43ba-8f7d-2979b2ce96d9",
             "published_by": "orchestrator_worker",
-            "published_ts_ms": 1778616302684,
+            "published_ts_ms": 1778616674703,
             "rba_cadence_min_sec": 60,
             "rba_hedge_policy": "HEDGE_FIRST",
             "rba_max_risk_symbols": 8,
@@ -1423,17 +1445,17 @@
             "regime": "FAST",
             "risk_add": 0,
             "side": "LONG",
-            "signal_id": "465b8cee-2ecd-472a-a387-68001b34e5c4",
+            "signal_id": "d1ab1497-b251-43ba-8f7d-2979b2ce96d9",
             "source": "dynamic_tp",
             "source_module": "dynamic_tp",
             "symbol": "SOLUSDT",
-            "take_profit": 95.1957163394515,
+            "take_profit": 95.14106711498599,
             "tf_alignment": 0.5,
             "tf_entropy": 0.5118,
             "timeframe": "multi",
-            "timestamp": 1778616302.6840441,
+            "timestamp": 1778616674.7038035,
             "toxicity_hint": "NORMAL",
-            "toxicity_score": 0.2343,
+            "toxicity_score": 0.2098,
             "trace_id": "",
             "trainer_bias_dir": 1,
             "trainer_consensus_confidence": 0.0,
@@ -1447,90 +1469,90 @@
             "trainer_tf_alignment": 0.5,
             "trainer_volatility_score": 0.4283,
             "trend_direction": "LONG",
-            "trigger_reason": "DYNAMIC_TP_UPDATE SOLUSDT LONG tp=95.195716 decision=TRAIL_TP",
-            "ts_ms": 1778616302684,
-            "unified_features_age_ms": 465,
-            "unified_features_ts_ms": 1778616302184,
+            "trigger_reason": "DYNAMIC_TP_UPDATE SOLUSDT LONG tp=95.141067 decision=TRAIL_TP",
+            "ts_ms": 1778616674703,
+            "unified_features_age_ms": 520,
+            "unified_features_ts_ms": 1778616674146,
             "urgency_score": 0.25184991244842303,
-            "volatility_pct": 20.01369357981753,
+            "volatility_pct": 10.547966879383397,
             "volatility_score": 0.0,
-            "volatility_ts_ms": 1778616302184
+            "volatility_ts_ms": 1778616674146
           },
-          "decision_id": "1778616302684-SOLUSDT-multi-primary",
-          "depth_spoof_score": 0.04949356614567382,
+          "decision_id": "1778616674703-SOLUSDT-multi-primary",
+          "depth_spoof_score": 0.029709191216113144,
           "dq_confidence": 0.5,
           "dq_depth": 1.0,
           "dq_fallback_used": true,
           "dq_liq": 1.0,
           "dq_liq_distance": 1.0,
-          "dq_liqmap_age_ms": 51943,
+          "dq_liqmap_age_ms": 3262,
           "dq_ob": 1.0,
-          "dq_orderbook_age_ms": 465,
+          "dq_orderbook_age_ms": 520,
           "dq_score": 1.0,
-          "dq_volatility_age_ms": 465,
+          "dq_volatility_age_ms": 520,
           "event": "TRADING_SIGNAL",
           "expected_edge_net": 0.0,
-          "expected_profit_pct": 0.8215593512513242,
+          "expected_profit_pct": 0.7636804861109707,
           "expected_profit_usd": 0.0,
-          "fast_move_score": 0.2,
-          "features_age_ms": 51943,
-          "features_ts_ms": 1778616250706,
+          "fast_move_score": 0.3936,
+          "features_age_ms": 3262,
+          "features_ts_ms": 1778616671404,
           "leverage": 0.0,
-          "liq_distance_pct": 0.1,
-          "liq_imbalance": -1.5918,
+          "liq_distance_pct": 0.0,
+          "liq_imbalance": -1.3262,
           "liq_risk": 0.0,
-          "liqmap_ts_ms": 1778616250706,
-          "liquidation_long_strength": 34.78940386489352,
-          "liquidation_short_strength": 1248.559709069873,
+          "liqmap_ts_ms": 1778616671404,
+          "liquidation_long_strength": 30.952454404082367,
+          "liquidation_short_strength": 1110.8551217446359,
           "liquidity_score": 0.0,
           "margin_usd": 0.0,
           "market_context": {
-            "current_price": 94.79,
+            "current_price": 94.89723297,
             "decision": "TRAIL_TP",
             "entry_price": 94.42,
             "features_used": 2767,
-            "microstructure_signal": "NEUTRAL",
+            "microstructure_signal": "ADVERSE",
             "momentum_score": -0.25184991244842303,
             "reasons": [
-              "VOL_SMOOTH:score=0.450 atr=16.65% vol=0.19% bb=0.0 mult=1.065",
+              "VOL_SMOOTH:score=0.450 atr=16.65% vol=0.20% bb=0.0 mult=1.065",
               "MOM_SMOOTH:score=-0.252 rsi=35 adx=22 di_diff=-13.1 tape=0.00 trail_urg=-0.465",
-              "LIQ_SMOOTH:squeeze=0.000 dist=0.1% strength=0.000 proximity=0.961 adj=1.000",
-              "MICRO_SMOOTH:net=0.070 flow=0.00 depth=0.40 spoof=0.05 intensity=0.00 adj=1.013",
+              "LIQ_SMOOTH:squeeze=0.000 dist=100.0% strength=0.000 proximity=0.000 adj=1.000",
+              "MICRO_SMOOTH:net=-0.251 flow=0.00 depth=-0.37 spoof=0.03 intensity=0.00 adj=0.955",
               "OI_FUND_SMOOTH:adj=1.014 funding=-0.0140% oi_chg=0.0% ls_ratio=1.00",
               "TP_DISTRIBUTION:0.75%"
             ],
             "side": "LONG",
-            "squeeze_potential": 1.7994044739381464e-05,
+            "squeeze_potential": 7.07895912521442e-23,
             "symbol": "SOLUSDT",
-            "tp_pct": 0.8215593512513242,
-            "tp_price": 95.1957163394515,
+            "tp_pct": 0.7636804861109707,
+            "tp_price": 95.14106711498599,
             "volatility_regime": "MEDIUM"
           },
           "market_regime": "FAST",
           "metadata": {
-            "depth_spoof_score": 0.04949356614567382,
+            "depth_spoof_score": 0.029709191216113144,
             "dq_confidence": 0.5,
             "dq_depth": 1.0,
             "dq_enrich_age_ms": {
-              "liq_distance_pct": 51943,
-              "orderbook_depth_usd": 465,
-              "volatility_pct": 465
+              "liq_distance_pct": 3262,
+              "orderbook_depth_usd": 520,
+              "volatility_pct": 520
             },
             "dq_enrich_sources": {
               "liq_distance_pct": {
-                "cluster_liq": 0.1,
+                "cluster_liq": 0.0,
                 "pos_liq": null,
                 "split_enabled": true,
                 "tf": "5m",
-                "ts_ms": 1778616250706
+                "ts_ms": 1778616671404
               },
               "orderbook_depth_usd": {
                 "tf": "5m",
-                "ts_ms": 1778616302184
+                "ts_ms": 1778616674146
               },
               "volatility_pct": {
                 "tf": "5m",
-                "ts_ms": 1778616302184
+                "ts_ms": 1778616674146
               }
             },
             "dq_enriched_fields": [
@@ -1548,29 +1570,29 @@
             "dq_fallback_used": true,
             "dq_liq": 1.0,
             "dq_liq_distance": 1.0,
-            "dq_liqmap_age_ms": 51943,
+            "dq_liqmap_age_ms": 3262,
             "dq_ob": 1.0,
-            "dq_orderbook_age_ms": 465,
+            "dq_orderbook_age_ms": 520,
             "dq_score": 1.0,
-            "dq_volatility_age_ms": 465,
-            "features_age_ms": 51943,
-            "features_ts_ms": 1778616250706,
+            "dq_volatility_age_ms": 520,
+            "features_age_ms": 3262,
+            "features_ts_ms": 1778616671404,
             "global_breadth": {
               "breadth_corr": 0.3333,
               "breadth_dir": 1,
               "breadth_entropy": 0.994,
               "breadth_fast_move": 0.7,
-              "breadth_liq_imbal": 1.0685,
+              "breadth_liq_imbal": 0.9737,
               "breadth_strength": 0.36,
               "breadth_vol": 0.682,
               "n_long": 9,
               "n_neutral": 9,
               "n_short": 7,
               "n_symbols_fresh": 25,
-              "updated_ts_ms": 1778616281591
+              "updated_ts_ms": 1778616655329
             },
-            "liquidation_long_strength": 34.78940386489352,
-            "liquidation_short_strength": 1248.559709069873,
+            "liquidation_long_strength": 30.952454404082367,
+            "liquidation_short_strength": 1110.8551217446359,
             "market_state_contract": {
               "allocator_state": "DEFENSIVE",
               "breadth": {
@@ -1578,22 +1600,33 @@
                 "breadth_dir": 1,
                 "breadth_entropy": 0.994,
                 "breadth_fast_move": 0.7,
-                "breadth_liq_imbal": 1.0685,
+                "breadth_liq_imbal": 0.9737,
                 "breadth_strength": 0.36,
                 "breadth_vol": 0.682,
                 "n_long": 9,
                 "n_neutral": 9,
                 "n_short": 7,
                 "n_symbols_fresh": 25,
-                "updated_ts_ms": 1778616281591
+                "updated_ts_ms": 1778616655329
               },
               "can_expand": true,
               "data_health": {
                 "data_ok": true,
-                "degraded_feeds": 0,
-                "degraded_symbols": [],
-                "health_pct": 1.0,
-                "healthy_feeds": 25,
+                "degraded_feeds": 10,
+                "degraded_symbols": [
+                  "1000SHIBUSDT",
+                  "PIPPINUSDT",
+                  "1000PEPEUSDT",
+                  "1000BONKUSDT",
+                  "1000FLOKIUSDT",
+                  "RIVERUSDT",
+                  "BARDUSDT",
+                  "BANKUSDT",
+                  "AUCTIONUSDT",
+                  "ALICEUSDT"
+                ],
+                "health_pct": 0.6,
+                "healthy_feeds": 15,
                 "missing_feeds": 0,
                 "total_feeds": 25
               },
@@ -1602,12 +1635,12 @@
               "regime_coverage_pct": 1.0,
               "reversal_active": false,
               "reversal_triggers": 0,
-              "updated_ts_ms": 1778616281664
+              "updated_ts_ms": 1778616655349
             },
             "operator_policy": {
               "bias_present": false,
               "bias_score": 0.0,
-              "cluster_liq_pct": 0.1,
+              "cluster_liq_pct": 0.0,
               "coverage_band": {
                 "max": 0.42750000000000005,
                 "min": 0.25
@@ -1617,7 +1650,7 @@
               "htf_aligned": true,
               "htf_aligned_known": false,
               "liq_band": "CRITICAL",
-              "liq_bps": 10.0,
+              "liq_bps": 0.0,
               "liq_risk": 0.0,
               "liquidity_score": 0.0,
               "move_regime": "UNKNOWN",
@@ -1627,7 +1660,7 @@
                 "stress_fraction": 0.0,
                 "symbols_stressed": 0,
                 "symbols_total": 2,
-                "updated_ms": 1778616302682
+                "updated_ms": 1778616674702
               },
               "pos_liq_pct": null,
               "shock_state": {
@@ -1637,7 +1670,7 @@
                 "reversal_to": "",
                 "state": "NORMAL",
                 "stress": false,
-                "updated_ms": 1778616302682
+                "updated_ms": 1778616674702
               },
               "signed_15_bps": null,
               "signed_60_bps": null,
@@ -1653,14 +1686,14 @@
                 "breadth_dir": 1,
                 "breadth_entropy": 0.994,
                 "breadth_fast_move": 0.7,
-                "breadth_liq_imbal": 1.0685,
+                "breadth_liq_imbal": 0.9737,
                 "breadth_strength": 0.36,
                 "breadth_vol": 0.682,
                 "n_long": 9,
                 "n_neutral": 9,
                 "n_short": 7,
                 "n_symbols_fresh": 25,
-                "updated_ts_ms": 1778616281591
+                "updated_ts_ms": 1778616655329
               },
               "cadence_min_sec": 60,
               "hedge_policy": "HEDGE_FIRST",
@@ -1668,28 +1701,28 @@
               "reason": "LOW_BREADTH=0.36|HIGH_ENTROPY=0.99",
               "risk_mult": 0.65,
               "state": "DEFENSIVE",
-              "updated_ts_ms": 1778616281604
+              "updated_ts_ms": 1778616655331
             },
             "toxicity": {
               "components": {
-                "churn": 0.1501,
+                "churn": 0.0432,
                 "depth_thin": 0.0,
-                "fast_move": 0.2,
-                "imbalance": 0.2218,
+                "fast_move": 0.0,
+                "imbalance": 0.293,
                 "quality_inv": 0.0,
                 "snapback": 0.0,
-                "spoof": 0.0784,
+                "spoof": 0.0959,
                 "spread_norm": 1.0
               },
               "execution_hint": "NORMAL",
               "is_extreme": false,
               "is_toxic": false,
-              "score": 0.2343,
+              "score": 0.2098,
               "symbol": "SOLUSDT",
-              "updated_ts_ms": 1778616281668
+              "updated_ts_ms": 1778616655352
             },
-            "unified_features_age_ms": 465,
-            "unified_features_ts_ms": 1778616302184
+            "unified_features_age_ms": 520,
+            "unified_features_ts_ms": 1778616674146
           },
           "move_regime": "FAST",
           "move_score": 0.0,
@@ -1700,7 +1733,7 @@
           "operator_policy": {
             "bias_present": false,
             "bias_score": 0.0,
-            "cluster_liq_pct": 0.1,
+            "cluster_liq_pct": 0.0,
             "coverage_band": {
               "max": 0.42750000000000005,
               "min": 0.25
@@ -1710,7 +1743,7 @@
             "htf_aligned": true,
             "htf_aligned_known": false,
             "liq_band": "CRITICAL",
-            "liq_bps": 10.0,
+            "liq_bps": 0.0,
             "liq_risk": 0.0,
             "liquidity_score": 0.0,
             "move_regime": "UNKNOWN",
@@ -1720,7 +1753,7 @@
               "stress_fraction": 0.0,
               "symbols_stressed": 0,
               "symbols_total": 2,
-              "updated_ms": 1778616302682
+              "updated_ms": 1778616674702
             },
             "pos_liq_pct": null,
             "shock_state": {
@@ -1730,7 +1763,7 @@
               "reversal_to": "",
               "state": "NORMAL",
               "stress": false,
-              "updated_ms": 1778616302682
+              "updated_ms": 1778616674702
             },
             "signed_15_bps": null,
             "signed_60_bps": null,
@@ -1741,16 +1774,16 @@
             "volatility_score": 0.0
           },
           "orch_approved": 1,
-          "orch_plan_sig": "1136a81064cccc9f",
-          "orch_ts_ms": 1778616302684,
+          "orch_plan_sig": "a128e6fad1d90d99",
+          "orch_ts_ms": 1778616674703,
           "order_side": "SELL",
-          "orderbook_depth_usd": 2601303.2591,
-          "orderbook_ts_ms": 1778616302184,
-          "plan_id": "plan_1778616302684_300faaa0",
+          "orderbook_depth_usd": 2403223.0499,
+          "orderbook_ts_ms": 1778616674146,
+          "plan_id": "plan_1778616674703_e19cb43a",
           "position_side": "LONG",
-          "proposal_id": "465b8cee-2ecd-472a-a387-68001b34e5c4",
+          "proposal_id": "d1ab1497-b251-43ba-8f7d-2979b2ce96d9",
           "published_by": "orchestrator_worker",
-          "published_ts_ms": 1778616302684,
+          "published_ts_ms": 1778616674703,
           "rba_cadence_min_sec": 60,
           "rba_hedge_policy": "HEDGE_FIRST",
           "rba_max_risk_symbols": 8,
@@ -1761,17 +1794,17 @@
           "regime": "FAST",
           "risk_add": 0,
           "side": "LONG",
-          "signal_id": "465b8cee-2ecd-472a-a387-68001b34e5c4",
+          "signal_id": "d1ab1497-b251-43ba-8f7d-2979b2ce96d9",
           "source": "dynamic_tp",
           "source_module": "dynamic_tp",
           "symbol": "SOLUSDT",
-          "take_profit": 95.1957163394515,
+          "take_profit": 95.14106711498599,
           "tf_alignment": 0.5,
           "tf_entropy": 0.5118,
           "timeframe": "multi",
-          "timestamp": 1778616302.6840441,
+          "timestamp": 1778616674.7038035,
           "toxicity_hint": "NORMAL",
-          "toxicity_score": 0.2343,
+          "toxicity_score": 0.2098,
           "trace_id": "",
           "trainer_bias_dir": 1,
           "trainer_consensus_confidence": 0.0,
@@ -1785,17 +1818,17 @@
           "trainer_tf_alignment": 0.5,
           "trainer_volatility_score": 0.4283,
           "trend_direction": "LONG",
-          "trigger_reason": "DYNAMIC_TP_UPDATE SOLUSDT LONG tp=95.195716 decision=TRAIL_TP",
-          "ts_ms": 1778616302684,
-          "unified_features_age_ms": 465,
-          "unified_features_ts_ms": 1778616302184,
+          "trigger_reason": "DYNAMIC_TP_UPDATE SOLUSDT LONG tp=95.141067 decision=TRAIL_TP",
+          "ts_ms": 1778616674703,
+          "unified_features_age_ms": 520,
+          "unified_features_ts_ms": 1778616674146,
           "urgency_score": 0.25184991244842303,
-          "volatility_pct": 20.01369357981753,
+          "volatility_pct": 10.547966879383397,
           "volatility_score": 0.0,
-          "volatility_ts_ms": 1778616302184
+          "volatility_ts_ms": 1778616674146
         },
-        "last_event_at": "2026-05-12T20:05:02Z",
-        "stream_id": "1778616302687-0"
+        "last_event_at": "2026-05-12T20:11:14Z",
+        "stream_id": "1778616674708-0"
       },
       "read_only": true,
       "redis_type": "stream",
@@ -1806,7 +1839,7 @@
     "wma:proposals": {
       "key": "wma:proposals",
       "latest_entry": {
-        "age_seconds": 9,
+        "age_seconds": 16,
         "fields": {
           "data": {
             "account_id": "primary",
@@ -1815,45 +1848,45 @@
             "action_name": "SET_TAKE_PROFIT",
             "close_fraction": 0.0,
             "confidence": 1.0,
-            "created_ts_ms": 1778616323084,
+            "created_ts_ms": 1778616672734,
             "event": "TRADE_PROPOSAL",
             "expected_edge_net": 0.0,
-            "expected_profit_pct": 0.797410793019127,
+            "expected_profit_pct": 0.7636804861109707,
             "expected_profit_usd": 0.0,
             "leverage": 0.0,
             "margin_usd": 0.0,
             "market_context": {
-              "current_price": 94.79,
+              "current_price": 94.89723297,
               "decision": "TRAIL_TP",
               "entry_price": 94.42,
               "features_used": 2767,
-              "microstructure_signal": "NEUTRAL",
+              "microstructure_signal": "ADVERSE",
               "momentum_score": -0.25184991244842303,
               "reasons": [
-                "VOL_SMOOTH:score=0.450 atr=16.65% vol=0.16% bb=0.0 mult=1.065",
+                "VOL_SMOOTH:score=0.450 atr=16.65% vol=0.20% bb=0.0 mult=1.065",
                 "MOM_SMOOTH:score=-0.252 rsi=35 adx=22 di_diff=-13.1 tape=0.00 trail_urg=-0.465",
                 "LIQ_SMOOTH:squeeze=0.000 dist=100.0% strength=0.000 proximity=0.000 adj=1.000",
-                "MICRO_SMOOTH:net=-0.030 flow=0.00 depth=0.10 spoof=0.03 intensity=0.00 adj=0.995",
+                "MICRO_SMOOTH:net=-0.251 flow=0.00 depth=-0.37 spoof=0.03 intensity=0.00 adj=0.955",
                 "OI_FUND_SMOOTH:adj=1.014 funding=-0.0140% oi_chg=0.0% ls_ratio=1.00",
                 "TP_DISTRIBUTION:0.75%"
               ],
               "side": "LONG",
-              "squeeze_potential": 7.824805071530984e-23,
+              "squeeze_potential": 7.07895912521442e-23,
               "symbol": "SOLUSDT",
-              "tp_pct": 0.797410793019127,
-              "tp_price": 95.17291527076867,
+              "tp_pct": 0.7636804861109707,
+              "tp_price": 95.14106711498599,
               "volatility_regime": "MEDIUM"
             },
             "no_loss_compliant": true,
             "notional_usd": 0.0,
-            "proposal_id": "960b5e3b-0902-49e2-8be5-dafbb720f165",
+            "proposal_id": "d1ab1497-b251-43ba-8f7d-2979b2ce96d9",
             "recovery_mode": false,
             "reduce_only": true,
             "risk_add": 0,
             "side": "LONG",
             "source": "dynamic_tp",
             "symbol": "SOLUSDT",
-            "take_profit": 95.17291527076867,
+            "take_profit": 95.14106711498599,
             "timeframe": "multi",
             "trainer_bias_dir": 1,
             "trainer_consensus_confidence": 0.0,
@@ -1866,8 +1899,8 @@
             "trainer_target_tf": "",
             "trainer_tf_alignment": 0.5,
             "trainer_volatility_score": 0.4283,
-            "trigger_reason": "DYNAMIC_TP_UPDATE SOLUSDT LONG tp=95.172915 decision=TRAIL_TP",
-            "ts_ms": 1778616323084,
+            "trigger_reason": "DYNAMIC_TP_UPDATE SOLUSDT LONG tp=95.141067 decision=TRAIL_TP",
+            "ts_ms": 1778616672734,
             "urgency_score": 0.25184991244842303
           }
         },
@@ -1878,7 +1911,7 @@
           "action_name": "SET_TAKE_PROFIT",
           "close_fraction": 0.0,
           "confidence": 1.0,
-          "created_ts_ms": 1778616323084,
+          "created_ts_ms": 1778616672734,
           "data": {
             "account_id": "primary",
             "action": "SET_TAKE_PROFIT",
@@ -1886,45 +1919,45 @@
             "action_name": "SET_TAKE_PROFIT",
             "close_fraction": 0.0,
             "confidence": 1.0,
-            "created_ts_ms": 1778616323084,
+            "created_ts_ms": 1778616672734,
             "event": "TRADE_PROPOSAL",
             "expected_edge_net": 0.0,
-            "expected_profit_pct": 0.797410793019127,
+            "expected_profit_pct": 0.7636804861109707,
             "expected_profit_usd": 0.0,
             "leverage": 0.0,
             "margin_usd": 0.0,
             "market_context": {
-              "current_price": 94.79,
+              "current_price": 94.89723297,
               "decision": "TRAIL_TP",
               "entry_price": 94.42,
               "features_used": 2767,
-              "microstructure_signal": "NEUTRAL",
+              "microstructure_signal": "ADVERSE",
               "momentum_score": -0.25184991244842303,
               "reasons": [
-                "VOL_SMOOTH:score=0.450 atr=16.65% vol=0.16% bb=0.0 mult=1.065",
+                "VOL_SMOOTH:score=0.450 atr=16.65% vol=0.20% bb=0.0 mult=1.065",
                 "MOM_SMOOTH:score=-0.252 rsi=35 adx=22 di_diff=-13.1 tape=0.00 trail_urg=-0.465",
                 "LIQ_SMOOTH:squeeze=0.000 dist=100.0% strength=0.000 proximity=0.000 adj=1.000",
-                "MICRO_SMOOTH:net=-0.030 flow=0.00 depth=0.10 spoof=0.03 intensity=0.00 adj=0.995",
+                "MICRO_SMOOTH:net=-0.251 flow=0.00 depth=-0.37 spoof=0.03 intensity=0.00 adj=0.955",
                 "OI_FUND_SMOOTH:adj=1.014 funding=-0.0140% oi_chg=0.0% ls_ratio=1.00",
                 "TP_DISTRIBUTION:0.75%"
               ],
               "side": "LONG",
-              "squeeze_potential": 7.824805071530984e-23,
+              "squeeze_potential": 7.07895912521442e-23,
               "symbol": "SOLUSDT",
-              "tp_pct": 0.797410793019127,
-              "tp_price": 95.17291527076867,
+              "tp_pct": 0.7636804861109707,
+              "tp_price": 95.14106711498599,
               "volatility_regime": "MEDIUM"
             },
             "no_loss_compliant": true,
             "notional_usd": 0.0,
-            "proposal_id": "960b5e3b-0902-49e2-8be5-dafbb720f165",
+            "proposal_id": "d1ab1497-b251-43ba-8f7d-2979b2ce96d9",
             "recovery_mode": false,
             "reduce_only": true,
             "risk_add": 0,
             "side": "LONG",
             "source": "dynamic_tp",
             "symbol": "SOLUSDT",
-            "take_profit": 95.17291527076867,
+            "take_profit": 95.14106711498599,
             "timeframe": "multi",
             "trainer_bias_dir": 1,
             "trainer_consensus_confidence": 0.0,
@@ -1937,48 +1970,48 @@
             "trainer_target_tf": "",
             "trainer_tf_alignment": 0.5,
             "trainer_volatility_score": 0.4283,
-            "trigger_reason": "DYNAMIC_TP_UPDATE SOLUSDT LONG tp=95.172915 decision=TRAIL_TP",
-            "ts_ms": 1778616323084,
+            "trigger_reason": "DYNAMIC_TP_UPDATE SOLUSDT LONG tp=95.141067 decision=TRAIL_TP",
+            "ts_ms": 1778616672734,
             "urgency_score": 0.25184991244842303
           },
           "event": "TRADE_PROPOSAL",
           "expected_edge_net": 0.0,
-          "expected_profit_pct": 0.797410793019127,
+          "expected_profit_pct": 0.7636804861109707,
           "expected_profit_usd": 0.0,
           "leverage": 0.0,
           "margin_usd": 0.0,
           "market_context": {
-            "current_price": 94.79,
+            "current_price": 94.89723297,
             "decision": "TRAIL_TP",
             "entry_price": 94.42,
             "features_used": 2767,
-            "microstructure_signal": "NEUTRAL",
+            "microstructure_signal": "ADVERSE",
             "momentum_score": -0.25184991244842303,
             "reasons": [
-              "VOL_SMOOTH:score=0.450 atr=16.65% vol=0.16% bb=0.0 mult=1.065",
+              "VOL_SMOOTH:score=0.450 atr=16.65% vol=0.20% bb=0.0 mult=1.065",
               "MOM_SMOOTH:score=-0.252 rsi=35 adx=22 di_diff=-13.1 tape=0.00 trail_urg=-0.465",
               "LIQ_SMOOTH:squeeze=0.000 dist=100.0% strength=0.000 proximity=0.000 adj=1.000",
-              "MICRO_SMOOTH:net=-0.030 flow=0.00 depth=0.10 spoof=0.03 intensity=0.00 adj=0.995",
+              "MICRO_SMOOTH:net=-0.251 flow=0.00 depth=-0.37 spoof=0.03 intensity=0.00 adj=0.955",
               "OI_FUND_SMOOTH:adj=1.014 funding=-0.0140% oi_chg=0.0% ls_ratio=1.00",
               "TP_DISTRIBUTION:0.75%"
             ],
             "side": "LONG",
-            "squeeze_potential": 7.824805071530984e-23,
+            "squeeze_potential": 7.07895912521442e-23,
             "symbol": "SOLUSDT",
-            "tp_pct": 0.797410793019127,
-            "tp_price": 95.17291527076867,
+            "tp_pct": 0.7636804861109707,
+            "tp_price": 95.14106711498599,
             "volatility_regime": "MEDIUM"
           },
           "no_loss_compliant": true,
           "notional_usd": 0.0,
-          "proposal_id": "960b5e3b-0902-49e2-8be5-dafbb720f165",
+          "proposal_id": "d1ab1497-b251-43ba-8f7d-2979b2ce96d9",
           "recovery_mode": false,
           "reduce_only": true,
           "risk_add": 0,
           "side": "LONG",
           "source": "dynamic_tp",
           "symbol": "SOLUSDT",
-          "take_profit": 95.17291527076867,
+          "take_profit": 95.14106711498599,
           "timeframe": "multi",
           "trainer_bias_dir": 1,
           "trainer_consensus_confidence": 0.0,
@@ -1991,18 +2024,18 @@
           "trainer_target_tf": "",
           "trainer_tf_alignment": 0.5,
           "trainer_volatility_score": 0.4283,
-          "trigger_reason": "DYNAMIC_TP_UPDATE SOLUSDT LONG tp=95.172915 decision=TRAIL_TP",
-          "ts_ms": 1778616323084,
+          "trigger_reason": "DYNAMIC_TP_UPDATE SOLUSDT LONG tp=95.141067 decision=TRAIL_TP",
+          "ts_ms": 1778616672734,
           "urgency_score": 0.25184991244842303
         },
-        "last_event_at": "2026-05-12T20:05:23Z",
-        "stream_id": "1778616323084-0"
+        "last_event_at": "2026-05-12T20:11:12Z",
+        "stream_id": "1778616672735-0"
       },
       "read_only": true,
       "redis_type": "stream",
       "redis_write": false,
       "status": "STREAM_LATEST_ENTRY_OBSERVED",
-      "stream_length": 50458
+      "stream_length": 50507
     },
     "wma:trainer:predictions": {
       "key": "wma:trainer:predictions",
