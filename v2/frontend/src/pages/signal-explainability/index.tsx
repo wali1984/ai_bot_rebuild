@@ -18,7 +18,17 @@ export default function SignalExplainabilityPage(): JSX.Element {
         <p className="cockpit-evidence-gap">Evidence missing — cannot explain without guessing.</p>
       </Panel>
       {truthPayload ? <SignalLineageTruthPanel payload={truthPayload} /> : null}
-      {payload ? <DecisionDrawers rows={payload.decisions} /> : <CockpitLoading error={error} />}
+      {payload ? (
+        <details className="mission-evidence-details">
+          <summary>
+            <span>Static proof examples</span>
+            <small>Historical decision examples are not current runtime signal lineage.</small>
+          </summary>
+          <div className="mission-evidence-details__body">
+            <DecisionDrawers rows={payload.decisions} />
+          </div>
+        </details>
+      ) : <CockpitLoading error={error} />}
     </DesignPageShell>
   );
 }

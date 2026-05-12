@@ -14,8 +14,18 @@ export default function MonitorCenterPage(): JSX.Element {
     <DesignPageShell meta={meta} rbac={rbac} route={route} eyebrow="Monitor Center" source="RUNTIME_MONITOR_PAYLOAD / V2_PROOF_ARTIFACT">
       <SourceRibbon labels={['runtime monitor rows', 'read-only status', 'freshness required', 'no service restart']} />
       {truthPayload ? <RouteTruthSummary payload={truthPayload} title="Monitor Center" /> : <OperatorTruthLoading error={truthError} />}
-      {truthPayload ? <PayloadFreshnessPanel payload={truthPayload} /> : null}
       {payload ? <MonitorTable rows={payload.monitors} /> : <CockpitLoading error={error} />}
+      {truthPayload ? (
+        <details className="mission-evidence-details">
+          <summary>
+            <span>Payload freshness details</span>
+            <small>Open stale/static public payload audit.</small>
+          </summary>
+          <div className="mission-evidence-details__body">
+            <PayloadFreshnessPanel payload={truthPayload} />
+          </div>
+        </details>
+      ) : null}
     </DesignPageShell>
   );
 }

@@ -1,0 +1,26 @@
+{
+  "generated_at": "2026-05-12T02:12:35.394Z",
+  "classification": "TRAINER_RUNTIME_EVIDENCE_MISSING",
+  "current_prediction_available": false,
+  "latest_real_prediction": null,
+  "fixture_prediction_hidden_from_current_view": true,
+  "required_sources": [
+    "rl.hybrid_trainer process",
+    "monitor_trainer_predictions.py process",
+    "current trainer prediction Redis stream or log row",
+    "current V2 trainer monitor payload",
+    "prediction_id + feature_snapshot_id + model/checkpoint evidence"
+  ],
+  "missing_evidence": [
+    {
+      "id": "TRAINER_PROCESS_NOT_OBSERVED",
+      "severity": "blocking_for_live",
+      "detail": "No rl.hybrid_trainer or monitor_trainer_predictions process was observed in the read-only process snapshot."
+    },
+    {
+      "id": "TRAINER_RUNTIME_EVIDENCE_MISSING",
+      "severity": "blocking_for_live",
+      "detail": "Trainer monitor evidence is missing or stale. Do not infer live trainer behavior from static fixtures."
+    }
+  ]
+}

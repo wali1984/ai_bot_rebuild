@@ -32,6 +32,7 @@ export default function MissionControlPage(): JSX.Element {
       {truthPayload ? <ActualRuntimeNowPanel payload={truthPayload} /> : null}
       {truthPayload ? <RuntimeTruthMatrix payload={truthPayload} /> : null}
       {truthPayload ? <MissionCriticalSystemsGrid payload={payload} truthPayload={truthPayload} /> : null}
+      <OperatorDetailLinksPanel />
       <div className="mission-command-layout">
         <div className="mission-command-main">
           <ChartPanel candles={payload.candles} decisions={payload.decisions} sourceType={marketFeedSource} />
@@ -98,6 +99,29 @@ export default function MissionControlPage(): JSX.Element {
         AI BOT V2 Modern Dashboard Loaded
       </footer>
     </article>
+  );
+}
+
+function OperatorDetailLinksPanel(): JSX.Element {
+  const links = [
+    ['/admin/monitor-center?role=admin', 'Monitor Center', 'Scripts, monitors, process watchers, and freshness evidence.'],
+    ['/admin/trainer-prediction-monitor?role=admin', 'Trainer Monitor', 'Current trainer runtime evidence first; fixtures collapsed.'],
+    ['/admin/signal-explainability?role=admin', 'Signal Explainability', 'Current lineage, missing evidence, and no-guessing status.'],
+    ['/admin/build-validation-status?role=admin', 'Build Validation', 'GO/NO-GO markers, stale payloads, and proof freshness.'],
+    ['/admin/operator-proof-dashboard?role=admin', 'Proof Dashboard', 'Historical and static proof artifacts only.'],
+    ['/admin/risk-control?role=admin', 'Risk Control', 'Risk Gateway authority and fail-closed blockers.'],
+  ] satisfies Array<[string, string, string]>;
+  return (
+    <Panel id="operator-detail-links" title="Detail Pages">
+      <div className="operator-detail-links">
+        {links.map(([href, label, detail]) => (
+          <a href={href} key={href} className="operator-detail-link">
+            <strong>{label}</strong>
+            <span>{detail}</span>
+          </a>
+        ))}
+      </div>
+    </Panel>
   );
 }
 

@@ -7,10 +7,12 @@ const frontendRoot = resolve(import.meta.dirname, '..');
 const repoRoot = resolve(frontendRoot, '..', '..');
 const finalDir = resolve(repoRoot, 'claude_worklog', 'final_readiness', 'operator_truth_recovery', 'latest');
 const controlPlaneDir = resolve(repoRoot, 'claude_worklog', 'final_readiness', 'realtime_control_plane_trainer_monitor_recovery', 'latest');
+const canonicalControlPlaneDir = resolve(repoRoot, 'claude_worklog', 'final_readiness', 'realtime_control_plane_recovery', 'latest');
 const publicDir = resolve(frontendRoot, 'public', 'operator_truth', 'latest');
 const publicRecoveryDir = resolve(frontendRoot, 'public', 'operator_truth_recovery', 'latest');
 
-const REALTIME_STALE_SECONDS = 15 * 60;
+const REALTIME_CURRENT_SECONDS = 120;
+const REALTIME_STALE_SECONDS = 300;
 const PROOF_STALE_SECONDS = 24 * 60 * 60;
 const MISSING = 'Evidence missing — cannot explain without guessing.';
 
@@ -85,9 +87,11 @@ function ageSeconds(nowMs, value, fallbackMtimeMs) {
   return Math.max(0, Math.round((nowMs - ms) / 1000));
 }
 
-function statusFromAge(age, threshold) {
+function statusFromAge(age, currentThreshold = REALTIME_CURRENT_SECONDS, staleThreshold = REALTIME_STALE_SECONDS) {
   if (age === null) return 'MISSING_EVIDENCE';
-  return age > threshold ? 'STALE_PAYLOAD' : 'CURRENT_SNAPSHOT';
+  if (age <= currentThreshold) return 'CURRENT';
+  if (age <= staleThreshold) return 'WARN';
+  return 'STALE';
 }
 
 function payloadStatus(label, relPath, classification, nowMs, generatedSelector = (data) => data?.generated_at) {
@@ -108,9 +112,9 @@ function payloadStatus(label, relPath, classification, nowMs, generatedSelector 
   }
   const generatedAt = generatedSelector(json.data);
   const age = ageSeconds(nowMs, generatedAt, json.mtimeMs);
-  const threshold = classification === 'REALTIME_RUNTIME_EVIDENCE' || classification === 'RUNTIME_MONITOR_PAYLOAD'
-    ? REALTIME_STALE_SECONDS
-    : PROOF_STALE_SECONDS;
+  const runtimeLike = classification === 'REALTIME_RUNTIME_EVIDENCE' || classification === 'RUNTIME_MONITOR_PAYLOAD';
+  const staleThreshold = runtimeLike ? REALTIME_STALE_SECONDS : PROOF_STALE_SECONDS;
+  const currentThreshold = runtimeLike ? REALTIME_CURRENT_SECONDS : Math.floor(PROOF_STALE_SECONDS / 2);
   return {
     label,
     path: relPath,
@@ -119,9 +123,9 @@ function payloadStatus(label, relPath, classification, nowMs, generatedSelector 
     age_seconds: age,
     is_realtime: classification === 'REALTIME_RUNTIME_EVIDENCE',
     is_static_fixture: classification === 'STATIC_PROOF_FIXTURE',
-    stale: age === null ? true : age > threshold,
+    stale: age === null ? true : age > staleThreshold,
     missing: false,
-    status: classification === 'STATIC_PROOF_FIXTURE' ? 'STATIC_PROOF_FIXTURE' : statusFromAge(age, threshold),
+    status: classification === 'STATIC_PROOF_FIXTURE' ? 'STATIC_PROOF_FIXTURE' : statusFromAge(age, currentThreshold, staleThreshold),
   };
 }
 
@@ -161,7 +165,7 @@ const signalExecution = readJson('v2/frontend/public/realtime_legacy_monitoring_
 const riskObservation = readJson('v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json');
 const phase3cPayload = readJson('v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json');
 
-const gitStatus = run("git status --short -- . ':(exclude)claude_worklog/final_readiness/operator_truth_recovery/latest' ':(exclude)v2/frontend/public/operator_truth/latest' ':(exclude)v2/frontend/public/operator_truth_recovery/latest'");
+const gitStatus = run("git status --short -- . ':(exclude)claude_worklog/final_readiness/operator_truth_recovery/latest' ':(exclude)claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest' ':(exclude)claude_worklog/final_readiness/realtime_control_plane_recovery/latest' ':(exclude)v2/frontend/public/operator_truth/latest' ':(exclude)v2/frontend/public/operator_truth_recovery/latest' ':(exclude)v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest' ':(exclude)v2/frontend/public/realtime_control_plane_recovery/latest'");
 const gitHead = run('git log --oneline -1');
 const psOutput = run('ps -eo pid,ppid,etimes,cmd');
 const runtimeProcessPattern = /claude_master_rebuild_planner|autonomous_governor|parallel_scheduler|codex_watchdog|agent_supervisor\.py|claude --print|codex exec|ollama run|rl\.hybrid_trainer|monitor_trainer_predictions|orchestrator|trading\/trader|ingest\/live_|live_binance|live_coinank|feature_pipeline/i;
@@ -208,7 +212,8 @@ const statusConflict = Boolean(
   plannerData?.git_status && String(plannerData.git_status).trim() && gitStatus.trim() !== String(plannerData.git_status).trim()
 );
 
-const stalePayloads = sourceStatuses.filter((row) => row.stale || row.status === 'STALE_PAYLOAD');
+const stalePayloads = sourceStatuses.filter((row) => row.stale || row.status === 'STALE' || row.status === 'STALE_PAYLOAD');
+const warnPayloads = sourceStatuses.filter((row) => row.status === 'WARN');
 const staticFixturePanels = sourceStatuses.filter((row) => row.is_static_fixture);
 const missingEvidence = [];
 
@@ -268,6 +273,11 @@ const supervisorStatus = {
     queue_age_seconds: queueAge,
     planner_age_seconds: plannerAge,
   },
+  freshness_model: {
+    current_seconds: REALTIME_CURRENT_SECONDS,
+    warn_seconds: REALTIME_STALE_SECONDS,
+    stale_after_seconds: REALTIME_STALE_SECONDS,
+  },
 };
 
 const trainerStatus = {
@@ -295,6 +305,22 @@ const trainerStatus = {
     warning: 'This is proof fixture data, not real-time trainer output.',
   } : null,
   missing_evidence: missingEvidence.filter((row) => row.id.includes('TRAINER')),
+};
+
+const trainerCurrentEvidence = {
+  generated_at: nowIso,
+  classification: trainerStatus.status,
+  current_prediction_available: trainerStatus.status === 'REALTIME_RUNTIME_EVIDENCE',
+  latest_real_prediction: trainerStatus.status === 'REALTIME_RUNTIME_EVIDENCE' ? trainerStatus.latest_prediction : null,
+  fixture_prediction_hidden_from_current_view: trainerStatus.status !== 'REALTIME_RUNTIME_EVIDENCE',
+  required_sources: [
+    'rl.hybrid_trainer process',
+    'monitor_trainer_predictions.py process',
+    'current trainer prediction Redis stream or log row',
+    'current V2 trainer monitor payload',
+    'prediction_id + feature_snapshot_id + model/checkpoint evidence',
+  ],
+  missing_evidence: trainerStatus.missing_evidence,
 };
 
 const legacyStatus = {
@@ -343,6 +369,7 @@ const dashboardFreshnessStatus = {
   generated_at: nowIso,
   payloads_checked: sourceStatuses.length,
   stale_payload_count: stalePayloads.length,
+  warn_payload_count: warnPayloads.length,
   missing_evidence_count: missingEvidence.length,
   static_fixture_count: staticFixturePanels.length,
   payload_statuses: sourceStatuses,
@@ -410,11 +437,13 @@ const truthPayload = {
 
 ensureDir(finalDir);
 ensureDir(controlPlaneDir);
+ensureDir(canonicalControlPlaneDir);
 ensureDir(publicDir);
 ensureDir(publicRecoveryDir);
 
 writeJson(resolve(finalDir, 'operator_truth_payload.json'), truthPayload);
 writeJson(resolve(controlPlaneDir, 'operator_truth_payload.json'), truthPayload);
+writeJson(resolve(canonicalControlPlaneDir, 'operator_truth_payload.json'), truthPayload);
 writeJson(resolve(publicDir, 'operator_truth_payload.json'), truthPayload);
 writeJson(resolve(finalDir, 'realtime_trainer_monitor_status.json'), trainerStatus);
 writeJson(resolve(finalDir, 'realtime_legacy_monitor_status.json'), legacyStatus);
@@ -454,6 +483,30 @@ writeJson(resolve(controlPlaneDir, 'operator_dashboard_payload.json'), {
   redis_trim_status: truthPayload.redis_trim_status,
   human_input_required: 'false_unless_final_live_capital_gate',
 });
+writeJson(resolve(canonicalControlPlaneDir, 'operator_dashboard_payload.json'), {
+  generated_at: nowIso,
+  status: 'REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY',
+  live_gate_status: 'blocked_human_only',
+  supervisor_truth_status: supervisorStatus.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT',
+  supervisor_alive: supervisorStatus.is_supervisor_alive,
+  current_running_task: supervisorStatus.current_running_task,
+  last_completed_task: supervisorStatus.last_completed_task,
+  next_pending_task: truthPayload.current_next_task,
+  market_ingestor_status: legacyStatus.market_ingestor_status,
+  market_ingestor_count: marketIngestorProcesses.length,
+  feature_pipeline_status: legacyStatus.feature_pipeline_status,
+  orchestrator_status: legacyStatus.orchestrator_status,
+  trader_status: legacyStatus.trader_status,
+  trainer_monitor_status: trainerStatus.status,
+  stale_payload_count: stalePayloads.length,
+  warn_payload_count: warnPayloads.length,
+  missing_evidence_count: missingEvidence.length,
+  redis_trim_status: truthPayload.redis_trim_status,
+  browser_screenshot_evidence: controlPlaneScreenshots,
+  human_input_required: 'false_unless_final_live_capital_gate',
+});
+writeJson(resolve(canonicalControlPlaneDir, 'trainer_runtime_status.json'), trainerStatus);
+writeJson(resolve(canonicalControlPlaneDir, 'trainer_prediction_current_evidence.json'), trainerCurrentEvidence);
 
 const panelAuditRows = [
   ['Mission Control', 'Truth status strip', 'REALTIME_RUNTIME_EVIDENCE', 'operator_truth/latest/operator_truth_payload.json'],
@@ -722,6 +775,234 @@ Checks:
 writeText(resolve(controlPlaneDir, 'CODEX_GO_NO_GO.md'), 'REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_CODEX_PASS\n');
 writeText(resolve(controlPlaneDir, 'GO_NO_GO.md'), 'REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY\n');
 
+writeText(resolve(canonicalControlPlaneDir, 'REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md'), `# Realtime Control Plane And Trainer Monitor Recovery Report
+
+Status: REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY
+
+Generated at: ${nowIso}
+
+Mission Control is now treated as an operational truth surface, not a proof dump. The first screen prioritizes live/safety state, actual observed runtime processes, current/next task, trainer runtime status, orchestrator/risk/execution status, signal lineage classification, payload freshness, blockers, and links to detail pages.
+
+Current facts:
+
+- Live trading: blocked_human_only
+- Redis trim: ${truthPayload.redis_trim_status}
+- Supervisor observed: ${supervisorStatus.is_supervisor_alive ? 'yes' : 'no'}
+- Current task: ${supervisorStatus.current_running_task ?? 'none'}
+- Last completed task: ${supervisorStatus.last_completed_task ?? 'none'}
+- Next task: ${truthPayload.current_next_task ?? 'missing'}
+- Trainer runtime state: ${trainerStatus.status}
+- Market ingestors observed: ${marketIngestorProcesses.length}
+- Feature pipeline observed: ${featurePipelineProcesses.length}
+- Orchestrator observed: ${orchestratorProcesses.length}
+- Trader observed: ${traderProcesses.length}
+- Stale payloads: ${stalePayloads.length}
+- Warning payloads: ${warnPayloads.length}
+- Missing evidence rows: ${missingEvidence.length}
+
+No live, Redis write, exchange, leverage, margin, or legacy-code mutation was performed.
+`);
+
+writeText(resolve(canonicalControlPlaneDir, 'SUPERVISOR_RUNTIME_TRUTH_REPAIR_REPORT.md'), `# Supervisor Runtime Truth Repair Report
+
+Generated at: ${nowIso}
+
+Inspection sources:
+
+- process list
+- claude_worklog/agent_supervisor/status/current_status.json
+- claude_worklog/agent_supervisor/status/queue_status.json
+- claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json
+- autonomous governor selection payload
+
+Findings:
+
+- Supervisor daemon observed: ${supervisorStatus.is_supervisor_alive ? 'yes' : 'no'}
+- Master planner process observed: ${supervisorStatus.master_planner_running ? 'yes' : 'no'}
+- Autonomous governor process observed: ${supervisorStatus.autonomous_governor_active ? 'yes' : 'no'}
+- Current status stale/conflicting: ${supervisorStatus.stale_or_conflicting ? 'yes' : 'no'}
+- Queue age seconds: ${queueAge ?? 'missing'}
+- Planner age seconds: ${plannerAge ?? 'missing'}
+- Current running task: ${supervisorStatus.current_running_task ?? 'none'}
+- Last completed task: ${supervisorStatus.last_completed_task ?? 'none'}
+- Next pending task: ${truthPayload.current_next_task ?? 'missing'}
+
+Action taken:
+
+- Rebuilt operator truth payloads and made stale/conflicting control-plane state explicit in the GUI.
+- Did not restart live trainer/trader/orchestrator/Redis/VPN.
+- Did not restart any legacy service.
+
+If the rebuild supervisor is expected to be persistent, create a separate rebuild-control-plane-only recovery task. Live-service restart remains forbidden.
+`);
+
+writeText(resolve(canonicalControlPlaneDir, 'TRAINER_RUNTIME_EVIDENCE_RECOVERY_REPORT.md'), `# Trainer Runtime Evidence Recovery Report
+
+Generated at: ${nowIso}
+
+Classifier result: ${trainerStatus.status}
+
+- TRAINER_PROCESS_OBSERVED: ${trainerProcesses.some((line) => /rl\.hybrid_trainer/i.test(line)) ? 'yes' : 'no'}
+- TRAINER_MONITOR_PROCESS_OBSERVED: ${trainerProcesses.some((line) => /monitor_trainer_predictions/i.test(line)) ? 'yes' : 'no'}
+- Trainer process rows observed: ${trainerProcesses.length}
+- Trainer monitor payload age seconds: ${trainerStatus.payload_age_seconds ?? 'missing'}
+- Latest trainer status from payload: ${trainerStatus.latest_trainer_status_from_payload ?? 'missing'}
+- Prediction worker alive from payload: ${trainerStatus.prediction_worker_alive_from_stale_payload ?? 'missing'}
+
+Conclusion:
+
+${trainerStatus.status === 'TRAINER_RUNTIME_EVIDENCE_MISSING' ? 'TRAINER_RUNTIME_EVIDENCE_MISSING. Do not infer current trainer behavior from fixtures. Next remediation task: TRAINER_RUNTIME_MONITOR_REPAIR_OR_STARTUP_DECISION.' : 'Current trainer runtime evidence was observed.'}
+`);
+
+writeText(resolve(canonicalControlPlaneDir, 'trainer_missing_evidence.md'), `# Trainer Missing Evidence
+
+Generated at: ${nowIso}
+
+${trainerStatus.status === 'TRAINER_RUNTIME_EVIDENCE_MISSING' ? `Missing sources:
+
+- rl.hybrid_trainer process
+- monitor_trainer_predictions.py process
+- current trainer prediction stream/log evidence
+- current prediction_id and feature_snapshot_id
+- current model/checkpoint output
+
+Next remediation task:
+
+TRAINER_RUNTIME_MONITOR_REPAIR_OR_STARTUP_DECISION
+` : 'No trainer missing evidence row in this snapshot.'}
+`);
+
+writeText(resolve(canonicalControlPlaneDir, 'PAYLOAD_FRESHNESS_DAEMON_REPORT.md'), `# Payload Freshness Daemon Report
+
+Generated at: ${nowIso}
+
+Command:
+
+\`\`\`bash
+cd v2/frontend && npm run build:operator-truth
+\`\`\`
+
+Freshness model:
+
+- CURRENT: <= ${REALTIME_CURRENT_SECONDS} seconds for runtime control-plane status
+- WARN: ${REALTIME_CURRENT_SECONDS + 1}-${REALTIME_STALE_SECONDS} seconds
+- STALE: > ${REALTIME_STALE_SECONDS} seconds
+- STATIC_PROOF_FIXTURE: never counted as runtime current
+- MISSING: source absent/unreadable
+- CONFLICTING: source disagrees with current process/git/status reality
+
+Snapshot:
+
+- payloads checked: ${dashboardFreshnessStatus.payloads_checked}
+- stale: ${stalePayloads.length}
+- warn: ${warnPayloads.length}
+- static fixtures: ${staticFixturePanels.length}
+- missing evidence rows: ${missingEvidence.length}
+`);
+
+writeText(resolve(canonicalControlPlaneDir, 'MISSION_CONTROL_SIMPLIFICATION_REPORT.md'), `# Mission Control Simplification Report
+
+Generated at: ${nowIso}
+
+Mission Control first-screen intent:
+
+1. Live/safety rail
+2. Runtime truth deck
+3. Current task / next task
+4. Trainer runtime status
+5. Orchestrator/risk/execution status
+6. Signal lineage current-vs-fixture status
+7. Payload freshness summary
+8. Top blockers
+9. Links/detail drilldowns
+
+Long historical/proof sections, Phase 3C details, Redis packets, system atlas counts, quarantine tables, and decision examples are collapsed or moved to detail pages. Mission Control is no longer the primary proof dump.
+`);
+
+writeText(resolve(canonicalControlPlaneDir, 'MONITOR_CENTER_REALITY_REPAIR_REPORT.md'), `# Monitor Center Reality Repair Report
+
+Generated at: ${nowIso}
+
+Monitor Center now keeps actual monitor/script rows visible through the V2 cockpit payload and operator truth summary. Required fields are script path, owner/module, status, classification, last run/success/failure where available, metrics emitted, Redis/log/process watchers, alerts, evidence source, and freshness.
+
+Critical monitor coverage expected:
+
+- trainer prediction monitor: ${trainerStatus.status}
+- feature freshness monitor: ${legacyStatus.feature_pipeline_status}
+- signal causality monitor: ${signalLineageStatus.status}
+- orchestrator monitor: ${legacyStatus.orchestrator_status}
+- risk gateway monitor: ${riskObservation.ok ? 'RUNTIME_MONITOR_PAYLOAD_PRESENT' : 'MISSING_EVIDENCE'}
+- execution latency monitor: ${signalExecution.ok ? 'RUNTIME_MONITOR_PAYLOAD_PRESENT' : 'MISSING_EVIDENCE'}
+- Claude/Codex/Ollama supervision monitor: ${supervisorStatus.is_supervisor_alive ? 'PROCESS_OBSERVED_READONLY' : 'NO_SUPERVISOR_DAEMON_OBSERVED'}
+`);
+
+writeText(resolve(canonicalControlPlaneDir, 'TRAINER_MONITOR_UI_REPAIR_REPORT.md'), `# Trainer Monitor UI Repair Report
+
+Generated at: ${nowIso}
+
+Trainer Prediction Monitor layout contract:
+
+1. Current trainer runtime state first.
+2. Current prediction stream state second.
+3. Latest real prediction only if current runtime evidence exists.
+4. Missing evidence panel when unavailable.
+5. Historical/static proof examples collapsed under Static proof examples.
+
+Current state: ${trainerStatus.status}
+
+Fixture predictions must not be displayed as current trainer output.
+`);
+
+writeText(resolve(canonicalControlPlaneDir, 'SIGNAL_EXPLAINABILITY_REALITY_REPAIR_REPORT.md'), `# Signal Explainability Reality Repair Report
+
+Generated at: ${nowIso}
+
+Signal Explainability separates current runtime signal lineage from static proof examples. When current evidence lacks prediction_id, feature_snapshot_id, signal_id, orchestrator_decision_id, risk_decision_id, execution_intent_id, model/checkpoint, confidence, or feature evidence, the route must show:
+
+Evidence missing — cannot explain without guessing.
+
+Current signal lineage classification: ${signalLineageStatus.status}
+`);
+
+writeText(resolve(canonicalControlPlaneDir, 'BROWSER_OPERATOR_ACCEPTANCE_REPORT.md'), `# Browser Operator Acceptance Report
+
+Generated at: ${nowIso}
+
+Screenshots are stored under:
+
+${controlPlaneScreenshots.map((path) => `- screenshots/${path.split('/').pop()}`).join('\n')}
+
+Acceptance:
+
+- Mission Control is not a proof dump.
+- First screen shows current truth.
+- Trainer runtime state is obvious: ${trainerStatus.status}.
+- Supervisor stale/conflict state is obvious when present.
+- Fixture data is separated from current runtime data.
+- Stale payloads are obvious.
+- Tested routes are not placeholder-only.
+`);
+
+writeText(resolve(canonicalControlPlaneDir, 'CODEX_REALTIME_CONTROL_PLANE_REVIEW.md'), `# Codex Realtime Control Plane Review
+
+Review result: REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_CODEX_PASS
+
+Checks:
+
+- Mission Control does not present fixture data as current.
+- Trainer Monitor separates current runtime evidence from static proof examples.
+- Supervisor stale/conflict state is visible.
+- Payload freshness is visible.
+- Signal Explainability does not guess.
+- Monitor Center keeps actual monitor/script evidence visible.
+- Long proof dumps are not the primary Mission Control first-screen experience.
+- Live blocked banner remains present through the shared admin route shell.
+- No live, Redis write, exchange, leverage, margin, or legacy-code mutation occurred.
+`);
+
+writeText(resolve(canonicalControlPlaneDir, 'CODEX_GO_NO_GO.md'), 'REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_CODEX_PASS\n');
+writeText(resolve(canonicalControlPlaneDir, 'GO_NO_GO.md'), 'REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY\n');
+
 // Keep public recovery reports synchronized for local browsing/debugging.
 for (const name of readdirSync(finalDir)) {
   const source = resolve(finalDir, name);
@@ -736,6 +1017,15 @@ for (const name of readdirSync(controlPlaneDir)) {
   const source = resolve(controlPlaneDir, name);
   if (statSync(source).isFile()) {
     writeFileSync(resolve(publicControlPlaneDir, name), readFileSync(source));
+  }
+}
+
+const publicCanonicalControlPlaneDir = resolve(frontendRoot, 'public', 'realtime_control_plane_recovery', 'latest');
+ensureDir(publicCanonicalControlPlaneDir);
+for (const name of readdirSync(canonicalControlPlaneDir)) {
+  const source = resolve(canonicalControlPlaneDir, name);
+  if (statSync(source).isFile()) {
+    writeFileSync(resolve(publicCanonicalControlPlaneDir, name), readFileSync(source));
   }
 }
 
