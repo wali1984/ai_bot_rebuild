@@ -1,6 +1,6 @@
 # Next Task Selection
 
-Generated: 2026-05-12T21:28:13.241438+00:00
+Generated: 2026-05-12T21:40:17.796346+00:00
 
 - Selected primary task: `LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK`
 - Primary lane: `v2_live_like_paper_shadow_canary_preflight`

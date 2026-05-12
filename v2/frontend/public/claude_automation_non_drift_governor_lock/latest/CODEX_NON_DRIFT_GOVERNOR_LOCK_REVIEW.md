@@ -6,7 +6,8 @@ Checked:
 
 - Website rebuild demoted to support lane: yes
 - Primary selected task restored: `LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK`
-- V2 paper runtime age seconds: `32`
+- Parallel scheduler / Codex watchdog support lanes paused by lock: yes
+- V2 paper runtime age seconds: `30`
 - Live gate blocked: `blocked_human_only`
 - Old Redis writes by this task: false
 - Exchange actions by this task: false

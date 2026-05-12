@@ -16,3 +16,4 @@ Support lanes:
 - proof archive cleanup
 
 Support lanes cannot create READY markers that supersede missing runtime evidence. `hist_*`, static fixture, proof archive, route crawl, or design-only evidence cannot become current runtime truth.
+Parallel scheduler and Codex watchdog recovery lanes must hold while this lock is active unless the work directly advances the selected primary task.

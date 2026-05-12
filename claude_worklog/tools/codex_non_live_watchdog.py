@@ -15,6 +15,7 @@ TASKS_DIR = WORKSPACE / "claude_worklog/agent_supervisor/tasks"
 STATE_DIR = WORKSPACE / "claude_worklog/agent_supervisor/state/tasks"
 RECOVERY_DIR = WORKSPACE / "claude_worklog/planner_recovery/codex_watchdog"
 RECOVERY_ATTEMPT_DIR = WORKSPACE / "claude_worklog/agent_supervisor/runtime/codex_watchdog_recovery_attempts"
+NON_DRIFT_LOCK = WORKSPACE / "claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json"
 
 FORBIDDEN_TERMS = [
     "/home/wali/Desktop/AI BOT/",
@@ -85,6 +86,11 @@ def read_json(path: Path) -> dict:
         return json.loads(path.read_text())
     except Exception:
         return {}
+
+
+def non_drift_lock() -> dict:
+    data = read_json(NON_DRIFT_LOCK)
+    return data if isinstance(data, dict) and data.get("status") == "ACTIVE" else {}
 
 
 def read_text(path: Path, limit: int = 100_000) -> str:
@@ -657,6 +663,19 @@ def cycle() -> int:
     if child:
         append_event({"event": "codex_watchdog_monitor_only_active_child", "processes": child[:2000]})
         print("ACTIVE_CHILD_MONITOR_ONLY")
+        return 0
+
+    lock = non_drift_lock()
+    if lock:
+        append_event(
+            {
+                "event": "codex_watchdog_paused_by_non_drift_governor_lock",
+                "selected_primary_task": lock.get("selected_primary_task"),
+                "primary_objective": lock.get("primary_objective"),
+                "reason": "support/recovery lanes cannot supersede primary live-like paper/shadow/canary work",
+            }
+        )
+        print(f"NON_DRIFT_LOCK_HOLD {lock.get('selected_primary_task')}")
         return 0
 
     stop_planner()

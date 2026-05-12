@@ -1,9 +1,9 @@
 # Control Plane Freshness Recovery
 
-Generated at: 2026-05-12T21:28:24.906Z
+Generated at: 2026-05-12T21:40:18.138Z
 
 - Control-plane status: `CONTROL_PLANE_DAEMON_OBSERVED`
-- Supervisor process rows observed: `2`
+- Supervisor process rows observed: `1`
 - Historical status files stale: `true`
 - Current running task: `none`
 - Next task: `LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK`

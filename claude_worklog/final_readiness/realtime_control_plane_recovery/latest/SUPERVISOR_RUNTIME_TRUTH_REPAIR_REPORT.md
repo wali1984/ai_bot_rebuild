@@ -1,6 +1,6 @@
 # Supervisor Runtime Truth Repair Report
 
-Generated at: 2026-05-12T21:28:24.906Z
+Generated at: 2026-05-12T21:40:18.138Z
 
 Inspection sources:
 
@@ -13,11 +13,11 @@ Inspection sources:
 Findings:
 
 - Supervisor daemon observed: yes
-- Master planner process observed: yes
+- Master planner process observed: no
 - Autonomous governor process observed: no
 - Current status stale/conflicting: no
-- Queue age seconds: 7
-- Planner age seconds: 89591
+- Queue age seconds: 0
+- Planner age seconds: 90304
 - Current running task: none
 - Last completed task: none
 - Next pending task: LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK

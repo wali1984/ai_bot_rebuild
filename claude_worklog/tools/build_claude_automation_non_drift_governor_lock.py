@@ -296,6 +296,7 @@ Support lanes:
 - proof archive cleanup
 
 Support lanes cannot create READY markers that supersede missing runtime evidence. `hist_*`, static fixture, proof archive, route crawl, or design-only evidence cannot become current runtime truth.
+Parallel scheduler and Codex watchdog recovery lanes must hold while this lock is active unless the work directly advances the selected primary task.
 """)
     write_text(FINAL / "CODEX_NON_DRIFT_GOVERNOR_LOCK_REVIEW.md", f"""# Codex Non-Drift Governor Lock Review
 
@@ -305,6 +306,7 @@ Checked:
 
 - Website rebuild demoted to support lane: yes
 - Primary selected task restored: `{NEXT_PRIMARY_TASK}`
+- Parallel scheduler / Codex watchdog support lanes paused by lock: yes
 - V2 paper runtime age seconds: `{paper_age}`
 - Live gate blocked: `{LIVE_GATE_STATUS}`
 - Old Redis writes by this task: false
@@ -328,6 +330,8 @@ The production website rebuild passed and is now explicitly a secondary support 
 - V2 paper runtime age seconds: `{paper_age}`
 - current primary blockers: `{', '.join(current_primary_blockers) if current_primary_blockers else 'none'}`
 - live gate: `{LIVE_GATE_STATUS}`
+
+The parallel scheduler and Codex watchdog are configured to hold support/recovery lanes while the lock is active, so stale recovery tasks cannot supersede the selected primary work.
 
 No legacy bot files were modified. No old Redis mutation, exchange action, leverage/margin change, or live enablement was performed.
 """)

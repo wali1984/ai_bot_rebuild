@@ -1,11 +1,11 @@
 # Supervisor State Reconciliation
 
-Generated at: 2026-05-12T21:28:24.906Z
+Generated at: 2026-05-12T21:40:18.138Z
 
-- Queue status age seconds: 7
-- Planner status age seconds: 89591
+- Queue status age seconds: 0
+- Planner status age seconds: 90304
 - Supervisor daemon observed: yes
-- Master planner observed: yes
+- Master planner observed: no
 - Autonomous governor observed: no
 - Current running task: none
 - Last completed task: none
