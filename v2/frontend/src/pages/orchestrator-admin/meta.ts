@@ -4,7 +4,7 @@ const meta: PageMeta = {
   title: 'Orchestrator Admin',
   surface: 'admin',
   description: 'Orchestrator adapter. Proposes only; risk gateway validates.',
-  navCategory: 'admin',
+  navCategory: 'trainer',
   dangerousControlIds: [],
 };
 export default meta;

@@ -4,7 +4,7 @@ const meta: PageMeta = {
   title: 'Audit Ledger',
   surface: 'admin',
   description: 'Append-only chain of every governance event and decision.',
-  navCategory: 'audit',
+  navCategory: 'risk',
   dangerousControlIds: [],
 };
 export default meta;

@@ -5,20 +5,20 @@ import { PAGES } from '../../pages/registry';
 import { useOperatorTruthPayload } from '../../pages/operatorTruthData';
 
 const CATEGORY_LABELS: Record<string, string> = {
-  overview: 'Operate',
-  observability: 'Inspect',
-  trainer: 'Trainer / Signals',
+  overview: 'Mission',
+  observability: 'System',
+  trainer: 'AI / Signals',
   risk: 'Risk',
   execution: 'Execution',
-  market: 'Market',
-  trading: 'Operate',
+  market: 'Markets',
+  trading: 'Markets',
   admin: 'Admin',
   audit: 'Proof / Audit',
-  ai: 'AI Control',
-  mobile: 'System',
+  ai: 'AI Operators',
+  mobile: 'Admin',
 };
 
-const CATEGORY_ORDER = ['overview', 'observability', 'trainer', 'risk', 'execution', 'market', 'trading', 'admin', 'audit', 'ai', 'mobile'];
+const CATEGORY_ORDER = ['overview', 'market', 'trading', 'trainer', 'execution', 'risk', 'observability', 'ai', 'admin', 'mobile', 'audit'];
 
 function categoryWarningCount(category: string, stalePayloads: number, missingEvidence: number, staleSupervisor: boolean): number {
   if (category === 'overview') return stalePayloads + missingEvidence + (staleSupervisor ? 1 : 0);
@@ -59,11 +59,11 @@ export function Nav(): JSX.Element {
         const pages = byCategory.get(category) ?? [];
         const warningCount = categoryWarningCount(category, stalePayloads, missingEvidence, staleSupervisor);
         return (
-          <section className="nav__group" key={category} aria-label={`${CATEGORY_LABELS[category] ?? category} navigation`}>
-            <div className="nav__group-head">
+          <details className="nav__group" key={category} aria-label={`${CATEGORY_LABELS[category] ?? category} navigation`} open>
+            <summary className="nav__group-head">
               <span>{CATEGORY_LABELS[category] ?? category}</span>
               {warningCount ? <strong>{warningCount}</strong> : null}
-            </div>
+            </summary>
             <ul>
               {pages.map((p) => {
                 const active = p.route.path === location.pathname;
@@ -76,7 +76,7 @@ export function Nav(): JSX.Element {
                 );
               })}
             </ul>
-          </section>
+          </details>
         );
       })}
     </nav>

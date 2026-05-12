@@ -5,7 +5,8 @@ import { resolve } from 'node:path';
 
 const frontendRoot = resolve(import.meta.dirname, '..');
 const repoRoot = resolve(frontendRoot, '..', '..');
-const finalDir = resolve(repoRoot, 'claude_worklog', 'final_readiness', 'production_website_public_route_rebuild', 'latest');
+const artifactSlug = process.env.PRODUCTION_CRAWL_ARTIFACT_SLUG ?? 'production_website_public_route_rebuild';
+const finalDir = resolve(repoRoot, 'claude_worklog', 'final_readiness', artifactSlug, 'latest');
 const baseUrl = (process.env.PRODUCTION_CRAWL_BASE_URL ?? 'https://dashboard.wajidali.us').replace(/\/$/, '');
 const phase = process.env.PRODUCTION_CRAWL_PHASE ?? 'before';
 const screenshotDir = resolve(finalDir, 'screenshots', phase);
@@ -252,7 +253,7 @@ const matrix = {
 };
 
 writeFileSync(resolve(finalDir, `production_route_matrix_${phase}.json`), `${JSON.stringify(matrix, null, 2)}\n`);
-writeFileSync(resolve(finalDir, `PRODUCTION_ROUTE_CRAWL_${phase.toUpperCase()}_REPORT.md`), `# Production Route Crawl — ${phase}\n\nGenerated at: ${nowIso}\n\n- Base URL: ${baseUrl}\n- Routes: ${results.length}\n- Passed: ${matrix.passed_count}\n- Failed or needs repair: ${matrix.failed_count}\n- Internal links checked: ${matrix.link_checked_count}\n- Screenshots: \`claude_worklog/final_readiness/production_website_public_route_rebuild/latest/screenshots/${phase}/\`\n\n${markdown(results)}\n`);
+writeFileSync(resolve(finalDir, `PRODUCTION_ROUTE_CRAWL_${phase.toUpperCase()}_REPORT.md`), `# Production Route Crawl — ${phase}\n\nGenerated at: ${nowIso}\n\n- Base URL: ${baseUrl}\n- Routes: ${results.length}\n- Passed: ${matrix.passed_count}\n- Failed or needs repair: ${matrix.failed_count}\n- Internal links checked: ${matrix.link_checked_count}\n- Screenshots: \`claude_worklog/final_readiness/${artifactSlug}/latest/screenshots/${phase}/\`\n\n${markdown(results)}\n`);
 if (phase === 'after') {
   writeFileSync(resolve(finalDir, 'production_route_matrix.json'), `${JSON.stringify(matrix, null, 2)}\n`);
   writeFileSync(resolve(finalDir, 'PRODUCTION_ROUTE_CRAWL_REPORT.md'), `# Production Route Crawl\n\nGenerated at: ${nowIso}\n\nAfter-repair crawl against ${baseUrl}.\n\n${markdown(results)}\n`);

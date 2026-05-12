@@ -184,11 +184,21 @@ a { color: inherit; }
   gap: 8px;
   padding: 8px 9px;
   border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-weight: 700;
   letter-spacing: 0;
   text-transform: uppercase;
 }
+
+.nav__group-head::-webkit-details-marker { display: none; }
+.nav__group-head::before {
+  content: "v";
+  color: var(--color-muted);
+}
+
+.nav__group:not([open]) .nav__group-head { border-bottom: 0; }
+.nav__group:not([open]) .nav__group-head::before { content: ">"; }
 
 .nav__group-head strong {
   display: inline-grid;

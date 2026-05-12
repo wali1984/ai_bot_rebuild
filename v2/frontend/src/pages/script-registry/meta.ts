@@ -4,7 +4,7 @@ const meta: PageMeta = {
   title: 'Script Registry',
   surface: 'admin',
   description: 'Scripts with usage or non-usage evidence per Completeness Override.',
-  navCategory: 'audit',
+  navCategory: 'observability',
   dangerousControlIds: [],
 };
 export default meta;

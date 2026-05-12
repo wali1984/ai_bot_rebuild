@@ -4,7 +4,7 @@ const meta: PageMeta = {
   title: 'Codex Review Center',
   surface: 'admin',
   description: 'Codex review status across milestones.',
-  navCategory: 'audit',
+  navCategory: 'ai',
   dangerousControlIds: [],
 };
 export default meta;

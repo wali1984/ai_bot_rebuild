@@ -5,7 +5,7 @@ const meta: PageMeta = {
   title: 'Exchange Manager',
   surface: 'admin',
   description: 'Read-only first exchange linking for Binance, KuCoin, and MEXC. Trading permissions stay blocked.',
-  navCategory: 'trading',
+  navCategory: 'market',
   dangerousControlIds: [],
 };
 

@@ -4,7 +4,7 @@ const meta: PageMeta = {
   title: 'Strategy Admin',
   surface: 'admin',
   description: 'Strategy registration and lifecycle. Hedge/DCA toggles are L4.',
-  navCategory: 'admin',
+  navCategory: 'trainer',
   dangerousControlIds: ['enable_hedge_dca'],
 };
 export default meta;

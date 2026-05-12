@@ -4,7 +4,7 @@ const meta: PageMeta = {
   title: 'Coverage / System Atlas',
   surface: 'admin',
   description: 'File inventory and classification for legacy + V2 surfaces.',
-  navCategory: 'audit',
+  navCategory: 'observability',
   dangerousControlIds: [],
 };
 export default meta;

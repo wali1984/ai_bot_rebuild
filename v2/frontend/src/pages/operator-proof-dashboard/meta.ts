@@ -5,7 +5,7 @@ const meta: PageMeta = {
   title: 'Operator Proof Dashboard',
   surface: 'admin',
   description: 'Read-only non-live replay, paper, risk, explainability, and shadow proof artifacts.',
-  navCategory: 'audit',
+  navCategory: 'admin',
   dangerousControlIds: [],
 };
 

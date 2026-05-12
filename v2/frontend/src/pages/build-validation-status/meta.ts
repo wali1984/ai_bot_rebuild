@@ -4,7 +4,7 @@ const meta: PageMeta = {
   title: 'Build/Validation Status',
   surface: 'admin',
   description: 'Lists claude_worklog/v2_build/* artifacts and READY/BLOCKED states.',
-  navCategory: 'audit',
+  navCategory: 'observability',
   dangerousControlIds: [],
 };
 export default meta;
