@@ -1,0 +1,30 @@
+{
+  "task_id": "codex_parallel_review_20260512_070659_04_paper_execution_ledger",
+  "agent": "codex",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/codex_parallel_reviews/"
+  ],
+  "required_output_files": [
+    "claude_worklog/codex_parallel_reviews/20260512_070659_04_paper_execution_ledger_REPORT.md",
+    "claude_worklog/codex_parallel_reviews/20260512_070659_04_paper_execution_ledger_GO_NO_GO.md"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD.\n\nREAD-ONLY PARALLEL REVIEW MODE.\n\nDo not modify /home/wali/Desktop/AI BOT.\nDo not write Redis.\nDo not delete Redis keys.\nDo not restart live services.\nDo not place/cancel orders.\nDo not change leverage/margin.\nDo not enable live trading.\nDo not deploy.\nDo not expose secrets.\n\nReview topic: Paper Execution Ledger MVP\n\nInputs to inspect:\n- v2/backend/app\n- v2/backend/tests\n- claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl\n- claude_worklog/phase2_core_rebuild/paper_mode_impl\n\nChecks:\n- paper open/close/reduce/hedge/block ledger events\n- PnL accounting\n- risk decision linkage\n- execution_intent_id linkage\n- no real exchange actions\n\nWrite exactly two BEGIN_FILE blocks:\n1. claude_worklog/codex_parallel_reviews/20260512_070659_04_paper_execution_ledger_REPORT.md\n2. claude_worklog/codex_parallel_reviews/20260512_070659_04_paper_execution_ledger_GO_NO_GO.md\n\nThe GO/NO-GO file must contain exactly one line:\nCODEX_PARALLEL_REVIEW_READY or CODEX_PARALLEL_REVIEW_BLOCKED\n\nIf blocked, the report must include concrete blockers and proposed non-live autofix tasks.\n",
+  "lane": "codex_watchdog",
+  "mvp_relevance": "Parallel review of Paper Execution Ledger MVP to accelerate V2_BACKTEST_AND_PAPER_MVP_READY.",
+  "blocked_by": [],
+  "next_gate": "CODEX_PARALLEL_REVIEW_READY",
+  "legacy_evidence_consulted": [
+    "legacy_readonly_audit",
+    "historical_pnl_audit",
+    "phase2_core_rebuild artifacts"
+  ],
+  "legacy_failure_addressed": [
+    "under-reviewed MVP milestone risk",
+    "manual review bottleneck"
+  ],
+  "next_recommended_action": "If READY, continue. If BLOCKED, create non-live Codex autofix task."
+}
