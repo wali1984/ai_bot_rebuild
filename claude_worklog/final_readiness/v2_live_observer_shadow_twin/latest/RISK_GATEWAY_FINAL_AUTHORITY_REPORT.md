@@ -1,6 +1,6 @@
 # Risk Gateway Final Authority Report
 
-Generated at: 2026-05-12T19:58:03Z
+Generated at: 2026-05-12T20:05:32Z
 
 - Status: `CURRENT_SHADOW_SIGNAL_PROCESSED`
 - Final authority: `True`

@@ -55,6 +55,7 @@ const artifactSets = [
   'legacy_trainer_gpu_parity',
   'legacy_trainer_restart_runtime',
   'v2_live_observer_shadow_twin',
+  'tonight_live_like_paper_shadow',
   'post_mvp_non_live_gap_audit',
 ];
 

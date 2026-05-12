@@ -2,23 +2,23 @@
   "entries": [
     {
       "exchange_order_id": null,
-      "execution_intent_id": "pei_paper_tick_1778556782455",
+      "execution_intent_id": "pei_paper_tick_1778616331999",
       "fee_rate": 0.0004,
-      "fee_usdt": 0.0,
-      "fill_price": null,
+      "fee_usdt": 0.01,
+      "fill_price": 80841.6651,
       "funding_assumption": "zero_until_funding_feed_adapter_current",
-      "generated_at": "2026-05-12T03:33:02Z",
-      "ledger_action": "PAPER_INTENT_BLOCKED",
+      "generated_at": "2026-05-12T20:05:31Z",
+      "ledger_action": "PAPER_FILL_SIMULATED",
       "legacy_redis_write": false,
       "live_order": false,
-      "notional_usdt": 0.0,
-      "paper_ledger_entry_id": "pledger_paper_tick_1778556782455",
-      "paper_result": "NO_FILL_RISK_BLOCKED",
-      "risk_decision_id": "risk_paper_tick_1778556782455",
-      "signal_id": "sig_paper_tick_1778556782455",
+      "notional_usdt": 25.0,
+      "paper_ledger_entry_id": "pledger_paper_tick_1778616331999",
+      "paper_result": "FILLED_PAPER_ONLY",
+      "risk_decision_id": "risk_paper_tick_1778616331999",
+      "signal_id": "sig_paper_tick_1778616331999",
       "slippage_bps": 2.0,
       "symbol": "BTCUSDT"
     }
   ],
-  "generated_at": "2026-05-12T03:33:02Z"
+  "generated_at": "2026-05-12T20:05:31Z"
 }

@@ -1,0 +1,34 @@
+{
+  "adjust_leverage": "disabled",
+  "adjust_leverage_and_position": "disabled",
+  "approval_file_required": "FINAL_HUMAN_CANARY_APPROVAL_REQUIRED_NOT_CREATED",
+  "canary_enabled": false,
+  "close_reduce_max_age_seconds": 60,
+  "generated_at": "2026-05-12T20:05:32Z",
+  "hedge_dca": "disabled_initially",
+  "leverage_cap_for_canary": "1x",
+  "live_enabled": false,
+  "live_gate_status": "blocked_human_only",
+  "margin_mode_required_for_canary": "isolated",
+  "mode": "paper_shadow_live_blocked",
+  "position_notional_cap": "tiny_human_approved_only",
+  "profile_id": "paper_shadow_live_blocked_canary_prefight_v1",
+  "required_blocks": [
+    "missing_signal_id",
+    "missing_prediction_id",
+    "missing_feature_snapshot_id",
+    "missing_confidence",
+    "duplicate_exchange_order_id",
+    "missing_stop_policy",
+    "kill_switch_missing",
+    "daily_loss_hard_stop_missing",
+    "weekly_loss_hard_stop_missing",
+    "human_approval_file_missing",
+    "cross_margin_observed",
+    "leverage_above_1x"
+  ],
+  "stale_risk_add_max_age_seconds": 10,
+  "symbols_for_canary": [
+    "BTCUSDT"
+  ]
+}

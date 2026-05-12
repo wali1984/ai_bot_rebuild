@@ -162,9 +162,27 @@ export interface PaperOnlineRuntimePayload {
   };
 }
 
+export interface TonightReadinessPayload {
+  generated_at: string;
+  status: string;
+  v2_paper_runtime_status: string;
+  legacy_bridge_status: string;
+  trainer_status: string;
+  signal_lineage_status: string;
+  risk_profile_status: string;
+  canary_preflight_status: string;
+  public_route_failed_count: number | null;
+  local_route_failed_count: number | null;
+  remaining_blockers: string[];
+  live_gate_status: string;
+  old_redis_writes: boolean;
+  exchange_actions: boolean;
+}
+
 const operatorTruthPayloadPath = '/operator_truth/latest/operator_truth_payload.json';
 const paperOnlineRuntimePayloadPath = '/operator_runtime/paper_online/latest/paper_runtime_status.json';
 const liveObserverRuntimePayloadPath = '/operator_runtime/live_observer/latest/current_runtime_truth_payload.json';
+const tonightReadinessPayloadPath = '/tonight_live_like_paper_shadow/latest/operator_dashboard_payload.json';
 const RUNTIME_CURRENT_SECONDS = 120;
 
 async function fetchJson<T>(path: string): Promise<T> {
@@ -446,6 +464,40 @@ export function usePaperOnlineRuntimePayload(intervalMs = 10_000): {
     let timer: number | undefined;
     const load = (): void => {
       fetchJson<PaperOnlineRuntimePayload>(`${paperOnlineRuntimePayloadPath}?ts=${Date.now()}`)
+        .then((data) => {
+          if (!active) return;
+          setPayload(data);
+          setError(null);
+        })
+        .catch((err: unknown) => {
+          if (!active) return;
+          setPayload(null);
+          setError(err instanceof Error ? err.message : String(err));
+        });
+    };
+    load();
+    timer = window.setInterval(load, intervalMs);
+    return () => {
+      active = false;
+      if (timer !== undefined) window.clearInterval(timer);
+    };
+  }, [intervalMs]);
+
+  return { payload, error };
+}
+
+export function useTonightReadinessPayload(intervalMs = 10_000): {
+  payload: TonightReadinessPayload | null;
+  error: string | null;
+} {
+  const [payload, setPayload] = useState<TonightReadinessPayload | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    let timer: number | undefined;
+    const load = (): void => {
+      fetchJson<TonightReadinessPayload>(`${tonightReadinessPayloadPath}?ts=${Date.now()}`)
         .then((data) => {
           if (!active) return;
           setPayload(data);

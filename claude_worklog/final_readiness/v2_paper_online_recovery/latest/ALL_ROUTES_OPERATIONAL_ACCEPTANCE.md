@@ -1,11 +1,5 @@
 # All Routes Operational Acceptance
 
-Generated at: 2026-05-12T03:36:05.852Z
+Generated at: 2026-05-12T20:05:31Z
 
-- Local routes crawled: 31
-- Local operator-useful routes: 31
-- Local failed routes: 0
-- Public routes crawled: 31
-- Public deployment sync blocker: no
-
-Core V2 paper routes show current paper runtime/trainer/signal/risk evidence locally. Public hosting must sync operator runtime payloads before public acceptance can be considered fresh.
+Mission Control, Paper Trading, Trainer Prediction Monitor, Signal Explainability, and Risk Control now have a current V2 paper runtime source. Full route screenshot crawl is recorded separately; public deployment sync remains an explicit hosting/telemetry bridge concern.

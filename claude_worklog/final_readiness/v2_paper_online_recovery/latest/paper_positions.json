@@ -1,10 +1,17 @@
 {
-  "generated_at": "2026-05-12T03:33:02Z",
+  "generated_at": "2026-05-12T20:05:31Z",
   "live_gate_status": "blocked_human_only",
   "mode": "paper_only_non_live",
-  "open_positions": [],
-  "paper_pnl": 0.0,
-  "position_count": 0,
-  "position_state": "V2_PAPER_RUNTIME_EMPTY_RISK_BLOCKED",
+  "open_positions": [
+    {
+      "paper_only": true,
+      "side": "long",
+      "source": "V2_PAPER_RUNTIME_SIMULATED_FILL",
+      "symbol": "BTCUSDT"
+    }
+  ],
+  "paper_pnl": -16.04,
+  "position_count": 1,
+  "position_state": "V2_PAPER_RUNTIME_SIMULATED_FILL",
   "source_type": "V2_PAPER_RUNTIME"
 }

@@ -1,7 +1,7 @@
 # Market Feed Online Report
 
-Generated at: 2026-05-12T03:33:02Z
+Generated at: 2026-05-12T20:05:31Z
 
 BTCUSDT read-only market feed source: `READONLY_MARKET_FEED`.
-Price: `81153.8`.
-Freshness: `CURRENT` age_seconds=`12`.
+Price: `80825.5`.
+Freshness: `CURRENT` age_seconds=`11`.

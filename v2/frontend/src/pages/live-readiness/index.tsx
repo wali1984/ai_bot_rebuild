@@ -4,12 +4,13 @@ import route from './route';
 import { CockpitLoading, Metric, Panel } from '../cockpitComponents';
 import { useCockpitPayload } from '../cockpitData';
 import { DesignPageShell, SourceRibbon } from '../designShell';
-import { useOperatorTruthPayload } from '../operatorTruthData';
+import { useOperatorTruthPayload, useTonightReadinessPayload } from '../operatorTruthData';
 import { OperatorTruthLoading, RouteTruthSummary } from '../operatorTruthComponents';
 
 export default function LiveReadinessPage(): JSX.Element {
   const { payload, error } = useCockpitPayload();
   const { payload: truthPayload, error: truthError } = useOperatorTruthPayload();
+  const { payload: tonightPayload } = useTonightReadinessPayload();
   return (
     <DesignPageShell meta={meta} rbac={rbac} route={route} eyebrow="Live Readiness" source="GO_NO_GO / final live gate policy" status="FINAL LIVE CAPITAL APPROVAL REQUIRED">
       <SourceRibbon labels={['live blocked', 'human-only final gate', 'dangerous controls disabled', 'paper/shadow first']} />
@@ -37,6 +38,31 @@ export default function LiveReadinessPage(): JSX.Element {
           </div>
         </Panel>
       ) : <CockpitLoading error={error} />}
+      <Panel id="live-like-risk-profile" title="Live-Like Paper/Shadow Risk Profile" right={<span className="chip solid-block">CANARY BLOCKED</span>}>
+        <div className="cockpit-analytics-grid">
+          <Metric label="Tonight status" value={tonightPayload?.status ?? 'MISSING_EVIDENCE'} />
+          <Metric label="Risk profile" value={tonightPayload?.risk_profile_status ?? 'MISSING_EVIDENCE'} />
+          <Metric label="Canary preflight" value={tonightPayload?.canary_preflight_status ?? 'MISSING_EVIDENCE'} />
+          <Metric label="V2 paper runtime" value={tonightPayload?.v2_paper_runtime_status ?? 'MISSING_EVIDENCE'} />
+          <Metric label="Legacy bridge" value={tonightPayload?.legacy_bridge_status ?? 'MISSING_EVIDENCE'} />
+          <Metric label="Public route failures" value={tonightPayload?.public_route_failed_count ?? 'MISSING_EVIDENCE'} />
+          <Metric label="Old Redis writes" value={String(tonightPayload?.old_redis_writes ?? false)} />
+          <Metric label="Exchange actions" value={String(tonightPayload?.exchange_actions ?? false)} />
+        </div>
+        <p className="cockpit-evidence-gap">
+          Live trading and canary activation remain blocked_human_only. This page displays the preflight/risk profile only; it cannot approve or execute live orders.
+        </p>
+        {tonightPayload?.remaining_blockers?.length ? (
+          <div className="missing-evidence-board">
+            {tonightPayload.remaining_blockers.slice(0, 8).map((blocker) => (
+              <div className="missing-evidence-card" key={blocker}>
+                <strong>{blocker}</strong>
+                <p>Resolve before any final human canary approval packet is considered.</p>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </Panel>
     </DesignPageShell>
   );
 }

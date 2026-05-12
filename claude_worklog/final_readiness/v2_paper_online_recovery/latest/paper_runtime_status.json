@@ -1,30 +1,30 @@
 {
   "audit_events": [
     {
-      "audit_event_id": "audit_paper_tick_1778556782455",
+      "audit_event_id": "audit_paper_tick_1778616331999",
       "event_type": "V2_PAPER_RUNTIME_TICK",
-      "generated_at": "2026-05-12T03:33:02Z",
+      "generated_at": "2026-05-12T20:05:31Z",
       "lineage_ids": {
-        "execution_intent_id": "pei_paper_tick_1778556782455",
-        "feature_snapshot_id": "fs_paper_tick_1778556782455",
-        "orchestrator_decision_id": "orch_paper_tick_1778556782455",
-        "prediction_id": "pred_paper_tick_1778556782455",
-        "risk_decision_id": "risk_paper_tick_1778556782455",
-        "signal_id": "sig_paper_tick_1778556782455"
+        "execution_intent_id": "pei_paper_tick_1778616331999",
+        "feature_snapshot_id": "fs_paper_tick_1778616331999",
+        "orchestrator_decision_id": "orch_paper_tick_1778616331999",
+        "prediction_id": "pred_paper_tick_1778616331999",
+        "risk_decision_id": "risk_paper_tick_1778616331999",
+        "signal_id": "sig_paper_tick_1778616331999"
       },
       "live_gate_status": "blocked_human_only",
-      "paper_ledger_entry_id": "pledger_paper_tick_1778556782455"
+      "paper_ledger_entry_id": "pledger_paper_tick_1778616331999"
     }
   ],
   "blockers": [],
   "continuous_loop_available": true,
   "current_risk_decision": {
-    "feature_snapshot_id": "fs_paper_tick_1778556782455",
-    "generated_at": "2026-05-12T03:33:02Z",
+    "feature_snapshot_id": "fs_paper_tick_1778616331999",
+    "generated_at": "2026-05-12T20:05:31Z",
     "live_blocked": true,
     "missing_fields": [],
-    "orchestrator_decision_id": "orch_paper_tick_1778556782455",
-    "prediction_id": "pred_paper_tick_1778556782455",
+    "orchestrator_decision_id": "orch_paper_tick_1778616331999",
+    "prediction_id": "pred_paper_tick_1778616331999",
     "required_blocks_checked": [
       "missing_signal_id",
       "missing_prediction_id",
@@ -40,66 +40,66 @@
       "daily_loss_breach",
       "untraceable_execution"
     ],
-    "risk_action": "deny",
-    "risk_decision_id": "risk_paper_tick_1778556782455",
-    "risk_reason_code": "deny_low_confidence",
-    "risk_result": "BLOCKED",
-    "signal_id": "sig_paper_tick_1778556782455"
+    "risk_action": "allow",
+    "risk_decision_id": "risk_paper_tick_1778616331999",
+    "risk_reason_code": "allow_proceed_long",
+    "risk_result": "APPROVED_FOR_PAPER_ONLY",
+    "signal_id": "sig_paper_tick_1778616331999"
   },
   "current_signal_lineage": {
     "classification": "REALTIME_RUNTIME_EVIDENCE",
     "execution_intent": {
       "exchange_order_allowed": false,
-      "execution_intent_id": "pei_paper_tick_1778556782455",
-      "generated_at": "2026-05-12T03:33:02Z",
-      "intent_action": "paper_noop_blocked",
+      "execution_intent_id": "pei_paper_tick_1778616331999",
+      "generated_at": "2026-05-12T20:05:31Z",
+      "intent_action": "paper_fill_simulation",
       "paper_only": true,
-      "risk_decision_id": "risk_paper_tick_1778556782455",
+      "risk_decision_id": "risk_paper_tick_1778616331999",
       "side": "long",
-      "signal_id": "sig_paper_tick_1778556782455",
+      "signal_id": "sig_paper_tick_1778616331999",
       "symbol": "BTCUSDT"
     },
     "feature_snapshot": {
-      "feature_snapshot_id": "fs_paper_tick_1778556782455",
+      "feature_snapshot_id": "fs_paper_tick_1778616331999",
       "features": {
-        "return_15m": -0.00042124,
-        "return_1m": 0.00023171,
-        "return_5m": 0.00032295,
-        "volatility_10": 0.00020879,
-        "volume_avg_10": 35.3753,
-        "volume_last": 44.276
+        "return_15m": 0.00081972,
+        "return_1m": -0.00010144,
+        "return_5m": 0.00024503,
+        "volatility_10": 0.00017431,
+        "volume_avg_10": 45.8397,
+        "volume_last": 18.198
       },
       "freshness_state": "CURRENT",
-      "generated_at": "2026-05-12T03:32:59Z",
-      "market_age_seconds": 12,
+      "generated_at": "2026-05-12T20:05:29Z",
+      "market_age_seconds": 11,
       "source_type": "READONLY_MARKET_FEED",
       "symbol": "BTCUSDT"
     },
-    "generated_at": "2026-05-12T03:33:02Z",
+    "generated_at": "2026-05-12T20:05:31Z",
     "lineage_ids": {
-      "execution_intent_id": "pei_paper_tick_1778556782455",
-      "feature_snapshot_id": "fs_paper_tick_1778556782455",
-      "orchestrator_decision_id": "orch_paper_tick_1778556782455",
-      "prediction_id": "pred_paper_tick_1778556782455",
-      "risk_decision_id": "risk_paper_tick_1778556782455",
-      "signal_id": "sig_paper_tick_1778556782455"
+      "execution_intent_id": "pei_paper_tick_1778616331999",
+      "feature_snapshot_id": "fs_paper_tick_1778616331999",
+      "orchestrator_decision_id": "orch_paper_tick_1778616331999",
+      "prediction_id": "pred_paper_tick_1778616331999",
+      "risk_decision_id": "risk_paper_tick_1778616331999",
+      "signal_id": "sig_paper_tick_1778616331999"
     },
     "orchestrator_decision": {
       "cannot_bypass_risk_gateway": true,
       "decision_action": "open_long",
       "decision_reason": "paper_momentum_signal_routed",
-      "generated_at": "2026-05-12T03:33:02Z",
-      "orchestrator_decision_id": "orch_paper_tick_1778556782455",
+      "generated_at": "2026-05-12T20:05:31Z",
+      "orchestrator_decision_id": "orch_paper_tick_1778616331999",
       "risk_gateway_required": true,
-      "signal_id": "sig_paper_tick_1778556782455"
+      "signal_id": "sig_paper_tick_1778616331999"
     },
     "risk_decision": {
-      "feature_snapshot_id": "fs_paper_tick_1778556782455",
-      "generated_at": "2026-05-12T03:33:02Z",
+      "feature_snapshot_id": "fs_paper_tick_1778616331999",
+      "generated_at": "2026-05-12T20:05:31Z",
       "live_blocked": true,
       "missing_fields": [],
-      "orchestrator_decision_id": "orch_paper_tick_1778556782455",
-      "prediction_id": "pred_paper_tick_1778556782455",
+      "orchestrator_decision_id": "orch_paper_tick_1778616331999",
+      "prediction_id": "pred_paper_tick_1778616331999",
       "required_blocks_checked": [
         "missing_signal_id",
         "missing_prediction_id",
@@ -115,33 +115,33 @@
         "daily_loss_breach",
         "untraceable_execution"
       ],
-      "risk_action": "deny",
-      "risk_decision_id": "risk_paper_tick_1778556782455",
-      "risk_reason_code": "deny_low_confidence",
-      "risk_result": "BLOCKED",
-      "signal_id": "sig_paper_tick_1778556782455"
+      "risk_action": "allow",
+      "risk_decision_id": "risk_paper_tick_1778616331999",
+      "risk_reason_code": "allow_proceed_long",
+      "risk_result": "APPROVED_FOR_PAPER_ONLY",
+      "signal_id": "sig_paper_tick_1778616331999"
     },
     "signal": {
-      "confidence": 0.573418,
-      "feature_snapshot_id": "fs_paper_tick_1778556782455",
-      "generated_at": "2026-05-12T03:33:02Z",
-      "prediction_id": "pred_paper_tick_1778556782455",
+      "confidence": 0.702074,
+      "feature_snapshot_id": "fs_paper_tick_1778616331999",
+      "generated_at": "2026-05-12T20:05:31Z",
+      "prediction_id": "pred_paper_tick_1778616331999",
       "proposed_action": "open_long",
-      "signal_id": "sig_paper_tick_1778556782455",
+      "signal_id": "sig_paper_tick_1778616331999",
       "source_freshness": "CURRENT",
       "symbol": "BTCUSDT"
     },
     "trainer_prediction": {
-      "confidence_calibrated": 0.573418,
-      "confidence_raw": 0.593418,
-      "feature_snapshot_id": "fs_paper_tick_1778556782455",
+      "confidence_calibrated": 0.702074,
+      "confidence_raw": 0.722074,
+      "feature_snapshot_id": "fs_paper_tick_1778616331999",
       "freshness_state": "CURRENT",
-      "generated_at": "2026-05-12T03:32:59Z",
-      "market_age_seconds": 12,
+      "generated_at": "2026-05-12T20:05:29Z",
+      "market_age_seconds": 11,
       "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-      "prediction_id": "pred_paper_tick_1778556782455",
+      "prediction_id": "pred_paper_tick_1778616331999",
       "raw_output": {
-        "momentum_score": 0.0334182,
+        "momentum_score": 0.1620742,
         "side": "long"
       },
       "source_type": "V2_PAPER_TRAINER_WRAPPER",
@@ -150,15 +150,15 @@
       "top_features": [
         {
           "name": "return_5m",
-          "value": 0.00032295
+          "value": 0.00024503
         },
         {
           "name": "return_15m",
-          "value": -0.00042124
+          "value": 0.00081972
         },
         {
           "name": "volatility_10",
-          "value": 0.00020879
+          "value": 0.00017431
         }
       ],
       "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
@@ -166,41 +166,41 @@
   },
   "exchange_orders": false,
   "feature_snapshot": {
-    "feature_snapshot_id": "fs_paper_tick_1778556782455",
+    "feature_snapshot_id": "fs_paper_tick_1778616331999",
     "features": {
-      "return_15m": -0.00042124,
-      "return_1m": 0.00023171,
-      "return_5m": 0.00032295,
-      "volatility_10": 0.00020879,
-      "volume_avg_10": 35.3753,
-      "volume_last": 44.276
+      "return_15m": 0.00081972,
+      "return_1m": -0.00010144,
+      "return_5m": 0.00024503,
+      "volatility_10": 0.00017431,
+      "volume_avg_10": 45.8397,
+      "volume_last": 18.198
     },
     "freshness_state": "CURRENT",
-    "generated_at": "2026-05-12T03:32:59Z",
-    "market_age_seconds": 12,
+    "generated_at": "2026-05-12T20:05:29Z",
+    "market_age_seconds": 11,
     "source_type": "READONLY_MARKET_FEED",
     "symbol": "BTCUSDT"
   },
   "freshness": {
-    "generated_at": "2026-05-12T03:33:02Z",
-    "market_age_seconds": 12,
+    "generated_at": "2026-05-12T20:05:31Z",
+    "market_age_seconds": 11,
     "runtime_age_seconds": 0,
     "source_type": "REALTIME_RUNTIME_EVIDENCE",
     "status": "CURRENT"
   },
-  "generated_at": "2026-05-12T03:33:02Z",
+  "generated_at": "2026-05-12T20:05:31Z",
   "last_paper_event": {
     "exchange_order_id": null,
-    "generated_at": "2026-05-12T03:33:02Z",
+    "generated_at": "2026-05-12T20:05:31Z",
     "legacy_redis_write": false,
     "live_order": false,
     "market_source_type": "READONLY_MARKET_FEED",
-    "observed_price": 81153.8,
-    "paper_action": "PAPER_INTENT_BLOCKED",
-    "paper_reason": "deny_low_confidence",
-    "risk_gateway_result": "BLOCKED",
+    "observed_price": 80825.5,
+    "paper_action": "PAPER_FILL_SIMULATED",
+    "paper_reason": "allow_proceed_long",
+    "risk_gateway_result": "APPROVED_FOR_PAPER_ONLY",
     "symbol": "BTCUSDT",
-    "tick_id": "paper_tick_1778556782455"
+    "tick_id": "paper_tick_1778616331999"
   },
   "legacy_redis_writes": false,
   "leverage_changes": false,
@@ -208,284 +208,284 @@
   "loop_interval_seconds": 30,
   "margin_mode_changes": false,
   "market_feed": {
-    "age_seconds": 12,
+    "age_seconds": 11,
     "candles": [
       {
-        "close": 81217.1,
-        "high": 81228.7,
-        "low": 81217.1,
-        "open": 81219.9,
+        "close": 80709.1,
+        "high": 80718.7,
+        "low": 80694.0,
+        "open": 80699.2,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:03:00Z",
-        "volume": 13.166
+        "time": "2026-05-12T19:36:00Z",
+        "volume": 57.854
       },
       {
-        "close": 81191.5,
-        "high": 81217.2,
-        "low": 81186.8,
-        "open": 81217.1,
+        "close": 80713.4,
+        "high": 80719.1,
+        "low": 80695.0,
+        "open": 80709.1,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:04:00Z",
-        "volume": 98.385
+        "time": "2026-05-12T19:37:00Z",
+        "volume": 37.009
       },
       {
-        "close": 81197.8,
-        "high": 81198.1,
-        "low": 81156.0,
-        "open": 81191.6,
+        "close": 80727.4,
+        "high": 80727.5,
+        "low": 80713.3,
+        "open": 80713.4,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:05:00Z",
-        "volume": 90.474
+        "time": "2026-05-12T19:38:00Z",
+        "volume": 17.144
       },
       {
-        "close": 81207.7,
-        "high": 81207.8,
-        "low": 81189.0,
-        "open": 81197.8,
+        "close": 80744.1,
+        "high": 80744.1,
+        "low": 80727.4,
+        "open": 80727.4,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:06:00Z",
-        "volume": 25.26
+        "time": "2026-05-12T19:39:00Z",
+        "volume": 17.093
       },
       {
-        "close": 81239.9,
-        "high": 81240.0,
-        "low": 81207.7,
-        "open": 81207.8,
+        "close": 80723.0,
+        "high": 80764.0,
+        "low": 80705.5,
+        "open": 80744.1,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:07:00Z",
-        "volume": 36.964
+        "time": "2026-05-12T19:40:00Z",
+        "volume": 105.079
       },
       {
-        "close": 81208.6,
-        "high": 81240.0,
-        "low": 81208.6,
-        "open": 81240.0,
+        "close": 80735.2,
+        "high": 80743.3,
+        "low": 80723.1,
+        "open": 80723.1,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:08:00Z",
-        "volume": 28.543
+        "time": "2026-05-12T19:41:00Z",
+        "volume": 20.752
       },
       {
-        "close": 81208.0,
-        "high": 81218.3,
-        "low": 81208.0,
-        "open": 81208.7,
+        "close": 80715.0,
+        "high": 80735.3,
+        "low": 80710.8,
+        "open": 80735.2,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:09:00Z",
-        "volume": 16.517
+        "time": "2026-05-12T19:42:00Z",
+        "volume": 16.769
       },
       {
-        "close": 81200.0,
-        "high": 81220.9,
-        "low": 81200.0,
-        "open": 81208.0,
+        "close": 80693.5,
+        "high": 80715.1,
+        "low": 80684.6,
+        "open": 80715.1,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:10:00Z",
-        "volume": 46.813
+        "time": "2026-05-12T19:43:00Z",
+        "volume": 38.228
       },
       {
-        "close": 81186.8,
-        "high": 81200.1,
-        "low": 81186.8,
-        "open": 81200.0,
+        "close": 80711.9,
+        "high": 80712.0,
+        "low": 80693.5,
+        "open": 80693.5,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:11:00Z",
-        "volume": 35.24
+        "time": "2026-05-12T19:44:00Z",
+        "volume": 18.523
       },
       {
-        "close": 81164.4,
-        "high": 81186.8,
-        "low": 81143.6,
-        "open": 81186.8,
+        "close": 80726.7,
+        "high": 80726.7,
+        "low": 80711.9,
+        "open": 80712.0,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:12:00Z",
-        "volume": 81.108
+        "time": "2026-05-12T19:45:00Z",
+        "volume": 14.114
       },
       {
-        "close": 81149.9,
-        "high": 81164.4,
-        "low": 81149.3,
-        "open": 81164.3,
+        "close": 80715.1,
+        "high": 80726.7,
+        "low": 80708.5,
+        "open": 80726.7,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:13:00Z",
-        "volume": 19.999
+        "time": "2026-05-12T19:46:00Z",
+        "volume": 28.602
       },
       {
-        "close": 81183.2,
-        "high": 81183.3,
-        "low": 81150.0,
-        "open": 81150.0,
+        "close": 80732.1,
+        "high": 80732.4,
+        "low": 80715.0,
+        "open": 80715.0,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:14:00Z",
-        "volume": 32.583
+        "time": "2026-05-12T19:47:00Z",
+        "volume": 7.498
       },
       {
-        "close": 81164.9,
-        "high": 81183.3,
-        "low": 81164.8,
-        "open": 81183.3,
+        "close": 80751.0,
+        "high": 80751.0,
+        "low": 80732.1,
+        "open": 80732.1,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:15:00Z",
-        "volume": 47.712
+        "time": "2026-05-12T19:48:00Z",
+        "volume": 17.968
       },
       {
-        "close": 81187.4,
-        "high": 81194.7,
-        "low": 81164.8,
-        "open": 81164.8,
+        "close": 80732.1,
+        "high": 80760.0,
+        "low": 80732.1,
+        "open": 80750.9,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:16:00Z",
-        "volume": 26.695
+        "time": "2026-05-12T19:49:00Z",
+        "volume": 26.354
       },
       {
-        "close": 81188.0,
-        "high": 81195.0,
-        "low": 81187.5,
-        "open": 81187.5,
+        "close": 80759.3,
+        "high": 80759.4,
+        "low": 80732.0,
+        "open": 80732.0,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:17:00Z",
-        "volume": 19.201
+        "time": "2026-05-12T19:50:00Z",
+        "volume": 58.367
       },
       {
-        "close": 81173.4,
-        "high": 81201.8,
-        "low": 81173.3,
-        "open": 81188.1,
+        "close": 80796.3,
+        "high": 80798.7,
+        "low": 80759.3,
+        "open": 80759.3,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:18:00Z",
-        "volume": 53.862
+        "time": "2026-05-12T19:51:00Z",
+        "volume": 42.854
       },
       {
-        "close": 81178.3,
-        "high": 81187.2,
-        "low": 81173.3,
-        "open": 81173.3,
+        "close": 80805.7,
+        "high": 80807.0,
+        "low": 80796.2,
+        "open": 80796.3,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:19:00Z",
-        "volume": 30.263
+        "time": "2026-05-12T19:52:00Z",
+        "volume": 33.779
       },
       {
-        "close": 81167.0,
-        "high": 81178.1,
-        "low": 81167.0,
-        "open": 81178.0,
+        "close": 80812.1,
+        "high": 80836.5,
+        "low": 80805.7,
+        "open": 80805.7,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:20:00Z",
-        "volume": 11.845
+        "time": "2026-05-12T19:53:00Z",
+        "volume": 89.905
       },
       {
-        "close": 81171.9,
-        "high": 81183.6,
-        "low": 81167.0,
-        "open": 81167.0,
+        "close": 80771.2,
+        "high": 80812.0,
+        "low": 80751.4,
+        "open": 80812.0,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:21:00Z",
-        "volume": 35.14
+        "time": "2026-05-12T19:54:00Z",
+        "volume": 59.383
       },
       {
-        "close": 81156.0,
-        "high": 81171.9,
-        "low": 81156.0,
-        "open": 81171.9,
+        "close": 80767.3,
+        "high": 80794.8,
+        "low": 80767.1,
+        "open": 80771.2,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:22:00Z",
-        "volume": 19.68
+        "time": "2026-05-12T19:55:00Z",
+        "volume": 21.597
       },
       {
-        "close": 81125.2,
-        "high": 81170.4,
-        "low": 81125.1,
-        "open": 81156.0,
+        "close": 80788.6,
+        "high": 80788.7,
+        "low": 80755.5,
+        "open": 80767.1,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:23:00Z",
-        "volume": 70.521
+        "time": "2026-05-12T19:56:00Z",
+        "volume": 29.524
       },
       {
-        "close": 81162.7,
-        "high": 81165.5,
-        "low": 81125.1,
-        "open": 81125.2,
+        "close": 80773.1,
+        "high": 80797.9,
+        "low": 80773.1,
+        "open": 80788.6,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:24:00Z",
-        "volume": 29.833
+        "time": "2026-05-12T19:57:00Z",
+        "volume": 29.979
       },
       {
-        "close": 81156.5,
-        "high": 81162.6,
-        "low": 81156.4,
-        "open": 81162.6,
+        "close": 80769.0,
+        "high": 80790.8,
+        "low": 80768.9,
+        "open": 80773.2,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:25:00Z",
-        "volume": 20.205
+        "time": "2026-05-12T19:58:00Z",
+        "volume": 23.996
       },
       {
-        "close": 81156.4,
-        "high": 81160.5,
-        "low": 81156.0,
-        "open": 81156.4,
+        "close": 80799.5,
+        "high": 80804.1,
+        "low": 80762.6,
+        "open": 80769.0,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:26:00Z",
-        "volume": 16.123
+        "time": "2026-05-12T19:59:00Z",
+        "volume": 69.704
       },
       {
-        "close": 81127.6,
-        "high": 81156.5,
-        "low": 81111.0,
-        "open": 81156.5,
+        "close": 80805.7,
+        "high": 80816.8,
+        "low": 80788.5,
+        "open": 80799.6,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:27:00Z",
-        "volume": 58.054
+        "time": "2026-05-12T20:00:00Z",
+        "volume": 76.891
       },
       {
-        "close": 81150.9,
-        "high": 81151.0,
-        "low": 81127.6,
-        "open": 81127.7,
+        "close": 80791.7,
+        "high": 80817.8,
+        "low": 80791.7,
+        "open": 80805.7,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:28:00Z",
-        "volume": 26.038
+        "time": "2026-05-12T20:01:00Z",
+        "volume": 52.27
       },
       {
-        "close": 81134.0,
-        "high": 81150.9,
-        "low": 81133.9,
-        "open": 81150.9,
+        "close": 80786.5,
+        "high": 80791.8,
+        "low": 80760.0,
+        "open": 80791.8,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:29:00Z",
-        "volume": 18.178
+        "time": "2026-05-12T20:02:00Z",
+        "volume": 61.828
       },
       {
-        "close": 81144.9,
-        "high": 81158.4,
-        "low": 81133.9,
-        "open": 81133.9,
+        "close": 80800.0,
+        "high": 80800.0,
+        "low": 80782.5,
+        "open": 80786.5,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:30:00Z",
-        "volume": 31.8
+        "time": "2026-05-12T20:03:00Z",
+        "volume": 18.207
       },
       {
-        "close": 81135.0,
-        "high": 81145.0,
-        "low": 81125.1,
-        "open": 81145.0,
+        "close": 80833.7,
+        "high": 80848.6,
+        "low": 80799.9,
+        "open": 80800.0,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:31:00Z",
-        "volume": 38.725
+        "time": "2026-05-12T20:04:00Z",
+        "volume": 77.8
       },
       {
-        "close": 81153.9,
-        "high": 81158.7,
-        "low": 81126.8,
-        "open": 81134.9,
+        "close": 80829.6,
+        "high": 80833.6,
+        "low": 80825.5,
+        "open": 80833.6,
         "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T03:32:00Z",
-        "volume": 44.276
+        "time": "2026-05-12T20:05:00Z",
+        "volume": 18.198
       }
     ],
     "errors": [],
     "freshness_state": "CURRENT",
-    "generated_at": "2026-05-12T03:32:59Z",
-    "last_event_at": "2026-05-12T03:32:50Z",
-    "price": 81153.8,
+    "generated_at": "2026-05-12T20:05:29Z",
+    "last_event_at": "2026-05-12T20:05:20Z",
+    "price": 80825.5,
     "source": "binance_usdm_public_get_only",
     "source_pointer": "/fapi/v1/ticker/price + /fapi/v1/klines",
     "source_type": "READONLY_MARKET_FEED",
@@ -494,42 +494,42 @@
   "mode": "paper_only_non_live",
   "paper_account": {
     "currency": "USDT",
-    "equity": 10000.0,
-    "open_position_count": 0,
-    "position_source": "V2_PAPER_RUNTIME_EMPTY_RISK_BLOCKED",
-    "realized_pnl": 0.0,
+    "equity": 9983.96,
+    "open_position_count": 1,
+    "position_source": "V2_PAPER_RUNTIME_SIMULATED_FILL",
+    "realized_pnl": -16.04,
     "starting_equity": 10000.0,
     "unrealized_pnl": 0.0
   },
   "paper_ledger_tail": [
     {
       "exchange_order_id": null,
-      "execution_intent_id": "pei_paper_tick_1778556782455",
+      "execution_intent_id": "pei_paper_tick_1778616331999",
       "fee_rate": 0.0004,
-      "fee_usdt": 0.0,
-      "fill_price": null,
+      "fee_usdt": 0.01,
+      "fill_price": 80841.6651,
       "funding_assumption": "zero_until_funding_feed_adapter_current",
-      "generated_at": "2026-05-12T03:33:02Z",
-      "ledger_action": "PAPER_INTENT_BLOCKED",
+      "generated_at": "2026-05-12T20:05:31Z",
+      "ledger_action": "PAPER_FILL_SIMULATED",
       "legacy_redis_write": false,
       "live_order": false,
-      "notional_usdt": 0.0,
-      "paper_ledger_entry_id": "pledger_paper_tick_1778556782455",
-      "paper_result": "NO_FILL_RISK_BLOCKED",
-      "risk_decision_id": "risk_paper_tick_1778556782455",
-      "signal_id": "sig_paper_tick_1778556782455",
+      "notional_usdt": 25.0,
+      "paper_ledger_entry_id": "pledger_paper_tick_1778616331999",
+      "paper_result": "FILLED_PAPER_ONLY",
+      "risk_decision_id": "risk_paper_tick_1778616331999",
+      "signal_id": "sig_paper_tick_1778616331999",
       "slippage_bps": 2.0,
       "symbol": "BTCUSDT"
     }
   ],
   "paper_loop": {
-    "last_paper_event_count": 20,
-    "last_risk_block_count": 1,
+    "last_paper_event_count": 1826,
+    "last_risk_block_count": 0,
     "last_shadow_decision_count": 1,
-    "last_tick_at": "2026-05-12T03:33:02Z",
-    "paper_event_count": 20,
+    "last_tick_at": "2026-05-12T20:05:31Z",
+    "paper_event_count": 1826,
     "state": "PAPER_RUNTIME_ONLINE_ACTIVE",
-    "tick_id": "paper_tick_1778556782455"
+    "tick_id": "paper_tick_1778616331999"
   },
   "redis_trim_approval_created": false,
   "runtime": "v2_paper_online",
@@ -546,16 +546,16 @@
     "public_runtime_status": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json"
   },
   "trainer_prediction": {
-    "confidence_calibrated": 0.573418,
-    "confidence_raw": 0.593418,
-    "feature_snapshot_id": "fs_paper_tick_1778556782455",
+    "confidence_calibrated": 0.702074,
+    "confidence_raw": 0.722074,
+    "feature_snapshot_id": "fs_paper_tick_1778616331999",
     "freshness_state": "CURRENT",
-    "generated_at": "2026-05-12T03:32:59Z",
-    "market_age_seconds": 12,
+    "generated_at": "2026-05-12T20:05:29Z",
+    "market_age_seconds": 11,
     "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-    "prediction_id": "pred_paper_tick_1778556782455",
+    "prediction_id": "pred_paper_tick_1778616331999",
     "raw_output": {
-      "momentum_score": 0.0334182,
+      "momentum_score": 0.1620742,
       "side": "long"
     },
     "source_type": "V2_PAPER_TRAINER_WRAPPER",
@@ -564,15 +564,15 @@
     "top_features": [
       {
         "name": "return_5m",
-        "value": 0.00032295
+        "value": 0.00024503
       },
       {
         "name": "return_15m",
-        "value": -0.00042124
+        "value": 0.00081972
       },
       {
         "name": "volatility_10",
-        "value": 0.00020879
+        "value": 0.00017431
       }
     ],
     "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"

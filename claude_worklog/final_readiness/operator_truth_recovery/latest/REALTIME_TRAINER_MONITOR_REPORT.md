@@ -1,11 +1,11 @@
 # Realtime Trainer Monitor Report
 
-Generated at: 2026-05-12T19:58:03.594Z
+Generated at: 2026-05-12T20:05:32.357Z
 
 Status: V2_PAPER_TRAINER_WRAPPER_CURRENT
 
 - Trainer processes observed: 1
-- Trainer monitor payload age seconds: 130325
+- Trainer monitor payload age seconds: 130774
 - Latest trainer status from monitor payload: DEGRADED
 - Prediction worker alive from monitor payload: true
 - Prediction lineage gap: runtime evidence still has missing prediction/feature snapshot links
@@ -13,7 +13,7 @@ Status: V2_PAPER_TRAINER_WRAPPER_CURRENT
 Latest prediction shown in UI:
 
 - Classification: REALTIME_RUNTIME_EVIDENCE
-- prediction_id: pred_paper_tick_1778615852743
+- prediction_id: pred_paper_tick_1778616331999
 - symbol: BTCUSDT
 - model/checkpoint: v2_paper_readonly_momentum_wrapper_v1
 - warning: V2 paper-only trainer wrapper evidence; non-live and paper-only.
