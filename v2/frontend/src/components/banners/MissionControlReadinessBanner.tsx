@@ -50,9 +50,10 @@ function normalizePayload(raw: Partial<OnlineReadinessBannerPayload> | null | un
 export function MissionControlReadinessBanner(): JSX.Element {
   const [payload, setPayload] = useState<OnlineReadinessBannerPayload>(DEFAULT_ONLINE_READINESS_BANNER);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState<boolean>(false);
+  const [loaded, setLoaded] = useState<boolean>(import.meta.env.VITE_ENABLE_ONLINE_READINESS_BANNER_API !== 'true');
 
   useEffect(() => {
+    if (import.meta.env.VITE_ENABLE_ONLINE_READINESS_BANNER_API !== 'true') return;
     let cancelled = false;
     async function load(): Promise<void> {
       try {

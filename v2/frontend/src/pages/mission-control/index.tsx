@@ -36,7 +36,7 @@ export default function MissionControlPage(): JSX.Element {
       <div className="mission-command-layout">
         <div className="mission-command-main">
           <ChartPanel candles={payload.candles} decisions={payload.decisions} sourceType={marketFeedSource} />
-          <SignalStreamCompactPanel payload={payload} />
+          {truthPayload ? <SignalRuntimeStatusPanel truthPayload={truthPayload} /> : null}
         </div>
         <aside className="mission-command-side">
           <RiskBoundaryPanel payload={payload} />
@@ -44,57 +44,11 @@ export default function MissionControlPage(): JSX.Element {
           <MonitorTable rows={payload.monitors} />
         </aside>
       </div>
-      <details className="mission-evidence-details">
-        <summary>
-          <span>Open proof, payload, and subsystem evidence</span>
-          <small>Static fixtures and stale payloads stay available here, away from the primary operating surface.</small>
-        </summary>
-        <div className="mission-evidence-details__body">
-          <MissionCommandHero payload={payload} marketFeedSource={marketFeedSource} truthPayloadReady={Boolean(truthPayload)} />
-          {truthPayload ? (
-            <section className="operator-truth-preview-grid" aria-label="Current operator truth and runtime evidence">
-              <LegacyRuntimeMonitorPanel payload={truthPayload} />
-              <TrainerPredictionTruthPanel payload={truthPayload} />
-              <SignalLineageTruthPanel payload={truthPayload} />
-            </section>
-          ) : null}
-          {truthPayload ? <WhatIsWorkingPanel payload={truthPayload} /> : null}
-          <SafetyTopBar payload={payload} />
-          <SubsystemStrip payload={payload} autonomousGovernor={autonomousGovernor} marketFeedSource={marketFeedSource} />
-          <div className="mission-command-layout">
-            <div className="mission-command-main">
-              <DecisionDrawers rows={payload.decisions} />
-              <MarketPulse payload={payload} />
-            </div>
-            <aside className="mission-command-side">
-              <Phase3cRuntimeMonitorPanel payload={phase3cRuntimeMonitor} />
-              <QuarantinePanel payload={quarantine} />
-            </aside>
-          </div>
-          <section className="mission-system-grid" aria-label="V2 online-readiness evidence surfaces">
-            <div className="mission-system-column">
-              <ConfigTable rows={payload.settings} />
-              <ExchangeManager rows={payload.exchanges} />
-              <Phase3cRuntimeMonitorPanel payload={phase3cRuntimeMonitor} />
-            </div>
-            <div className="mission-system-column">
-              <QuarantinePanel payload={quarantine} />
-              <SystemAtlasPanel payload={systemAtlas} />
-              <SystemAtlasGapRemediationPanel payload={systemAtlasGapRemediation} />
-            </div>
-            <div className="mission-system-column">
-              <RedisMemoryPressurePanel payload={redisMemoryPressure} />
-              <RedisHumanApprovalPanel payload={redisHumanApproval} />
-              <RedisExportCapacityPanel payload={redisExportCapacity} />
-              <RedisFullExportPanel payload={redisFullExport} />
-              <RedisSafeTrimPacketPanel payload={redisSafeTrimPacket} />
-            </div>
-          </section>
-          {truthPayload ? <PayloadFreshnessPanel payload={truthPayload} /> : null}
-          {truthPayload ? <MissingEvidencePanel payload={truthPayload} /> : null}
-          <FreshnessAndBlockersPanel payload={payload} />
-        </div>
-      </details>
+      <Panel id="mission-control-proof-offload" title="Proof Archive Offloaded" right={<span className="chip solid-paper">Not primary workflow</span>}>
+        <p className="cockpit-evidence-note">
+          Historical proofs, Redis remediation packets, system atlas inventories, and static decision examples are no longer rendered on the Mission Control first screen. Use Operator Proof Dashboard, Build/Validation, System Atlas, Risk Control, and Signal Explainability for archive detail.
+        </p>
+      </Panel>
       <footer className="modern-dashboard-marker" data-testid="modern-dashboard-loaded">
         AI BOT V2 Modern Dashboard Loaded
       </footer>
@@ -154,9 +108,9 @@ function MissionCriticalSystemsGrid({ payload, truthPayload }: { payload: Cockpi
     },
     {
       label: 'Execution / paper',
-      value: decision?.result ?? 'MISSING_EVIDENCE',
-      detail: `execution_intent_id: ${valueText(decision?.execution_intent_id)}`,
-      source: 'STATIC_PROOF_FIXTURE',
+      value: truthPayload.runtime_monitor_status.paper_shadow_runtime_status?.status ?? 'PAPER_SHADOW_RUNTIME_MISSING',
+      detail: 'Current paper/shadow runtime must be fresh before this supports live-readiness.',
+      source: 'V2_PROOF_ARTIFACT / RUNTIME_STATUS',
     },
     {
       label: 'Redis / V2 data plane',
@@ -188,6 +142,35 @@ function MissionCriticalSystemsGrid({ payload, truthPayload }: { payload: Cockpi
         </div>
       ))}
     </section>
+  );
+}
+
+function SignalRuntimeStatusPanel({ truthPayload }: { truthPayload: NonNullable<ReturnType<typeof useOperatorTruthPayload>['payload']> }): JSX.Element {
+  const signal = truthPayload.signal_lineage_status;
+  const isRealtime = signal.status === 'REALTIME_RUNTIME_EVIDENCE';
+  const latest = isRealtime ? signal.latest_signal : null;
+  return (
+    <Panel
+      id="current-signal-runtime"
+      title="Current Signal Runtime"
+      right={<span className={isRealtime ? 'chip solid-ok' : 'chip solid-warn'}>{isRealtime ? 'REALTIME_RUNTIME_EVIDENCE' : 'CURRENT_SIGNAL_LINEAGE_MISSING'}</span>}
+    >
+      {latest ? (
+        <div className="cockpit-lineage-grid">
+          <div><span>signal_id</span><strong>{valueText(latest.signal_id)}</strong></div>
+          <div><span>prediction_id</span><strong>{valueText(latest.prediction_id)}</strong></div>
+          <div><span>feature_snapshot_id</span><strong>{valueText(latest.feature_snapshot_id)}</strong></div>
+          <div><span>orchestrator_decision_id</span><strong>{valueText(latest.orchestrator_decision_id)}</strong></div>
+          <div><span>risk_decision_id</span><strong>{valueText(latest.risk_decision_id)}</strong></div>
+          <div><span>execution_intent_id</span><strong>{valueText(latest.execution_intent_id)}</strong></div>
+        </div>
+      ) : (
+        <div className="cockpit-evidence-gap">
+          <strong>CURRENT_SIGNAL_LINEAGE_MISSING</strong>
+          <p>Evidence missing — cannot explain without guessing. Historical proof rows are kept in Signal Explainability and Operator Proof Dashboard, not as the current stream.</p>
+        </div>
+      )}
+    </Panel>
   );
 }
 

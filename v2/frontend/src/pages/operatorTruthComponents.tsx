@@ -73,6 +73,12 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
   const governorState = supervisor.autonomous_governor_active ? 'AUTONOMOUS_GOVERNOR_ACTIVE' : 'AUTONOMOUS_GOVERNOR_NOT_OBSERVED';
   const runningTask = supervisor.current_running_task ?? 'NO_ACTIVE_SUPERVISOR_TASK';
   const nextTask = payload.current_next_task ?? supervisor.true_next_task ?? supervisor.next_pending_task ?? 'MISSING_NEXT_TASK';
+  const trainerPredictionDetail = trainer.status === 'REALTIME_RUNTIME_EVIDENCE'
+    ? `latest prediction ${valueText(trainer.latest_prediction?.prediction_id)}`
+    : 'current prediction unavailable; fixture examples are separated';
+  const signalLineageDetail = signal.status === 'REALTIME_RUNTIME_EVIDENCE'
+    ? `latest signal ${valueText(signal.latest_signal?.signal_id)}; risk ${valueText(signal.latest_signal?.risk_decision_id)}`
+    : 'current signal lineage missing; static proof is not current';
 
   return (
     <section className="operator-command-deck panel bracketed hatch-strong" data-testid="operator-command-deck" aria-label="Operator runtime truth command deck">
@@ -109,7 +115,7 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
         <TruthStateCard
           label="Trainer runtime"
           value={trainer.status}
-          detail={`process rows ${trainer.trainer_processes.length}; latest prediction ${valueText(trainer.latest_prediction?.prediction_id)}`}
+          detail={`process rows ${trainer.trainer_processes.length}; ${trainerPredictionDetail}`}
           source="REALTIME_RUNTIME_EVIDENCE"
         />
         <TruthStateCard
@@ -133,7 +139,7 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
         <TruthStateCard
           label="Signal lineage"
           value={signal.status}
-          detail={`latest signal ${valueText(signal.latest_signal?.signal_id)}; risk ${valueText(signal.latest_signal?.risk_decision_id)}`}
+          detail={signalLineageDetail}
           source={signal.status === 'REALTIME_RUNTIME_EVIDENCE' ? 'RUNTIME_MONITOR_PAYLOAD' : 'STATIC_PROOF_FIXTURE'}
         />
         <TruthStateCard
@@ -335,6 +341,7 @@ export function LegacyRuntimeMonitorPanel({ payload }: { payload: OperatorTruthP
 export function TrainerPredictionTruthPanel({ payload }: { payload: OperatorTruthPayload; }): JSX.Element {
   const trainer = payload.trainer_monitor_status;
   const latest = trainer.latest_prediction;
+  const hasCurrentTrainer = trainer.status === 'REALTIME_RUNTIME_EVIDENCE';
   return (
     <Panel id="operator-truth-trainer-prediction" title="Trainer Prediction Monitor Preview" right={sourceChip(trainer.status)}>
       <div className="cockpit-lineage-grid">
@@ -342,15 +349,15 @@ export function TrainerPredictionTruthPanel({ payload }: { payload: OperatorTrut
         <div><span>payload age seconds</span><strong>{valueText(trainer.payload_age_seconds)}</strong></div>
         <div><span>prediction worker from payload</span><strong>{valueText(trainer.prediction_worker_alive_from_stale_payload)}</strong></div>
         <div><span>latest trainer status from payload</span><strong>{valueText(trainer.latest_trainer_status_from_payload)}</strong></div>
-        <div><span>prediction_id</span><strong>{valueText(latest?.prediction_id)}</strong></div>
-        <div><span>feature_snapshot_id</span><strong>{valueText(latest?.feature_snapshot_id)}</strong></div>
-        <div><span>model/checkpoint</span><strong>{valueText(latest?.model_checkpoint)}</strong></div>
-        <div><span>raw / calibrated confidence</span><strong>{valueText(latest?.confidence_raw)} / {valueText(latest?.confidence_calibrated)}</strong></div>
+        <div><span>prediction_id</span><strong>{hasCurrentTrainer ? valueText(latest?.prediction_id) : 'CURRENT_PREDICTION_MISSING'}</strong></div>
+        <div><span>feature_snapshot_id</span><strong>{hasCurrentTrainer ? valueText(latest?.feature_snapshot_id) : 'CURRENT_FEATURE_SNAPSHOT_MISSING'}</strong></div>
+        <div><span>model/checkpoint</span><strong>{hasCurrentTrainer ? valueText(latest?.model_checkpoint) : 'CURRENT_MODEL_EVIDENCE_MISSING'}</strong></div>
+        <div><span>raw / calibrated confidence</span><strong>{hasCurrentTrainer ? `${valueText(latest?.confidence_raw)} / ${valueText(latest?.confidence_calibrated)}` : 'CURRENT_CONFIDENCE_MISSING'}</strong></div>
       </div>
       <p className="cockpit-evidence-gap">
-        {trainer.status === 'REALTIME_RUNTIME_EVIDENCE'
+        {hasCurrentTrainer
           ? 'Realtime trainer process evidence is present.'
-          : 'TRAINER_RUNTIME_EVIDENCE_MISSING. Static proof predictions are not current trainer output.'}
+          : 'TRAINER_RUNTIME_EVIDENCE_MISSING. Static proof predictions are not current trainer output and are only available in collapsed proof sections.'}
       </p>
     </Panel>
   );
@@ -359,9 +366,10 @@ export function TrainerPredictionTruthPanel({ payload }: { payload: OperatorTrut
 export function SignalLineageTruthPanel({ payload }: { payload: OperatorTruthPayload }): JSX.Element {
   const signal = payload.signal_lineage_status;
   const latest = signal.latest_signal;
+  const hasCurrentSignal = signal.status === 'REALTIME_RUNTIME_EVIDENCE';
   return (
     <Panel id="operator-truth-signal-lineage" title="Signal Explainability Preview" right={sourceChip(signal.status)}>
-      {latest ? (
+      {latest && hasCurrentSignal ? (
         <div className="cockpit-lineage-grid">
           {([
             ['signal_id', latest.signal_id],
@@ -383,8 +391,8 @@ export function SignalLineageTruthPanel({ payload }: { payload: OperatorTruthPay
       ) : (
         <p className="cockpit-evidence-gap">{MISSING}</p>
       )}
-      {signal.status !== 'REALTIME_RUNTIME_EVIDENCE' ? (
-        <p className="cockpit-evidence-gap">Signal lineage preview is {signal.status}; do not treat it as live runtime truth.</p>
+      {!hasCurrentSignal ? (
+        <p className="cockpit-evidence-gap">CURRENT_SIGNAL_LINEAGE_MISSING. Static proof examples are not shown as current signal lineage.</p>
       ) : null}
     </Panel>
   );

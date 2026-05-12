@@ -47,6 +47,8 @@ export interface OperatorTruthPayload {
     market_ingestor_status?: string;
     feature_pipeline_status?: string;
     redis_memory_pressure_status?: OperatorTruthStatusRow;
+    read_only_market_feed_status?: OperatorTruthStatusRow;
+    paper_shadow_runtime_status?: OperatorTruthStatusRow;
   };
   trainer_monitor_status: {
     status: string;

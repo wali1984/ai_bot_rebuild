@@ -1,6 +1,6 @@
 # Signal Explainability Production Repair Report
 
-Generated at: 2026-05-12T02:32:59.471Z
+Generated at: 2026-05-12T02:54:53.029Z
 
 Current signal lineage status: STATIC_PROOF_FIXTURE
 

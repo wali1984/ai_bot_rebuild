@@ -17,6 +17,7 @@ export function LiveBlockBanner(): JSX.Element {
   const [payload, setPayload] = useState<LiveReadinessPayload>(DEFAULT_LIVE_READINESS);
 
   useEffect(() => {
+    if (import.meta.env.VITE_ENABLE_LIVE_READINESS_API !== 'true') return;
     let cancelled = false;
     async function load(): Promise<void> {
       try {
