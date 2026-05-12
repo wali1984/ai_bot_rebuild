@@ -1,0 +1,19 @@
+{
+  "generated_at": "2026-05-12T02:59:18.340Z",
+  "status": "PRODUCTION_DASHBOARD_WAJIDALI_US_FULL_ROUTE_REPAIR_BLOCKED",
+  "base_url": "https://dashboard.wajidali.us",
+  "routes_crawled_count": 32,
+  "routes_passed_count": 28,
+  "routes_failed_count": 4,
+  "screenshot_path": "claude_worklog/final_readiness/production_dashboard_wajidali_us_repair/latest/screenshots/after/",
+  "tradingview_status": "primary_or_explicit_fallback",
+  "runtime_truth_bridge_status": "static_operator_truth_payload_bridge_defined",
+  "trainer_monitor_status": "TRAINER_RUNTIME_EVIDENCE_MISSING_VISIBLE",
+  "signal_explainability_status": "CURRENT_SIGNAL_LINEAGE_MISSING_VISIBLE",
+  "stale_payload_visible_routes": 27,
+  "missing_evidence_visible_routes": 32,
+  "codex_result": "PRODUCTION_DASHBOARD_WAJIDALI_US_CODEX_FAIL",
+  "live_gate_status": "blocked_human_only",
+  "redis_trim_status": "deferred_non_blocking",
+  "human_input_required": "false_unless_final_live_capital_gate"
+}

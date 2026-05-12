@@ -85,7 +85,7 @@ function classifyRoute(route, status, text, consoleErrors, networkErrors, liveBa
   const proofDumpHeavy =
     !['/', '/landing', '/admin', '/admin/mission-control?role=admin'].includes(route)
       ? false
-      : /phase 3|redis memory|system atlas|historical 30d|proof artifact|xtrim|minid|decision packet/i.test(text) &&
+      : /phase 3|redis memory pressure|historical 30d|hist_pred_|sig_btc_001|xtrim|minid|decision packet/i.test(text) &&
         text.length > 4500;
   const stalePayload = /STALE_PAYLOAD|SUPERVISOR_STATUS_STALE_OR_CONFLICTING|stale payload|queue age|planner age/i.test(text);
   const staticFixtureAsCurrent =
@@ -114,7 +114,7 @@ function classifyRoute(route, status, text, consoleErrors, networkErrors, liveBa
 
   return {
     route_404: is404,
-    route_redirect_wrong: (route === '/' || route === '/admin') && !/mission-control/i.test(text),
+    route_redirect_wrong: (route === '/' || route === '/admin') && !/mission[-\s]control/i.test(`${text} ${route}`),
     stale_payload: stalePayload,
     static_fixture_as_primary: staticFixtureAsCurrent,
     evidence_gap_only: evidenceGapOnly,
