@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-12T02:03:33.238Z",
+  "generated_at": "2026-05-12T02:06:27.241Z",
   "status": "OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_RECOVERY_READY",
   "live_gate_status": "blocked_human_only",
   "supervisor_truth_status": "SUPERVISOR_STATUS_STALE_OR_CONFLICTING",
@@ -9,5 +9,12 @@
   "stale_payload_count": 10,
   "missing_evidence_count": 3,
   "redis_trim_status": "deferred_non_blocking",
+  "browser_screenshot_evidence": [
+    "screenshots/mission_control.png",
+    "screenshots/monitor_center.png",
+    "screenshots/trainer_prediction_monitor.png",
+    "screenshots/signal_explainability.png",
+    "screenshots/build_validation_status.png"
+  ],
   "human_input_required": "false_unless_final_live_capital_gate"
 }

@@ -59,6 +59,19 @@ function run(command) {
   }
 }
 
+function sanitizeProcessLine(line) {
+  const trimmed = line.trim().replace(/\s+/g, ' ');
+  const match = /^(\d+)\s+(\d+)\s+(\d+)\s+(.+)$/.exec(trimmed);
+  if (!match) return trimmed.slice(0, 240);
+  const [, pid, ppid, etimes, rawCommand] = match;
+  let command = rawCommand
+    .replace(/codex exec .*/i, 'codex exec [prompt redacted]')
+    .replace(/claude --print .*/i, 'claude --print [prompt redacted]');
+  command = command.replace(/(api[_-]?key|secret|token|password)=\S+/gi, '$1=[redacted]');
+  if (command.length > 220) command = `${command.slice(0, 220)}...`;
+  return `${pid} ${ppid} ${etimes} ${command}`;
+}
+
 function isoFrom(value) {
   if (!value) return null;
   const date = new Date(value);
@@ -155,7 +168,7 @@ const runtimeProcessPattern = /claude_master_rebuild_planner|autonomous_governor
 const activeProcesses = psOutput
   .split('\n')
   .filter((line) => runtimeProcessPattern.test(line))
-  .map((line) => line.trim())
+  .map(sanitizeProcessLine)
   .filter(Boolean);
 
 const trainerProcesses = activeProcesses.filter((line) => /rl\.hybrid_trainer|monitor_trainer_predictions|trainer/i.test(line));
