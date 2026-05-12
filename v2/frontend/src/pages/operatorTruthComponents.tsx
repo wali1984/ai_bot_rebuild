@@ -17,6 +17,41 @@ function sourceChip(classification: string): JSX.Element {
   return <span className={`chip ${tone}`}>{classification}</span>;
 }
 
+function truthTone(value: unknown): 'good' | 'warn' | 'bad' | 'paper' {
+  const text = valueText(value).toUpperCase();
+  if (text.includes('BLOCKED_HUMAN_ONLY') || text.includes('DEFERRED_NON_BLOCKING') || text.includes('STATIC_PROOF_FIXTURE') || text.includes('V2_PROOF_ARTIFACT')) return 'paper';
+  if (text.includes('MISSING') || text.includes('STALE') || text.includes('CONFLICT') || text.includes('FAIL') || text.includes('DEGRADED') || text.includes('NOT_OBSERVED')) return 'bad';
+  if (text.includes('WARN') || text.includes('PENDING') || text.includes('FIXTURE') || text === 'NO' || text === 'FALSE') return 'warn';
+  return 'good';
+}
+
+function evidenceClassLabel(row?: OperatorTruthStatusRow): string {
+  if (!row) return 'MISSING_EVIDENCE';
+  if (row.missing) return 'MISSING_EVIDENCE';
+  if (row.stale) return 'STALE_PAYLOAD';
+  return row.classification;
+}
+
+function formatAge(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined) return 'unknown age';
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86400)}d`;
+}
+
+function TruthStateCard({ label, value, detail, source }: { label: string; value: unknown; detail: string; source: string }): JSX.Element {
+  const tone = truthTone(value);
+  return (
+    <div className={`truth-state-card truth-state-card--${tone}`}>
+      <span className="truth-state-card__label">{label}</span>
+      <strong className={statusClass(value)}>{valueText(value)}</strong>
+      <small>{detail}</small>
+      <span className="truth-source-chip">{source}</span>
+    </div>
+  );
+}
+
 export function OperatorTruthLoading({ error }: { error: string | null }): JSX.Element {
   return (
     <Panel id="operator-truth-loading" title="Operator Truth Payload">
@@ -24,6 +59,142 @@ export function OperatorTruthLoading({ error }: { error: string | null }): JSX.E
         {error ? `Evidence missing - operator truth payload unavailable: ${error}` : 'Loading operator truth payload...'}
       </p>
     </Panel>
+  );
+}
+
+export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPayload }): JSX.Element {
+  const supervisor = payload.supervisor_status;
+  const runtime = payload.runtime_monitor_status;
+  const trainer = payload.trainer_monitor_status;
+  const signal = payload.signal_lineage_status;
+  const freshness = payload.dashboard_freshness_status;
+  const supervisorState = supervisor.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT_RUNTIME_SNAPSHOT';
+  const plannerState = supervisor.master_planner_running ? 'MASTER_PLANNER_RUNNING' : 'MASTER_PLANNER_NOT_RUNNING';
+  const governorState = supervisor.autonomous_governor_active ? 'AUTONOMOUS_GOVERNOR_ACTIVE' : 'AUTONOMOUS_GOVERNOR_NOT_OBSERVED';
+  const runningTask = supervisor.current_running_task ?? 'no active supervisor task';
+  const nextTask = payload.current_next_task ?? supervisor.true_next_task ?? supervisor.next_pending_task ?? 'MISSING_NEXT_TASK';
+
+  return (
+    <section className="operator-command-deck panel bracketed hatch-strong" data-testid="operator-command-deck" aria-label="Operator runtime truth command deck">
+      <span className="br-bl" aria-hidden="true" />
+      <span className="br-br" aria-hidden="true" />
+      <div className="operator-command-deck__header">
+        <div>
+          <p className="eyebrow">Realtime operator truth / no guessing</p>
+          <h1>Mission Control Truth Deck</h1>
+          <p>
+            This surface separates runtime evidence, static proof fixtures, stale payloads, and missing evidence. It does not promote any proof marker to live truth.
+          </p>
+        </div>
+        <div className="operator-command-deck__status">
+          <span className="chip solid-block">LIVE TRADING: {payload.live_gate_status}</span>
+          <span className="chip solid-warn">{supervisorState}</span>
+          <span className="chip solid-warn">{trainer.status}</span>
+          <span className="chip solid-paper">Redis trim: {payload.redis_trim_status}</span>
+        </div>
+      </div>
+      <div className="truth-command-grid">
+        <TruthStateCard
+          label="Supervisor heartbeat"
+          value={supervisorState}
+          detail={`${plannerState}; ${governorState}; active workers ${supervisor.supervisor_processes.length}`}
+          source="RUNTIME_MONITOR_PAYLOAD"
+        />
+        <TruthStateCard
+          label="Current task"
+          value={runningTask}
+          detail={`Next: ${nextTask}`}
+          source="agent_supervisor/status"
+        />
+        <TruthStateCard
+          label="Trainer runtime"
+          value={trainer.status}
+          detail={`process rows ${trainer.trainer_processes.length}; latest prediction ${valueText(trainer.latest_prediction?.prediction_id)}`}
+          source="REALTIME_RUNTIME_EVIDENCE"
+        />
+        <TruthStateCard
+          label="Legacy orchestrator"
+          value={runtime.orchestrator_status}
+          detail={`observed rows ${runtime.orchestrator_processes.length}; trader ${runtime.trader_status}`}
+          source="READONLY_PROCESS_LIST"
+        />
+        <TruthStateCard
+          label="Signal lineage"
+          value={signal.status}
+          detail={`latest signal ${valueText(signal.latest_signal?.signal_id)}; risk ${valueText(signal.latest_signal?.risk_decision_id)}`}
+          source={signal.status === 'REALTIME_RUNTIME_EVIDENCE' ? 'RUNTIME_MONITOR_PAYLOAD' : 'STATIC_PROOF_FIXTURE'}
+        />
+        <TruthStateCard
+          label="Payload freshness"
+          value={`${freshness.stale_payload_count} STALE / ${freshness.static_fixture_count} STATIC`}
+          detail={`${freshness.payloads_checked} payloads checked; ${freshness.missing_evidence_count} missing evidence items`}
+          source="PUBLIC_PAYLOAD_AUDIT"
+        />
+        <TruthStateCard
+          label="Missing evidence"
+          value={`${payload.current_blockers.length} blockers`}
+          detail={payload.current_blockers[0]?.detail ?? MISSING}
+          source="MISSING_EVIDENCE_REGISTER"
+        />
+        <TruthStateCard
+          label="Operator action"
+          value="NO LIVE ACTION"
+          detail="Human input is required only at FINAL_LIVE_CAPITAL_APPROVAL_REQUIRED."
+          source="LIVE_GATE_POLICY"
+        />
+      </div>
+      <div className="truth-classification-rail" aria-label="Data truth classification legend">
+        {['REALTIME_RUNTIME_EVIDENCE', 'READONLY_MARKET_FEED', 'READONLY_ACCOUNT_FEED', 'RUNTIME_MONITOR_PAYLOAD', 'V2_PROOF_ARTIFACT', 'STATIC_PROOF_FIXTURE', 'STALE_PAYLOAD', 'MISSING_EVIDENCE'].map((label) => (
+          <span key={label} className={`truth-source-chip truth-source-chip--${truthTone(label)}`}>{label}</span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function RuntimeTruthMatrix({ payload }: { payload: OperatorTruthPayload }): JSX.Element {
+  const redis = payload.runtime_monitor_status.redis_memory_pressure_status;
+  const rows = [
+    ['Supervisor', payload.supervisor_status.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT_RUNTIME_SNAPSHOT', 'agent_supervisor/status/current_status.json'],
+    ['Master planner', payload.supervisor_status.master_planner_running ? 'RUNNING' : 'NOT_RUNNING', 'process list + status payload'],
+    ['Autonomous governor', payload.supervisor_status.autonomous_governor_active ? 'ACTIVE' : 'NOT_OBSERVED', 'process list + status payload'],
+    ['Trainer process', payload.runtime_monitor_status.trainer_status, 'read-only process scan'],
+    ['Trainer prediction stream', payload.trainer_monitor_status.status, 'trainer monitor payload'],
+    ['Signal explainability', payload.signal_lineage_status.status, 'signal lineage payload'],
+    ['Redis memory pressure', redis?.status ?? 'MISSING_EVIDENCE', redis?.path ?? 'Redis read-only state / payload audit'],
+    ['Static fixture count', String(payload.dashboard_freshness_status.static_fixture_count), 'public payload audit'],
+    ['Stale payload count', String(payload.dashboard_freshness_status.stale_payload_count), 'public payload audit'],
+    ['Live gate', payload.live_gate_status, 'safety policy'],
+  ] satisfies Array<[string, unknown, string]>;
+  return (
+    <section className="runtime-truth-matrix" data-testid="runtime-truth-matrix" aria-label="Runtime truth matrix">
+      {rows.map(([label, value, source]) => (
+        <div className={`runtime-truth-cell runtime-truth-cell--${truthTone(value)}`} key={label}>
+          <span>{label}</span>
+          <strong className={statusClass(value)}>{valueText(value)}</strong>
+          <small>{source}</small>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+export function RouteTruthSummary({ payload, title }: { payload: OperatorTruthPayload; title: string }): JSX.Element {
+  return (
+    <section className="route-truth-summary panel bracketed" data-testid="route-truth-summary">
+      <span className="br-bl" aria-hidden="true" />
+      <span className="br-br" aria-hidden="true" />
+      <div>
+        <p className="eyebrow">{title} truth summary</p>
+        <h2>Current evidence state</h2>
+      </div>
+      <div className="route-truth-summary__grid">
+        <TruthStateCard label="Supervisor" value={payload.supervisor_status.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT_RUNTIME_SNAPSHOT'} detail="Dashboard must disclose stale/conflicting control-plane state." source="RUNTIME_MONITOR_PAYLOAD" />
+        <TruthStateCard label="Trainer" value={payload.trainer_monitor_status.status} detail="No prediction can be explained unless runtime evidence exists." source="REALTIME_RUNTIME_EVIDENCE" />
+        <TruthStateCard label="Signal lineage" value={payload.signal_lineage_status.status} detail="Static proof lineage is not current runtime truth." source={payload.signal_lineage_status.status} />
+        <TruthStateCard label="Payloads" value={`${payload.dashboard_freshness_status.stale_payload_count} stale`} detail={`${payload.dashboard_freshness_status.static_fixture_count} static fixtures; ${payload.dashboard_freshness_status.missing_evidence_count} missing.`} source="PUBLIC_PAYLOAD_AUDIT" />
+      </div>
+    </section>
   );
 }
 
@@ -58,11 +229,14 @@ export function LegacyRuntimeMonitorPanel({ payload }: { payload: OperatorTruthP
         <div><span>redis memory pressure</span><strong>{runtime.redis_memory_pressure_status?.status ?? 'MISSING_EVIDENCE'}</strong></div>
         <div><span>evidence source</span><strong>operator_truth_payload.json</strong></div>
       </div>
-      <div className="cockpit-card-grid">
-        {runtime.active_processes.length ? runtime.active_processes.map((line) => (
-          <div className="cockpit-evidence-gap" key={line}>{line}</div>
-        )) : <div className="cockpit-evidence-gap">No matching legacy/trainer/trader process rows observed.</div>}
-      </div>
+      <details className="truth-details">
+        <summary>Read-only observed process rows ({runtime.active_processes.length})</summary>
+        <div className="truth-raw-list">
+          {runtime.active_processes.length ? runtime.active_processes.map((line) => (
+            <code key={line}>{line}</code>
+          )) : <p className="cockpit-evidence-gap">No matching legacy/trainer/trader process rows observed.</p>}
+        </div>
+      </details>
     </Panel>
   );
 }
@@ -137,10 +311,10 @@ export function WhatIsWorkingPanel({ payload }: { payload: OperatorTruthPayload 
   ];
   return (
     <Panel id="operator-truth-working-status" title="What Is Actually Working?">
-      <div className="cockpit-card-grid">
+      <div className="truth-working-grid">
         {rows.map(([label, value]) => (
-          <div className="cockpit-exchange-card" key={label}>
-            <h3>{label}</h3>
+          <div className={`truth-working-card truth-working-card--${truthTone(value)}`} key={label}>
+            <span>{label}</span>
             <strong className={statusClass(value)}>{value}</strong>
           </div>
         ))}
@@ -150,25 +324,35 @@ export function WhatIsWorkingPanel({ payload }: { payload: OperatorTruthPayload 
 }
 
 export function PayloadFreshnessPanel({ payload }: { payload: OperatorTruthPayload }): JSX.Element {
+  const freshness = payload.dashboard_freshness_status;
   return (
-    <Panel id="operator-truth-payload-freshness" title="Payload Freshness And Evidence Classification">
-      <div className="cockpit-market-table" role="table">
-        <div className="cockpit-table-row cockpit-table-row--head" role="row">
-          <span>Payload</span><span>Class</span><span>Status</span><span>Age</span><span>Realtime</span><span>Static</span><span>Missing</span><span>Source</span>
-        </div>
-        {payload.dashboard_freshness_status.payload_statuses.map((row) => (
-          <div className="cockpit-table-row" role="row" key={row.path}>
-            <span>{row.label}</span>
-            <span className={statusClass(row.classification)}>{row.classification}</span>
-            <span className={statusClass(row.status)}>{row.status}</span>
-            <span>{valueText(row.age_seconds)}</span>
-            <span>{boolStatus(row.is_realtime)}</span>
-            <span>{boolStatus(row.is_static_fixture)}</span>
-            <span>{boolStatus(row.missing)}</span>
-            <span>{row.path}</span>
-          </div>
-        ))}
+    <Panel id="operator-truth-payload-freshness" title="Payload Freshness And Evidence Classification" right={<span className="chip solid-warn">Not runtime truth unless marked realtime</span>}>
+      <div className="payload-freshness-summary">
+        <Metric label="Payloads checked" value={freshness.payloads_checked} />
+        <Metric label="Stale payloads" value={freshness.stale_payload_count} />
+        <Metric label="Static fixtures" value={freshness.static_fixture_count} />
+        <Metric label="Missing evidence" value={freshness.missing_evidence_count} />
       </div>
+      <details className="truth-details">
+        <summary>Open detailed payload table. Static and stale rows are not live runtime truth.</summary>
+        <div className="cockpit-market-table" role="table">
+          <div className="cockpit-table-row cockpit-table-row--head" role="row">
+            <span>Payload</span><span>Class</span><span>Status</span><span>Age</span><span>Realtime</span><span>Static</span><span>Missing</span><span>Source</span>
+          </div>
+          {payload.dashboard_freshness_status.payload_statuses.map((row) => (
+            <div className="cockpit-table-row" role="row" key={row.path}>
+              <span>{row.label}</span>
+              <span className={statusClass(row.classification)}>{evidenceClassLabel(row)}</span>
+              <span className={statusClass(row.status)}>{row.status}</span>
+              <span>{formatAge(row.age_seconds)}</span>
+              <span>{boolStatus(row.is_realtime)}</span>
+              <span>{boolStatus(row.is_static_fixture)}</span>
+              <span>{boolStatus(row.missing)}</span>
+              <span>{row.path}</span>
+            </div>
+          ))}
+        </div>
+      </details>
     </Panel>
   );
 }
@@ -176,9 +360,9 @@ export function PayloadFreshnessPanel({ payload }: { payload: OperatorTruthPaylo
 export function MissingEvidencePanel({ payload }: { payload: OperatorTruthPayload }): JSX.Element {
   return (
     <Panel id="operator-truth-missing-evidence" title="Exact Missing Evidence And Blockers" right={sourceChip('MISSING_EVIDENCE')}>
-      <div className="cockpit-card-grid">
+      <div className="missing-evidence-board">
         {payload.current_blockers.map((row) => (
-          <div className="cockpit-evidence-gap" key={row.id}>
+          <div className="missing-evidence-card" key={row.id}>
             <strong>{row.id}</strong>
             <p>{row.severity}: {row.detail}</p>
           </div>

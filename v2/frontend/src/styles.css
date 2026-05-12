@@ -623,8 +623,8 @@ a { color: inherit; }
   display: grid;
   align-content: center;
   gap: 12px;
-  min-height: 220px;
-  padding: 24px;
+  min-height: 150px;
+  padding: 18px;
   background:
     linear-gradient(90deg, rgba(11,15,20,0.92), rgba(11,15,20,0.48)),
     linear-gradient(135deg, rgba(245,165,36,0.08), transparent 48%);
@@ -633,8 +633,8 @@ a { color: inherit; }
 .mission-command-hero__copy h1 {
   max-width: 920px;
   margin: 0;
-  font-size: 54px;
-  line-height: 0.96;
+  font-size: 30px;
+  line-height: 1;
   letter-spacing: 0;
 }
 
@@ -1137,6 +1137,236 @@ a { color: inherit; }
   font-size: 12px;
 }
 
+.operator-command-deck {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  overflow: hidden;
+  border-radius: 6px;
+  background:
+    linear-gradient(90deg, rgba(9, 13, 18, 0.98), rgba(12, 17, 23, 0.9)),
+    var(--panel);
+}
+
+.operator-command-deck__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.42fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.operator-command-deck__header h1 {
+  margin: 4px 0 8px;
+  font-size: 40px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.operator-command-deck__header p {
+  max-width: 920px;
+  margin: 0;
+  color: var(--text-mid);
+}
+
+.operator-command-deck__status {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.truth-command-grid,
+.runtime-truth-matrix,
+.route-truth-summary__grid,
+.truth-working-grid,
+.payload-freshness-summary,
+.missing-evidence-board,
+.operator-truth-preview-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.truth-command-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.truth-state-card,
+.runtime-truth-cell,
+.truth-working-card,
+.missing-evidence-card {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+  min-height: 112px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.24);
+  overflow-wrap: anywhere;
+}
+
+.truth-state-card__label,
+.runtime-truth-cell span,
+.truth-working-card span {
+  display: block;
+  color: var(--text-mid);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.truth-state-card strong,
+.runtime-truth-cell strong,
+.truth-working-card strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 16px;
+  line-height: 1.15;
+}
+
+.truth-state-card small,
+.runtime-truth-cell small,
+.missing-evidence-card p {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.truth-state-card--bad,
+.runtime-truth-cell--bad,
+.truth-working-card--bad,
+.missing-evidence-card {
+  border-color: rgba(255, 92, 92, 0.54);
+  background:
+    linear-gradient(180deg, rgba(179, 27, 27, 0.15), transparent 60%),
+    rgba(0, 0, 0, 0.28);
+}
+
+.truth-state-card--warn,
+.runtime-truth-cell--warn,
+.truth-working-card--warn {
+  border-color: rgba(245, 165, 36, 0.58);
+  background:
+    linear-gradient(180deg, rgba(184, 134, 11, 0.16), transparent 60%),
+    rgba(0, 0, 0, 0.25);
+}
+
+.truth-state-card--paper,
+.runtime-truth-cell--paper,
+.truth-working-card--paper {
+  border-color: rgba(111, 151, 236, 0.46);
+  background:
+    linear-gradient(180deg, rgba(75, 108, 180, 0.12), transparent 62%),
+    rgba(0, 0, 0, 0.24);
+}
+
+.truth-state-card--good,
+.runtime-truth-cell--good,
+.truth-working-card--good {
+  border-color: rgba(45, 191, 105, 0.44);
+  background:
+    linear-gradient(180deg, rgba(45, 191, 105, 0.10), transparent 62%),
+    rgba(0, 0, 0, 0.24);
+}
+
+.truth-source-chip {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 24px;
+  padding: 3px 7px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--text-mid);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.truth-source-chip--bad { border-color: var(--color-red); color: #ffb0b0; }
+.truth-source-chip--warn { border-color: var(--color-amber); color: #ffd27a; }
+.truth-source-chip--paper { border-color: var(--paper); color: #b6c8ff; }
+.truth-source-chip--good { border-color: var(--color-green); color: #90e8a8; }
+
+.truth-classification-rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.runtime-truth-matrix {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.runtime-truth-cell {
+  min-height: 96px;
+}
+
+.operator-truth-preview-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+}
+
+.route-truth-summary {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.route-truth-summary h2 {
+  margin: 4px 0 0;
+  font-size: 24px;
+  letter-spacing: 0;
+}
+
+.route-truth-summary__grid,
+.truth-working-grid,
+.payload-freshness-summary,
+.missing-evidence-board {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.truth-details {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.truth-details summary {
+  padding: 10px 12px;
+  color: var(--text-mid);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.truth-raw-list {
+  display: grid;
+  gap: 6px;
+  max-height: 240px;
+  overflow: auto;
+  padding: 10px;
+  border-top: 1px solid var(--color-border);
+}
+
+.truth-raw-list code {
+  display: block;
+  padding: 7px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: #070b0f;
+  color: var(--text-mid);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 760px) {
   .admin-shell__body { grid-template-columns: 1fr; }
   .operator-proof-hero { display: grid; }
@@ -1147,16 +1377,20 @@ a { color: inherit; }
   .mission-command-hero,
   .mission-command-layout,
   .mission-system-grid,
-  .design-page-hero {
+  .design-page-hero,
+  .operator-command-deck__header {
     grid-template-columns: 1fr;
   }
   .mission-command-stats,
   .mission-subsystem-strip,
-  .mission-boundary-flow {
+  .mission-boundary-flow,
+  .truth-command-grid,
+  .runtime-truth-matrix,
+  .operator-truth-preview-grid {
     grid-template-columns: 1fr;
   }
   .mission-command-hero__copy h1 {
-    font-size: 34px;
+    font-size: 26px;
   }
   .design-page-hero__copy h1 {
     font-size: 28px;

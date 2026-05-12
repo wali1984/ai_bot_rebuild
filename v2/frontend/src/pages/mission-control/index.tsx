@@ -7,7 +7,7 @@ import type { AutonomousGovernorPayload, CockpitPayload } from '../cockpitData';
 import { statusClass, useCockpitPayload, valueText } from '../cockpitData';
 import { MissionControlReadinessBanner } from '../../components/banners/MissionControlReadinessBanner';
 import { useOperatorTruthPayload } from '../operatorTruthData';
-import { LegacyRuntimeMonitorPanel, MissingEvidencePanel, OperatorTruthLoading, PayloadFreshnessPanel, SignalLineageTruthPanel, TrainerPredictionTruthPanel, TruthStatusStrip, WhatIsWorkingPanel } from '../operatorTruthComponents';
+import { LegacyRuntimeMonitorPanel, MissingEvidencePanel, OperatorTruthCommandDeck, OperatorTruthLoading, PayloadFreshnessPanel, RuntimeTruthMatrix, SignalLineageTruthPanel, TrainerPredictionTruthPanel, WhatIsWorkingPanel } from '../operatorTruthComponents';
 
 const EVIDENCE_MISSING = 'Evidence missing - cannot explain without guessing.';
 
@@ -28,10 +28,11 @@ export default function MissionControlPage(): JSX.Element {
   return (
     <article className="enterprise-cockpit-page mission-control-design-page grid-bg" data-testid="page-mission-control" data-page-id={meta.id} data-page-path={route.path} data-page-min-role={rbac.minRole}>
       <MissionControlReadinessBanner />
-      {truthPayload ? <TruthStatusStrip payload={truthPayload} /> : <OperatorTruthLoading error={truthError} />}
-      <MissionCommandHero payload={payload} marketFeedSource={marketFeedSource} />
+      {truthPayload ? <OperatorTruthCommandDeck payload={truthPayload} /> : <OperatorTruthLoading error={truthError} />}
+      <MissionCommandHero payload={payload} marketFeedSource={marketFeedSource} truthPayloadReady={Boolean(truthPayload)} />
+      {truthPayload ? <RuntimeTruthMatrix payload={truthPayload} /> : null}
       {truthPayload ? (
-        <section className="mission-system-grid" aria-label="Current operator truth and runtime evidence">
+        <section className="operator-truth-preview-grid" aria-label="Current operator truth and runtime evidence">
           <LegacyRuntimeMonitorPanel payload={truthPayload} />
           <TrainerPredictionTruthPanel payload={truthPayload} />
           <SignalLineageTruthPanel payload={truthPayload} />
@@ -81,7 +82,7 @@ export default function MissionControlPage(): JSX.Element {
   );
 }
 
-function MissionCommandHero({ payload, marketFeedSource }: { payload: CockpitPayload; marketFeedSource?: string }): JSX.Element {
+function MissionCommandHero({ payload, marketFeedSource, truthPayloadReady }: { payload: CockpitPayload; marketFeedSource?: string; truthPayloadReady: boolean }): JSX.Element {
   const marketFeed = payload.analytics_cards.find((card) => card.label === 'Market Feed');
   const blockerCount = payload.blockers.length + payload.evidence_gaps.length;
   return (
@@ -89,13 +90,14 @@ function MissionCommandHero({ payload, marketFeedSource }: { payload: CockpitPay
       <span className="br-bl" aria-hidden="true" />
       <span className="br-br" aria-hidden="true" />
       <div className="mission-command-hero__copy">
-        <p className="eyebrow">AI BOT V2 Mission Control</p>
-        <h1>{meta.title}</h1>
-        <p>{meta.description}</p>
+        <p className="eyebrow">AI BOT V2 verified market context</p>
+        <h1>Market, Chart, And V2 Proof Context</h1>
+        <p>{meta.description} This section remains a proof and market context surface; the truth deck above is the current operator source of truth.</p>
         <div className="mission-command-hero__chips" aria-label="Mission Control source and safety state">
           <span className="chip solid-block">LIVE TRADING: {payload.live_gate_status}</span>
           <span className="chip solid-paper">Operator route: /admin/mission-control</span>
           <span className="chip">Chart source: {valueText(marketFeedSource ?? 'MISSING')}</span>
+          <span className={truthPayloadReady ? 'chip solid-ok' : 'chip solid-warn'}>Operator truth payload: {truthPayloadReady ? 'loaded' : 'missing'}</span>
         </div>
       </div>
       <div className="mission-command-stats" aria-label="Mission Control live-readiness summary">
