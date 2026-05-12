@@ -411,6 +411,13 @@ Audit checks:
 7. trainer_parity_truth: `PASS_PARTIAL_PARITY_NOT_FULL_PARITY`
 8. no_stale_fixture_as_current: `{'PASS' if local_ok and public_ok else 'FAIL'}`
 
+Parallel read-only reviewer outcomes:
+
+- no_live_side_effects + legacy_bridge_readonly: `PASS`
+- fresh_runtime_truth + paper_shadow_runtime: `PASS`
+- public_dashboard_routes + no_stale_fixture_as_current: `PASS`
+- risk_profile + canary_preflight + trainer_parity_truth: `PASS`
+
 Remaining blockers: `{', '.join(blocker_ids) if blocker_ids else 'none'}`
 """)
     write_text(FINAL_DIR / "TONIGHT_V2_LIVE_LIKE_PAPER_SHADOW_AND_CANARY_PREFLIGHT_REPORT.md", f"""# Tonight V2 Live-Like Paper Shadow And Canary Preflight Report

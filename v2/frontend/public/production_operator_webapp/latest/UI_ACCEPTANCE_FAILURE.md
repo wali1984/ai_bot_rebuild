@@ -1,6 +1,6 @@
 # UI Acceptance Failure
 
-Generated at: 2026-05-12T20:11:28.771Z
+Generated at: 2026-05-12T20:14:37.744Z
 
 The prior UI READY markers are superseded for production acceptance. The user/browser acceptance standard requires route-by-route screenshots, no proof-dump Mission Control first screen, no fixture-as-current trainer output, no historical signal example as current lineage, and TradingView primary/fallback proof.
 

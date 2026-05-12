@@ -1,6 +1,6 @@
 # Live-Like Risk Profile
 
-Generated at: 2026-05-12T20:11:31Z
+Generated at: 2026-05-12T20:14:52Z
 
 Profile: `paper_shadow_live_blocked_canary_prefight_v1`
 

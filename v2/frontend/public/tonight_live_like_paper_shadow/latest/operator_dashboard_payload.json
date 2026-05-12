@@ -2,8 +2,8 @@
   "canary_preflight_status": "PREFLIGHT_CREATED_APPROVAL_REQUIRED_NOT_CREATED",
   "codex_result": "TONIGHT_V2_LIVE_LIKE_PAPER_SHADOW_CODEX_PASS",
   "exchange_actions": false,
-  "generated_at": "2026-05-12T20:11:31Z",
-  "legacy_bridge_age_seconds": 3,
+  "generated_at": "2026-05-12T20:14:52Z",
+  "legacy_bridge_age_seconds": 15,
   "legacy_bridge_status": "CURRENT",
   "live_gate_status": "blocked_human_only",
   "local_route_failed_count": 0,
@@ -21,6 +21,6 @@
   "signal_lineage_status": "CURRENT",
   "status": "TONIGHT_V2_LIVE_LIKE_PAPER_SHADOW_AND_CANARY_PREFLIGHT_READY",
   "trainer_status": "CURRENT",
-  "v2_paper_runtime_age_seconds": 3,
+  "v2_paper_runtime_age_seconds": 15,
   "v2_paper_runtime_status": "VERIFIED_OPERATIONAL"
 }

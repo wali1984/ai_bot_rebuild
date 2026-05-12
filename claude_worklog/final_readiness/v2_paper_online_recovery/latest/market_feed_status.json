@@ -1,7 +1,7 @@
 {
-  "age_seconds": 7,
-  "generated_at": "2026-05-12T20:11:28Z",
-  "price": 80712.1,
+  "age_seconds": 12,
+  "generated_at": "2026-05-12T20:14:37Z",
+  "price": 80725.2,
   "source_type": "READONLY_MARKET_FEED",
   "status": "CURRENT",
   "symbol": "BTCUSDT"

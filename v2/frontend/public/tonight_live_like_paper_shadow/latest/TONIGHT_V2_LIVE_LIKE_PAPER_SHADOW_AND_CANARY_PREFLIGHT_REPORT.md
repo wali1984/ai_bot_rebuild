@@ -2,7 +2,7 @@
 
 Status: TONIGHT_V2_LIVE_LIKE_PAPER_SHADOW_AND_CANARY_PREFLIGHT_READY
 
-Generated at: 2026-05-12T20:11:31Z
+Generated at: 2026-05-12T20:14:52Z
 
 - V2 paper runtime: `VERIFIED_OPERATIONAL`
 - Legacy live bridge: `CURRENT`

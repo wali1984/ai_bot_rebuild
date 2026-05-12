@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-12T20:11:28.771Z",
+  "generated_at": "2026-05-12T20:14:37.744Z",
   "status": "OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_RECOVERY_READY",
   "live_gate_status": "blocked_human_only",
   "supervisor_truth_status": "CURRENT_SNAPSHOT",

@@ -1,6 +1,6 @@
 # Website Route Acceptance Matrix
 
-Generated at: 2026-05-12T20:08:09.512Z
+Generated at: 2026-05-12T20:13:14.610Z
 
 Public route crawl result. Local matrix is stored separately when run with `TONIGHT_CRAWL_PHASE=local`.
 

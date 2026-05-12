@@ -1,14 +1,14 @@
 {
-  "confidence_calibrated": 0.8,
-  "confidence_raw": 0.84,
-  "feature_snapshot_id": "fs_paper_tick_1778616688422",
+  "confidence_calibrated": 0.769783,
+  "confidence_raw": 0.789783,
+  "feature_snapshot_id": "fs_paper_tick_1778616877406",
   "freshness_state": "CURRENT",
-  "generated_at": "2026-05-12T20:11:25Z",
-  "market_age_seconds": 7,
+  "generated_at": "2026-05-12T20:14:34Z",
+  "market_age_seconds": 12,
   "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-  "prediction_id": "pred_paper_tick_1778616688422",
+  "prediction_id": "pred_paper_tick_1778616877406",
   "raw_output": {
-    "momentum_score": -0.3974412,
+    "momentum_score": -0.2297834,
     "side": "short"
   },
   "source_type": "V2_PAPER_TRAINER_WRAPPER",
@@ -17,15 +17,15 @@
   "top_features": [
     {
       "name": "return_5m",
-      "value": -0.00109158
+      "value": -0.00045937
     },
     {
       "name": "return_15m",
-      "value": -0.00094692
+      "value": -0.00091956
     },
     {
       "name": "volatility_10",
-      "value": 0.00025468
+      "value": 0.00017893
     }
   ],
   "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"

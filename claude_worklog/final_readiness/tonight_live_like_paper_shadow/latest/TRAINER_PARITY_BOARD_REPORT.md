@@ -1,12 +1,12 @@
 # Trainer Parity Board Report
 
-Generated at: 2026-05-12T20:11:31Z
+Generated at: 2026-05-12T20:14:52Z
 
 - Legacy trainer process: `CURRENT`
 - Legacy trainer GPU status: `GPU_RUNTIME_EVIDENCE_MISSING`
 - V2 wrapper: `V2_PAPER_TRAINER_WRAPPER_CURRENT`
-- prediction_id: `pred_paper_tick_1778616688422`
-- feature_snapshot_id: `fs_paper_tick_1778616688422`
+- prediction_id: `pred_paper_tick_1778616877406`
+- feature_snapshot_id: `fs_paper_tick_1778616877406`
 - Parity: `PARTIAL_RUNTIME_BRIDGE_PARITY_NOT_FULL_MODEL_PARITY`
 
 Full PPO/MASA parity is not claimed.

@@ -1,10 +1,10 @@
 # V2 Paper Shadow Twin Report
 
-Generated at: 2026-05-12T20:11:28Z
+Generated at: 2026-05-12T20:14:37Z
 
 - Shadow classification: `REALTIME_RUNTIME_EVIDENCE`
 - Source stream: `signals:trading:primary`
-- Shadow signal id: `d1ab1497-b251-43ba-8f7d-2979b2ce96d9`
+- Shadow signal id: `a1f1de89-7cc4-4745-afc5-36a858e78f24`
 - Risk result: `BLOCKED`
 - Paper result: `NO_FILL_RISK_BLOCKED`
 

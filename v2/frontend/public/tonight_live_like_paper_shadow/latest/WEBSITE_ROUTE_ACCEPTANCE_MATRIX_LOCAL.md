@@ -1,6 +1,6 @@
 # Website Route Acceptance Matrix — local
 
-Generated at: 2026-05-12T20:07:10.293Z
+Generated at: 2026-05-12T20:12:14.657Z
 
 - Base URL: http://127.0.0.1:5173
 - Routes: 29

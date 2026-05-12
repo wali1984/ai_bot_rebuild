@@ -1,30 +1,30 @@
 {
   "audit_events": [
     {
-      "audit_event_id": "audit_paper_tick_1778616688422",
+      "audit_event_id": "audit_paper_tick_1778616877406",
       "event_type": "V2_PAPER_RUNTIME_TICK",
-      "generated_at": "2026-05-12T20:11:28Z",
+      "generated_at": "2026-05-12T20:14:37Z",
       "lineage_ids": {
-        "execution_intent_id": "pei_paper_tick_1778616688422",
-        "feature_snapshot_id": "fs_paper_tick_1778616688422",
-        "orchestrator_decision_id": "orch_paper_tick_1778616688422",
-        "prediction_id": "pred_paper_tick_1778616688422",
-        "risk_decision_id": "risk_paper_tick_1778616688422",
-        "signal_id": "sig_paper_tick_1778616688422"
+        "execution_intent_id": "pei_paper_tick_1778616877406",
+        "feature_snapshot_id": "fs_paper_tick_1778616877406",
+        "orchestrator_decision_id": "orch_paper_tick_1778616877406",
+        "prediction_id": "pred_paper_tick_1778616877406",
+        "risk_decision_id": "risk_paper_tick_1778616877406",
+        "signal_id": "sig_paper_tick_1778616877406"
       },
       "live_gate_status": "blocked_human_only",
-      "paper_ledger_entry_id": "pledger_paper_tick_1778616688422"
+      "paper_ledger_entry_id": "pledger_paper_tick_1778616877406"
     }
   ],
   "blockers": [],
   "continuous_loop_available": true,
   "current_risk_decision": {
-    "feature_snapshot_id": "fs_paper_tick_1778616688422",
-    "generated_at": "2026-05-12T20:11:28Z",
+    "feature_snapshot_id": "fs_paper_tick_1778616877406",
+    "generated_at": "2026-05-12T20:14:37Z",
     "live_blocked": true,
     "missing_fields": [],
-    "orchestrator_decision_id": "orch_paper_tick_1778616688422",
-    "prediction_id": "pred_paper_tick_1778616688422",
+    "orchestrator_decision_id": "orch_paper_tick_1778616877406",
+    "prediction_id": "pred_paper_tick_1778616877406",
     "required_blocks_checked": [
       "missing_signal_id",
       "missing_prediction_id",
@@ -41,65 +41,65 @@
       "untraceable_execution"
     ],
     "risk_action": "allow",
-    "risk_decision_id": "risk_paper_tick_1778616688422",
+    "risk_decision_id": "risk_paper_tick_1778616877406",
     "risk_reason_code": "allow_proceed_short",
     "risk_result": "APPROVED_FOR_PAPER_ONLY",
-    "signal_id": "sig_paper_tick_1778616688422"
+    "signal_id": "sig_paper_tick_1778616877406"
   },
   "current_signal_lineage": {
     "classification": "REALTIME_RUNTIME_EVIDENCE",
     "execution_intent": {
       "exchange_order_allowed": false,
-      "execution_intent_id": "pei_paper_tick_1778616688422",
-      "generated_at": "2026-05-12T20:11:28Z",
+      "execution_intent_id": "pei_paper_tick_1778616877406",
+      "generated_at": "2026-05-12T20:14:37Z",
       "intent_action": "paper_fill_simulation",
       "paper_only": true,
-      "risk_decision_id": "risk_paper_tick_1778616688422",
+      "risk_decision_id": "risk_paper_tick_1778616877406",
       "side": "short",
-      "signal_id": "sig_paper_tick_1778616688422",
+      "signal_id": "sig_paper_tick_1778616877406",
       "symbol": "BTCUSDT"
     },
     "feature_snapshot": {
-      "feature_snapshot_id": "fs_paper_tick_1778616688422",
+      "feature_snapshot_id": "fs_paper_tick_1778616877406",
       "features": {
-        "return_15m": -0.00094692,
-        "return_1m": -0.00019077,
-        "return_5m": -0.00109158,
-        "volatility_10": 0.00025468,
-        "volume_avg_10": 44.586,
-        "volume_last": 25.969
+        "return_15m": -0.00091956,
+        "return_1m": -2.849e-05,
+        "return_5m": -0.00045937,
+        "volatility_10": 0.00017893,
+        "volume_avg_10": 35.0609,
+        "volume_last": 6.853
       },
       "freshness_state": "CURRENT",
-      "generated_at": "2026-05-12T20:11:25Z",
-      "market_age_seconds": 7,
+      "generated_at": "2026-05-12T20:14:34Z",
+      "market_age_seconds": 12,
       "source_type": "READONLY_MARKET_FEED",
       "symbol": "BTCUSDT"
     },
-    "generated_at": "2026-05-12T20:11:28Z",
+    "generated_at": "2026-05-12T20:14:37Z",
     "lineage_ids": {
-      "execution_intent_id": "pei_paper_tick_1778616688422",
-      "feature_snapshot_id": "fs_paper_tick_1778616688422",
-      "orchestrator_decision_id": "orch_paper_tick_1778616688422",
-      "prediction_id": "pred_paper_tick_1778616688422",
-      "risk_decision_id": "risk_paper_tick_1778616688422",
-      "signal_id": "sig_paper_tick_1778616688422"
+      "execution_intent_id": "pei_paper_tick_1778616877406",
+      "feature_snapshot_id": "fs_paper_tick_1778616877406",
+      "orchestrator_decision_id": "orch_paper_tick_1778616877406",
+      "prediction_id": "pred_paper_tick_1778616877406",
+      "risk_decision_id": "risk_paper_tick_1778616877406",
+      "signal_id": "sig_paper_tick_1778616877406"
     },
     "orchestrator_decision": {
       "cannot_bypass_risk_gateway": true,
       "decision_action": "open_short",
       "decision_reason": "paper_momentum_signal_routed",
-      "generated_at": "2026-05-12T20:11:28Z",
-      "orchestrator_decision_id": "orch_paper_tick_1778616688422",
+      "generated_at": "2026-05-12T20:14:37Z",
+      "orchestrator_decision_id": "orch_paper_tick_1778616877406",
       "risk_gateway_required": true,
-      "signal_id": "sig_paper_tick_1778616688422"
+      "signal_id": "sig_paper_tick_1778616877406"
     },
     "risk_decision": {
-      "feature_snapshot_id": "fs_paper_tick_1778616688422",
-      "generated_at": "2026-05-12T20:11:28Z",
+      "feature_snapshot_id": "fs_paper_tick_1778616877406",
+      "generated_at": "2026-05-12T20:14:37Z",
       "live_blocked": true,
       "missing_fields": [],
-      "orchestrator_decision_id": "orch_paper_tick_1778616688422",
-      "prediction_id": "pred_paper_tick_1778616688422",
+      "orchestrator_decision_id": "orch_paper_tick_1778616877406",
+      "prediction_id": "pred_paper_tick_1778616877406",
       "required_blocks_checked": [
         "missing_signal_id",
         "missing_prediction_id",
@@ -116,32 +116,32 @@
         "untraceable_execution"
       ],
       "risk_action": "allow",
-      "risk_decision_id": "risk_paper_tick_1778616688422",
+      "risk_decision_id": "risk_paper_tick_1778616877406",
       "risk_reason_code": "allow_proceed_short",
       "risk_result": "APPROVED_FOR_PAPER_ONLY",
-      "signal_id": "sig_paper_tick_1778616688422"
+      "signal_id": "sig_paper_tick_1778616877406"
     },
     "signal": {
-      "confidence": 0.8,
-      "feature_snapshot_id": "fs_paper_tick_1778616688422",
-      "generated_at": "2026-05-12T20:11:28Z",
-      "prediction_id": "pred_paper_tick_1778616688422",
+      "confidence": 0.769783,
+      "feature_snapshot_id": "fs_paper_tick_1778616877406",
+      "generated_at": "2026-05-12T20:14:37Z",
+      "prediction_id": "pred_paper_tick_1778616877406",
       "proposed_action": "open_short",
-      "signal_id": "sig_paper_tick_1778616688422",
+      "signal_id": "sig_paper_tick_1778616877406",
       "source_freshness": "CURRENT",
       "symbol": "BTCUSDT"
     },
     "trainer_prediction": {
-      "confidence_calibrated": 0.8,
-      "confidence_raw": 0.84,
-      "feature_snapshot_id": "fs_paper_tick_1778616688422",
+      "confidence_calibrated": 0.769783,
+      "confidence_raw": 0.789783,
+      "feature_snapshot_id": "fs_paper_tick_1778616877406",
       "freshness_state": "CURRENT",
-      "generated_at": "2026-05-12T20:11:25Z",
-      "market_age_seconds": 7,
+      "generated_at": "2026-05-12T20:14:34Z",
+      "market_age_seconds": 12,
       "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-      "prediction_id": "pred_paper_tick_1778616688422",
+      "prediction_id": "pred_paper_tick_1778616877406",
       "raw_output": {
-        "momentum_score": -0.3974412,
+        "momentum_score": -0.2297834,
         "side": "short"
       },
       "source_type": "V2_PAPER_TRAINER_WRAPPER",
@@ -150,15 +150,15 @@
       "top_features": [
         {
           "name": "return_5m",
-          "value": -0.00109158
+          "value": -0.00045937
         },
         {
           "name": "return_15m",
-          "value": -0.00094692
+          "value": -0.00091956
         },
         {
           "name": "volatility_10",
-          "value": 0.00025468
+          "value": 0.00017893
         }
       ],
       "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
@@ -166,41 +166,41 @@
   },
   "exchange_orders": false,
   "feature_snapshot": {
-    "feature_snapshot_id": "fs_paper_tick_1778616688422",
+    "feature_snapshot_id": "fs_paper_tick_1778616877406",
     "features": {
-      "return_15m": -0.00094692,
-      "return_1m": -0.00019077,
-      "return_5m": -0.00109158,
-      "volatility_10": 0.00025468,
-      "volume_avg_10": 44.586,
-      "volume_last": 25.969
+      "return_15m": -0.00091956,
+      "return_1m": -2.849e-05,
+      "return_5m": -0.00045937,
+      "volatility_10": 0.00017893,
+      "volume_avg_10": 35.0609,
+      "volume_last": 6.853
     },
     "freshness_state": "CURRENT",
-    "generated_at": "2026-05-12T20:11:25Z",
-    "market_age_seconds": 7,
+    "generated_at": "2026-05-12T20:14:34Z",
+    "market_age_seconds": 12,
     "source_type": "READONLY_MARKET_FEED",
     "symbol": "BTCUSDT"
   },
   "freshness": {
-    "generated_at": "2026-05-12T20:11:28Z",
-    "market_age_seconds": 7,
+    "generated_at": "2026-05-12T20:14:37Z",
+    "market_age_seconds": 12,
     "runtime_age_seconds": 0,
     "source_type": "REALTIME_RUNTIME_EVIDENCE",
     "status": "CURRENT"
   },
-  "generated_at": "2026-05-12T20:11:28Z",
+  "generated_at": "2026-05-12T20:14:37Z",
   "last_paper_event": {
     "exchange_order_id": null,
-    "generated_at": "2026-05-12T20:11:28Z",
+    "generated_at": "2026-05-12T20:14:37Z",
     "legacy_redis_write": false,
     "live_order": false,
     "market_source_type": "READONLY_MARKET_FEED",
-    "observed_price": 80712.1,
+    "observed_price": 80725.2,
     "paper_action": "PAPER_FILL_SIMULATED",
     "paper_reason": "allow_proceed_short",
     "risk_gateway_result": "APPROVED_FOR_PAPER_ONLY",
     "symbol": "BTCUSDT",
-    "tick_id": "paper_tick_1778616688422"
+    "tick_id": "paper_tick_1778616877406"
   },
   "legacy_redis_writes": false,
   "leverage_changes": false,
@@ -208,35 +208,8 @@
   "loop_interval_seconds": 30,
   "margin_mode_changes": false,
   "market_feed": {
-    "age_seconds": 7,
+    "age_seconds": 12,
     "candles": [
-      {
-        "close": 80715.0,
-        "high": 80735.3,
-        "low": 80710.8,
-        "open": 80735.2,
-        "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T19:42:00Z",
-        "volume": 16.769
-      },
-      {
-        "close": 80693.5,
-        "high": 80715.1,
-        "low": 80684.6,
-        "open": 80715.1,
-        "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T19:43:00Z",
-        "volume": 38.228
-      },
-      {
-        "close": 80711.9,
-        "high": 80712.0,
-        "low": 80693.5,
-        "open": 80693.5,
-        "source_type": "READONLY_MARKET_FEED",
-        "time": "2026-05-12T19:44:00Z",
-        "volume": 18.523
-      },
       {
         "close": 80726.7,
         "high": 80726.7,
@@ -472,20 +445,47 @@
         "volume": 32.743
       },
       {
-        "close": 80712.1,
+        "close": 80714.4,
         "high": 80727.5,
         "low": 80694.5,
         "open": 80727.5,
         "source_type": "READONLY_MARKET_FEED",
         "time": "2026-05-12T20:11:00Z",
-        "volume": 25.969
+        "volume": 35.379
+      },
+      {
+        "close": 80736.8,
+        "high": 80736.9,
+        "low": 80714.4,
+        "open": 80714.5,
+        "source_type": "READONLY_MARKET_FEED",
+        "time": "2026-05-12T20:12:00Z",
+        "volume": 21.599
+      },
+      {
+        "close": 80727.5,
+        "high": 80739.8,
+        "low": 80727.4,
+        "open": 80736.8,
+        "source_type": "READONLY_MARKET_FEED",
+        "time": "2026-05-12T20:13:00Z",
+        "volume": 24.722
+      },
+      {
+        "close": 80725.3,
+        "high": 80727.5,
+        "low": 80725.2,
+        "open": 80727.4,
+        "source_type": "READONLY_MARKET_FEED",
+        "time": "2026-05-12T20:14:00Z",
+        "volume": 6.853
       }
     ],
     "errors": [],
     "freshness_state": "CURRENT",
-    "generated_at": "2026-05-12T20:11:25Z",
-    "last_event_at": "2026-05-12T20:11:20Z",
-    "price": 80712.1,
+    "generated_at": "2026-05-12T20:14:34Z",
+    "last_event_at": "2026-05-12T20:14:24Z",
+    "price": 80725.2,
     "source": "binance_usdm_public_get_only",
     "source_pointer": "/fapi/v1/ticker/price + /fapi/v1/klines",
     "source_type": "READONLY_MARKET_FEED",
@@ -494,42 +494,42 @@
   "mode": "paper_only_non_live",
   "paper_account": {
     "currency": "USDT",
-    "equity": 9983.87,
+    "equity": 9983.8,
     "open_position_count": 1,
     "position_source": "V2_PAPER_RUNTIME_SIMULATED_FILL",
-    "realized_pnl": -16.13,
+    "realized_pnl": -16.2,
     "starting_equity": 10000.0,
     "unrealized_pnl": 0.0
   },
   "paper_ledger_tail": [
     {
       "exchange_order_id": null,
-      "execution_intent_id": "pei_paper_tick_1778616688422",
+      "execution_intent_id": "pei_paper_tick_1778616877406",
       "fee_rate": 0.0004,
       "fee_usdt": 0.01,
-      "fill_price": 80695.95758,
+      "fill_price": 80709.05496,
       "funding_assumption": "zero_until_funding_feed_adapter_current",
-      "generated_at": "2026-05-12T20:11:28Z",
+      "generated_at": "2026-05-12T20:14:37Z",
       "ledger_action": "PAPER_FILL_SIMULATED",
       "legacy_redis_write": false,
       "live_order": false,
       "notional_usdt": 25.0,
-      "paper_ledger_entry_id": "pledger_paper_tick_1778616688422",
+      "paper_ledger_entry_id": "pledger_paper_tick_1778616877406",
       "paper_result": "FILLED_PAPER_ONLY",
-      "risk_decision_id": "risk_paper_tick_1778616688422",
-      "signal_id": "sig_paper_tick_1778616688422",
+      "risk_decision_id": "risk_paper_tick_1778616877406",
+      "signal_id": "sig_paper_tick_1778616877406",
       "slippage_bps": 2.0,
       "symbol": "BTCUSDT"
     }
   ],
   "paper_loop": {
-    "last_paper_event_count": 1838,
+    "last_paper_event_count": 1845,
     "last_risk_block_count": 0,
     "last_shadow_decision_count": 1,
-    "last_tick_at": "2026-05-12T20:11:28Z",
-    "paper_event_count": 1838,
+    "last_tick_at": "2026-05-12T20:14:37Z",
+    "paper_event_count": 1845,
     "state": "PAPER_RUNTIME_ONLINE_ACTIVE",
-    "tick_id": "paper_tick_1778616688422"
+    "tick_id": "paper_tick_1778616877406"
   },
   "redis_trim_approval_created": false,
   "runtime": "v2_paper_online",
@@ -546,16 +546,16 @@
     "public_runtime_status": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json"
   },
   "trainer_prediction": {
-    "confidence_calibrated": 0.8,
-    "confidence_raw": 0.84,
-    "feature_snapshot_id": "fs_paper_tick_1778616688422",
+    "confidence_calibrated": 0.769783,
+    "confidence_raw": 0.789783,
+    "feature_snapshot_id": "fs_paper_tick_1778616877406",
     "freshness_state": "CURRENT",
-    "generated_at": "2026-05-12T20:11:25Z",
-    "market_age_seconds": 7,
+    "generated_at": "2026-05-12T20:14:34Z",
+    "market_age_seconds": 12,
     "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-    "prediction_id": "pred_paper_tick_1778616688422",
+    "prediction_id": "pred_paper_tick_1778616877406",
     "raw_output": {
-      "momentum_score": -0.3974412,
+      "momentum_score": -0.2297834,
       "side": "short"
     },
     "source_type": "V2_PAPER_TRAINER_WRAPPER",
@@ -564,15 +564,15 @@
     "top_features": [
       {
         "name": "return_5m",
-        "value": -0.00109158
+        "value": -0.00045937
       },
       {
         "name": "return_15m",
-        "value": -0.00094692
+        "value": -0.00091956
       },
       {
         "name": "volatility_10",
-        "value": 0.00025468
+        "value": 0.00017893
       }
     ],
     "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
