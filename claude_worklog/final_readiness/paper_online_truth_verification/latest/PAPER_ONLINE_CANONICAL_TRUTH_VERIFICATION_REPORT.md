@@ -24,4 +24,4 @@ Generated at: 2026-05-12T05:10:44.420Z
 - execution_intent_id: `pei_paper_tick_1778562643286`
 - paper ledger tail entries: `1`
 
-Verdict: PASS
+Verdict: PASS for canonical runtime truth. Final READY is blocked until the recovered supervisor queue stops adding unrelated non-live recovery artifacts and the worktree can be made clean without interfering with active worker output.

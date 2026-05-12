@@ -2,7 +2,7 @@
 
 Generated at: 2026-05-12T05:10:44.420Z
 
-Result: PASS
+Result: PASS for canonical truth verification; BLOCKED for final READY because the recovered supervisor continued dispatching unrelated non-live recovery tasks and the worktree is not clean.
 
 - Fresh paper runtime payload age <= 120s: pass
 - Current prediction_id and feature_snapshot_id present: pass
@@ -18,3 +18,5 @@ Result: PASS
 - Exchange untouched: pass
 
 Codex verdict: PAPER_ONLINE_TRUTH_VERIFICATION_CODEX_PASS
+
+Final readiness blocker: git clean after commit/push is not currently attainable without interfering with the active recovered supervisor queue. Canonical V2 paper runtime truth is verified locally and publicly; the remaining blocker is worktree cleanliness while unrelated non-live control-plane recovery tasks are still materializing artifacts.
