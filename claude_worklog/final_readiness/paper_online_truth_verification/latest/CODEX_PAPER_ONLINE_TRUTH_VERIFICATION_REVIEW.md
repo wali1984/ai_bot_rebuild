@@ -2,7 +2,7 @@
 
 Generated at: 2026-05-12T05:10:44.420Z
 
-Result: PASS for canonical truth verification; BLOCKED for final READY because the recovered supervisor continued dispatching unrelated non-live recovery tasks and the worktree is not clean.
+Result: PASS for canonical truth verification; BLOCKED for final READY because the agent supervisor daemon is not persistent at final verification.
 
 - Fresh paper runtime payload age <= 120s: pass
 - Current prediction_id and feature_snapshot_id present: pass
@@ -10,8 +10,8 @@ Result: PASS for canonical truth verification; BLOCKED for final READY because t
 - Bridge uses V2 paper runtime as canonical truth: pass
 - Local UI shows canonical runtime truth: pass
 - Public UI shows canonical runtime truth or sync blocker documented: pass
-- Agent supervisor/scheduler/watchdog recovered or running: pass
-- Autonomous supervisor persistence: documented non-live blocker (Autonomous supervisor tmux session exits because the active agent_supervisor daemon holds the supervisor lock: [agent_supervisor] duplicate daemon: existing pid=3516630 acquired_at=2026-05-12T04:58:05.448952+00:00)
+- Agent supervisor/scheduler/watchdog recovered or running: fail - agent supervisor not running at final check
+- Autonomous supervisor persistence: fail - autonomous supervisor tmux not running at final check
 - Legacy trader visible/classified: pass
 - Live remains blocked: pass
 - Old Redis untouched: pass
@@ -19,4 +19,4 @@ Result: PASS for canonical truth verification; BLOCKED for final READY because t
 
 Codex verdict: PAPER_ONLINE_TRUTH_VERIFICATION_CODEX_PASS
 
-Final readiness blocker: git clean after commit/push is not currently attainable without interfering with the active recovered supervisor queue. Canonical V2 paper runtime truth is verified locally and publicly; the remaining blocker is worktree cleanliness while unrelated non-live control-plane recovery tasks are still materializing artifacts.
+Final readiness blocker: agent supervisor daemon is not persistent at final verification. Scheduler and Codex watchdog remain running; canonical V2 paper runtime truth is verified locally and publicly.
