@@ -15,6 +15,7 @@ export interface OperatorTruthStatusRow {
 
 export interface OperatorTruthPayload {
   generated_at: string;
+  source_files: string[];
   live_gate_status: string;
   redis_trim_status: string;
   current_next_task: string | null;

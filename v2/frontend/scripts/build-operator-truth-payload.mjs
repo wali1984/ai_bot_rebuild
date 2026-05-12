@@ -147,7 +147,7 @@ const signalExecution = readJson('v2/frontend/public/realtime_legacy_monitoring_
 const riskObservation = readJson('v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json');
 const phase3cPayload = readJson('v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json');
 
-const gitStatus = run('git status --short');
+const gitStatus = run("git status --short -- . ':(exclude)claude_worklog/final_readiness/operator_truth_recovery/latest' ':(exclude)v2/frontend/public/operator_truth/latest' ':(exclude)v2/frontend/public/operator_truth_recovery/latest'");
 const gitHead = run('git log --oneline -1');
 const psOutput = run('ps -eo pid,ppid,etimes,cmd');
 const activeProcesses = psOutput
