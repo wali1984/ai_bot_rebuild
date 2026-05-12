@@ -2,7 +2,7 @@
 
 Status: OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_RECOVERY_READY
 
-Generated at: 2026-05-12T04:40:58.582Z
+Generated at: 2026-05-12T05:07:18.942Z
 
 This pass creates a single operator truth payload and wires the dashboard to it so the operator can distinguish current runtime evidence, runtime monitor payloads, static proof fixtures, stale payloads, and missing evidence.
 
@@ -16,7 +16,7 @@ Key truths:
 - Trader process: PROCESS_OBSERVED_READONLY
 - Market ingestors: PROCESS_OBSERVED_READONLY (6)
 - Feature pipeline: PROCESS_OBSERVED_READONLY (1)
-- Current next task: codex_recover_173_phase2r_consolidated_python_source_and_task_json_end_file_leakage_cleanup
+- Current next task: codex_recover_173_phase2r_reconciliation_residual_end_file_marker_leakage_cleanup
 - Stale payload count: 10
 - Missing evidence count: 0
 

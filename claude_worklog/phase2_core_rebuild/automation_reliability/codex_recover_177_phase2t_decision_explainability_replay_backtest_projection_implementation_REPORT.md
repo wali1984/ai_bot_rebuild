@@ -1,22 +1,29 @@
 # Codex Non-Live Recovery Report: codex_recover_177 Phase 2T
 
-## Task
+## Scope
 
-Recovered blocked non-live task `codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation` inside `/home/wali/Desktop/AI BOT REBUILD`.
+Recovered and reconciled blocked non-live task `codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation` inside `/home/wali/Desktop/AI BOT REBUILD`.
 
-## Runtime State Inspected
+No files under `/home/wali/Desktop/AI BOT` were modified. No Redis command was invoked. No live service was restarted. No live trading, exchange action, deployment, migration, or secret exposure occurred.
 
-- Task definition: `claude_worklog/agent_supervisor/tasks/codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation.json`.
-- Runtime summary: `claude_worklog/agent_supervisor/runs/codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation/summary.json`.
-- Runtime status: `human_attention_required`.
-- Runtime reason: missing required output files after max attempts exhausted.
-- Runtime stdout: `What would you like me to work on in this repo?`.
-- Runtime stderr: Codex session header only; no usable implementation or materialization payload.
-- Materialized files recorded by the failed recovery run: `[]`.
+## Task And Runtime State
 
-## Required Outputs Checked
+- Recovery task definition inspected: `claude_worklog/agent_supervisor/tasks/codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation.json`.
+- Original task definition inspected: `claude_worklog/agent_supervisor/tasks/177_phase2t_decision_explainability_replay_backtest_projection_implementation.json`.
+- Original task 177 runtime summary inspected: `claude_worklog/agent_supervisor/runs/177_phase2t_decision_explainability_replay_backtest_projection_implementation/summary.json`.
+- Original task 177 status: `human_attention_required`.
+- Original task 177 attention reason: `max_attempts 3 exhausted; last reason: task_failed`.
+- Original task 177 stderr: `Error: Input must be provided either through stdin or as a prompt argument when using --print`.
+- Original task 177 materialized files: `[]`.
+- Recovery task runtime summary inspected: `claude_worklog/agent_supervisor/runs/codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation/summary.json`.
+- Recovery task runtime status: `human_attention_required`.
+- Recovery task runtime reason: missing recovery report and GO/NO-GO after max attempts exhausted.
+- Recovery task stdout: `What would you like me to work on in this repo?`.
+- Recovery task materialized files recorded by supervisor: `[]`.
 
-Task 177 implementation outputs are present:
+## Required Outputs
+
+The underlying Phase 2T implementation outputs are present:
 
 - `v2/backend/tests/unit/decision_explainability_replay_backtest_projection/__init__.py`
 - `v2/backend/tests/unit/decision_explainability_replay_backtest_projection/fixtures.py`
@@ -25,31 +32,34 @@ Task 177 implementation outputs are present:
 - `claude_worklog/phase2_core_rebuild/decision_explainability_replay_backtest_projection/06_IMPLEMENTATION_REPORT.md`
 - `claude_worklog/phase2_core_rebuild/decision_explainability_replay_backtest_projection/07_GO_NO_GO.md`
 
-The Phase 2T implementation marker is present exactly: `PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION_READY`.
+The Phase 2T implementation marker is present exactly:
 
-This recovery authored only the two missing automation-reliability outputs for `codex_recover_177`.
+`PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION_READY`
 
-## Existing Recovery Evidence
+The recovery outputs are present:
 
-The existing closed-loop report at `claude_worklog/phase2_core_rebuild/decision_explainability_replay_backtest_projection/178_CODEX_CLOSED_LOOP_RECOVERY_177_REPORT.md` records that task 177 had `materialized_files: []`, no usable stdout implementation output, and that the six implementation outputs were recovered. Its GO/NO-GO file contains `CODEX_CLOSED_LOOP_RECOVERY_177_READY`.
+- `claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation_REPORT.md`
+- `claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation_GO_NO_GO.md`
 
-## Validation Run
+The recovery GO/NO-GO marker is present exactly:
 
-- `test -f` checks for the prior `codex_recover_177` automation-reliability report and GO/NO-GO returned missing before this recovery.
-- Predecessor marker check for `PHASE2S_DECISION_EXPLAINABILITY_PAPER_LEDGER_PROJECTION_CODEX_PASS` passed.
-- Phase 2T implementation marker check passed.
-- `.venv/bin/python -m pytest v2/backend/tests/unit/decision_explainability_replay_backtest_projection/test_decision_explainability_replay_backtest_projection.py -v --no-header` passed: 10 tests passed.
-- `git diff --stat HEAD -- v2/backend/app/ v2/frontend/` returned no production app or frontend diff.
-- Standalone framing-marker scan over the recovered Phase 2T test files and implementation outputs returned zero matches for `^BEGIN_FILE` and `^
-- Lightweight secret/live-action scan over the recovered Phase 2T surface found no credential-shaped strings or live-action calls.
-- Final `git status --short` showed only the two authored automation-reliability recovery artifacts plus `M claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt`. The master planner prompt path is explicitly excluded by the recovery task and was not modified by this recovery.
+`CODEX_NON_LIVE_RECOVERY_READY`
 
-## Safety
+## Validation
 
-No `/home/wali/Desktop/AI BOT` modification. No Redis command. No Redis write. No live service restart. No live trading enablement. No deployment. No secret exposure. No production `v2/backend/app/` or `v2/frontend/` changes. No supervisor task definition edits.
+- Predecessor marker check passed: `PHASE2S_DECISION_EXPLAINABILITY_PAPER_LEDGER_PROJECTION_CODEX_PASS`.
+- Phase 2T marker check passed: `PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION_READY`.
+- Pytest passed: `.venv/bin/python -m pytest v2/backend/tests/unit/decision_explainability_replay_backtest_projection/test_decision_explainability_replay_backtest_projection.py -v --no-header` returned `10 passed in 0.02s`.
+- Scoped status check passed: no uncommitted changes under `v2/backend/tests/unit/decision_explainability_replay_backtest_projection/`, `claude_worklog/phase2_core_rebuild/decision_explainability_replay_backtest_projection/`, or the two recovery output paths before this report refresh.
+- Production app diff check showed unrelated existing `v2/frontend/` dirty files in the broader worktree; no production `v2/backend/app/` diff was introduced by this recovery.
+- The Phase 2T test suite includes and passes forbidden-token / forbidden-import scans over the Phase 2T fixture and harness modules.
+
+## Safety Notes
+
+The broader repository worktree contains unrelated dirty final-readiness/frontend files that predate this recovery turn. They were not modified or reverted. This recovery touched only the in-scope automation-reliability report file; the existing recovery GO/NO-GO marker was already correct and was left unchanged.
 
 ## Outcome
 
-The failed `codex_recover_177...` run is safely recoverable by evidence-first reconciliation: the underlying Phase 2T implementation outputs are present and validated, and the missing recovery report and GO/NO-GO artifacts are now materialized.
+Evidence-first reconciliation is complete. The blocked `codex_recover_177...` supervisor run failed to emit its own two automation-reliability outputs, but the required Phase 2T implementation artifacts and marker are present, the target tests pass, and the recovery report plus GO/NO-GO marker are materialized.
 
 CODEX_NON_LIVE_RECOVERY_REPORT_READY

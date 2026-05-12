@@ -574,6 +574,22 @@ writeJson(resolve(finalDir, 'operator_truth_payload.json'), truthPayload);
 writeJson(resolve(controlPlaneDir, 'operator_truth_payload.json'), truthPayload);
 writeJson(resolve(canonicalControlPlaneDir, 'operator_truth_payload.json'), truthPayload);
 writeJson(resolve(publicDir, 'operator_truth_payload.json'), truthPayload);
+writeJson(resolve(publicDir, 'operator_truth_bridge_payload.json'), {
+  generated_at: nowIso,
+  status: canonicalTruthBridge.status,
+  canonical_truth_bridge: canonicalTruthBridge,
+  operator_truth_payload: 'v2/frontend/public/operator_truth/latest/operator_truth_payload.json',
+  paper_runtime_payload: paperOnlineRuntimeRelPath,
+  control_plane_status: controlPlaneStatus,
+  historical_status_files_stale: historicalStatusFilesStale,
+  legacy_trader_containment: legacyTraderContainment,
+  live_gate_status: 'blocked_human_only',
+  redis_trim_status: truthPayload.redis_trim_status,
+  old_redis_writes: false,
+  exchange_orders: false,
+  leverage_changes: false,
+  margin_mode_changes: false,
+});
 writeJson(resolve(canonicalTruthBridgeDir, 'operator_truth_payload.json'), truthPayload);
 writeJson(resolve(canonicalTruthBridgeDir, 'operator_dashboard_payload.json'), {
   generated_at: nowIso,
