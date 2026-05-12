@@ -2,7 +2,7 @@
 
 Status: PRODUCTION_OPERATOR_WEBAPP_AND_RUNTIME_MONITOR_WIRING_READY
 
-Generated at: 2026-05-12T04:38:38.794Z
+Generated at: 2026-05-12T04:40:58.582Z
 
 - Routes covered: 31
 - TradingView status: primary widget with explicit fallback

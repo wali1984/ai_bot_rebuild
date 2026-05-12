@@ -1,10 +1,10 @@
 # Supervisor Freshness Repair Report
 
-Generated at: 2026-05-12T04:38:38.794Z
+Generated at: 2026-05-12T04:40:58.582Z
 
-- Supervisor observed: yes
-- Queue age seconds: 91
-- Planner age seconds: 29005
+- Supervisor observed: no
+- Queue age seconds: 120
+- Planner age seconds: 29144
 - Stale/conflicting: no
 
 The UI shows stale/conflicting state instead of hiding it. No live trainer/trader/orchestrator/Redis/VPN restart was performed.
