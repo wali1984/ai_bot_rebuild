@@ -1,6 +1,6 @@
 # Next Task Selection
 
-Generated: 2026-05-12T21:40:17.796346+00:00
+Generated: 2026-05-12T21:47:29.019615+00:00
 
 - Selected primary task: `LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK`
 - Primary lane: `v2_live_like_paper_shadow_canary_preflight`
@@ -10,4 +10,4 @@ Generated: 2026-05-12T21:40:17.796346+00:00
 - Redis mutation: `none`
 - Exchange mutation: `none`
 
-The production website rebuild is accepted support evidence. It cannot supersede V2 live-like paper/shadow, legacy bridge, risk gateway, trainer parity, or canary preflight work.
+Website work is support-only after the production route crawl pass. The next autonomous lane must stay on V2 live-like paper/shadow, legacy bridge, risk gateway, trainer parity, and canary preflight.

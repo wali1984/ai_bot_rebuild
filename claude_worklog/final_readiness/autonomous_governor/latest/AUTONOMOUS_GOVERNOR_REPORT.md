@@ -12,8 +12,8 @@ Result: `AUTONOMOUS_GOVERNOR_REPLACES_MANUAL_COPILOT_UNTIL_LIVE_GATE_READY`
 - Ollama helper policy ready: `True`
 - Dashboard updated: `True`
 - Simulation passed: `True`
-- Git head: `f540ec4 Add Codex parallel review batch results`
-- Current selected next task: `claude_primary_enterprise_ui_polish_remove_legacy_chart`
+- Git head: `2414f76 Remove stale watchdog recovery task under non-drift lock`
+- Current selected next task: `LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK`
 - Human input required: `NO unless selected task is final live gate`
 
 The governor leaves Phase 3H Redis trim as a non-blocking decision packet until

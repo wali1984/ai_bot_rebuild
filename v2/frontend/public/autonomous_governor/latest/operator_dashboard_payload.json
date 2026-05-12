@@ -1,32 +1,36 @@
 {
   "codex_auto_governor_working": true,
-  "current_selected_next_task": "claude_primary_enterprise_ui_polish_remove_legacy_chart",
+  "current_selected_next_task": "LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK",
   "dashboard_updated": true,
   "final_live_gate_hard_stop": true,
-  "generated_at": "2026-05-11T05:47:10.069909+00:00",
-  "git_clean_ignoring_generated_outputs": true,
-  "git_head": "f540ec4 Add Codex parallel review batch results",
+  "generated_at": "2026-05-12T21:47:03.651686+00:00",
+  "git_clean_ignoring_generated_outputs": false,
+  "git_head": "2414f76 Remove stale watchdog recovery task under non-drift lock",
   "go_no_go": "AUTONOMOUS_GOVERNOR_REPLACES_MANUAL_COPILOT_UNTIL_LIVE_GATE_READY",
   "human_input_required": "NO unless selected task is final live gate",
   "marker": "AUTONOMOUS_GOVERNOR_REPLACES_MANUAL_COPILOT_UNTIL_LIVE_GATE_READY",
   "next_task_selection": {
     "allowed_actions": [
-      "create safe non-live task JSON",
-      "run Claude/Codex/Ollama through supervisor",
-      "validate, commit, push safe V2 artifacts",
-      "create non-blocking decision packets"
+      "continue selected primary V2 live-like paper/shadow work",
+      "run Codex audits tied to runtime truth and safety",
+      "validate, commit, push safe V2 artifacts"
     ],
     "blocked_validation": null,
     "codex_review_criteria": [
       "hidden live path",
       "fake-ready marker",
-      "missing tests",
       "Redis/exchange mutation",
       "stale dashboard payload",
-      "lineage/evidence gaps"
+      "runtime-truth regression"
+    ],
+    "current_primary_blockers": [
+      "legacy_trainer_restart_runtime_parity_sync_blocked",
+      "legacy_execution_containment_marker_missing"
     ],
     "current_task": null,
     "forbidden_actions": [
+      "website/UI-only task superseding primary chain",
+      "proof-marker-only cleanup superseding runtime work",
       "live trading enablement",
       "real exchange order/cancel/close",
       "real leverage/margin/position-mode changes",
@@ -34,64 +38,40 @@
       "Redis mutation without exact approval",
       "secret exposure"
     ],
-    "generated_at": "2026-05-11T05:47:10.055752+00:00",
-    "next_milestone": "continue_safe_non_live_queue_until_final_live_gate",
-    "next_pending_task": "claude_primary_enterprise_ui_polish_remove_legacy_chart",
-    "priority": 1,
+    "generated_at": "2026-05-12T21:47:03.630269+00:00",
+    "next_milestone": "v2_live_like_paper_shadow_canary_preflight",
+    "next_pending_task": "LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK",
+    "non_drift_governor_lock_enabled": true,
+    "non_drift_lock_path": "claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json",
+    "priority": 0,
     "redis_decision": "phase3h_deferred_continue_safe_work",
     "remediation_task_created": false,
-    "safety_classification": "non_live_autonomous",
-    "selected_task_id": "claude_primary_enterprise_ui_polish_remove_legacy_chart",
+    "safety_classification": "non_live_primary_objective_lock",
+    "selected_primary_task": "LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK",
+    "selected_task_id": "LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK",
     "why_higher_priority_items_are_not_selected": [
       {
-        "item": "final_live_gate",
+        "item": "non_drift_governor_lock",
         "priority": 0,
-        "reason": "human-only real capital boundary",
-        "selected": false
-      },
-      {
-        "item": "claude_rate_limit",
-        "priority": 0,
-        "reason": "Codex takeover while Claude quota is blocked",
-        "selected": false
-      },
-      {
-        "item": "stale_fake_running_recovery",
-        "priority": 0,
-        "reason": "task liveness safety",
-        "selected": false
-      },
-      {
-        "item": "fresh_blocked_validation_remediation",
-        "priority": 1,
-        "reason": "no fresh blocked validation result",
-        "selected": false
-      },
-      {
-        "item": "redis_memory_path",
-        "priority": 1,
-        "reason": "REDIS_EXPORT_BACKUP_DURABILITY_REVIEW_REQUIRED",
+        "reason": "Website/UI/proof work is support-only unless it fixes a fresh route/data-truth regression or unblocks primary runtime truth.",
         "selected": true
-      },
-      {
-        "item": "v2_data_plane_independence",
-        "priority": 2,
-        "reason": "continues through queue after active task/redis decision handling",
-        "selected": false
       }
     ],
-    "why_selected": "Redis trim approval is absent; leave Phase 3H as a non-blocking decision packet and continue safe V2 work."
+    "why_selected": "Non-drift governor lock is active; website/support/proof lanes cannot supersede the V2 live-like paper/shadow primary chain."
   },
   "non_live_approvals_now_non_blocking": true,
   "ollama_helper_policy_ready": true,
-  "processes": [],
+  "processes": [
+    "68607 1029421 677 bash -c cd '/home/wali/Desktop/AI BOT REBUILD' && while true; do   if [ -f '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/control_plane/STOP_REBUILD_CON",
+    "68613 68607 677 python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30"
+  ],
   "queue": {
     "current_running_task": null,
     "final_live_gate_required_count": 0,
-    "gate": "READY_FOR_CODEX_RERUN",
-    "human_attention_required_count": 0,
-    "next_pending_task": "claude_primary_enterprise_ui_polish_remove_legacy_chart",
-    "non_blocking_decision_packet_count": 0
+    "gate": "NON_LIVE_DECISION_PACKETS_PRESENT_QUEUE_CONTINUES",
+    "human_attention_required_count": 1,
+    "next_pending_task": "LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK",
+    "non_blocking_decision_packet_count": 1
   },
   "redis_decision_status": {
     "global_queue_blocked_by_phase3h": false,
@@ -101,7 +81,7 @@
   "redis_trim_no_longer_blocks_entire_queue": true,
   "scheduler": {
     "final_live_gate_status": "blocked_human_only",
-    "next_safe_codex_task": "run Codex watchdog dirty-tree recovery"
+    "next_safe_codex_task": "hold support lanes; primary lock selected LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK"
   },
   "simulation_passed": true,
   "standing_governor_approval_created": true,

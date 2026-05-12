@@ -1,0 +1,63 @@
+{
+  "blocked_decision_packets": {
+    "final_live_capital_approval": {
+      "human_approval_required": true,
+      "selected_task": "blocked_human_only"
+    },
+    "legacy_trader_containment_action": {
+      "human_approval_required": true,
+      "selected_task": "decision_packet_if_action_required"
+    },
+    "redis_trim_approval": {
+      "human_approval_required": true,
+      "selected_task": "deferred_non_blocking"
+    }
+  },
+  "codex_parallel_lane": {
+    "autonomous_run_allowed": true,
+    "human_approval_required": false,
+    "objective_mapping": "adversarial review of V2 live-like paper/shadow safety and data truth",
+    "selected_tasks": [
+      "codex_audit_no_live_side_effects",
+      "codex_audit_current_runtime_truth",
+      "codex_audit_risk_gateway_fail_closed",
+      "codex_audit_trainer_parity_truth",
+      "codex_audit_public_dashboard_truth",
+      "codex_audit_legacy_bridge_readonly"
+    ],
+    "source_evidence": [
+      "claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json"
+    ],
+    "why_selected": "Parallel audits support primary runtime safety and truth without superseding the primary Claude lane."
+  },
+  "generated_at": "2026-05-12T21:47:29.019615+00:00",
+  "primary_claude_lane": {
+    "autonomous_run_allowed": true,
+    "human_approval_required": false,
+    "objective_mapping": [
+      "V2 live-like paper/shadow",
+      "legacy bridge read-only evidence",
+      "risk gateway final authority",
+      "trainer parity runtime capture",
+      "canary preflight blocked_human_only"
+    ],
+    "selected_task": "LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK",
+    "source_evidence": [
+      "claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/GO_NO_GO.md",
+      "claude_worklog/final_readiness/legacy_trainer_restart_runtime/latest/GO_NO_GO.md",
+      "claude_worklog/final_readiness/production_website_full_rebuild/latest/GO_NO_GO.md"
+    ],
+    "why_selected": "Website rebuild passed; primary chain still has trainer runtime/parity and legacy execution containment blockers."
+  },
+  "website_support_lane": {
+    "autonomous_run_allowed": false,
+    "human_approval_required": false,
+    "objective_mapping": "operator visibility support only",
+    "selected_task": "none_unless_regression",
+    "source_evidence": [
+      "claude_worklog/final_readiness/production_website_full_rebuild/latest/GO_NO_GO.md",
+      "claude_worklog/final_readiness/production_website_full_rebuild/latest/CODEX_GO_NO_GO.md"
+    ],
+    "why_selected": "Public/local website crawl passed; route work resumes only for route/data-truth regression or browser-visible defect."
+  }
+}

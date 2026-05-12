@@ -59,6 +59,7 @@ const artifactSets = [
   'production_website_public_route_rebuild',
   'production_website_full_rebuild',
   'claude_automation_non_drift_governor_lock',
+  'non_drift_governor_lock',
   'post_mvp_non_live_gap_audit',
 ];
 

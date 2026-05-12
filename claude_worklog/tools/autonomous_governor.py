@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "claude_worklog/final_readiness/autonomous_governor/latest"
 GOV = ROOT / "claude_worklog/autonomous_governor/latest"
 PUBLIC = ROOT / "v2/frontend/public/autonomous_governor/latest"
+NON_DRIFT_LOCK = GOV / "NON_DRIFT_GOVERNOR_LOCK.json"
 APPROVAL = ROOT / "claude_worklog/approvals/STANDING_AUTONOMOUS_GOVERNOR_UNTIL_LIVE_GATE.md"
 APPROVAL_MARKER = "STANDING_AUTONOMOUS_GOVERNOR_UNTIL_LIVE_GATE"
 REDIS_TRIM_APPROVAL = ROOT / "claude_worklog/approvals/APPROVED_REDIS_LIQUIDATIONS_EVENTS_XTRIM_MINID_1777222885206_0_ONLY.md"
@@ -55,6 +56,11 @@ def read_json(path: Path) -> dict[str, Any]:
         return json.loads(path.read_text())
     except Exception:
         return {}
+
+
+def non_drift_lock() -> dict[str, Any]:
+    data = read_json(NON_DRIFT_LOCK)
+    return data if isinstance(data, dict) and data.get("status") == "ACTIVE" else {}
 
 
 def write_text(path: Path, text: str) -> None:
@@ -418,6 +424,52 @@ STANDING_AUTONOMOUS_GOVERNOR_UNTIL_LIVE_GATE
 
 
 def choose_next_task(queue: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
+    lock = non_drift_lock()
+    if lock:
+        selected = str(lock.get("selected_primary_task") or "LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK")
+        return {
+            "generated_at": now(),
+            "selected_task_id": selected,
+            "selected_primary_task": selected,
+            "why_selected": "Non-drift governor lock is active; website/support/proof lanes cannot supersede the V2 live-like paper/shadow primary chain.",
+            "priority": 0,
+            "current_task": nonterminal_current_task(queue, current),
+            "next_pending_task": queue.get("next_pending_task"),
+            "blocked_validation": None,
+            "remediation_task_created": False,
+            "redis_decision": "phase3h_deferred_continue_safe_work",
+            "why_higher_priority_items_are_not_selected": [
+                {"priority": 0, "item": "non_drift_governor_lock", "selected": True, "reason": lock.get("support_lane_policy")},
+            ],
+            "safety_classification": "non_live_primary_objective_lock",
+            "allowed_actions": [
+                "continue selected primary V2 live-like paper/shadow work",
+                "run Codex audits tied to runtime truth and safety",
+                "validate, commit, push safe V2 artifacts",
+            ],
+            "forbidden_actions": [
+                "website/UI-only task superseding primary chain",
+                "proof-marker-only cleanup superseding runtime work",
+                "live trading enablement",
+                "real exchange order/cancel/close",
+                "real leverage/margin/position-mode changes",
+                "legacy bot mutation",
+                "Redis mutation without exact approval",
+                "secret exposure",
+            ],
+            "codex_review_criteria": [
+                "hidden live path",
+                "fake-ready marker",
+                "Redis/exchange mutation",
+                "stale dashboard payload",
+                "runtime-truth regression",
+            ],
+            "next_milestone": "v2_live_like_paper_shadow_canary_preflight",
+            "non_drift_governor_lock_enabled": True,
+            "non_drift_lock_path": str(NON_DRIFT_LOCK.relative_to(ROOT)),
+            "current_primary_blockers": lock.get("current_primary_blockers", []),
+        }
+
     redis_hold_next = read_text(ROOT / "claude_worklog/final_readiness/redis_trim_approval_hold/latest/next_safe_milestone.md")
     phase3h_allowed = REDIS_TRIM_APPROVAL.exists()
     current_task = nonterminal_current_task(queue, current)
