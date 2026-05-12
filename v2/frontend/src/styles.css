@@ -252,6 +252,41 @@ a { color: inherit; }
   padding: 12px;
   margin: 16px 0;
 }
+.cockpit-two-col {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(280px, 1.1fr);
+  gap: 14px;
+}
+.field-stack {
+  display: grid;
+  gap: 8px;
+  color: var(--text-mid);
+  font-size: 12px;
+}
+.field-stack textarea {
+  min-height: 120px;
+  resize: vertical;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-fg);
+  font: inherit;
+}
+.control-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.secondary-button {
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--color-fg);
+  font: inherit;
+}
 .dangerous-control-button[disabled] {
   opacity: 0.55;
   cursor: not-allowed;
