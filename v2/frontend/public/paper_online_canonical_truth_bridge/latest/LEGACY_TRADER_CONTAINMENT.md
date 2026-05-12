@@ -1,6 +1,6 @@
 # Legacy Trader Containment
 
-Generated at: 2026-05-12T05:07:18.942Z
+Generated at: 2026-05-12T19:58:03.594Z
 
 - Status: `LEGACY_TRADER_PROCESS_OBSERVED_READONLY_CONTAINED`
 - Action: `observation_only_no_restart_no_kill_no_order_action`

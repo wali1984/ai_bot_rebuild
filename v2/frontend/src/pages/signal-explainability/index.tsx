@@ -5,7 +5,7 @@ import { CockpitLoading, DecisionDrawers, Panel } from '../cockpitComponents';
 import { useCockpitPayload } from '../cockpitData';
 import { DesignPageShell, SourceRibbon } from '../designShell';
 import { useOperatorTruthPayload } from '../operatorTruthData';
-import { OperatorTruthLoading, RouteTruthSummary, SignalLineageTruthPanel } from '../operatorTruthComponents';
+import { LiveObserverShadowTwinPanel, OperatorTruthLoading, RouteTruthSummary, SignalLineageTruthPanel } from '../operatorTruthComponents';
 
 export default function SignalExplainabilityPage(): JSX.Element {
   const { payload, error } = useCockpitPayload();
@@ -15,6 +15,7 @@ export default function SignalExplainabilityPage(): JSX.Element {
       <SourceRibbon labels={['feature attribution', 'source freshness', 'risk reason', 'orchestrator reason', 'no guessing']} />
       {truthPayload ? <RouteTruthSummary payload={truthPayload} title="Signal Explainability" /> : <OperatorTruthLoading error={truthError} />}
       {truthPayload ? <SignalLineageTruthPanel payload={truthPayload} /> : null}
+      {truthPayload ? <LiveObserverShadowTwinPanel payload={truthPayload} /> : null}
       {truthPayload?.signal_lineage_status.status !== 'REALTIME_RUNTIME_EVIDENCE' ? (
         <Panel id="signal-explainability-no-guessing" title="No-Guessing Rule" right={<span className="chip solid-warn">MISSING_EVIDENCE</span>}>
           <p className="cockpit-evidence-gap">Evidence missing — cannot explain without guessing.</p>

@@ -5,7 +5,7 @@ import { CockpitLoading, DecisionDrawers, Panel } from '../cockpitComponents';
 import { useCockpitPayload } from '../cockpitData';
 import { DesignPageShell, SourceRibbon } from '../designShell';
 import { useOperatorTruthPayload } from '../operatorTruthData';
-import { OperatorTruthLoading, RouteTruthSummary, TrainerPredictionTruthPanel } from '../operatorTruthComponents';
+import { LiveObserverShadowTwinPanel, OperatorTruthLoading, RouteTruthSummary, TrainerPredictionTruthPanel } from '../operatorTruthComponents';
 
 export default function TrainerPredictionMonitorPage(): JSX.Element {
   const { payload, error } = useCockpitPayload();
@@ -17,6 +17,7 @@ export default function TrainerPredictionMonitorPage(): JSX.Element {
       <SourceRibbon labels={['prediction_id', 'feature_snapshot_id', 'model checkpoint', 'confidence calibration', 'missing evidence warnings']} />
       {truthPayload ? <RouteTruthSummary payload={truthPayload} title="Trainer Prediction Monitor" /> : <OperatorTruthLoading error={truthError} />}
       {truthPayload ? <TrainerPredictionTruthPanel payload={truthPayload} /> : null}
+      {truthPayload ? <LiveObserverShadowTwinPanel payload={truthPayload} /> : null}
       {truthPayload && !hasCurrentTrainer ? (
         <Panel id="trainer-current-missing-source" title="Current Trainer Runtime Source Missing" right={<span className="chip solid-warn">TRAINER_RUNTIME_EVIDENCE_MISSING</span>}>
           <p className="cockpit-evidence-gap">

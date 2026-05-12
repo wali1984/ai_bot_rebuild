@@ -1,6 +1,6 @@
 # Paper Online Canonical Truth Bridge Report
 
-Generated at: 2026-05-12T05:07:18.942Z
+Generated at: 2026-05-12T19:58:03.594Z
 
 Status: PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_AND_CONTROL_PLANE_RECOVERY_READY
 
