@@ -241,9 +241,12 @@ const hasCurrentPaperRuntime =
   paperOnlineRuntime.data?.runtime_state === 'PAPER_RUNTIME_ONLINE_ACTIVE';
 const paperTrainerPrediction = hasCurrentPaperRuntime ? paperOnlineRuntime.data?.trainer_prediction ?? null : null;
 const paperSignalLineage = hasCurrentPaperRuntime ? paperOnlineRuntime.data?.current_signal_lineage ?? null : null;
-const controlPlaneStatus = supervisorProcesses.length > 0
+const persistentControlPlaneObserved = supervisorProcesses.some((line) => /--daemon|claude_master_rebuild_planner|autonomous_governor|parallel_scheduler|codex_watchdog/.test(line));
+const controlPlaneStatus = persistentControlPlaneObserved
   ? 'CONTROL_PLANE_DAEMON_OBSERVED'
-  : 'CONTROL_PLANE_DAEMON_NOT_OBSERVED';
+  : supervisorProcesses.length > 0
+    ? 'CONTROL_PLANE_WORKER_OBSERVED'
+    : 'CONTROL_PLANE_DAEMON_NOT_OBSERVED';
 const historicalStatusFilesStale = statusConflict || (queueAge !== null && queueAge > REALTIME_STALE_SECONDS) || (plannerAge !== null && plannerAge > REALTIME_STALE_SECONDS);
 const canonicalTruthBridge = hasCurrentPaperRuntime ? {
   status: 'PAPER_ONLINE_CANONICAL_TRUTH_ACTIVE',

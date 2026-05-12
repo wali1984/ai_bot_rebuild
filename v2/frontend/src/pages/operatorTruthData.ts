@@ -218,9 +218,12 @@ function synthesizeTruthFromPaperRuntime(
   const oldSupervisor = staleTruth?.supervisor_status;
   const oldRuntime = staleTruth?.runtime_monitor_status;
   const legacyTraderRows = oldRuntime?.trader_processes ?? [];
-  const controlPlaneStatus = oldSupervisor?.is_supervisor_alive
+  const persistentControlPlaneObserved = oldSupervisor?.supervisor_processes.some((line) => /--daemon|claude_master_rebuild_planner|autonomous_governor|parallel_scheduler|codex_watchdog/.test(line)) ?? false;
+  const controlPlaneStatus = persistentControlPlaneObserved
     ? 'CONTROL_PLANE_DAEMON_OBSERVED'
-    : 'CONTROL_PLANE_DAEMON_NOT_OBSERVED';
+    : oldSupervisor?.is_supervisor_alive
+      ? 'CONTROL_PLANE_WORKER_OBSERVED'
+      : 'CONTROL_PLANE_DAEMON_NOT_OBSERVED';
   const latestPrediction = paperRuntime.trainer_prediction ?? null;
   const lineage = paperRuntime.current_signal_lineage ?? null;
   const lineageIds = (lineage?.lineage_ids ?? {}) as Record<string, unknown>;

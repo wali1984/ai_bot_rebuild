@@ -1,13 +1,13 @@
 # Trainer Runtime Evidence Recovery Report
 
-Generated at: 2026-05-12T04:35:02.264Z
+Generated at: 2026-05-12T04:38:38.794Z
 
 Classifier result: V2_PAPER_TRAINER_WRAPPER_CURRENT
 
 - TRAINER_PROCESS_OBSERVED: no
 - TRAINER_MONITOR_PROCESS_OBSERVED: no
 - Trainer process rows observed: 0
-- Trainer monitor payload age seconds: 74944
+- Trainer monitor payload age seconds: 75161
 - Latest trainer status from payload: DEGRADED
 - Prediction worker alive from payload: true
 

@@ -1,6 +1,6 @@
 # Supervisor Runtime Truth Repair Report
 
-Generated at: 2026-05-12T04:35:02.264Z
+Generated at: 2026-05-12T04:38:38.794Z
 
 Inspection sources:
 
@@ -12,14 +12,14 @@ Inspection sources:
 
 Findings:
 
-- Supervisor daemon observed: no
+- Supervisor daemon observed: yes
 - Master planner process observed: no
 - Autonomous governor process observed: no
 - Current status stale/conflicting: no
-- Queue age seconds: 482
-- Planner age seconds: 28788
-- Current running task: none
-- Last completed task: codex_parallel_review_20260512_042102_09_website_explainability_contracts
+- Queue age seconds: 91
+- Planner age seconds: 29005
+- Current running task: codex_parallel_review_20260512_043705_10_no_live_side_effects
+- Last completed task: none
 - Next pending task: codex_recover_173_phase2r_consolidated_python_source_and_task_json_end_file_leakage_cleanup
 
 Action taken:

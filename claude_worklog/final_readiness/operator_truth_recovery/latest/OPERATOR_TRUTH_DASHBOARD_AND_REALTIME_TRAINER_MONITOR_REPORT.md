@@ -2,7 +2,7 @@
 
 Status: OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_RECOVERY_READY
 
-Generated at: 2026-05-12T04:35:02.264Z
+Generated at: 2026-05-12T04:38:38.794Z
 
 This pass creates a single operator truth payload and wires the dashboard to it so the operator can distinguish current runtime evidence, runtime monitor payloads, static proof fixtures, stale payloads, and missing evidence.
 
@@ -17,7 +17,7 @@ Key truths:
 - Market ingestors: PROCESS_OBSERVED_READONLY (6)
 - Feature pipeline: PROCESS_OBSERVED_READONLY (1)
 - Current next task: codex_recover_173_phase2r_consolidated_python_source_and_task_json_end_file_leakage_cleanup
-- Stale payload count: 12
+- Stale payload count: 10
 - Missing evidence count: 0
 
 The dashboard now labels fixture/static data instead of treating it as live runtime truth.
