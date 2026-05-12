@@ -1,0 +1,19 @@
+{
+  "classification": [
+    "FEATURE_SNAPSHOT_MISSING",
+    "FEATURE_FRESHNESS_MISSING",
+    "FEATURE_FLAGS_MISSING"
+  ],
+  "generated_at": "2026-05-12T16:50:13Z",
+  "legacy_feature_snapshot_id": null,
+  "legacy_features_age_ms": null,
+  "missing": [
+    "legacy feature_snapshot_id",
+    "legacy feature values payload",
+    "legacy missing_feature_flags",
+    "legacy stale_feature_flags"
+  ],
+  "source": "wma:proposals",
+  "v2_feature_snapshot_id": "fs_paper_tick_1778604604851",
+  "v2_market_age_seconds": 7
+}

@@ -1,0 +1,69 @@
+{
+  "classification": "LEGACY_AND_V2_BOTH_CURRENT_BUT_NOT_PARITY",
+  "classifications": [
+    "LEGACY_AND_V2_BOTH_CURRENT",
+    "LEGACY_CURRENT_V2_CURRENT_BUT_NOT_PARITY",
+    "PARITY_NOT_PROVEN",
+    "FULL_PARITY_NOT_CLAIMED"
+  ],
+  "differences": [
+    "Legacy trainer output is from /home/wali/Desktop/AI BOT and writes/feeds legacy Redis/log paths; V2 wrapper writes V2 local/public payloads only.",
+    "Legacy output currently has no explicit prediction_id or feature_snapshot_id in the captured PPO log row; V2 wrapper has both.",
+    "Legacy model/checkpoint identity was not emitted in the captured current output; V2 wrapper uses v2_paper_readonly_momentum_wrapper_v1.",
+    "Legacy publish/execution risk observed; V2 wrapper remains paper-only."
+  ],
+  "generated_at": "2026-05-12T16:50:13Z",
+  "legacy": {
+    "calibrated_confidence": null,
+    "classification": "LEGACY_TRAINER_OUTPUT_CURRENT",
+    "confidence": 0.6154,
+    "evidence_line": "2026-05-12 12:50:10,969 - INFO - hybrid_trainer - PPO_DECISION_RAW | account=primary | symbol=ALICEUSDT | tf=15m | action_id=1 | action=OPEN_LONG | ppo_conf=0.6154 | top1=0.4437 | top2=0.4270 | top1_id=1 | top2_id=2",
+    "feature_freshness_present": false,
+    "feature_snapshot_id": null,
+    "generated_at": "2026-05-12T16:50:13Z",
+    "legacy_output_can_reach_trader": true,
+    "missing_fields": [
+      "prediction_id",
+      "feature_snapshot_id",
+      "model_checkpoint",
+      "calibrated_confidence",
+      "feature_snapshot_payload",
+      "feature_flags"
+    ],
+    "model_checkpoint": null,
+    "prediction_id": null,
+    "raw_model_output": {
+      "action": "OPEN_LONG",
+      "action_id": "1",
+      "top1": "0.4437",
+      "top1_id": "1",
+      "top2": "0.4270",
+      "top2_id": "2"
+    },
+    "source_line_age_seconds": 2,
+    "source_path": "/home/wali/Desktop/AI BOT/.logs/hybrid_trainer.log",
+    "source_type": "LEGACY_TRAINER_LOG_READONLY",
+    "symbol": "ALICEUSDT",
+    "timeframe": "15m"
+  },
+  "v2_wrapper": {
+    "age_seconds": 9,
+    "confidence_calibrated": 0.8,
+    "confidence_raw": 0.84,
+    "feature_snapshot_id": "fs_paper_tick_1778604604851",
+    "lineage_ids": {
+      "execution_intent_id": "pei_paper_tick_1778604604851",
+      "feature_snapshot_id": "fs_paper_tick_1778604604851",
+      "orchestrator_decision_id": "orch_paper_tick_1778604604851",
+      "prediction_id": "pred_paper_tick_1778604604851",
+      "risk_decision_id": "risk_paper_tick_1778604604851",
+      "signal_id": "sig_paper_tick_1778604604851"
+    },
+    "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
+    "prediction_id": "pred_paper_tick_1778604604851",
+    "source_payload": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+    "status": "V2_PAPER_WRAPPER_OUTPUT_CURRENT",
+    "symbol": "BTCUSDT",
+    "timeframe": "1m"
+  }
+}

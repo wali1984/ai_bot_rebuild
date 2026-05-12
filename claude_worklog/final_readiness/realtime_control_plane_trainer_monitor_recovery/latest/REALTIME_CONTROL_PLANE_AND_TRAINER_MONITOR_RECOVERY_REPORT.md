@@ -2,17 +2,17 @@
 
 Status: REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY
 
-Generated at: 2026-05-12T05:07:18.942Z
+Generated at: 2026-05-12T16:50:32.089Z
 
 This pass repairs the runtime truth snapshot used by Mission Control. The generator now distinguishes the current queue task from the last completed task, captures observed read-only runtime processes, and keeps missing trainer runtime evidence visible.
 
 Current runtime snapshot:
 
 - Live trading: blocked_human_only
-- Supervisor process observed: yes
+- Supervisor process observed: no
 - Current running task: none
-- Last completed task: codex_recover_173_phase2r_decision_explainability_data_contract_python_source_end_file_marker_leakage_cleanup
-- Next pending task: codex_recover_173_phase2r_reconciliation_residual_end_file_marker_leakage_cleanup
+- Last completed task: codex_parallel_review_20260512_163146_02_orchestrator_decision
+- Next pending task: codex_recover_codex_recover_codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation
 - Market ingestors observed: 6
 - Feature pipeline observed: 1
 - Orchestrator observed: 2

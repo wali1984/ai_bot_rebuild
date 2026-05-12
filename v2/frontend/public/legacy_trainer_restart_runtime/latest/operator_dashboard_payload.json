@@ -1,0 +1,90 @@
+{
+  "codex_review_status": "LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_CODEX_FAIL",
+  "exchange_actions_by_this_task": false,
+  "feature_snapshot": {
+    "legacy_feature_snapshot_id": null,
+    "legacy_features_age_ms": null,
+    "missing": [
+      "legacy feature_snapshot_id",
+      "legacy feature values payload",
+      "legacy missing_feature_flags",
+      "legacy stale_feature_flags"
+    ],
+    "status": "FEATURE_SNAPSHOT_MISSING,FEATURE_FRESHNESS_MISSING,FEATURE_FLAGS_MISSING"
+  },
+  "generated_at": "2026-05-12T16:50:13Z",
+  "gpu_runtime": {
+    "compute_apps": "3980694, python3, 1398",
+    "status": "TRAINER_USING_GPU",
+    "trainer_pid_in_compute_apps": true
+  },
+  "legacy_publish_risk": {
+    "classifications": [
+      "LEGACY_PROPOSAL_PUBLISH_OBSERVED",
+      "LEGACY_SIGNAL_PUBLISH_OBSERVED",
+      "LEGACY_TRADER_CONSUMER_OBSERVED",
+      "EXECUTION_FEEDBACK_AFTER_RESTART_OBSERVED",
+      "EXCHANGE_ORDER_AFTER_RESTART_OBSERVED",
+      "PUBLISH_PATH_REQUIRES_OPERATOR_DECISION"
+    ],
+    "exchange_order_after_restart_observed": true,
+    "latest_exchange_order_id": 49654220167,
+    "status": "PUBLISH_PATH_REQUIRES_OPERATOR_DECISION"
+  },
+  "legacy_trader": {
+    "cwd": "/home/wali/Desktop/AI BOT",
+    "pid": 3324274,
+    "status": "LEGACY_TRADER_OBSERVED_READONLY"
+  },
+  "legacy_trainer": {
+    "cwd": "/home/wali/Desktop/AI BOT",
+    "monitor_status": "LEGACY_TRAINER_MONITOR_PROCESS_NOT_OBSERVED",
+    "pid": 3980694,
+    "status": "LEGACY_TRAINER_PROCESS_OBSERVED",
+    "uptime_seconds": 2466
+  },
+  "legacy_trainer_output": {
+    "confidence": 0.6154,
+    "missing_fields": [
+      "prediction_id",
+      "feature_snapshot_id",
+      "model_checkpoint",
+      "calibrated_confidence",
+      "feature_snapshot_payload",
+      "feature_flags"
+    ],
+    "source_line_age_seconds": 2,
+    "source_path": "/home/wali/Desktop/AI BOT/.logs/hybrid_trainer.log",
+    "status": "LEGACY_TRAINER_OUTPUT_CURRENT",
+    "symbol": "ALICEUSDT",
+    "timeframe": "15m"
+  },
+  "live_gate_status": "blocked_human_only",
+  "old_redis_writes_by_this_task": false,
+  "parity": {
+    "full_parity_claimed": false,
+    "status": "LEGACY_AND_V2_BOTH_CURRENT_BUT_NOT_PARITY"
+  },
+  "redis_trim_approval_created": false,
+  "status": "LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_BLOCKED",
+  "v2_wrapper": {
+    "age_seconds": 9,
+    "confidence_calibrated": 0.8,
+    "confidence_raw": 0.84,
+    "feature_snapshot_id": "fs_paper_tick_1778604604851",
+    "lineage_ids": {
+      "execution_intent_id": "pei_paper_tick_1778604604851",
+      "feature_snapshot_id": "fs_paper_tick_1778604604851",
+      "orchestrator_decision_id": "orch_paper_tick_1778604604851",
+      "prediction_id": "pred_paper_tick_1778604604851",
+      "risk_decision_id": "risk_paper_tick_1778604604851",
+      "signal_id": "sig_paper_tick_1778604604851"
+    },
+    "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
+    "prediction_id": "pred_paper_tick_1778604604851",
+    "source_payload": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+    "status": "V2_PAPER_WRAPPER_OUTPUT_CURRENT",
+    "symbol": "BTCUSDT",
+    "timeframe": "1m"
+  }
+}

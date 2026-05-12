@@ -1,0 +1,33 @@
+{
+  "calibrated_confidence": null,
+  "classification": "LEGACY_TRAINER_OUTPUT_CURRENT",
+  "confidence": 0.6154,
+  "evidence_line": "2026-05-12 12:50:10,969 - INFO - hybrid_trainer - PPO_DECISION_RAW | account=primary | symbol=ALICEUSDT | tf=15m | action_id=1 | action=OPEN_LONG | ppo_conf=0.6154 | top1=0.4437 | top2=0.4270 | top1_id=1 | top2_id=2",
+  "feature_freshness_present": false,
+  "feature_snapshot_id": null,
+  "generated_at": "2026-05-12T16:50:13Z",
+  "legacy_output_can_reach_trader": true,
+  "missing_fields": [
+    "prediction_id",
+    "feature_snapshot_id",
+    "model_checkpoint",
+    "calibrated_confidence",
+    "feature_snapshot_payload",
+    "feature_flags"
+  ],
+  "model_checkpoint": null,
+  "prediction_id": null,
+  "raw_model_output": {
+    "action": "OPEN_LONG",
+    "action_id": "1",
+    "top1": "0.4437",
+    "top1_id": "1",
+    "top2": "0.4270",
+    "top2_id": "2"
+  },
+  "source_line_age_seconds": 2,
+  "source_path": "/home/wali/Desktop/AI BOT/.logs/hybrid_trainer.log",
+  "source_type": "LEGACY_TRAINER_LOG_READONLY",
+  "symbol": "ALICEUSDT",
+  "timeframe": "15m"
+}
