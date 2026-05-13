@@ -1,0 +1,19 @@
+{
+  "task_id": "codex_review_parallel_trading_platform_consumer_ui",
+  "agent": "codex",
+  "lane": "parallel_support_ui_review",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "can_run_while_primary_lane_active": true,
+  "must_not_supersede_primary_objective": true,
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/parallel_trading_platform_consumer_ui/latest/"
+  ],
+  "required_output_files": [
+    "claude_worklog/final_readiness/parallel_trading_platform_consumer_ui/latest/CODEX_PARALLEL_TRADING_PLATFORM_UI_REVIEW.md",
+    "claude_worklog/final_readiness/parallel_trading_platform_consumer_ui/latest/CODEX_GO_NO_GO.md"
+  ],
+  "prompt": "Review the parallel trading-platform consumer UI task after implementation. This is a support-lane review only. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not place/cancel orders. Do not change leverage/margin. Do not enable live trading. Inspect screenshots, route matrix, payload wiring, source/freshness labels, current data vs mock data, signal/execution visibility, trainer explainability, subsystem visibility, Admin AI safety, and non-drift lock. Fail if primary objective drifted, UI became primary, page still looks like proof/status dump, chart is absent, market intelligence absent, signals/executions lack current IDs, trainer data missing without explicit evidence gap, explanations guess, mock data used as truth, hist_* shown as current, STATIC_PROOF_FIXTURE primary, dangerous controls enabled, live readiness overstated, approval token created, old Redis write occurred, or exchange action occurred. Output exactly two BEGIN_FILE blocks. CODEX_GO_NO_GO.md must contain exactly one line: PARALLEL_TRADING_PLATFORM_CONSUMER_UI_CODEX_PASS or PARALLEL_TRADING_PLATFORM_CONSUMER_UI_CODEX_FAIL."
+}

@@ -1,0 +1,33 @@
+{
+  "task_id": "parallel_trading_platform_consumer_ui_from_real_v2_payloads",
+  "agent": "claude",
+  "lane": "parallel_support_ui",
+  "risk_level": "L2",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "can_run_while_primary_lane_active": true,
+  "must_not_supersede_primary_objective": true,
+  "primary_objective_lock": [
+    "paper_shadow_24h_proof",
+    "negative_pnl_diagnosis",
+    "risk_gateway_hardening",
+    "p0_p1_script_migration",
+    "trainer_trader_monitoring",
+    "account_trade_permission_evidence",
+    "canary_readiness",
+    "live_blocked_human_only"
+  ],
+  "forbidden_actions": [
+    "modify_legacy_bot",
+    "write_old_redis",
+    "create_redis_trim_approval",
+    "create_final_live_approval_token",
+    "place_cancel_or_modify_orders",
+    "change_leverage",
+    "change_margin_mode",
+    "activate_live_keys",
+    "enable_live_trading"
+  ],
+  "required_codex_review": true,
+  "prompt": "Build PARALLEL_TRADING_PLATFORM_CONSUMER_UI_FROM_REAL_V2_PAYLOADS_READY. This is a parallel support-lane UI/product task. Do not drift from the primary go-live objective. Do not stop or replace primary tasks. Build a consumer-grade trading-platform UI inspired by CoinAnk market intelligence, Bitsgap bot/portfolio controls, and Binance trading/account layout, but fully aligned with AI BOT V2 functions, routes, controls, risk state, ingestors, trainer, paper-shadow, and legacy bridge. Use only real/current V2 payloads or explicit MISSING_EVIDENCE labels. No mock data as runtime truth. No hist_* as current. No STATIC_PROOF_FIXTURE as primary trading data. No live enablement. Live remains blocked_human_only. Full task details are in claude_worklog/final_readiness/parallel_trading_platform_consumer_ui/latest/TASK.md after this task creates it."
+}
