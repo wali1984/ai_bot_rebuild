@@ -1,0 +1,52 @@
+{
+  "approval_file_absent": true,
+  "approval_file_created_by_automation": false,
+  "approval_file_path": "claude_worklog/approvals/APPROVED_FINAL_LIVE_TINY_CANARY_ONLY.md",
+  "canary_proposal_status": "PREPARED_NOT_APPROVED",
+  "codex_result": "FINAL_LIVE_CAPITAL_GATE_CODEX_PASS",
+  "dirty_git_classification_counts": {
+    "active_daemon_owned": 13,
+    "durable_artifact_to_commit": 15,
+    "runtime_status_churn_to_restore": 149
+  },
+  "final_live_gate_selected": true,
+  "forbidden_actions": {
+    "exchange_action": false,
+    "legacy_mutation": false,
+    "leverage_margin_change": false,
+    "live_enablement": false,
+    "old_redis_write": false
+  },
+  "generated_at": "2026-05-13T04:00:24.605211+00:00",
+  "hard_gate_checklist_summary": {
+    "MISSING_EVIDENCE": 3,
+    "PASS": 40
+  },
+  "live_gate_status": "blocked_human_only",
+  "next_non_live_task_if_no_approval": "POST_FINAL_GATE_NON_LIVE_MONITORING_AND_HARDENING",
+  "non_live_continuation_policy": "active",
+  "primary_chain_validation_summary": {
+    "VALID_CURRENT": 7
+  },
+  "remaining_blockers": [
+    {
+      "evidence": "no account-read payload identified",
+      "gate": "read-only account status verified",
+      "notes": "Requires human/operator exchange-read confirmation before canary.",
+      "status": "MISSING_EVIDENCE"
+    },
+    {
+      "evidence": "no trade-permission payload identified",
+      "gate": "trade permission known",
+      "notes": "Must be explicitly verified before approval.",
+      "status": "MISSING_EVIDENCE"
+    },
+    {
+      "evidence": "no current weekly-loss payload found",
+      "gate": "weekly loss hard stop required",
+      "notes": "Must be verified before live approval.",
+      "status": "MISSING_EVIDENCE"
+    }
+  ],
+  "status": "FINAL_LIVE_CAPITAL_GATE_RECONCILIATION_AND_CANARY_APPROVAL_PACKET_READY"
+}

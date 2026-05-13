@@ -1,0 +1,897 @@
+{
+  "active_claude_or_codex_children": [],
+  "counts": {
+    "active_daemon_owned": 13,
+    "durable_artifact_to_commit": 15,
+    "runtime_status_churn_to_restore": 149
+  },
+  "files": [
+    {
+      "classification": "active_daemon_owned",
+      "path": "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json",
+      "status_line": " M claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json"
+    },
+    {
+      "classification": "active_daemon_owned",
+      "path": "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.md",
+      "status_line": " M claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.md"
+    },
+    {
+      "classification": "active_daemon_owned",
+      "path": "claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json",
+      "status_line": " M claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/ACTIVE_AUTONOMOUS_PRIMARY_DISPATCH_AND_SCRIPT_MIGRATION_PROOF_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/active_autonomous_dispatch/latest/ACTIVE_AUTONOMOUS_PRIMARY_DISPATCH_AND_SCRIPT_MIGRATION_PROOF_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/CLAUDE_IDLE_AND_DISPATCH_DIAGNOSTIC.md",
+      "status_line": " M claude_worklog/final_readiness/active_autonomous_dispatch/latest/CLAUDE_IDLE_AND_DISPATCH_DIAGNOSTIC.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/CODEX_PARALLEL_DISPATCH_PROOF.md",
+      "status_line": " M claude_worklog/final_readiness/active_autonomous_dispatch/latest/CODEX_PARALLEL_DISPATCH_PROOF.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/PRIMARY_DISPATCH_PROOF.md",
+      "status_line": " M claude_worklog/final_readiness/active_autonomous_dispatch/latest/PRIMARY_DISPATCH_PROOF.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/claude_idle_and_dispatch_diagnostic.json",
+      "status_line": " M claude_worklog/final_readiness/active_autonomous_dispatch/latest/claude_idle_and_dispatch_diagnostic.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_parallel_dispatch_state.json",
+      "status_line": " M claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_parallel_dispatch_state.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/operator_dashboard_payload.json",
+      "status_line": " M claude_worklog/final_readiness/active_autonomous_dispatch/latest/operator_dashboard_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/primary_dispatch_state.json",
+      "status_line": " M claude_worklog/final_readiness/active_autonomous_dispatch/latest/primary_dispatch_state.json"
+    },
+    {
+      "classification": "active_daemon_owned",
+      "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/always_on_runtime_state.json",
+      "status_line": " M claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/always_on_runtime_state.json"
+    },
+    {
+      "classification": "active_daemon_owned",
+      "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/automation_utilization_status.json",
+      "status_line": " M claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/automation_utilization_status.json"
+    },
+    {
+      "classification": "active_daemon_owned",
+      "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/git_dirty_state.json",
+      "status_line": " M claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/git_dirty_state.json"
+    },
+    {
+      "classification": "active_daemon_owned",
+      "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json",
+      "status_line": " M claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json"
+    },
+    {
+      "classification": "active_daemon_owned",
+      "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json",
+      "status_line": " M claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/documentation_governance/latest/doc_update_policy.json",
+      "status_line": " M claude_worklog/final_readiness/documentation_governance/latest/doc_update_policy.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/non_drift_governor_lock/latest/CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/non_drift_governor_lock/latest/CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/non_drift_governor_lock/latest/GOVERNOR_PRIORITY_POLICY.md",
+      "status_line": " M claude_worklog/final_readiness/non_drift_governor_lock/latest/GOVERNOR_PRIORITY_POLICY.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/non_drift_governor_lock/latest/NEXT_TASKS_BY_LANE.md",
+      "status_line": " M claude_worklog/final_readiness/non_drift_governor_lock/latest/NEXT_TASKS_BY_LANE.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/non_drift_governor_lock/latest/PRIMARY_OBJECTIVE_LOCK.md",
+      "status_line": " M claude_worklog/final_readiness/non_drift_governor_lock/latest/PRIMARY_OBJECTIVE_LOCK.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/non_drift_governor_lock/latest/next_tasks_by_lane.json",
+      "status_line": " M claude_worklog/final_readiness/non_drift_governor_lock/latest/next_tasks_by_lane.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/non_drift_governor_lock/latest/objective_drift_status.json",
+      "status_line": " M claude_worklog/final_readiness/non_drift_governor_lock/latest/objective_drift_status.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/non_drift_governor_lock/latest/operator_dashboard_payload.json",
+      "status_line": " M claude_worklog/final_readiness/non_drift_governor_lock/latest/operator_dashboard_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md",
+      "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/MISSING_EVIDENCE_REGISTER.md",
+      "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/MISSING_EVIDENCE_REGISTER.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/REALTIME_TRAINER_MONITOR_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/REALTIME_TRAINER_MONITOR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/SUPERVISOR_STATE_TRUTH_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/SUPERVISOR_STATE_TRUTH_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/operator_dashboard_payload.json",
+      "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/operator_dashboard_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/operator_truth_payload.json",
+      "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/operator_truth_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/realtime_legacy_monitor_status.json",
+      "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/realtime_legacy_monitor_status.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/realtime_trainer_monitor_status.json",
+      "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/realtime_trainer_monitor_status.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/runtime_signal_lineage_status.json",
+      "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/runtime_signal_lineage_status.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/trainer_prediction_stream_status.json",
+      "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/trainer_prediction_stream_status.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/CONTROL_PLANE_FRESHNESS_RECOVERY.md",
+      "status_line": " M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/CONTROL_PLANE_FRESHNESS_RECOVERY.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/LEGACY_TRADER_CONTAINMENT.md",
+      "status_line": " M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/LEGACY_TRADER_CONTAINMENT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/operator_dashboard_payload.json",
+      "status_line": " M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/operator_dashboard_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/operator_truth_payload.json",
+      "status_line": " M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/operator_truth_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/production_operator_webapp/latest/ADMIN_SHELL_REBUILD_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/ADMIN_SHELL_REBUILD_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/production_operator_webapp/latest/ALL_ROUTES_PRODUCTION_CONTENT_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/ALL_ROUTES_PRODUCTION_CONTENT_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/production_operator_webapp/latest/BROWSER_PRODUCTION_ACCEPTANCE_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/BROWSER_PRODUCTION_ACCEPTANCE_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/production_operator_webapp/latest/MISSION_CONTROL_PRODUCTION_REBUILD_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/MISSION_CONTROL_PRODUCTION_REBUILD_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/production_operator_webapp/latest/MONITOR_CENTER_PRODUCTION_REPAIR_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/MONITOR_CENTER_PRODUCTION_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/production_operator_webapp/latest/OPERATOR_TRUTH_GENERATOR_REPAIR_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/OPERATOR_TRUTH_GENERATOR_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/production_operator_webapp/latest/PRODUCTION_OPERATOR_WEBAPP_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/PRODUCTION_OPERATOR_WEBAPP_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/production_operator_webapp/latest/ROUTE_ACCEPTANCE_MATRIX.md",
+      "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/ROUTE_ACCEPTANCE_MATRIX.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/production_operator_webapp/latest/SIGNAL_EXPLAINABILITY_PRODUCTION_REPAIR_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/SIGNAL_EXPLAINABILITY_PRODUCTION_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/production_operator_webapp/latest/SUPERVISOR_FRESHNESS_REPAIR_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/SUPERVISOR_FRESHNESS_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/production_operator_webapp/latest/TRADINGVIEW_PRODUCTION_REPAIR_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/TRADINGVIEW_PRODUCTION_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/production_operator_webapp/latest/TRAINER_MONITOR_PRODUCTION_REPAIR_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/TRAINER_MONITOR_PRODUCTION_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/production_operator_webapp/latest/UI_ACCEPTANCE_FAILURE.md",
+      "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/UI_ACCEPTANCE_FAILURE.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/production_operator_webapp/latest/operator_dashboard_payload.json",
+      "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/operator_dashboard_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/BROWSER_OPERATOR_ACCEPTANCE_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/BROWSER_OPERATOR_ACCEPTANCE_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/MISSION_CONTROL_SIMPLIFICATION_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/MISSION_CONTROL_SIMPLIFICATION_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/MONITOR_CENTER_REALITY_REPAIR_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/MONITOR_CENTER_REALITY_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/PAYLOAD_FRESHNESS_DAEMON_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/PAYLOAD_FRESHNESS_DAEMON_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/SIGNAL_EXPLAINABILITY_REALITY_REPAIR_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/SIGNAL_EXPLAINABILITY_REALITY_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/SUPERVISOR_RUNTIME_TRUTH_REPAIR_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/SUPERVISOR_RUNTIME_TRUTH_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/TRAINER_MONITOR_UI_REPAIR_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/TRAINER_MONITOR_UI_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/TRAINER_RUNTIME_EVIDENCE_RECOVERY_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/TRAINER_RUNTIME_EVIDENCE_RECOVERY_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/operator_dashboard_payload.json",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/operator_dashboard_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/operator_truth_payload.json",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/operator_truth_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/trainer_missing_evidence.md",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/trainer_missing_evidence.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/trainer_prediction_current_evidence.json",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/trainer_prediction_current_evidence.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/trainer_runtime_status.json",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/trainer_runtime_status.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/BROWSER_VISUAL_ACCEPTANCE_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/BROWSER_VISUAL_ACCEPTANCE_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/MISSION_CONTROL_SIMPLIFICATION_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/MISSION_CONTROL_SIMPLIFICATION_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/RUNTIME_TRUTH_FRESHNESS_FIX.md",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/RUNTIME_TRUTH_FRESHNESS_FIX.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/SUPERVISOR_STATE_RECONCILIATION.md",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/SUPERVISOR_STATE_RECONCILIATION.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/TRAINER_MONITOR_EVIDENCE_REVIEW.md",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/TRAINER_MONITOR_EVIDENCE_REVIEW.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/operator_dashboard_payload.json",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/operator_dashboard_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/operator_truth_payload.json",
+      "status_line": " M claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/operator_truth_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/historical_pnl_audit/01_DATA_SOURCE_STATUS.md",
+      "status_line": " M claude_worklog/historical_pnl_audit/01_DATA_SOURCE_STATUS.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/legacy_readonly_audit/01_PROCESS_SNAPSHOT.md",
+      "status_line": " M claude_worklog/legacy_readonly_audit/01_PROCESS_SNAPSHOT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/legacy_readonly_audit/03_LEGACY_CODE_FUNCTION_INVENTORY.md",
+      "status_line": " M claude_worklog/legacy_readonly_audit/03_LEGACY_CODE_FUNCTION_INVENTORY.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/legacy_readonly_audit/07_ORCHESTRATOR_TRADER_RUNTIME_EVIDENCE.md",
+      "status_line": " M claude_worklog/legacy_readonly_audit/07_ORCHESTRATOR_TRADER_RUNTIME_EVIDENCE.md"
+    },
+    {
+      "classification": "durable_artifact_to_commit",
+      "path": "claude_worklog/tools/always_on_objective_runner.py",
+      "status_line": " M claude_worklog/tools/always_on_objective_runner.py"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/tools/build_active_autonomous_dispatch_packet.py",
+      "status_line": " M claude_worklog/tools/build_active_autonomous_dispatch_packet.py"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/active_autonomous_dispatch/latest/ACTIVE_AUTONOMOUS_PRIMARY_DISPATCH_AND_SCRIPT_MIGRATION_PROOF_REPORT.md",
+      "status_line": " M v2/frontend/public/active_autonomous_dispatch/latest/ACTIVE_AUTONOMOUS_PRIMARY_DISPATCH_AND_SCRIPT_MIGRATION_PROOF_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/active_autonomous_dispatch/latest/CLAUDE_IDLE_AND_DISPATCH_DIAGNOSTIC.md",
+      "status_line": " M v2/frontend/public/active_autonomous_dispatch/latest/CLAUDE_IDLE_AND_DISPATCH_DIAGNOSTIC.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/active_autonomous_dispatch/latest/CODEX_PARALLEL_DISPATCH_PROOF.md",
+      "status_line": " M v2/frontend/public/active_autonomous_dispatch/latest/CODEX_PARALLEL_DISPATCH_PROOF.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/active_autonomous_dispatch/latest/PRIMARY_DISPATCH_PROOF.md",
+      "status_line": " M v2/frontend/public/active_autonomous_dispatch/latest/PRIMARY_DISPATCH_PROOF.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/active_autonomous_dispatch/latest/claude_idle_and_dispatch_diagnostic.json",
+      "status_line": " M v2/frontend/public/active_autonomous_dispatch/latest/claude_idle_and_dispatch_diagnostic.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/active_autonomous_dispatch/latest/codex_parallel_dispatch_state.json",
+      "status_line": " M v2/frontend/public/active_autonomous_dispatch/latest/codex_parallel_dispatch_state.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/active_autonomous_dispatch/latest/operator_dashboard_payload.json",
+      "status_line": " M v2/frontend/public/active_autonomous_dispatch/latest/operator_dashboard_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/active_autonomous_dispatch/latest/primary_dispatch_state.json",
+      "status_line": " M v2/frontend/public/active_autonomous_dispatch/latest/primary_dispatch_state.json"
+    },
+    {
+      "classification": "active_daemon_owned",
+      "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/always_on_runtime_state.json",
+      "status_line": " M v2/frontend/public/always_on_claude_codex_runtime/latest/always_on_runtime_state.json"
+    },
+    {
+      "classification": "active_daemon_owned",
+      "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/automation_utilization_status.json",
+      "status_line": " M v2/frontend/public/always_on_claude_codex_runtime/latest/automation_utilization_status.json"
+    },
+    {
+      "classification": "active_daemon_owned",
+      "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/git_dirty_state.json",
+      "status_line": " M v2/frontend/public/always_on_claude_codex_runtime/latest/git_dirty_state.json"
+    },
+    {
+      "classification": "active_daemon_owned",
+      "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json",
+      "status_line": " M v2/frontend/public/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json"
+    },
+    {
+      "classification": "active_daemon_owned",
+      "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json",
+      "status_line": " M v2/frontend/public/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/documentation_governance/latest/doc_update_policy.json",
+      "status_line": " M v2/frontend/public/documentation_governance/latest/doc_update_policy.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/non_drift_governor_lock/latest/CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md",
+      "status_line": " M v2/frontend/public/non_drift_governor_lock/latest/CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/non_drift_governor_lock/latest/GOVERNOR_PRIORITY_POLICY.md",
+      "status_line": " M v2/frontend/public/non_drift_governor_lock/latest/GOVERNOR_PRIORITY_POLICY.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/non_drift_governor_lock/latest/NEXT_TASKS_BY_LANE.md",
+      "status_line": " M v2/frontend/public/non_drift_governor_lock/latest/NEXT_TASKS_BY_LANE.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/non_drift_governor_lock/latest/PRIMARY_OBJECTIVE_LOCK.md",
+      "status_line": " M v2/frontend/public/non_drift_governor_lock/latest/PRIMARY_OBJECTIVE_LOCK.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/non_drift_governor_lock/latest/next_tasks_by_lane.json",
+      "status_line": " M v2/frontend/public/non_drift_governor_lock/latest/next_tasks_by_lane.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/non_drift_governor_lock/latest/objective_drift_status.json",
+      "status_line": " M v2/frontend/public/non_drift_governor_lock/latest/objective_drift_status.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/non_drift_governor_lock/latest/operator_dashboard_payload.json",
+      "status_line": " M v2/frontend/public/non_drift_governor_lock/latest/operator_dashboard_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/operator_truth/latest/operator_truth_bridge_payload.json",
+      "status_line": " M v2/frontend/public/operator_truth/latest/operator_truth_bridge_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/operator_truth/latest/operator_truth_payload.json",
+      "status_line": " M v2/frontend/public/operator_truth/latest/operator_truth_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md",
+      "status_line": " M v2/frontend/public/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md",
+      "status_line": " M v2/frontend/public/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/operator_truth_recovery/latest/MISSING_EVIDENCE_REGISTER.md",
+      "status_line": " M v2/frontend/public/operator_truth_recovery/latest/MISSING_EVIDENCE_REGISTER.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/operator_truth_recovery/latest/OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_REPORT.md",
+      "status_line": " M v2/frontend/public/operator_truth_recovery/latest/OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/operator_truth_recovery/latest/REALTIME_TRAINER_MONITOR_REPORT.md",
+      "status_line": " M v2/frontend/public/operator_truth_recovery/latest/REALTIME_TRAINER_MONITOR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/operator_truth_recovery/latest/SUPERVISOR_STATE_TRUTH_REPORT.md",
+      "status_line": " M v2/frontend/public/operator_truth_recovery/latest/SUPERVISOR_STATE_TRUTH_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/operator_truth_recovery/latest/operator_dashboard_payload.json",
+      "status_line": " M v2/frontend/public/operator_truth_recovery/latest/operator_dashboard_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/operator_truth_recovery/latest/operator_truth_payload.json",
+      "status_line": " M v2/frontend/public/operator_truth_recovery/latest/operator_truth_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/operator_truth_recovery/latest/realtime_legacy_monitor_status.json",
+      "status_line": " M v2/frontend/public/operator_truth_recovery/latest/realtime_legacy_monitor_status.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/operator_truth_recovery/latest/realtime_trainer_monitor_status.json",
+      "status_line": " M v2/frontend/public/operator_truth_recovery/latest/realtime_trainer_monitor_status.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/operator_truth_recovery/latest/runtime_signal_lineage_status.json",
+      "status_line": " M v2/frontend/public/operator_truth_recovery/latest/runtime_signal_lineage_status.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/operator_truth_recovery/latest/trainer_prediction_stream_status.json",
+      "status_line": " M v2/frontend/public/operator_truth_recovery/latest/trainer_prediction_stream_status.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/paper_online_canonical_truth_bridge/latest/CONTROL_PLANE_FRESHNESS_RECOVERY.md",
+      "status_line": " M v2/frontend/public/paper_online_canonical_truth_bridge/latest/CONTROL_PLANE_FRESHNESS_RECOVERY.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/paper_online_canonical_truth_bridge/latest/LEGACY_TRADER_CONTAINMENT.md",
+      "status_line": " M v2/frontend/public/paper_online_canonical_truth_bridge/latest/LEGACY_TRADER_CONTAINMENT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/paper_online_canonical_truth_bridge/latest/PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_REPORT.md",
+      "status_line": " M v2/frontend/public/paper_online_canonical_truth_bridge/latest/PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/paper_online_canonical_truth_bridge/latest/operator_dashboard_payload.json",
+      "status_line": " M v2/frontend/public/paper_online_canonical_truth_bridge/latest/operator_dashboard_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/paper_online_canonical_truth_bridge/latest/operator_truth_payload.json",
+      "status_line": " M v2/frontend/public/paper_online_canonical_truth_bridge/latest/operator_truth_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/production_operator_webapp/latest/ADMIN_SHELL_REBUILD_REPORT.md",
+      "status_line": " M v2/frontend/public/production_operator_webapp/latest/ADMIN_SHELL_REBUILD_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/production_operator_webapp/latest/ALL_ROUTES_PRODUCTION_CONTENT_REPORT.md",
+      "status_line": " M v2/frontend/public/production_operator_webapp/latest/ALL_ROUTES_PRODUCTION_CONTENT_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/production_operator_webapp/latest/BROWSER_PRODUCTION_ACCEPTANCE_REPORT.md",
+      "status_line": " M v2/frontend/public/production_operator_webapp/latest/BROWSER_PRODUCTION_ACCEPTANCE_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/production_operator_webapp/latest/MISSION_CONTROL_PRODUCTION_REBUILD_REPORT.md",
+      "status_line": " M v2/frontend/public/production_operator_webapp/latest/MISSION_CONTROL_PRODUCTION_REBUILD_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/production_operator_webapp/latest/MONITOR_CENTER_PRODUCTION_REPAIR_REPORT.md",
+      "status_line": " M v2/frontend/public/production_operator_webapp/latest/MONITOR_CENTER_PRODUCTION_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/production_operator_webapp/latest/OPERATOR_TRUTH_GENERATOR_REPAIR_REPORT.md",
+      "status_line": " M v2/frontend/public/production_operator_webapp/latest/OPERATOR_TRUTH_GENERATOR_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/production_operator_webapp/latest/PRODUCTION_OPERATOR_WEBAPP_REPORT.md",
+      "status_line": " M v2/frontend/public/production_operator_webapp/latest/PRODUCTION_OPERATOR_WEBAPP_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/production_operator_webapp/latest/ROUTE_ACCEPTANCE_MATRIX.md",
+      "status_line": " M v2/frontend/public/production_operator_webapp/latest/ROUTE_ACCEPTANCE_MATRIX.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/production_operator_webapp/latest/SIGNAL_EXPLAINABILITY_PRODUCTION_REPAIR_REPORT.md",
+      "status_line": " M v2/frontend/public/production_operator_webapp/latest/SIGNAL_EXPLAINABILITY_PRODUCTION_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/production_operator_webapp/latest/SUPERVISOR_FRESHNESS_REPAIR_REPORT.md",
+      "status_line": " M v2/frontend/public/production_operator_webapp/latest/SUPERVISOR_FRESHNESS_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/production_operator_webapp/latest/TRADINGVIEW_PRODUCTION_REPAIR_REPORT.md",
+      "status_line": " M v2/frontend/public/production_operator_webapp/latest/TRADINGVIEW_PRODUCTION_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/production_operator_webapp/latest/TRAINER_MONITOR_PRODUCTION_REPAIR_REPORT.md",
+      "status_line": " M v2/frontend/public/production_operator_webapp/latest/TRAINER_MONITOR_PRODUCTION_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/production_operator_webapp/latest/UI_ACCEPTANCE_FAILURE.md",
+      "status_line": " M v2/frontend/public/production_operator_webapp/latest/UI_ACCEPTANCE_FAILURE.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/production_operator_webapp/latest/operator_dashboard_payload.json",
+      "status_line": " M v2/frontend/public/production_operator_webapp/latest/operator_dashboard_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_recovery/latest/BROWSER_OPERATOR_ACCEPTANCE_REPORT.md",
+      "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/BROWSER_OPERATOR_ACCEPTANCE_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_recovery/latest/MISSION_CONTROL_SIMPLIFICATION_REPORT.md",
+      "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/MISSION_CONTROL_SIMPLIFICATION_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_recovery/latest/MONITOR_CENTER_REALITY_REPAIR_REPORT.md",
+      "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/MONITOR_CENTER_REALITY_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_recovery/latest/PAYLOAD_FRESHNESS_DAEMON_REPORT.md",
+      "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/PAYLOAD_FRESHNESS_DAEMON_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_recovery/latest/REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md",
+      "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_recovery/latest/SIGNAL_EXPLAINABILITY_REALITY_REPAIR_REPORT.md",
+      "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/SIGNAL_EXPLAINABILITY_REALITY_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_recovery/latest/SUPERVISOR_RUNTIME_TRUTH_REPAIR_REPORT.md",
+      "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/SUPERVISOR_RUNTIME_TRUTH_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_recovery/latest/TRAINER_MONITOR_UI_REPAIR_REPORT.md",
+      "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/TRAINER_MONITOR_UI_REPAIR_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_recovery/latest/TRAINER_RUNTIME_EVIDENCE_RECOVERY_REPORT.md",
+      "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/TRAINER_RUNTIME_EVIDENCE_RECOVERY_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_recovery/latest/operator_dashboard_payload.json",
+      "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/operator_dashboard_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_recovery/latest/operator_truth_payload.json",
+      "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/operator_truth_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_recovery/latest/trainer_missing_evidence.md",
+      "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/trainer_missing_evidence.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_recovery/latest/trainer_prediction_current_evidence.json",
+      "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/trainer_prediction_current_evidence.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_recovery/latest/trainer_runtime_status.json",
+      "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/trainer_runtime_status.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/BROWSER_VISUAL_ACCEPTANCE_REPORT.md",
+      "status_line": " M v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/BROWSER_VISUAL_ACCEPTANCE_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/MISSION_CONTROL_SIMPLIFICATION_REPORT.md",
+      "status_line": " M v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/MISSION_CONTROL_SIMPLIFICATION_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md",
+      "status_line": " M v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/RUNTIME_TRUTH_FRESHNESS_FIX.md",
+      "status_line": " M v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/RUNTIME_TRUTH_FRESHNESS_FIX.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/SUPERVISOR_STATE_RECONCILIATION.md",
+      "status_line": " M v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/SUPERVISOR_STATE_RECONCILIATION.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/TRAINER_MONITOR_EVIDENCE_REVIEW.md",
+      "status_line": " M v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/TRAINER_MONITOR_EVIDENCE_REVIEW.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/operator_dashboard_payload.json",
+      "status_line": " M v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/operator_dashboard_payload.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/operator_truth_payload.json",
+      "status_line": " M v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/operator_truth_payload.json"
+    },
+    {
+      "classification": "durable_artifact_to_commit",
+      "path": "v2/frontend/scripts/sync-proof-artifacts.mjs",
+      "status_line": " M v2/frontend/scripts/sync-proof-artifacts.mjs"
+    },
+    {
+      "classification": "durable_artifact_to_commit",
+      "path": "claude_worklog/agent_supervisor/tasks/LIVE_READINESS_PREFLIGHT.json",
+      "status_line": "?? claude_worklog/agent_supervisor/tasks/LIVE_READINESS_PREFLIGHT.json"
+    },
+    {
+      "classification": "durable_artifact_to_commit",
+      "path": "claude_worklog/agent_supervisor/tasks/PUBLIC_HOSTING_AND_TELEMETRY_BRIDGE.json",
+      "status_line": "?? claude_worklog/agent_supervisor/tasks/PUBLIC_HOSTING_AND_TELEMETRY_BRIDGE.json"
+    },
+    {
+      "classification": "durable_artifact_to_commit",
+      "path": "claude_worklog/agent_supervisor/tasks/V2_DATA_PLANE_AND_SCRIPT_MIGRATION_BACKLOG.json",
+      "status_line": "?? claude_worklog/agent_supervisor/tasks/V2_DATA_PLANE_AND_SCRIPT_MIGRATION_BACKLOG.json"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_GO_NO_GO.md",
+      "status_line": "?? claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_GO_NO_GO.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_REPORT.md",
+      "status_line": "?? claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_REPORT.md"
+    },
+    {
+      "classification": "durable_artifact_to_commit",
+      "path": "claude_worklog/final_readiness/final_live_capital_gate/",
+      "status_line": "?? claude_worklog/final_readiness/final_live_capital_gate/"
+    },
+    {
+      "classification": "durable_artifact_to_commit",
+      "path": "claude_worklog/final_readiness/live_readiness_preflight/",
+      "status_line": "?? claude_worklog/final_readiness/live_readiness_preflight/"
+    },
+    {
+      "classification": "durable_artifact_to_commit",
+      "path": "claude_worklog/final_readiness/public_hosting_and_telemetry_bridge/",
+      "status_line": "?? claude_worklog/final_readiness/public_hosting_and_telemetry_bridge/"
+    },
+    {
+      "classification": "durable_artifact_to_commit",
+      "path": "claude_worklog/final_readiness/risk_gateway_runtime_expansion_tests/",
+      "status_line": "?? claude_worklog/final_readiness/risk_gateway_runtime_expansion_tests/"
+    },
+    {
+      "classification": "durable_artifact_to_commit",
+      "path": "claude_worklog/final_readiness/v2_data_plane_and_script_migration_backlog/",
+      "status_line": "?? claude_worklog/final_readiness/v2_data_plane_and_script_migration_backlog/"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_GO_NO_GO.md",
+      "status_line": "?? v2/frontend/public/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_GO_NO_GO.md"
+    },
+    {
+      "classification": "runtime_status_churn_to_restore",
+      "path": "v2/frontend/public/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_REPORT.md",
+      "status_line": "?? v2/frontend/public/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_REPORT.md"
+    },
+    {
+      "classification": "durable_artifact_to_commit",
+      "path": "v2/frontend/public/final_live_capital_gate/",
+      "status_line": "?? v2/frontend/public/final_live_capital_gate/"
+    },
+    {
+      "classification": "durable_artifact_to_commit",
+      "path": "v2/frontend/public/live_readiness_preflight/",
+      "status_line": "?? v2/frontend/public/live_readiness_preflight/"
+    },
+    {
+      "classification": "durable_artifact_to_commit",
+      "path": "v2/frontend/public/public_hosting_and_telemetry_bridge/",
+      "status_line": "?? v2/frontend/public/public_hosting_and_telemetry_bridge/"
+    },
+    {
+      "classification": "durable_artifact_to_commit",
+      "path": "v2/frontend/public/risk_gateway_runtime_expansion_tests/",
+      "status_line": "?? v2/frontend/public/risk_gateway_runtime_expansion_tests/"
+    },
+    {
+      "classification": "durable_artifact_to_commit",
+      "path": "v2/frontend/public/v2_data_plane_and_script_migration_backlog/",
+      "status_line": "?? v2/frontend/public/v2_data_plane_and_script_migration_backlog/"
+    }
+  ],
+  "generated_at": "2026-05-13T04:00:24.605211+00:00",
+  "policy": "Commit durable final/primary-chain artifacts after validation; leave active daemon-owned and runtime churn unstaged unless separately reconciled. Do not erase evidence."
+}

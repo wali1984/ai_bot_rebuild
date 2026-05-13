@@ -29,10 +29,12 @@ PUBLIC = ROOT / "v2/frontend/public/always_on_claude_codex_runtime/latest"
 GOV = ROOT / "claude_worklog/autonomous_governor/latest"
 NON_DRIFT_FINAL = ROOT / "claude_worklog/final_readiness/non_drift_governor_lock/latest"
 NON_DRIFT_PUBLIC = ROOT / "v2/frontend/public/non_drift_governor_lock/latest"
+FINAL_LIVE_APPROVAL = ROOT / "claude_worklog/approvals/APPROVED_FINAL_LIVE_TINY_CANARY_ONLY.md"
 
 LIVE_GATE = "blocked_human_only"
 READY = "ALWAYS_ON_CLAUDE_CODEX_PRIMARY_OBJECTIVE_RUNTIME_READY"
 BLOCKED = "ALWAYS_ON_CLAUDE_CODEX_PRIMARY_OBJECTIVE_RUNTIME_BLOCKED"
+POST_FINAL_GATE_NON_LIVE_TASK = "POST_FINAL_GATE_NON_LIVE_MONITORING_AND_HARDENING"
 
 PRIMARY_CHAIN = [
     "TONIGHT_V2_LIVE_LIKE_PAPER_SHADOW_AND_CANARY_PREFLIGHT",
@@ -338,7 +340,24 @@ def ensure_codex_audit_tasks() -> list[str]:
 def ensure_primary_task() -> dict[str, Any]:
     selected = selected_primary_task()
     if selected == "FINAL_LIVE_CAPITAL_APPROVAL_REQUIRED":
-        return {"selected": selected, "action": "human_final_gate_required", "created": False}
+        if FINAL_LIVE_APPROVAL.exists():
+            return {"selected": selected, "action": "human_final_gate_approval_present_manual_review_required", "created": False}
+        selected = POST_FINAL_GATE_NON_LIVE_TASK
+        path = TASKS / f"{selected}.json"
+        state = task_state(selected)
+        if path.exists() and state in {"pending", "running", "retry_scheduled", "blocked_quota", "claude_rate_limited_resume_scheduled"}:
+            return {"selected": selected, "action": f"final_gate_held_existing_{state}", "created": False}
+        if not path.exists() or state == "completed":
+            prompt = (
+                "Continue non-live V2 monitoring and hardening while final live/capital approval is absent. "
+                "Do not enable live trading, do not place/cancel orders, do not write old Redis, and do not change leverage/margin. "
+                "Focus on trainer parity, risk gateway expansion, paper/shadow performance review, V2 data-plane hardening, "
+                "script migration backlog, documentation governance, and website support only if runtime data visibility regresses."
+            )
+            task = make_task(selected, "claude", prompt, f"claude_worklog/final_readiness/{selected.lower()}/latest", "L2")
+            write_json(path, task)
+            return {"selected": selected, "action": "final_gate_held_created_non_live_continuation", "created": True}
+        return {"selected": selected, "action": f"final_gate_held_state_{state}", "created": False}
     path = TASKS / f"{selected}.json"
     state = task_state(selected)
     if path.exists() and state in {"pending", "running", "retry_scheduled", "blocked_quota", "claude_rate_limited_resume_scheduled"}:
@@ -350,7 +369,9 @@ def ensure_primary_task() -> dict[str, Any]:
         except (ValueError, IndexError):
             selected = "V2_DATA_PLANE_AND_SCRIPT_MIGRATION_BACKLOG"
         if selected == "FINAL_LIVE_CAPITAL_APPROVAL_REQUIRED":
-            return {"selected": selected, "action": "human_final_gate_required", "created": False}
+            if FINAL_LIVE_APPROVAL.exists():
+                return {"selected": selected, "action": "human_final_gate_approval_present_manual_review_required", "created": False}
+            selected = POST_FINAL_GATE_NON_LIVE_TASK
         path = TASKS / f"{selected}.json"
         state = task_state(selected)
         if path.exists() and state in {"pending", "running", "retry_scheduled", "blocked_quota", "claude_rate_limited_resume_scheduled"}:

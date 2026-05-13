@@ -1,0 +1,11 @@
+# Primary Chain Artifact Validation
+
+Generated: 2026-05-13T03:59:24.783907+00:00
+
+- `PUBLIC_HOSTING_AND_TELEMETRY_BRIDGE_READY`: VALID_CURRENT via `claude_worklog/final_readiness/public_hosting_and_telemetry_bridge/latest/PUBLIC_HOSTING_AND_TELEMETRY_BRIDGE_GO_NO_GO.md`
+- `V2_DATA_PLANE_AND_SCRIPT_MIGRATION_BACKLOG_READY`: VALID_CURRENT via `claude_worklog/final_readiness/v2_data_plane_and_script_migration_backlog/latest/V2_DATA_PLANE_AND_SCRIPT_MIGRATION_BACKLOG_GO_NO_GO.md`
+- `RISK_GATEWAY_RUNTIME_EXPANSION_TESTS_READY`: VALID_CURRENT via `claude_worklog/final_readiness/risk_gateway_runtime_expansion_tests/latest/RISK_GATEWAY_RUNTIME_EXPANSION_TESTS_GO_NO_GO.md`
+- `LIVE_READINESS_PREFLIGHT_READY`: VALID_CURRENT via `claude_worklog/final_readiness/live_readiness_preflight/latest/LIVE_READINESS_PREFLIGHT_GO_NO_GO.md`
+- `ALWAYS_ON_CLAUDE_CODEX_PRIMARY_OBJECTIVE_RUNTIME_READY`: VALID_CURRENT via `claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/GO_NO_GO.md`
+- `PRODUCTION_WEBSITE_FULL_PUBLIC_ROUTE_CRAWL_AND_COINANK_STYLE_REBUILD_READY`: VALID_CURRENT via `claude_worklog/final_readiness/production_website_full_rebuild/latest/GO_NO_GO.md`
+- `COINANK_PLAN3_RUNTIME_CONTRACT_REMEDIATION_AND_V2_REAUDIT_READY`: VALID_CURRENT via `claude_worklog/final_readiness/coinank_plan3_runtime_remediation/latest/GO_NO_GO.md`
