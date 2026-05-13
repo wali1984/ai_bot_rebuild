@@ -28,10 +28,12 @@
     "zero_fill_status": "ZERO_FILL_CONDITION_RESOLVED_CURRENT_PAPER_FILL_OBSERVED",
     "safety": {
       "live_gate_status": "blocked_human_only",
-      "legacy_redis_writes": true,
-      "exchange_orders": true,
-      "leverage_changes": true,
-      "margin_mode_changes": true
+      "old_redis_write_absent": true,
+      "legacy_redis_writes_observed": false,
+      "exchange_action_absent": true,
+      "exchange_actions_observed": false,
+      "leverage_changes_observed": false,
+      "margin_mode_changes_observed": false
     }
   },
   "canary_hard_gate_summary": {
