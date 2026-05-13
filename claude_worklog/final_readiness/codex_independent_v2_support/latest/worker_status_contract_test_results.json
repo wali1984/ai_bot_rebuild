@@ -1,0 +1,10 @@
+{
+  "command": "PYTHONPATH=. .venv/bin/pytest -q v2/backend/tests/unit/runtime_contracts/test_worker_status.py v2/backend/tests/unit/evidence/test_account_permission_contract.py v2/backend/tests/unit/cli/test_v2_worker_inventory.py v2/backend/tests/unit/cli/test_public_payload_freshness_guard.py v2/backend/tests/unit/cli/test_paper_shadow_metrics_analyzer.py v2/backend/tests/unit/cli/test_account_permission_contract_checker.py",
+  "generated_at": "2026-05-13T21:18:35Z",
+  "passed": 15,
+  "failed": 0,
+  "result": "PASS",
+  "warnings": [
+    "pytest_asyncio loop-scope deprecation warning from installed test plugin"
+  ]
+}

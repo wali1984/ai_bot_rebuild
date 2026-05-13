@@ -1,0 +1,33 @@
+{
+  "required": [
+    "worker_id",
+    "category",
+    "purpose",
+    "status",
+    "generated_at",
+    "freshness_seconds",
+    "source_paths",
+    "evidence_status",
+    "legacy_dependency_mode",
+    "runtime_pid",
+    "runnable_command",
+    "public_payload_path",
+    "test_status",
+    "codex_status",
+    "blockers",
+    "next_action"
+  ],
+  "status_enum": [
+    "MIGRATED_AND_RUNNING",
+    "MIGRATED_NOT_RUNNING",
+    "WRAPPED_READONLY_ONLY",
+    "PAPER_ONLY",
+    "BACKLOG_ONLY",
+    "MISSING_IN_V2",
+    "LEGACY_ONLY",
+    "DEPRECATED_WITH_EVIDENCE",
+    "BLOCKED"
+  ],
+  "title": "V2WorkerStatus",
+  "type": "object"
+}

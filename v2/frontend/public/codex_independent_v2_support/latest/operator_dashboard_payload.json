@@ -1,0 +1,154 @@
+{
+  "account_permission_contract": {
+    "canary_blockers": [
+      "READONLY_ACCOUNT_EVIDENCE_STALE",
+      "TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY",
+      "CANARY_BLOCKED_BY_ACCOUNT_EVIDENCE"
+    ],
+    "canary_ready": false,
+    "classifications": [
+      "READONLY_ACCOUNT_EVIDENCE_STALE",
+      "TRADE_PERMISSION_EVIDENCE_PRESENT_READONLY",
+      "ISOLATED_MARGIN_EVIDENCE_PRESENT",
+      "LEVERAGE_CAP_EVIDENCE_PRESENT",
+      "V2_ORDER_METHODS_FAIL_CLOSED",
+      "CANARY_BLOCKED_BY_ACCOUNT_EVIDENCE"
+    ]
+  },
+  "admin_ai_evidence_contract": {
+    "questions": [
+      "Which V2 workers are missing?",
+      "Which paper-shadow metrics block canary?",
+      "Why is canary not ready?",
+      "What is current account permission evidence?",
+      "What is trade permission evidence?",
+      "Which payloads are stale?",
+      "Which worker failed Codex?",
+      "Which scripts are still legacy-only?",
+      "Which worker should Claude port next?"
+    ],
+    "status": "ADMIN_AI_EVIDENCE_QUERY_CONTRACT_READY"
+  },
+  "approval_token_absent": true,
+  "codex_lane_status": "CODEX_INDEPENDENT_BUILDER_LANE_ACTIVE",
+  "codex_result": "CODEX_INDEPENDENT_V2_SUPPORT_LANE_READY",
+  "exchange_actions": "none",
+  "files_changed": [
+    "v2/backend/app/runtime_contracts/__init__.py",
+    "v2/backend/app/runtime_contracts/worker_status.py",
+    "v2/backend/app/evidence/__init__.py",
+    "v2/backend/app/evidence/account_permission_contract.py",
+    "v2/backend/app/cli/v2_worker_inventory.py",
+    "v2/backend/app/cli/public_payload_freshness_guard.py",
+    "v2/backend/app/cli/paper_shadow_metrics_analyzer.py",
+    "v2/backend/app/cli/account_permission_contract_checker.py",
+    "v2/backend/tests/unit/runtime_contracts/test_worker_status.py",
+    "v2/backend/tests/unit/evidence/test_account_permission_contract.py",
+    "v2/backend/tests/unit/cli/test_v2_worker_inventory.py",
+    "v2/backend/tests/unit/cli/test_public_payload_freshness_guard.py",
+    "v2/backend/tests/unit/cli/test_paper_shadow_metrics_analyzer.py",
+    "v2/backend/tests/unit/cli/test_account_permission_contract_checker.py",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/CODEX_INDEPENDENT_LANE_LOCK.md",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/codex_independent_lane_lock.json",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/WORKER_STATUS_CONTRACT_REPORT.md",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/worker_status_contract_test_results.json",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/worker_status_schema.json",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/worker_status_example.json",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/V2_WORKER_INVENTORY_REPORT.md",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/v2_worker_inventory.json",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/PUBLIC_PAYLOAD_FRESHNESS_GUARD_REPORT.md",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/public_payload_freshness_guard.json",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/PAPER_SHADOW_METRICS_ANALYZER_REPORT.md",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/paper_shadow_metrics_analysis.json",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/ACCOUNT_PERMISSION_CONTRACT_REPORT.md",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/account_permission_contract_status.json",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/ADMIN_AI_EVIDENCE_QUERY_CONTRACT.md",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/admin_ai_evidence_query_contract.json",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/operator_dashboard_payload.json",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/CODEX_INDEPENDENT_SUPPORT_REVIEW.md",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/CODEX_GO_NO_GO.md",
+    "v2/frontend/public/codex_independent_v2_support/latest/v2_worker_inventory.json",
+    "v2/frontend/public/codex_independent_v2_support/latest/public_payload_freshness_guard.json",
+    "v2/frontend/public/codex_independent_v2_support/latest/paper_shadow_metrics_analysis.json",
+    "v2/frontend/public/codex_independent_v2_support/latest/account_permission_contract_status.json",
+    "v2/frontend/public/codex_independent_v2_support/latest/operator_dashboard_payload.json"
+  ],
+  "generated_at": "2026-05-13T21:20:25Z",
+  "legacy_touched": false,
+  "live_gate": "blocked_human_only",
+  "old_redis_writes": "none",
+  "paper_shadow_metrics_analyzer": {
+    "canary_blockers": [
+      "PAPER_EDGE_UNPROVEN",
+      "PAPER_FILL_RATE_TOO_HIGH",
+      "PAPER_PNL_NEGATIVE_BLOCKS_CANARY",
+      "PAPER_SHADOW_24H_PENDING"
+    ],
+    "classifications": [
+      "PAPER_EDGE_UNPROVEN",
+      "PAPER_FILL_RATE_TOO_HIGH",
+      "PAPER_PNL_NEGATIVE_BLOCKS_CANARY",
+      "PAPER_SHADOW_24H_PENDING",
+      "PAPER_SHADOW_6H_COMPLETE"
+    ],
+    "elapsed_observation_seconds": 46607,
+    "pnl": -38.97
+  },
+  "primary_claude_migration_preserved": true,
+  "public_payload_freshness_guard": {
+    "findings": [
+      "BACKLOG_CALLED_MIGRATION",
+      "MISSING_GENERATED_AT",
+      "MISSING_SOURCE",
+      "PAPER_RUNTIME_ALIVE_CALLED_PROFITABILITY_PROOF",
+      "STALE_PAYLOAD"
+    ],
+    "payloads_checked": 81,
+    "result": "BLOCKED"
+  },
+  "redis_trim_approval_absent": false,
+  "test_counts": {
+    "failed": 0,
+    "passed": 15
+  },
+  "tests_run": [
+    "python3 -m py_compile v2/backend/app/runtime_contracts/worker_status.py v2/backend/app/evidence/account_permission_contract.py v2/backend/app/cli/v2_worker_inventory.py v2/backend/app/cli/public_payload_freshness_guard.py v2/backend/app/cli/paper_shadow_metrics_analyzer.py v2/backend/app/cli/account_permission_contract_checker.py",
+    "PYTHONPATH=. .venv/bin/pytest -q v2/backend/tests/unit/runtime_contracts/test_worker_status.py v2/backend/tests/unit/evidence/test_account_permission_contract.py v2/backend/tests/unit/cli/test_v2_worker_inventory.py v2/backend/tests/unit/cli/test_public_payload_freshness_guard.py v2/backend/tests/unit/cli/test_paper_shadow_metrics_analyzer.py v2/backend/tests/unit/cli/test_account_permission_contract_checker.py",
+    "JSON validation for codex_independent_v2_support JSON artifacts",
+    "npm run build:operator-truth",
+    "npm run sync:proof-artifacts",
+    "npm run typecheck",
+    "npm run build",
+    "git diff --check for support-lane paths",
+    "high-confidence secret scan for support-lane paths",
+    "forbidden mutation token scan for support-lane paths"
+  ],
+  "validation_status": {
+    "diff_check": "PASS",
+    "forbidden_mutation_scan": "PASS",
+    "frontend_build": "PASS",
+    "frontend_typecheck": "PASS",
+    "json_validation": "PASS",
+    "operator_truth_build": "PASS",
+    "proof_artifact_sync": "PASS_WITH_NEW_LANE_MANUAL_PUBLIC_MIRROR",
+    "py_compile": "PASS",
+    "pytest": "PASS_15",
+    "secret_scan": "PASS"
+  },
+  "worker_inventory_status": {
+    "migrated_count": 1,
+    "next_recommended_claude_worker": "market_ingestor",
+    "status_counts": {
+      "BLOCKED": 11,
+      "MIGRATED_NOT_RUNNING": 1,
+      "PAPER_ONLY": 1,
+      "WRAPPED_READONLY_ONLY": 2
+    },
+    "worker_count": 15
+  },
+  "worker_status_contract": {
+    "example": "claude_worklog/final_readiness/codex_independent_v2_support/latest/worker_status_example.json",
+    "implemented": true,
+    "schema": "claude_worklog/final_readiness/codex_independent_v2_support/latest/worker_status_schema.json"
+  }
+}

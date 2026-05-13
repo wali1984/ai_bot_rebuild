@@ -1,0 +1,1222 @@
+{
+  "approval_token_created": false,
+  "findings": [
+    "BACKLOG_CALLED_MIGRATION",
+    "MISSING_GENERATED_AT",
+    "MISSING_SOURCE",
+    "PAPER_RUNTIME_ALIVE_CALLED_PROFITABILITY_PROOF",
+    "STALE_PAYLOAD"
+  ],
+  "generated_at": "2026-05-13T21:18:19Z",
+  "go_no_go_files_checked": 82,
+  "go_no_go_results": [
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/account_permission_and_soak/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/automation_liveness/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/autonomous_governor/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/autonomous_governor_manual_replacement/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/autonomous_live_readiness_builder/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/autonomous_phase_2v_pickup/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/claude_automation_non_drift_governor_lock/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/claude_codex_rate_limit_handoff/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/claude_design_full_visual_implementation/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/claude_design_to_code_handoff/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/claude_primary_handoff/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/claude_primary_handoff_state_refresh/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/claude_rate_limit_codex_takeover/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/codex_acting_governor_069c/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/codex_design_handoff_review_protocol/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/codex_parallel_audit_plan/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/coinank_plan3_runtime_remediation/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/continuous_paper_shadow_runtime/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/control_plane_supervisor_persistence/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/current_data_migration_sprint/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/documentation_governance/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/enterprise_trading_cockpit/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/enterprise_ui_polish/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/external_manual_position_quarantine/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/final_live_capital_gate/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/go_live_tonight_primary_focus/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/legacy_coinank_plan3_bridge/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/legacy_execution_containment/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/legacy_live_bridge_to_v2_data_plane/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/legacy_trainer_gpu_parity/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/legacy_trainer_restart_runtime/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/live_blocker_burndown_trading_platform_ui/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/non_drift_governor_lock/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/non_live_operational_proof/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/online_readiness/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/online_readiness_control_plane/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/operator_gui_real_data_and_explainability/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/operator_ui_hard_fail_recovery/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/orchestrator_decision_evidence_reconciliation/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/orchestrator_risk_boundary/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/paper_online_truth_verification/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/paper_shadow_persistence_and_ports/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/performance_objective_guardrails/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/phase3c_runtime_monitor_verification/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/production_dashboard_wajidali_us_repair/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/production_operator_webapp/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/production_truth_reconciliation/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/production_website_full_rebuild/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/production_website_public_route_rebuild/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/public_trading_platform_visual_parity/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/readonly_market_exchange_data_plane/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/realtime_legacy_monitoring_continuity/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/redis_export_capacity_remediation/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/redis_liquidations_full_export/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/redis_memory_human_approval/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/redis_memory_pressure_remediation/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/redis_safe_trim_packet/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/redis_trim_approval_hold/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/risk_gateway_canary_hard_gates/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/root_route_mission_control/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/root_route_redirect_to_v2_mission_control/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/safe_legacy_trainer_bridge/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/script_migration_backlog/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/system_atlas_gap_remediation/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/trainer_lineage_and_readiness/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/v2_data_plane_independence/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/v2_live_observer_shadow_twin/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/v2_paper_online_operational_recovery/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/v2_paper_online_recovery/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
+      "path": "claude_worklog/final_readiness/v2_production_truth_reconciliation/latest/GO_NO_GO.md",
+      "status": "PASS"
+    }
+  ],
+  "live_gate": "blocked_human_only",
+  "mutation_performed": false,
+  "payload_results": [
+    {
+      "age_seconds": 28741,
+      "findings": [
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T13:19:18Z",
+      "path": "v2/frontend/public/account_permission_and_soak/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 78984,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-12T23:21:55.367925+00:00",
+      "path": "v2/frontend/public/active_autonomous_dispatch/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 3622,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T20:17:57.242012+00:00",
+      "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 84675,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-12T21:47:03.651686+00:00",
+      "path": "v2/frontend/public/autonomous_governor/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 251445,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-10T23:27:34.157556+00:00",
+      "path": "v2/frontend/public/autonomous_governor_manual_replacement/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 85081,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-12T21:40:17.796346+00:00",
+      "path": "v2/frontend/public/claude_automation_non_drift_governor_lock/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 228669,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-11T05:47:10.135832+00:00",
+      "path": "v2/frontend/public/claude_codex_rate_limit_handoff/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 166118,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-11T19:09:41-04:00",
+      "path": "v2/frontend/public/claude_design_full_visual_implementation/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 221541,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-11T07:45:58.228145+00:00",
+      "path": "v2/frontend/public/claude_primary_handoff/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 259323,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-10T21:16:16.250972+00:00",
+      "path": "v2/frontend/public/claude_rate_limit_codex_takeover/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 172495,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-11T21:23:24Z",
+      "path": "v2/frontend/public/codex_design_handoff_review_protocol/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 221541,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-11T07:45:58.228145+00:00",
+      "path": "v2/frontend/public/codex_parallel_audit_plan/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 72495,
+      "findings": [
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T01:10:04Z",
+      "path": "v2/frontend/public/coinank_plan3_runtime_remediation/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 141952,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-12T05:52:26.729389+00:00",
+      "path": "v2/frontend/public/control_plane_supervisor_persistence/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 58213,
+      "findings": [
+        "BACKLOG_CALLED_MIGRATION",
+        "PAPER_RUNTIME_ALIVE_CALLED_PROFITABILITY_PROOF",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T05:08:06Z",
+      "path": "v2/frontend/public/current_data_migration_sprint/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 232971,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-11T04:35:28Z",
+      "path": "v2/frontend/public/decision_explainability_lineage/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 221541,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-11T07:45:58.228145+00:00",
+      "path": "v2/frontend/public/enterprise_ui_polish/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 422299,
+      "findings": [
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-09T00:00:00Z",
+      "path": "v2/frontend/public/external_manual_position_quarantine/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 62275,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T04:00:24.605211+00:00",
+      "path": "v2/frontend/public/final_live_capital_gate/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 52993,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T06:35:06.322Z",
+      "path": "v2/frontend/public/go_live_tonight_primary_focus/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 422299,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-09T00:00:00Z",
+      "path": "v2/frontend/public/historical_30d_replay_and_paper_proof/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 73975,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T00:45:24Z",
+      "path": "v2/frontend/public/legacy_coinank_plan3_bridge/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 140803,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-12T06:11:36Z",
+      "path": "v2/frontend/public/legacy_trainer_gpu_parity/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 102486,
+      "findings": [
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-12T16:50:13Z",
+      "path": "v2/frontend/public/legacy_trainer_restart_runtime/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 55913,
+      "findings": [
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T05:46:26Z",
+      "path": "v2/frontend/public/live_blocker_burndown_trading_platform_ui/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 78984,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-12T23:21:55.037156+00:00",
+      "path": "v2/frontend/public/non_drift_governor_lock/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 221541,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-11T07:45:58.228145+00:00",
+      "path": "v2/frontend/public/online_readiness_control_plane/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 72496,
+      "findings": [
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T01:10:03Z",
+      "path": "v2/frontend/public/operator_runtime/coinank_market_intelligence/latest/coinank_market_intelligence_status.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 90222,
+      "findings": [
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-12T20:14:37Z",
+      "path": "v2/frontend/public/operator_runtime/legacy_live_bridge/latest/current_runtime_truth_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": null,
+      "findings": [
+        "MISSING_GENERATED_AT"
+      ],
+      "generated_at": null,
+      "path": "v2/frontend/public/operator_runtime/legacy_live_bridge/latest/legacy_live_bridge_status.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": null,
+      "findings": [
+        "MISSING_GENERATED_AT"
+      ],
+      "generated_at": null,
+      "path": "v2/frontend/public/operator_runtime/live_observer/latest/audit_ledger_tail.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 89432,
+      "findings": [
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-12T20:27:47Z",
+      "path": "v2/frontend/public/operator_runtime/live_observer/latest/current_runtime_truth_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": null,
+      "findings": [
+        "MISSING_GENERATED_AT"
+      ],
+      "generated_at": null,
+      "path": "v2/frontend/public/operator_runtime/live_observer/latest/legacy_live_bridge_status.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": null,
+      "findings": [
+        "MISSING_GENERATED_AT",
+        "MISSING_SOURCE"
+      ],
+      "generated_at": null,
+      "path": "v2/frontend/public/operator_runtime/live_observer/latest/orchestrator_adapter_status.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": null,
+      "findings": [
+        "MISSING_GENERATED_AT",
+        "MISSING_SOURCE"
+      ],
+      "generated_at": null,
+      "path": "v2/frontend/public/operator_runtime/live_observer/latest/paper_shadow_ledger_tail.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": null,
+      "findings": [
+        "MISSING_GENERATED_AT",
+        "MISSING_SOURCE"
+      ],
+      "generated_at": null,
+      "path": "v2/frontend/public/operator_runtime/live_observer/latest/risk_gateway_shadow_decision.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 89432,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-12T20:27:47Z",
+      "path": "v2/frontend/public/operator_runtime/live_observer/latest/shadow_signal_twin.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": null,
+      "findings": [
+        "MISSING_GENERATED_AT",
+        "MISSING_SOURCE"
+      ],
+      "generated_at": null,
+      "path": "v2/frontend/public/operator_runtime/live_observer/latest/trainer_bridge_parity_status.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 89432,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-12T20:27:47Z",
+      "path": "v2/frontend/public/operator_runtime/live_observer/latest/v2_data_plane_bridge_status.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 3598,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T20:18:21Z",
+      "path": "v2/frontend/public/operator_runtime/paper_online/latest/current_risk_decisions.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 3598,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T20:18:21Z",
+      "path": "v2/frontend/public/operator_runtime/paper_online/latest/current_signal_lineage.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 3598,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T20:18:21Z",
+      "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_ledger_tail.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 3598,
+      "findings": [
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T20:18:21Z",
+      "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_positions.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 3598,
+      "findings": [
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T20:18:21Z",
+      "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 3598,
+      "findings": [
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T20:18:21Z",
+      "path": "v2/frontend/public/operator_runtime/paper_online/latest/risk_runtime_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 3601,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T20:18:18Z",
+      "path": "v2/frontend/public/operator_runtime/paper_online/latest/trainer_prediction_current_record.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 3642,
+      "findings": [
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T20:17:37Z",
+      "path": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 5914,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T19:39:45.487Z",
+      "path": "v2/frontend/public/operator_truth_recovery/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 161165,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-11T20:32:14-04:00",
+      "path": "v2/frontend/public/operator_ui_hard_fail_recovery/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 167975,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-11T22:38:44Z",
+      "path": "v2/frontend/public/orchestrator_decision_evidence_reconciliation/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 5914,
+      "findings": [
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T19:39:45.487Z",
+      "path": "v2/frontend/public/paper_online_canonical_truth_bridge/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 49821,
+      "findings": [
+        "PAPER_RUNTIME_ALIVE_CALLED_PROFITABILITY_PROOF",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T07:27:58.557Z",
+      "path": "v2/frontend/public/paper_shadow_persistence_and_ports/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 6907,
+      "findings": [
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T19:23:12Z",
+      "path": "v2/frontend/public/paper_shadow_soak_negative_pnl/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 5956,
+      "findings": [
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T19:39:03Z",
+      "path": "v2/frontend/public/paper_strategy_edge_tightening/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 315703,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-10T05:36:36.155581+00:00",
+      "path": "v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 152190,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-12T03:01:49.223Z",
+      "path": "v2/frontend/public/production_dashboard_wajidali_us_repair/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 5914,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T19:39:45.487Z",
+      "path": "v2/frontend/public/production_operator_webapp/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 59681,
+      "findings": [
+        "BACKLOG_CALLED_MIGRATION",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T04:43:38.228869Z",
+      "path": "v2/frontend/public/production_truth_reconciliation/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 87929,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-12T20:52:50Z",
+      "path": "v2/frontend/public/production_website_full_rebuild/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 89138,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-12T20:32:41Z",
+      "path": "v2/frontend/public/production_website_public_route_rebuild/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 54448,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T06:10:50.961Z",
+      "path": "v2/frontend/public/public_trading_platform_visual_parity/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 335899,
+      "findings": [
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-10T00:00:00Z",
+      "path": "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 5914,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T19:39:45.487Z",
+      "path": "v2/frontend/public/realtime_control_plane_recovery/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 5914,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T19:39:45.487Z",
+      "path": "v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 221541,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-11T07:45:58.228145+00:00",
+      "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 311924,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-10T06:39:34.737306+00:00",
+      "path": "v2/frontend/public/redis_export_capacity_remediation/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 270305,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-10T18:13:14.459873+00:00",
+      "path": "v2/frontend/public/redis_liquidations_full_export/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 312740,
+      "findings": [
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-10T06:25:59.064190+00:00",
+      "path": "v2/frontend/public/redis_memory_human_approval/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 314963,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-10T05:48:56.400296+00:00",
+      "path": "v2/frontend/public/redis_memory_pressure_remediation/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 268155,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-10T18:49:04.517325+00:00",
+      "path": "v2/frontend/public/redis_safe_trim_packet/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 263539,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-10T20:06:00Z",
+      "path": "v2/frontend/public/redis_trim_approval_hold/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 51505,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T06:59:54.381Z",
+      "path": "v2/frontend/public/risk_gateway_canary_hard_gates/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 167314,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-11T22:49:45Z",
+      "path": "v2/frontend/public/root_route_mission_control/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 167623,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-11T22:44:36Z",
+      "path": "v2/frontend/public/root_route_redirect_to_v2_mission_control/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 323366,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-10T03:28:53.332163+00:00",
+      "path": "v2/frontend/public/system_atlas_gap_remediation/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 324792,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-10T03:05:07.454277+00:00",
+      "path": "v2/frontend/public/system_atlas_runtime_coverage/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 90207,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-12T20:14:52Z",
+      "path": "v2/frontend/public/tonight_live_like_paper_shadow/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 221541,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-11T07:45:58.228145+00:00",
+      "path": "v2/frontend/public/v2_data_plane_independence/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 89432,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-12T20:27:47Z",
+      "path": "v2/frontend/public/v2_live_observer_shadow_twin/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 50205,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T07:21:34Z",
+      "path": "v2/frontend/public/v2_paper_online_recovery/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 60971,
+      "findings": [
+        "MISSING_SOURCE",
+        "STALE_PAYLOAD"
+      ],
+      "generated_at": "2026-05-13T04:22:07.783209Z",
+      "path": "v2/frontend/public/v2_production_truth_reconciliation/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    }
+  ],
+  "payloads_checked": 81,
+  "result": "BLOCKED",
+  "stale_after_seconds": 900
+}

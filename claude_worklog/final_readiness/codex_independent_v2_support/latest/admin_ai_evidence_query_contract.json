@@ -1,0 +1,31 @@
+{
+  "canonical_payloads": [
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/v2_worker_inventory.json",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/public_payload_freshness_guard.json",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/paper_shadow_metrics_analysis.json",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/account_permission_contract_status.json",
+    "claude_worklog/final_readiness/codex_independent_v2_support/latest/operator_dashboard_payload.json"
+  ],
+  "generated_at": "2026-05-13T21:18:35Z",
+  "questions": [
+    "Which V2 workers are missing?",
+    "Which paper-shadow metrics block canary?",
+    "Why is canary not ready?",
+    "What is current account permission evidence?",
+    "What is trade permission evidence?",
+    "Which payloads are stale?",
+    "Which worker failed Codex?",
+    "Which scripts are still legacy-only?",
+    "Which worker should Claude port next?"
+  ],
+  "rules": [
+    "cite payload/evidence paths",
+    "do not guess",
+    "state evidence missing when evidence is missing",
+    "cannot enable live",
+    "cannot change leverage or margin",
+    "cannot write old Redis",
+    "cannot create approval tokens"
+  ],
+  "status": "ADMIN_AI_EVIDENCE_QUERY_CONTRACT_READY"
+}
