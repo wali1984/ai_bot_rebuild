@@ -1,0 +1,469 @@
+{
+  "as_of_utc": "2026-05-13T21:55:54Z",
+  "blocked_workers": [],
+  "completed_workers": [
+    "v2_feature_snapshot_builder"
+  ],
+  "final_approval_token": "absent",
+  "git_classification": {
+    "available": true,
+    "buckets": {
+      "active_daemon_owned": 18,
+      "active_task_owned": 103,
+      "durable_artifact_to_commit": 0,
+      "runtime_churn_to_ignore": 0,
+      "unsafe_unknown": 114
+    },
+    "preview_unsafe_unknown": [
+      ".claude/settings.local.json",
+      "claude_worklog/agent_supervisor/CLAUDE_QUOTA_CHECK_OUTPUT.txt",
+      "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json",
+      "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.md",
+      "claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json",
+      "claude_worklog/historical_pnl_audit/01_DATA_SOURCE_STATUS.md",
+      "claude_worklog/legacy_readonly_audit/01_PROCESS_SNAPSHOT.md",
+      "claude_worklog/legacy_readonly_audit/03_LEGACY_CODE_FUNCTION_INVENTORY.md",
+      "claude_worklog/legacy_readonly_audit/07_ORCHESTRATOR_TRADER_RUNTIME_EVIDENCE.md",
+      "claude_worklog/tools/build_active_autonomous_dispatch_packet.py",
+      "v2/frontend/public/active_autonomous_dispatch/latest/ACTIVE_AUTONOMOUS_PRIMARY_DISPATCH_AND_SCRIPT_MIGRATION_PROOF_REPORT.md",
+      "v2/frontend/public/active_autonomous_dispatch/latest/CLAUDE_IDLE_AND_DISPATCH_DIAGNOSTIC.md",
+      "v2/frontend/public/active_autonomous_dispatch/latest/CODEX_PARALLEL_DISPATCH_PROOF.md",
+      "v2/frontend/public/active_autonomous_dispatch/latest/PRIMARY_DISPATCH_PROOF.md",
+      "v2/frontend/public/active_autonomous_dispatch/latest/claude_idle_and_dispatch_diagnostic.json",
+      "v2/frontend/public/active_autonomous_dispatch/latest/codex_parallel_dispatch_state.json",
+      "v2/frontend/public/active_autonomous_dispatch/latest/primary_dispatch_state.json",
+      "v2/frontend/public/always_on_claude_codex_runtime/latest/always_on_runtime_state.json",
+      "v2/frontend/public/always_on_claude_codex_runtime/latest/automation_utilization_status.json",
+      "v2/frontend/public/always_on_claude_codex_runtime/latest/git_dirty_state.json",
+      "v2/frontend/public/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json",
+      "v2/frontend/public/documentation_governance/latest/doc_update_policy.json",
+      "v2/frontend/public/non_drift_governor_lock/latest/CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md",
+      "v2/frontend/public/non_drift_governor_lock/latest/GOVERNOR_PRIORITY_POLICY.md",
+      "v2/frontend/public/non_drift_governor_lock/latest/NEXT_TASKS_BY_LANE.md",
+      "v2/frontend/public/non_drift_governor_lock/latest/PRIMARY_OBJECTIVE_LOCK.md",
+      "v2/frontend/public/non_drift_governor_lock/latest/next_tasks_by_lane.json",
+      "v2/frontend/public/non_drift_governor_lock/latest/objective_drift_status.json",
+      "v2/frontend/public/operator_truth/latest/operator_truth_bridge_payload.json",
+      "v2/frontend/public/operator_truth/latest/operator_truth_payload.json",
+      "v2/frontend/public/operator_truth_recovery/latest/CODEX_OPERATOR_TRUTH_REVIEW.md",
+      "v2/frontend/public/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md",
+      "v2/frontend/public/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md",
+      "v2/frontend/public/operator_truth_recovery/latest/MISSING_EVIDENCE_REGISTER.md",
+      "v2/frontend/public/operator_truth_recovery/latest/OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_REPORT.md",
+      "v2/frontend/public/operator_truth_recovery/latest/REALTIME_TRAINER_MONITOR_REPORT.md",
+      "v2/frontend/public/operator_truth_recovery/latest/SUPERVISOR_STATE_TRUTH_REPORT.md",
+      "v2/frontend/public/operator_truth_recovery/latest/operator_truth_payload.json",
+      "v2/frontend/public/operator_truth_recovery/latest/realtime_legacy_monitor_status.json",
+      "v2/frontend/public/operator_truth_recovery/latest/realtime_trainer_monitor_status.json"
+    ],
+    "total_dirty": 235
+  },
+  "git_corruption_detected": false,
+  "in_flight_workers": [],
+  "last_completed_worker": "v2_feature_snapshot_builder",
+  "live_gate": "blocked_human_only",
+  "next_action": {
+    "follow_up": "after_claude_artifacts_appear_dispatch_codex_review_v2_risk_gateway_runtime_worker",
+    "kind": "dispatch_claude",
+    "next_worker": "v2_risk_gateway_runtime_worker",
+    "task_descriptor": "claude_worklog/agent_supervisor/tasks/claude_port_v2_risk_gateway_runtime_worker.json"
+  },
+  "next_worker": "v2_risk_gateway_runtime_worker",
+  "primary_objective_lock": [
+    "v2_independent_paper_shadow_runtime",
+    "live_blocked_human_only",
+    "no_legacy_mutation",
+    "no_old_redis_writes",
+    "no_exchange_actions"
+  ],
+  "progress_p0": {
+    "complete": 1,
+    "total": 6
+  },
+  "progress_p1": {
+    "complete": 0,
+    "total": 8
+  },
+  "progress_p2": {
+    "complete": 0,
+    "total": 3
+  },
+  "queued_workers": [
+    "v2_risk_gateway_runtime_worker",
+    "v2_paper_execution_worker",
+    "v2_execution_ledger_worker",
+    "v2_signal_lineage_worker",
+    "v2_account_position_monitor",
+    "v2_market_ingestor",
+    "v2_coinank_liquidation_bridge",
+    "v2_trainer_bridge",
+    "v2_orchestrator_adapter",
+    "v2_signal_publisher",
+    "v2_replay_worker",
+    "v2_script_monitor",
+    "v2_config_admin_manager",
+    "v2_p2_default_blocked_execution_adapter_stub",
+    "v2_p2_binance_usdm_adapter_stub",
+    "v2_p2_deployment_helpers"
+  ],
+  "redis_trim_approval": "absent",
+  "remediation_required_workers": [],
+  "supersedes": "manual_worker_by_worker_prompting",
+  "v2_local_online_state": "V2_LOCAL_ONLINE_DEGRADED_P0_INCOMPLETE",
+  "worker_sequence": [
+    "v2_feature_snapshot_builder",
+    "v2_risk_gateway_runtime_worker",
+    "v2_paper_execution_worker",
+    "v2_execution_ledger_worker",
+    "v2_signal_lineage_worker",
+    "v2_account_position_monitor",
+    "v2_market_ingestor",
+    "v2_coinank_liquidation_bridge",
+    "v2_trainer_bridge",
+    "v2_orchestrator_adapter",
+    "v2_signal_publisher",
+    "v2_replay_worker",
+    "v2_script_monitor",
+    "v2_config_admin_manager",
+    "v2_p2_default_blocked_execution_adapter_stub",
+    "v2_p2_binance_usdm_adapter_stub",
+    "v2_p2_deployment_helpers"
+  ],
+  "workers": [
+    {
+      "cli_present": true,
+      "codex_go_no_go_present": true,
+      "codex_review_descriptor_present": true,
+      "missing_artifacts": [],
+      "priority": "P0",
+      "public_payload_present": true,
+      "report_present": true,
+      "safety_violation": null,
+      "state": "CODEX_PASS",
+      "status_json_present": true,
+      "task_descriptor_present": true,
+      "tests_present": true,
+      "worker_id": "v2_feature_snapshot_builder"
+    },
+    {
+      "cli_present": false,
+      "codex_go_no_go_present": false,
+      "codex_review_descriptor_present": true,
+      "missing_artifacts": [
+        "v2/backend/app/cli/v2_risk_gateway_runtime_worker.py",
+        "v2/backend/tests/integration/cli/test_v2_risk_gateway_runtime_worker.py",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_risk_gateway_runtime_worker_report.md",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_risk_gateway_runtime_worker_status.json"
+      ],
+      "priority": "P0",
+      "public_payload_present": false,
+      "report_present": false,
+      "safety_violation": null,
+      "state": "QUEUED",
+      "status_json_present": false,
+      "task_descriptor_present": true,
+      "tests_present": false,
+      "worker_id": "v2_risk_gateway_runtime_worker"
+    },
+    {
+      "cli_present": false,
+      "codex_go_no_go_present": false,
+      "codex_review_descriptor_present": true,
+      "missing_artifacts": [
+        "v2/backend/app/cli/v2_paper_execution_worker.py",
+        "v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_paper_execution_worker_report.md",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_paper_execution_worker_status.json"
+      ],
+      "priority": "P0",
+      "public_payload_present": false,
+      "report_present": false,
+      "safety_violation": null,
+      "state": "QUEUED",
+      "status_json_present": false,
+      "task_descriptor_present": true,
+      "tests_present": false,
+      "worker_id": "v2_paper_execution_worker"
+    },
+    {
+      "cli_present": false,
+      "codex_go_no_go_present": false,
+      "codex_review_descriptor_present": true,
+      "missing_artifacts": [
+        "v2/backend/app/cli/v2_execution_ledger_worker.py",
+        "v2/backend/tests/integration/cli/test_v2_execution_ledger_worker.py",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_execution_ledger_worker_report.md",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_execution_ledger_worker_status.json"
+      ],
+      "priority": "P0",
+      "public_payload_present": false,
+      "report_present": false,
+      "safety_violation": null,
+      "state": "QUEUED",
+      "status_json_present": false,
+      "task_descriptor_present": true,
+      "tests_present": false,
+      "worker_id": "v2_execution_ledger_worker"
+    },
+    {
+      "cli_present": false,
+      "codex_go_no_go_present": false,
+      "codex_review_descriptor_present": true,
+      "missing_artifacts": [
+        "v2/backend/app/cli/v2_signal_lineage_worker.py",
+        "v2/backend/tests/integration/cli/test_v2_signal_lineage_worker.py",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_signal_lineage_worker_report.md",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_signal_lineage_worker_status.json"
+      ],
+      "priority": "P0",
+      "public_payload_present": false,
+      "report_present": false,
+      "safety_violation": null,
+      "state": "QUEUED",
+      "status_json_present": false,
+      "task_descriptor_present": true,
+      "tests_present": false,
+      "worker_id": "v2_signal_lineage_worker"
+    },
+    {
+      "cli_present": false,
+      "codex_go_no_go_present": false,
+      "codex_review_descriptor_present": true,
+      "missing_artifacts": [
+        "v2/backend/app/cli/v2_account_position_monitor.py",
+        "v2/backend/tests/integration/cli/test_v2_account_position_monitor.py",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_account_position_monitor_report.md",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_account_position_monitor_status.json"
+      ],
+      "priority": "P0",
+      "public_payload_present": false,
+      "report_present": false,
+      "safety_violation": null,
+      "state": "QUEUED",
+      "status_json_present": false,
+      "task_descriptor_present": true,
+      "tests_present": false,
+      "worker_id": "v2_account_position_monitor"
+    },
+    {
+      "cli_present": false,
+      "codex_go_no_go_present": false,
+      "codex_review_descriptor_present": true,
+      "missing_artifacts": [
+        "v2/backend/app/cli/v2_market_ingestor.py",
+        "v2/backend/tests/integration/cli/test_v2_market_ingestor.py",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_market_ingestor_report.md",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_market_ingestor_status.json"
+      ],
+      "priority": "P1",
+      "public_payload_present": false,
+      "report_present": false,
+      "safety_violation": null,
+      "state": "QUEUED",
+      "status_json_present": false,
+      "task_descriptor_present": true,
+      "tests_present": false,
+      "worker_id": "v2_market_ingestor"
+    },
+    {
+      "cli_present": false,
+      "codex_go_no_go_present": false,
+      "codex_review_descriptor_present": true,
+      "missing_artifacts": [
+        "v2/backend/app/cli/v2_coinank_liquidation_bridge.py",
+        "v2/backend/tests/integration/cli/test_v2_coinank_liquidation_bridge.py",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_coinank_liquidation_bridge_report.md",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_coinank_liquidation_bridge_status.json"
+      ],
+      "priority": "P1",
+      "public_payload_present": false,
+      "report_present": false,
+      "safety_violation": null,
+      "state": "QUEUED",
+      "status_json_present": false,
+      "task_descriptor_present": true,
+      "tests_present": false,
+      "worker_id": "v2_coinank_liquidation_bridge"
+    },
+    {
+      "cli_present": false,
+      "codex_go_no_go_present": false,
+      "codex_review_descriptor_present": true,
+      "missing_artifacts": [
+        "v2/backend/app/cli/v2_trainer_bridge.py",
+        "v2/backend/tests/integration/cli/test_v2_trainer_bridge.py",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_trainer_bridge_report.md",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_trainer_bridge_status.json"
+      ],
+      "priority": "P1",
+      "public_payload_present": false,
+      "report_present": false,
+      "safety_violation": null,
+      "state": "QUEUED",
+      "status_json_present": false,
+      "task_descriptor_present": true,
+      "tests_present": false,
+      "worker_id": "v2_trainer_bridge"
+    },
+    {
+      "cli_present": false,
+      "codex_go_no_go_present": false,
+      "codex_review_descriptor_present": true,
+      "missing_artifacts": [
+        "v2/backend/app/cli/v2_orchestrator_adapter.py",
+        "v2/backend/tests/integration/cli/test_v2_orchestrator_adapter.py",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_orchestrator_adapter_report.md",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_orchestrator_adapter_status.json"
+      ],
+      "priority": "P1",
+      "public_payload_present": false,
+      "report_present": false,
+      "safety_violation": null,
+      "state": "QUEUED",
+      "status_json_present": false,
+      "task_descriptor_present": true,
+      "tests_present": false,
+      "worker_id": "v2_orchestrator_adapter"
+    },
+    {
+      "cli_present": false,
+      "codex_go_no_go_present": false,
+      "codex_review_descriptor_present": true,
+      "missing_artifacts": [
+        "v2/backend/app/cli/v2_signal_publisher.py",
+        "v2/backend/tests/integration/cli/test_v2_signal_publisher.py",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_signal_publisher_report.md",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_signal_publisher_status.json"
+      ],
+      "priority": "P1",
+      "public_payload_present": false,
+      "report_present": false,
+      "safety_violation": null,
+      "state": "QUEUED",
+      "status_json_present": false,
+      "task_descriptor_present": true,
+      "tests_present": false,
+      "worker_id": "v2_signal_publisher"
+    },
+    {
+      "cli_present": false,
+      "codex_go_no_go_present": false,
+      "codex_review_descriptor_present": true,
+      "missing_artifacts": [
+        "v2/backend/app/cli/v2_replay_worker.py",
+        "v2/backend/tests/integration/cli/test_v2_replay_worker.py",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_replay_worker_report.md",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_replay_worker_status.json"
+      ],
+      "priority": "P1",
+      "public_payload_present": false,
+      "report_present": false,
+      "safety_violation": null,
+      "state": "QUEUED",
+      "status_json_present": false,
+      "task_descriptor_present": true,
+      "tests_present": false,
+      "worker_id": "v2_replay_worker"
+    },
+    {
+      "cli_present": false,
+      "codex_go_no_go_present": false,
+      "codex_review_descriptor_present": true,
+      "missing_artifacts": [
+        "v2/backend/app/cli/v2_script_monitor.py",
+        "v2/backend/tests/integration/cli/test_v2_script_monitor.py",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_script_monitor_report.md",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_script_monitor_status.json"
+      ],
+      "priority": "P1",
+      "public_payload_present": false,
+      "report_present": false,
+      "safety_violation": null,
+      "state": "QUEUED",
+      "status_json_present": false,
+      "task_descriptor_present": true,
+      "tests_present": false,
+      "worker_id": "v2_script_monitor"
+    },
+    {
+      "cli_present": false,
+      "codex_go_no_go_present": false,
+      "codex_review_descriptor_present": true,
+      "missing_artifacts": [
+        "v2/backend/app/cli/v2_config_admin_manager.py",
+        "v2/backend/tests/integration/cli/test_v2_config_admin_manager.py",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_config_admin_manager_report.md",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_config_admin_manager_status.json"
+      ],
+      "priority": "P1",
+      "public_payload_present": false,
+      "report_present": false,
+      "safety_violation": null,
+      "state": "QUEUED",
+      "status_json_present": false,
+      "task_descriptor_present": true,
+      "tests_present": false,
+      "worker_id": "v2_config_admin_manager"
+    },
+    {
+      "cli_present": false,
+      "codex_go_no_go_present": false,
+      "codex_review_descriptor_present": true,
+      "missing_artifacts": [
+        "v2/backend/app/cli/v2_p2_default_blocked_execution_adapter_stub.py",
+        "v2/backend/tests/integration/cli/test_v2_p2_default_blocked_execution_adapter_stub.py",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_default_blocked_execution_adapter_stub_report.md",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_default_blocked_execution_adapter_stub_status.json"
+      ],
+      "priority": "P2",
+      "public_payload_present": false,
+      "report_present": false,
+      "safety_violation": null,
+      "state": "QUEUED",
+      "status_json_present": false,
+      "task_descriptor_present": true,
+      "tests_present": false,
+      "worker_id": "v2_p2_default_blocked_execution_adapter_stub"
+    },
+    {
+      "cli_present": false,
+      "codex_go_no_go_present": false,
+      "codex_review_descriptor_present": true,
+      "missing_artifacts": [
+        "v2/backend/app/cli/v2_p2_binance_usdm_adapter_stub.py",
+        "v2/backend/tests/integration/cli/test_v2_p2_binance_usdm_adapter_stub.py",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_report.md",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_status.json"
+      ],
+      "priority": "P2",
+      "public_payload_present": false,
+      "report_present": false,
+      "safety_violation": null,
+      "state": "QUEUED",
+      "status_json_present": false,
+      "task_descriptor_present": true,
+      "tests_present": false,
+      "worker_id": "v2_p2_binance_usdm_adapter_stub"
+    },
+    {
+      "cli_present": false,
+      "codex_go_no_go_present": false,
+      "codex_review_descriptor_present": true,
+      "missing_artifacts": [
+        "v2/backend/app/cli/v2_p2_deployment_helpers.py",
+        "v2/backend/tests/integration/cli/test_v2_p2_deployment_helpers.py",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_deployment_helpers_report.md",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_deployment_helpers_status.json"
+      ],
+      "priority": "P2",
+      "public_payload_present": false,
+      "report_present": false,
+      "safety_violation": null,
+      "state": "QUEUED",
+      "status_json_present": false,
+      "task_descriptor_present": true,
+      "tests_present": false,
+      "worker_id": "v2_p2_deployment_helpers"
+    }
+  ]
+}
