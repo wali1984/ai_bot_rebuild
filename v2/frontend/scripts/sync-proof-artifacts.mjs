@@ -65,6 +65,7 @@ const artifactSets = [
   'v2_production_truth_reconciliation',
   'production_truth_reconciliation',
   'current_data_migration_sprint',
+  'live_blocker_burndown_trading_platform_ui',
   'legacy_coinank_plan3_bridge',
   'coinank_plan3_runtime_remediation',
   'v2_live_observer_shadow_twin',

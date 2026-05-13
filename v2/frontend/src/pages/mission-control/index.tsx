@@ -8,6 +8,7 @@ import { statusClass, useCockpitPayload, valueText } from '../cockpitData';
 import { MissionControlReadinessBanner } from '../../components/banners/MissionControlReadinessBanner';
 import { useCoinankMarketIntelligencePayload, useOperatorTruthPayload, usePaperOnlineRuntimePayload, type PaperOnlineRuntimePayload } from '../operatorTruthData';
 import { ActualRuntimeNowPanel, CoinankMarketIntelligencePanel, LegacyRuntimeMonitorPanel, LiveObserverShadowTwinPanel, MissingEvidencePanel, OperatorTruthCommandDeck, OperatorTruthLoading, PaperOnlineRuntimeStatusPanel, PayloadFreshnessPanel, RuntimeTruthMatrix, SignalLineageTruthPanel, TrainerPredictionTruthPanel, WhatIsWorkingPanel } from '../operatorTruthComponents';
+import { MissionTradingPlatformPanel } from '../tradingPlatformPanels';
 
 const EVIDENCE_MISSING = 'Evidence missing - cannot explain without guessing.';
 
@@ -34,6 +35,7 @@ export default function MissionControlPage(): JSX.Element {
       {truthPayload ? <ActualRuntimeNowPanel payload={truthPayload} /> : null}
       {truthPayload ? <RuntimeTruthMatrix payload={truthPayload} /> : null}
       <PaperOnlineRuntimeStatusPanel payload={paperRuntime} />
+      <MissionTradingPlatformPanel paperRuntime={paperRuntime} coinankPayload={coinankPayload} truthPayload={truthPayload} />
       <CoinankMarketIntelligencePanel payload={coinankPayload} error={coinankError} context="Mission Control" />
       {truthPayload ? <LiveObserverShadowTwinPanel payload={truthPayload} /> : null}
       {truthPayload ? <MissionCriticalSystemsGrid payload={payload} truthPayload={truthPayload} paperRuntime={paperRuntime} /> : null}

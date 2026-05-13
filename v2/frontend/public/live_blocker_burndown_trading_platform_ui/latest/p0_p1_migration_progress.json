@@ -1,0 +1,99 @@
+{
+  "generated_at": "2026-05-13T05:46:26Z",
+  "gui_route": "/admin/live-readiness?role=admin",
+  "implementation_path": "v2/backend/app/composition/live_canary_blocker_guard/runtime.py",
+  "legacy_path": "legacy_reference/trading/trader.py and final live gate policy evidence",
+  "new_concrete_migration_improvement_completed": true,
+  "remaining_blocker": [
+    "human_final_approval_token_present",
+    "read_only_account_verified",
+    "trade_permission_known",
+    "weekly_loss_gate_runtime_proven"
+  ],
+  "runtime_proof": {
+    "approval_token_present": false,
+    "automation_can_enable_live": false,
+    "blockers": [
+      "human_final_approval_token_present",
+      "read_only_account_verified",
+      "trade_permission_known",
+      "weekly_loss_gate_runtime_proven"
+    ],
+    "classification": "LIVE_CANARY_BLOCKED",
+    "gate_rows": [
+      {
+        "gate": "human_final_approval_token_present",
+        "human_approval_required": true,
+        "status": "BLOCKED"
+      },
+      {
+        "gate": "paper_runtime_current",
+        "human_approval_required": false,
+        "status": "PASS"
+      },
+      {
+        "gate": "live_gate_still_blocked_until_activation",
+        "human_approval_required": false,
+        "status": "PASS"
+      },
+      {
+        "gate": "read_only_account_verified",
+        "human_approval_required": false,
+        "status": "BLOCKED"
+      },
+      {
+        "gate": "trade_permission_known",
+        "human_approval_required": false,
+        "status": "BLOCKED"
+      },
+      {
+        "gate": "isolated_margin_verified",
+        "human_approval_required": false,
+        "status": "PASS"
+      },
+      {
+        "gate": "leverage_cap_verified",
+        "human_approval_required": false,
+        "status": "PASS"
+      },
+      {
+        "gate": "stop_policy_runtime_proven",
+        "human_approval_required": false,
+        "status": "PASS"
+      },
+      {
+        "gate": "kill_switch_runtime_proven",
+        "human_approval_required": false,
+        "status": "PASS"
+      },
+      {
+        "gate": "daily_loss_gate_runtime_proven",
+        "human_approval_required": false,
+        "status": "PASS"
+      },
+      {
+        "gate": "weekly_loss_gate_runtime_proven",
+        "human_approval_required": false,
+        "status": "BLOCKED"
+      },
+      {
+        "gate": "old_redis_write_isolated",
+        "human_approval_required": false,
+        "status": "PASS"
+      },
+      {
+        "gate": "exchange_action_absent",
+        "human_approval_required": false,
+        "status": "PASS"
+      }
+    ],
+    "generated_at_ms": 1778651186553,
+    "live_gate_status": "blocked_human_only",
+    "paper_runtime_age_seconds": 32,
+    "safe_for_live": false,
+    "source": "V2_LIVE_CANARY_BLOCKER_GUARD"
+  },
+  "selected_priority": "P0 live canary blocker guard",
+  "test_path": "v2/backend/tests/unit/composition/live_canary_blocker_guard/test_runtime.py",
+  "v2_target_module": "v2.backend.app.composition.live_canary_blocker_guard"
+}

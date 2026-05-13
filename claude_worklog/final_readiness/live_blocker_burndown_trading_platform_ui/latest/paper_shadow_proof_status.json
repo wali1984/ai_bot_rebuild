@@ -1,0 +1,40 @@
+{
+  "allowed_current_intent": true,
+  "blocked_current_intents": 0,
+  "generated_at": "2026-05-13T05:46:26Z",
+  "latest_execution_intent_id": "pei_paper_tick_1778651154025",
+  "latest_prediction_id": "pred_paper_tick_1778651154025",
+  "latest_risk_decision_id": "risk_paper_tick_1778651154025",
+  "latest_signal_id": "sig_paper_tick_1778651154025",
+  "ledger_tail_entries": 1,
+  "next_observation_task": "PERSIST_6H_24H_PAPER_SHADOW_SUMMARY",
+  "paper_event_count": 2884,
+  "paper_pnl": {
+    "currency": "USDT",
+    "equity": 9975.0,
+    "open_position_count": 1,
+    "position_source": "V2_PAPER_RUNTIME_SIMULATED_FILL",
+    "realized_pnl": -25.0,
+    "starting_equity": 10000.0,
+    "unrealized_pnl": 0.0
+  },
+  "profitability_claimed": false,
+  "runtime_generated_at": "2026-05-13T05:45:54Z",
+  "runtime_state": "PAPER_RUNTIME_ONLINE_ACTIVE",
+  "status": "PAPER_RUNTIME_CURRENT_PROFITABILITY_PROOF_PENDING",
+  "top_risk_block_reasons": [
+    "duplicate_signal_execution",
+    "missing_prediction_id",
+    "stale_signal",
+    "missing_confidence",
+    "cross_margin_live_mode",
+    "daily_loss_breach",
+    "missing_feature_snapshot_id",
+    "disabled_kill_switch",
+    "leverage_above_cap",
+    "missing_signal_id",
+    "untraceable_execution",
+    "missing_stop_policy",
+    "adjust_leverage_disabled"
+  ]
+}

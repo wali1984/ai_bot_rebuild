@@ -2,7 +2,8 @@ import type { PageMeta, PageRbac, PageRoute } from '../../types/page';
 import { DangerousControlPanel } from '../controls/DangerousControlPanel';
 import { Metric, Panel } from '../../pages/cockpitComponents';
 import { valueText } from '../../pages/cockpitData';
-import { useOperatorTruthPayload, usePaperOnlineRuntimePayload, useTonightReadinessPayload } from '../../pages/operatorTruthData';
+import { useCoinankMarketIntelligencePayload, useOperatorTruthPayload, usePaperOnlineRuntimePayload, useTonightReadinessPayload } from '../../pages/operatorTruthData';
+import { TradingPlatformRoutePanel } from '../../pages/tradingPlatformPanels';
 
 interface Props {
   meta: PageMeta;
@@ -100,6 +101,7 @@ const ROUTE_PROFILES: Record<string, { source: string; status: string; next: str
 export function PageShell({ meta, rbac, route }: Props): JSX.Element {
   const { payload: truthPayload, error: truthError } = useOperatorTruthPayload();
   const { payload: paperRuntime } = usePaperOnlineRuntimePayload(15_000);
+  const { payload: coinankPayload } = useCoinankMarketIntelligencePayload(15_000);
   const { payload: tonightReadiness } = useTonightReadinessPayload(15_000);
   const profile = ROUTE_PROFILES[meta.id] ?? {
     source: 'V2 runtime payload / route production contract',
@@ -189,6 +191,7 @@ export function PageShell({ meta, rbac, route }: Props): JSX.Element {
           Current V2 paper/shadow lineage is rendered before archive evidence. Historical proof rows and static fixtures are not current runtime truth.
         </p>
       </Panel>
+      <TradingPlatformRoutePanel routeId={meta.id} paperRuntime={paperRuntime} coinankPayload={coinankPayload} truthPayload={truthPayload} />
       <Panel id={`${meta.id}-required-data`} title="Required Production Data Contract" right={<span className="chip solid-warn">No placeholder-only route</span>}>
         <div className="cockpit-card-grid">
           {profile.data.map((item) => (
