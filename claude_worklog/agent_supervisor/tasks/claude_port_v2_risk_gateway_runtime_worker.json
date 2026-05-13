@@ -7,7 +7,10 @@
   "status": "pending",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "live_gate": "blocked_human_only",
-  "allowed_paths": ["v2/**", "claude_worklog/**"],
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**"
+  ],
   "forbidden": [
     "legacy_mutation",
     "old_redis_write",
@@ -15,7 +18,11 @@
     "leverage_change",
     "margin_mode_change",
     "live_gate_unlock",
-    "approval_token_creation"
+    "approval_token_creation",
+    "greenfield_without_legacy_baseline",
+    "dropping_legacy_behavior_silently",
+    "ignoring_legacy_redis_or_config_or_stream_contracts_without_reason",
+    "behavior_change_without_explanation"
   ],
   "depends_on": "v2/backend/app/composition/risk_gateway/runtime.py (library already implemented)",
   "required_output_files": [
@@ -23,7 +30,9 @@
     "v2/backend/tests/integration/cli/test_v2_risk_gateway_runtime_worker.py",
     "v2/frontend/public/operator_runtime/v2_risk_gateway_runtime_worker/latest/v2_risk_gateway_runtime_worker_status.json",
     "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_risk_gateway_runtime_worker_report.md",
-    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_risk_gateway_runtime_worker_status.json"
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_risk_gateway_runtime_worker_status.json",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_risk_gateway_runtime_worker_LEGACY_BASELINE_ANALYSIS.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_risk_gateway_runtime_worker_legacy_behavior_mapping.json"
   ],
   "required_tests": [
     "happy_path_low_confidence_denied",
@@ -49,5 +58,10 @@
     "v2_independent_paper_shadow_runtime",
     "live_blocked_human_only"
   ],
-  "prompt": "Build a standalone V2 risk gateway runtime worker CLI. The library logic already exists at v2/backend/app/composition/risk_gateway/runtime.py and v2/backend/app/services/risk_gateway/service.py. Task: create v2/backend/app/cli/v2_risk_gateway_runtime_worker.py that (a) consumes OrchestratorDecisionRecord events from a V2-namespaced source (the existing assemble_risk_decision_record path is the model), (b) emits RiskDecisionRecord with the fail-closed gate ALWAYS set to blocked_human_only regardless of input, (c) writes the public payload to v2/frontend/public/operator_runtime/v2_risk_gateway_runtime_worker/latest/v2_risk_gateway_runtime_worker_status.json with the fields listed in required_public_payload_fields, (d) writes a worker report and status JSON under claude_worklog. Add integration tests covering happy path, low-confidence denial, stale-feature denial, fail-closed on missing fields, and gate-always-blocked invariant. The worker must not place/cancel/modify any exchange order. It must not change leverage or margin mode. It must not write old Redis. It must not create an approval token. It must not unblock the gate under any circumstance. If invoked while the legacy bot is shut down, classify trainer-parity inputs as MISSING_RUNTIME_EVIDENCE rather than synthesizing data. Trigger the paired Codex review task on emit."
+  "prompt": "LEGACY-FIRST MANDATE. This is not a greenfield build. Before writing any V2 implementation code, you MUST read the relevant files under legacy_reference/, identify the exact legacy source paths/functions/classes that own this responsibility today, and produce TWO required files:\n  1. claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/<worker_id>_LEGACY_BASELINE_ANALYSIS.md\n  2. claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/<worker_id>_legacy_behavior_mapping.json\nThe analysis must list: legacy_source_paths, legacy_functions_preserved, legacy_inputs, legacy_outputs, legacy_redis_keys (read-only references; never writers), legacy_config_dependencies, legacy_edge_cases, legacy_failure_modes, legacy_tests_or_expected_behavior, V2_mapping, intentional_changes, and any removed/deprecated behavior with reason. The mapping JSON must be a structured version of the same. If legacy_reference has no equivalent, justify the greenfield decision in writing with citations. Codex will fail the review if either file is missing, vague, or silently drops legacy behavior.\n\nOnly after both baseline files exist may you implement the worker.\n\nBuild a standalone V2 risk gateway runtime worker CLI. The library logic already exists at v2/backend/app/composition/risk_gateway/runtime.py and v2/backend/app/services/risk_gateway/service.py. Task: create v2/backend/app/cli/v2_risk_gateway_runtime_worker.py that (a) consumes OrchestratorDecisionRecord events from a V2-namespaced source (the existing assemble_risk_decision_record path is the model), (b) emits RiskDecisionRecord with the fail-closed gate ALWAYS set to blocked_human_only regardless of input, (c) writes the public payload to v2/frontend/public/operator_runtime/v2_risk_gateway_runtime_worker/latest/v2_risk_gateway_runtime_worker_status.json with the fields listed in required_public_payload_fields, (d) writes a worker report and status JSON under claude_worklog. Add integration tests covering happy path, low-confidence denial, stale-feature denial, fail-closed on missing fields, and gate-always-blocked invariant. The worker must not place/cancel/modify any exchange order. It must not change leverage or margin mode. It must not write old Redis. It must not create an approval token. It must not unblock the gate under any circumstance. If invoked while the legacy bot is shut down, classify trainer-parity inputs as MISSING_RUNTIME_EVIDENCE rather than synthesizing data. Trigger the paired Codex review task on emit.",
+  "required_legacy_baseline_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_risk_gateway_runtime_worker_LEGACY_BASELINE_ANALYSIS.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_risk_gateway_runtime_worker_legacy_behavior_mapping.json"
+  ],
+  "legacy_baseline_required": true
 }

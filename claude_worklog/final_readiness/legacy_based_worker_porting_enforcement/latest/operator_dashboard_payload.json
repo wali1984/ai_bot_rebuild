@@ -1,0 +1,55 @@
+{
+  "task_id": "legacy_based_worker_porting_enforcement",
+  "as_of_utc": "2026-05-13T22:10:00Z",
+  "go_no_go": "LEGACY_BASED_WORKER_PORTING_ENFORCEMENT_PATCH_READY",
+  "live_gate": "blocked_human_only",
+  "final_approval_token": "absent",
+  "redis_trim_approval": "absent",
+  "patch_summary": {
+    "orchestrator_patched": true,
+    "claude_port_descriptors_patched_count": 17,
+    "codex_review_descriptors_patched_count": 17,
+    "backfill_task_created_for": ["v2_feature_snapshot_builder"],
+    "template_md_present": true,
+    "behavior_mapping_schema_present": true
+  },
+  "new_orchestrator_state_classes": [
+    "LEGACY_BASELINE_REQUIRED",
+    "CODEX_PASS_BUT_LEGACY_BACKFILL_REQUIRED"
+  ],
+  "new_orchestrator_action_kind": "dispatch_legacy_baseline_analysis",
+  "completion_rule_after_patch": "CLI + tests + report + status JSON + LEGACY_BASELINE_ANALYSIS.md + legacy_behavior_mapping.json + paired Codex GO/NO-GO PASS marker — all required.",
+  "next_worker_after_patch": "v2_risk_gateway_runtime_worker",
+  "next_action_after_patch": "dispatch_legacy_baseline_analysis",
+  "backfill_required_workers": [
+    {
+      "worker": "v2_feature_snapshot_builder",
+      "backfill_task": "claude_backfill_v2_feature_snapshot_builder_legacy_analysis",
+      "paired_codex_review": "codex_review_v2_feature_snapshot_builder_legacy_backfill"
+    }
+  ],
+  "codex_fail_conditions_added_per_worker": [
+    "legacy_baseline_analysis_md_missing",
+    "legacy_behavior_mapping_json_missing",
+    "greenfield_implementation_without_documented_justification",
+    "legacy_features_dropped_silently",
+    "legacy_redis_or_config_or_stream_contracts_ignored_without_reason",
+    "behavior_changed_without_explanation_in_mapping",
+    "tests_do_not_cover_legacy_equivalent_behavior",
+    "worker_claims_migrated_while_only_newly_scaffolded"
+  ],
+  "claude_forbidden_items_added_per_worker": [
+    "greenfield_without_legacy_baseline",
+    "dropping_legacy_behavior_silently",
+    "ignoring_legacy_redis_or_config_or_stream_contracts_without_reason",
+    "behavior_change_without_explanation"
+  ],
+  "primary_objective_lock": [
+    "v2_independent_paper_shadow_runtime",
+    "live_blocked_human_only",
+    "no_legacy_mutation",
+    "no_old_redis_writes",
+    "no_exchange_actions",
+    "every_worker_must_be_legacy_based_unless_explicitly_justified"
+  ]
+}

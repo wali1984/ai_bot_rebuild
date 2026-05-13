@@ -20,8 +20,23 @@
     "no_runnable_command_documented",
     "no_test_file_or_tests_skip_no_real_exchange_invariant",
     "public_payload_missing_required_fields",
-    "backlog_counted_as_migration"
+    "backlog_counted_as_migration",
+    "legacy_baseline_analysis_md_missing",
+    "legacy_behavior_mapping_json_missing",
+    "greenfield_implementation_without_documented_justification",
+    "legacy_features_dropped_silently",
+    "legacy_redis_or_config_or_stream_contracts_ignored_without_reason",
+    "behavior_changed_without_explanation_in_mapping",
+    "tests_do_not_cover_legacy_equivalent_behavior",
+    "worker_claims_migrated_while_only_newly_scaffolded"
   ],
-  "go_no_go_file_contents": ["V2_PAPER_EXECUTION_WORKER_CODEX_PASS", "V2_PAPER_EXECUTION_WORKER_CODEX_FAIL"],
-  "prompt": "Audit the V2 paper execution worker port. The worker must NEVER call a real exchange method in the paper path. Verify the contract invariant test exists and asserts no real exchange-order method is invoked. Verify simulated fills compute fee/slippage correctly. Verify the public payload includes worker_id, last_fill_ts, fills_processed_total, current_paper_equity, current_paper_pnl, and a current_gate_state field equal to blocked_human_only. Emit the review markdown and a single-line GO/NO-GO file."
+  "go_no_go_file_contents": [
+    "V2_PAPER_EXECUTION_WORKER_CODEX_PASS",
+    "V2_PAPER_EXECUTION_WORKER_CODEX_FAIL"
+  ],
+  "prompt": "Audit the V2 paper execution worker port. The worker must NEVER call a real exchange method in the paper path. Verify the contract invariant test exists and asserts no real exchange-order method is invoked. Verify simulated fills compute fee/slippage correctly. Verify the public payload includes worker_id, last_fill_ts, fills_processed_total, current_paper_equity, current_paper_pnl, and a current_gate_state field equal to blocked_human_only. Emit the review markdown and a single-line GO/NO-GO file. LEGACY-BASELINE GATE: this review must FAIL if claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_paper_execution_worker_LEGACY_BASELINE_ANALYSIS.md or claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_paper_execution_worker_legacy_behavior_mapping.json is missing, if the worker silently drops documented legacy behavior, or if tests do not cover the legacy-equivalent behavior named in the mapping.",
+  "required_input_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_paper_execution_worker_LEGACY_BASELINE_ANALYSIS.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_paper_execution_worker_legacy_behavior_mapping.json"
+  ]
 }

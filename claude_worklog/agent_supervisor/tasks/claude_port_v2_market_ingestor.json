@@ -7,8 +7,23 @@
   "status": "pending",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "live_gate": "blocked_human_only",
-  "allowed_paths": ["v2/**", "claude_worklog/**"],
-  "forbidden": ["legacy_mutation", "old_redis_write", "exchange_action", "leverage_change", "margin_mode_change", "live_gate_unlock", "approval_token_creation"],
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**"
+  ],
+  "forbidden": [
+    "legacy_mutation",
+    "old_redis_write",
+    "exchange_action",
+    "leverage_change",
+    "margin_mode_change",
+    "live_gate_unlock",
+    "approval_token_creation",
+    "greenfield_without_legacy_baseline",
+    "dropping_legacy_behavior_silently",
+    "ignoring_legacy_redis_or_config_or_stream_contracts_without_reason",
+    "behavior_change_without_explanation"
+  ],
   "depends_on": "none (build from scratch; MISSING_IN_V2)",
   "required_output_files": [
     "v2/backend/app/cli/v2_market_ingestor.py",
@@ -16,11 +31,31 @@
     "v2/backend/tests/integration/cli/test_v2_market_ingestor.py",
     "v2/frontend/public/operator_runtime/v2_market_ingestor/latest/v2_market_ingestor_status.json",
     "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_market_ingestor_report.md",
-    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_market_ingestor_status.json"
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_market_ingestor_status.json",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_market_ingestor_LEGACY_BASELINE_ANALYSIS.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_market_ingestor_legacy_behavior_mapping.json"
   ],
-  "required_tests": ["binance_public_klines_fetched_and_persisted", "mark_price_persisted", "rate_limit_backoff", "fail_closed_on_5xx", "no_old_redis_write_contract"],
-  "required_public_payload_fields": ["worker_id", "last_run_ts", "last_kline_ts", "klines_persisted_total", "freshness_seconds", "rate_limit_state"],
+  "required_tests": [
+    "binance_public_klines_fetched_and_persisted",
+    "mark_price_persisted",
+    "rate_limit_backoff",
+    "fail_closed_on_5xx",
+    "no_old_redis_write_contract"
+  ],
+  "required_public_payload_fields": [
+    "worker_id",
+    "last_run_ts",
+    "last_kline_ts",
+    "klines_persisted_total",
+    "freshness_seconds",
+    "rate_limit_state"
+  ],
   "required_codex_review_task": "codex_review_v2_market_ingestor",
   "runnable_invocation_template": "python3 -m v2.backend.app.cli.v2_market_ingestor --loop --interval 15 --symbol BTCUSDT",
-  "prompt": "Build the V2 market ingestor from scratch. Fetch Binance public klines and mark price into a V2-namespaced persistence layer. No legacy Redis writes. Tests must cover persistence, rate-limit backoff, fail-closed on 5xx, and a contract test asserting no old Redis keys are written. Trigger codex_review_v2_market_ingestor on emit."
+  "prompt": "LEGACY-FIRST MANDATE. This is not a greenfield build. Before writing any V2 implementation code, you MUST read the relevant files under legacy_reference/, identify the exact legacy source paths/functions/classes that own this responsibility today, and produce TWO required files:\n  1. claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/<worker_id>_LEGACY_BASELINE_ANALYSIS.md\n  2. claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/<worker_id>_legacy_behavior_mapping.json\nThe analysis must list: legacy_source_paths, legacy_functions_preserved, legacy_inputs, legacy_outputs, legacy_redis_keys (read-only references; never writers), legacy_config_dependencies, legacy_edge_cases, legacy_failure_modes, legacy_tests_or_expected_behavior, V2_mapping, intentional_changes, and any removed/deprecated behavior with reason. The mapping JSON must be a structured version of the same. If legacy_reference has no equivalent, justify the greenfield decision in writing with citations. Codex will fail the review if either file is missing, vague, or silently drops legacy behavior.\n\nOnly after both baseline files exist may you implement the worker.\n\nBuild the V2 market ingestor from scratch. Fetch Binance public klines and mark price into a V2-namespaced persistence layer. No legacy Redis writes. Tests must cover persistence, rate-limit backoff, fail-closed on 5xx, and a contract test asserting no old Redis keys are written. Trigger codex_review_v2_market_ingestor on emit.",
+  "required_legacy_baseline_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_market_ingestor_LEGACY_BASELINE_ANALYSIS.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_market_ingestor_legacy_behavior_mapping.json"
+  ],
+  "legacy_baseline_required": true
 }

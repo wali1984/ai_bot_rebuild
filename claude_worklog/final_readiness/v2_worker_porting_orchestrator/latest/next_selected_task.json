@@ -1,6 +1,6 @@
 {
   "action_kind": "dispatch_claude",
-  "selected_at_utc": "2026-05-13T21:55:54Z",
+  "selected_at_utc": "2026-05-13T22:00:26Z",
   "selected_by": "v2_worker_porting_orchestrator",
   "task_descriptor": "claude_worklog/agent_supervisor/tasks/claude_port_v2_risk_gateway_runtime_worker.json",
   "worker_id": "v2_risk_gateway_runtime_worker"

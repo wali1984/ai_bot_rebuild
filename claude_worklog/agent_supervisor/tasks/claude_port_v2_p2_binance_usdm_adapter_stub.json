@@ -7,7 +7,10 @@
   "status": "pending",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "live_gate": "blocked_human_only",
-  "allowed_paths": ["v2/**", "claude_worklog/**"],
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**"
+  ],
   "forbidden": [
     "legacy_mutation",
     "old_redis_write",
@@ -17,7 +20,11 @@
     "live_gate_unlock",
     "approval_token_creation",
     "wiring_a_mutating_binance_endpoint_into_this_stub",
-    "exposing_live_credentials_to_the_stub"
+    "exposing_live_credentials_to_the_stub",
+    "greenfield_without_legacy_baseline",
+    "dropping_legacy_behavior_silently",
+    "ignoring_legacy_redis_or_config_or_stream_contracts_without_reason",
+    "behavior_change_without_explanation"
   ],
   "required_output_files": [
     "v2/backend/app/cli/v2_binance_usdm_adapter_stub.py",
@@ -25,7 +32,9 @@
     "v2/backend/tests/integration/cli/test_v2_binance_usdm_adapter_stub.py",
     "v2/frontend/public/operator_runtime/v2_binance_usdm_adapter/latest/v2_binance_usdm_adapter_status.json",
     "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_binance_usdm_adapter_report.md",
-    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_binance_usdm_adapter_status.json"
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_binance_usdm_adapter_status.json",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_LEGACY_BASELINE_ANALYSIS.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_legacy_behavior_mapping.json"
   ],
   "required_tests": [
     "new_order_method_raises_BLOCKED_GATE_NOT_APPROVED",
@@ -35,8 +44,19 @@
     "account_info_v3_read_only_path_works_but_does_not_unlock_gate",
     "no_secret_logged_or_returned_from_stub_contract"
   ],
-  "required_public_payload_fields": ["worker_id", "stub_state_one_of_DISABLED_OR_BLOCKED_NEVER_ACTIVE", "endpoints_exposed_read_only", "endpoints_blocked_mutating", "freshness_seconds"],
+  "required_public_payload_fields": [
+    "worker_id",
+    "stub_state_one_of_DISABLED_OR_BLOCKED_NEVER_ACTIVE",
+    "endpoints_exposed_read_only",
+    "endpoints_blocked_mutating",
+    "freshness_seconds"
+  ],
   "required_codex_review_task": "codex_review_v2_p2_binance_usdm_adapter_stub",
   "runnable_invocation_template": "python3 -m v2.backend.app.cli.v2_binance_usdm_adapter_stub --status-only",
-  "prompt": "Build the Binance USD-M futures adapter stub. Read-only paths (account info v3, position risk) may be exposed only if credentials are present. ALL mutating endpoints (new order, change initial leverage, change margin type, change position mode) must raise BLOCKED_GATE_NOT_APPROVED. Tests must prove every mutating method raises, that read-only access does not unlock the gate, and that no secret is logged or returned. Trigger codex_review_v2_p2_binance_usdm_adapter_stub on emit."
+  "prompt": "LEGACY-FIRST MANDATE. This is not a greenfield build. Before writing any V2 implementation code, you MUST read the relevant files under legacy_reference/, identify the exact legacy source paths/functions/classes that own this responsibility today, and produce TWO required files:\n  1. claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/<worker_id>_LEGACY_BASELINE_ANALYSIS.md\n  2. claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/<worker_id>_legacy_behavior_mapping.json\nThe analysis must list: legacy_source_paths, legacy_functions_preserved, legacy_inputs, legacy_outputs, legacy_redis_keys (read-only references; never writers), legacy_config_dependencies, legacy_edge_cases, legacy_failure_modes, legacy_tests_or_expected_behavior, V2_mapping, intentional_changes, and any removed/deprecated behavior with reason. The mapping JSON must be a structured version of the same. If legacy_reference has no equivalent, justify the greenfield decision in writing with citations. Codex will fail the review if either file is missing, vague, or silently drops legacy behavior.\n\nOnly after both baseline files exist may you implement the worker.\n\nBuild the Binance USD-M futures adapter stub. Read-only paths (account info v3, position risk) may be exposed only if credentials are present. ALL mutating endpoints (new order, change initial leverage, change margin type, change position mode) must raise BLOCKED_GATE_NOT_APPROVED. Tests must prove every mutating method raises, that read-only access does not unlock the gate, and that no secret is logged or returned. Trigger codex_review_v2_p2_binance_usdm_adapter_stub on emit.",
+  "required_legacy_baseline_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_LEGACY_BASELINE_ANALYSIS.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_legacy_behavior_mapping.json"
+  ],
+  "legacy_baseline_required": true
 }

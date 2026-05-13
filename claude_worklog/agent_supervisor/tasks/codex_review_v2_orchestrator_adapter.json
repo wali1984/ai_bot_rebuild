@@ -11,7 +11,27 @@
     "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_orchestrator_adapter_review.md",
     "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_orchestrator_adapter_go_no_go.md"
   ],
-  "fail_conditions": ["orchestrator_overrides_risk_gateway", "routing_not_deterministic", "no_fail_closed_on_missing_prediction", "writes_old_redis"],
-  "go_no_go_file_contents": ["V2_ORCHESTRATOR_ADAPTER_CODEX_PASS", "V2_ORCHESTRATOR_ADAPTER_CODEX_FAIL"],
-  "prompt": "Audit the V2 orchestrator adapter. Critical invariant: orchestrator never overrides risk gateway (orchestrator proposes; risk gateway is binding). Emit review and a single-line GO/NO-GO."
+  "fail_conditions": [
+    "orchestrator_overrides_risk_gateway",
+    "routing_not_deterministic",
+    "no_fail_closed_on_missing_prediction",
+    "writes_old_redis",
+    "legacy_baseline_analysis_md_missing",
+    "legacy_behavior_mapping_json_missing",
+    "greenfield_implementation_without_documented_justification",
+    "legacy_features_dropped_silently",
+    "legacy_redis_or_config_or_stream_contracts_ignored_without_reason",
+    "behavior_changed_without_explanation_in_mapping",
+    "tests_do_not_cover_legacy_equivalent_behavior",
+    "worker_claims_migrated_while_only_newly_scaffolded"
+  ],
+  "go_no_go_file_contents": [
+    "V2_ORCHESTRATOR_ADAPTER_CODEX_PASS",
+    "V2_ORCHESTRATOR_ADAPTER_CODEX_FAIL"
+  ],
+  "prompt": "Audit the V2 orchestrator adapter. Critical invariant: orchestrator never overrides risk gateway (orchestrator proposes; risk gateway is binding). Emit review and a single-line GO/NO-GO. LEGACY-BASELINE GATE: this review must FAIL if claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_orchestrator_adapter_LEGACY_BASELINE_ANALYSIS.md or claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_orchestrator_adapter_legacy_behavior_mapping.json is missing, if the worker silently drops documented legacy behavior, or if tests do not cover the legacy-equivalent behavior named in the mapping.",
+  "required_input_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_orchestrator_adapter_LEGACY_BASELINE_ANALYSIS.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_orchestrator_adapter_legacy_behavior_mapping.json"
+  ]
 }

@@ -17,8 +17,23 @@
     "change_margin_type_method_does_not_raise",
     "change_position_mode_method_does_not_raise",
     "secret_logged_or_returned",
-    "read_only_access_unlocks_the_gate"
+    "read_only_access_unlocks_the_gate",
+    "legacy_baseline_analysis_md_missing",
+    "legacy_behavior_mapping_json_missing",
+    "greenfield_implementation_without_documented_justification",
+    "legacy_features_dropped_silently",
+    "legacy_redis_or_config_or_stream_contracts_ignored_without_reason",
+    "behavior_changed_without_explanation_in_mapping",
+    "tests_do_not_cover_legacy_equivalent_behavior",
+    "worker_claims_migrated_while_only_newly_scaffolded"
   ],
-  "go_no_go_file_contents": ["V2_P2_BINANCE_USDM_ADAPTER_STUB_CODEX_PASS", "V2_P2_BINANCE_USDM_ADAPTER_STUB_CODEX_FAIL"],
-  "prompt": "Audit the Binance USD-M futures adapter stub. All mutating endpoint methods must raise BLOCKED_GATE_NOT_APPROVED; secrets must not be logged or returned; read-only access must not unlock the gate. Emit review and a single-line GO/NO-GO."
+  "go_no_go_file_contents": [
+    "V2_P2_BINANCE_USDM_ADAPTER_STUB_CODEX_PASS",
+    "V2_P2_BINANCE_USDM_ADAPTER_STUB_CODEX_FAIL"
+  ],
+  "prompt": "Audit the Binance USD-M futures adapter stub. All mutating endpoint methods must raise BLOCKED_GATE_NOT_APPROVED; secrets must not be logged or returned; read-only access must not unlock the gate. Emit review and a single-line GO/NO-GO. LEGACY-BASELINE GATE: this review must FAIL if claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_LEGACY_BASELINE_ANALYSIS.md or claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_legacy_behavior_mapping.json is missing, if the worker silently drops documented legacy behavior, or if tests do not cover the legacy-equivalent behavior named in the mapping.",
+  "required_input_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_LEGACY_BASELINE_ANALYSIS.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_legacy_behavior_mapping.json"
+  ]
 }

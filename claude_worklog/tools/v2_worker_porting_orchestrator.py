@@ -83,10 +83,12 @@ WORKER_SEQUENCE: List[Dict[str, str]] = [
 
 # Worker completion classifications.
 QUEUED = "QUEUED"
+LEGACY_BASELINE_REQUIRED = "LEGACY_BASELINE_REQUIRED"
 CLAUDE_RUNNING = "CLAUDE_RUNNING"
 CLAUDE_COMPLETED_AWAITING_CODEX = "CLAUDE_COMPLETED_AWAITING_CODEX"
 CODEX_RUNNING = "CODEX_RUNNING"
 CODEX_PASS = "CODEX_PASS"
+CODEX_PASS_BUT_LEGACY_BACKFILL_REQUIRED = "CODEX_PASS_BUT_LEGACY_BACKFILL_REQUIRED"
 CODEX_FAIL_REMEDIATION_REQUIRED = "CODEX_FAIL_REMEDIATION_REQUIRED"
 BLOCKED_GIT = "BLOCKED_GIT"
 BLOCKED_AUTH_OR_RATE_LIMIT = "BLOCKED_AUTH_OR_RATE_LIMIT"
@@ -127,6 +129,14 @@ def worker_status_json_path(worker_id: str) -> Path:
 
 def codex_go_no_go_path(worker_id: str) -> Path:
     return WORKERS_DIR / f"codex_{worker_id}_go_no_go.md"
+
+
+def legacy_baseline_analysis_path(worker_id: str) -> Path:
+    return WORKERS_DIR / f"{worker_id}_LEGACY_BASELINE_ANALYSIS.md"
+
+
+def legacy_behavior_mapping_path(worker_id: str) -> Path:
+    return WORKERS_DIR / f"{worker_id}_legacy_behavior_mapping.json"
 
 
 def public_payload_path(worker_id: str) -> Path:
@@ -170,6 +180,8 @@ def check_worker_completion(worker: Dict[str, str]) -> Dict[str, Any]:
     payload = public_payload_path(worker_id)
     task = task_descriptor_path(worker_id)
     codex_task = codex_review_descriptor_path(worker_id)
+    legacy_baseline = legacy_baseline_analysis_path(worker_id)
+    legacy_mapping = legacy_behavior_mapping_path(worker_id)
 
     missing: List[str] = []
     if not cli.exists():
@@ -180,6 +192,10 @@ def check_worker_completion(worker: Dict[str, str]) -> Dict[str, Any]:
         missing.append(str(report.relative_to(REPO_ROOT)))
     if not status_json.exists():
         missing.append(str(status_json.relative_to(REPO_ROOT)))
+    if not legacy_baseline.exists():
+        missing.append(str(legacy_baseline.relative_to(REPO_ROOT)))
+    if not legacy_mapping.exists():
+        missing.append(str(legacy_mapping.relative_to(REPO_ROOT)))
 
     state: str
     codex_text: Optional[str] = None
@@ -199,10 +215,22 @@ def check_worker_completion(worker: Dict[str, str]) -> Dict[str, Any]:
         except Exception:
             pass
 
+    # Legacy-baseline enforcement: a worker is not allowed to leave QUEUED
+    # until its LEGACY_BASELINE_ANALYSIS.md and legacy_behavior_mapping.json
+    # exist. The grandfather rule: if Codex already PASSed and the legacy
+    # files are missing, the worker is classified
+    # CODEX_PASS_BUT_LEGACY_BACKFILL_REQUIRED — it remains in the completed
+    # list but a backfill task is required.
+    legacy_baseline_present = legacy_baseline.exists() and legacy_mapping.exists()
+
     if safety_violation:
         state = BLOCKED_SAFETY
+    elif not cli.exists() and not legacy_baseline_present:
+        state = LEGACY_BASELINE_REQUIRED
     elif not cli.exists():
         state = QUEUED
+    elif not legacy_baseline_present and not codex_go.exists():
+        state = LEGACY_BASELINE_REQUIRED
     elif not tests.exists() or not report.exists() or not status_json.exists():
         state = CLAUDE_RUNNING
     elif not codex_go.exists() and not codex_task.exists():
@@ -212,7 +240,10 @@ def check_worker_completion(worker: Dict[str, str]) -> Dict[str, Any]:
     else:
         text = codex_text or ""
         if expected_codex_pass_token(worker_id) in text:
-            state = CODEX_PASS
+            if legacy_baseline_present:
+                state = CODEX_PASS
+            else:
+                state = CODEX_PASS_BUT_LEGACY_BACKFILL_REQUIRED
         elif expected_codex_fail_token(worker_id) in text:
             state = CODEX_FAIL_REMEDIATION_REQUIRED
         else:
@@ -230,6 +261,8 @@ def check_worker_completion(worker: Dict[str, str]) -> Dict[str, Any]:
         "codex_review_descriptor_present": codex_task.exists(),
         "task_descriptor_present": task.exists(),
         "public_payload_present": payload.exists(),
+        "legacy_baseline_analysis_present": legacy_baseline.exists(),
+        "legacy_behavior_mapping_present": legacy_mapping.exists(),
         "missing_artifacts": missing,
         "safety_violation": safety_violation,
     }
@@ -338,16 +371,35 @@ def select_next_action(reports: List[Dict[str, Any]]) -> Dict[str, Any]:
             "next_worker": None,
             "follow_up": "do_not_repair_destructively_without_operator_approval",
         }
+    backfill_required: List[str] = []
     for rpt in reports:
         state = rpt["state"]
         if state == CODEX_PASS:
             continue
+        if state == CODEX_PASS_BUT_LEGACY_BACKFILL_REQUIRED:
+            # Workers in this state are NOT blocking; they pass Codex. But a
+            # backfill task must exist for them. Record and continue past.
+            backfill_required.append(rpt["worker_id"])
+            continue
+        if state == LEGACY_BASELINE_REQUIRED:
+            return {
+                "kind": "dispatch_legacy_baseline_analysis",
+                "next_worker": rpt["worker_id"],
+                "required_files": [
+                    str(legacy_baseline_analysis_path(rpt["worker_id"]).relative_to(REPO_ROOT)),
+                    str(legacy_behavior_mapping_path(rpt["worker_id"]).relative_to(REPO_ROOT)),
+                ],
+                "task_descriptor": str(task_descriptor_path(rpt["worker_id"]).relative_to(REPO_ROOT)),
+                "follow_up": "claude_must_read_legacy_reference_and_emit_baseline_analysis_before_implementation",
+                "backfill_required_workers": backfill_required,
+            }
         if state == QUEUED:
             return {
                 "kind": "dispatch_claude",
                 "next_worker": rpt["worker_id"],
                 "task_descriptor": str(task_descriptor_path(rpt["worker_id"]).relative_to(REPO_ROOT)),
                 "follow_up": f"after_claude_artifacts_appear_dispatch_codex_review_{rpt['worker_id']}",
+                "backfill_required_workers": backfill_required,
             }
         if state == CLAUDE_RUNNING:
             return {
@@ -391,8 +443,17 @@ def select_next_action(reports: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def aggregate_state(reports: List[Dict[str, Any]], next_action: Dict[str, Any]) -> Dict[str, Any]:
-    completed = [r["worker_id"] for r in reports if r["state"] == CODEX_PASS]
+    # Both CODEX_PASS and CODEX_PASS_BUT_LEGACY_BACKFILL_REQUIRED count as
+    # "passed Codex" for advancement. The backfill list is surfaced separately.
+    passing = {CODEX_PASS, CODEX_PASS_BUT_LEGACY_BACKFILL_REQUIRED}
+    completed = [r["worker_id"] for r in reports if r["state"] in passing]
+    legacy_backfill_required = [
+        r["worker_id"] for r in reports if r["state"] == CODEX_PASS_BUT_LEGACY_BACKFILL_REQUIRED
+    ]
     queued = [r["worker_id"] for r in reports if r["state"] == QUEUED]
+    legacy_baseline_required = [
+        r["worker_id"] for r in reports if r["state"] == LEGACY_BASELINE_REQUIRED
+    ]
     in_flight = [
         r["worker_id"]
         for r in reports
@@ -406,23 +467,11 @@ def aggregate_state(reports: List[Dict[str, Any]], next_action: Dict[str, Any]) 
     ]
     last_completed = completed[-1] if completed else None
     p0_total = sum(1 for w in WORKER_SEQUENCE if w["priority"] == "P0")
-    p0_complete = sum(
-        1
-        for r in reports
-        if r["state"] == CODEX_PASS and r["priority"] == "P0"
-    )
+    p0_complete = sum(1 for r in reports if r["state"] in passing and r["priority"] == "P0")
     p1_total = sum(1 for w in WORKER_SEQUENCE if w["priority"] == "P1")
-    p1_complete = sum(
-        1
-        for r in reports
-        if r["state"] == CODEX_PASS and r["priority"] == "P1"
-    )
+    p1_complete = sum(1 for r in reports if r["state"] in passing and r["priority"] == "P1")
     p2_total = sum(1 for w in WORKER_SEQUENCE if w["priority"] == "P2")
-    p2_complete = sum(
-        1
-        for r in reports
-        if r["state"] == CODEX_PASS and r["priority"] == "P2"
-    )
+    p2_complete = sum(1 for r in reports if r["state"] in passing and r["priority"] == "P2")
     if p0_complete == p0_total:
         v2_local_online = "V2_LOCAL_ONLINE_P0_READY_PAPER_SHADOW_ONLY"
     else:
@@ -438,6 +487,8 @@ def aggregate_state(reports: List[Dict[str, Any]], next_action: Dict[str, Any]) 
         "workers": reports,
         "completed_workers": completed,
         "queued_workers": queued,
+        "legacy_baseline_required_workers": legacy_baseline_required,
+        "legacy_backfill_required_workers": legacy_backfill_required,
         "in_flight_workers": in_flight,
         "remediation_required_workers": failing,
         "blocked_workers": blocked,
@@ -528,6 +579,8 @@ def render_dashboard_payload(state: Dict[str, Any]) -> Dict[str, Any]:
         "last_completed_worker": state["last_completed_worker"],
         "completed_workers": state["completed_workers"],
         "queued_workers": state["queued_workers"],
+        "legacy_baseline_required_workers": state["legacy_baseline_required_workers"],
+        "legacy_backfill_required_workers": state["legacy_backfill_required_workers"],
         "in_flight_workers": state["in_flight_workers"],
         "remediation_required_workers": state["remediation_required_workers"],
         "blocked_workers": state["blocked_workers"],

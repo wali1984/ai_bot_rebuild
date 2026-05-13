@@ -1,0 +1,85 @@
+{
+  "enforcement_id": "legacy_based_worker_porting_enforcement",
+  "as_of_utc": "2026-05-13T22:10:00Z",
+  "patch_status": "READY",
+  "applies_to_all_workers": true,
+  "workers": [
+    "v2_feature_snapshot_builder",
+    "v2_risk_gateway_runtime_worker",
+    "v2_paper_execution_worker",
+    "v2_execution_ledger_worker",
+    "v2_signal_lineage_worker",
+    "v2_account_position_monitor",
+    "v2_market_ingestor",
+    "v2_coinank_liquidation_bridge",
+    "v2_trainer_bridge",
+    "v2_orchestrator_adapter",
+    "v2_signal_publisher",
+    "v2_replay_worker",
+    "v2_script_monitor",
+    "v2_config_admin_manager",
+    "v2_p2_default_blocked_execution_adapter_stub",
+    "v2_p2_binance_usdm_adapter_stub",
+    "v2_p2_deployment_helpers"
+  ],
+  "required_pre_implementation_files_per_worker": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/<worker_id>_LEGACY_BASELINE_ANALYSIS.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/<worker_id>_legacy_behavior_mapping.json"
+  ],
+  "template_paths": {
+    "analysis_md_template": "claude_worklog/final_readiness/legacy_based_worker_porting_enforcement/latest/LEGACY_BASELINE_ANALYSIS_TEMPLATE.md",
+    "behavior_mapping_schema": "claude_worklog/final_readiness/legacy_based_worker_porting_enforcement/latest/legacy_behavior_mapping_schema.json"
+  },
+  "claude_port_task_descriptor_contract": {
+    "new_required_fields": [
+      "required_legacy_baseline_files",
+      "legacy_baseline_required"
+    ],
+    "appended_to_required_output_files": "the two legacy baseline files for this worker",
+    "appended_to_forbidden": [
+      "greenfield_without_legacy_baseline",
+      "dropping_legacy_behavior_silently",
+      "ignoring_legacy_redis_or_config_or_stream_contracts_without_reason",
+      "behavior_change_without_explanation"
+    ],
+    "prompt_preamble": "LEGACY-FIRST MANDATE … the analysis must list legacy_source_paths, legacy_functions_preserved, legacy_inputs, legacy_outputs, legacy_redis_keys (read-only references; never writers), legacy_config_dependencies, legacy_edge_cases, legacy_failure_modes, legacy_tests_or_expected_behavior, V2_mapping, intentional_changes, removed/deprecated behavior with reason."
+  },
+  "codex_review_descriptor_contract": {
+    "appended_to_required_input_files": "the two legacy baseline files for this worker",
+    "appended_to_fail_conditions": [
+      "legacy_baseline_analysis_md_missing",
+      "legacy_behavior_mapping_json_missing",
+      "greenfield_implementation_without_documented_justification",
+      "legacy_features_dropped_silently",
+      "legacy_redis_or_config_or_stream_contracts_ignored_without_reason",
+      "behavior_changed_without_explanation_in_mapping",
+      "tests_do_not_cover_legacy_equivalent_behavior",
+      "worker_claims_migrated_while_only_newly_scaffolded"
+    ],
+    "prompt_suffix": "LEGACY-BASELINE GATE: this review must FAIL if either baseline file is missing, the worker silently drops documented legacy behavior, or tests do not cover the legacy-equivalent behavior named in the mapping."
+  },
+  "orchestrator_contract": {
+    "new_state_classifications": [
+      "LEGACY_BASELINE_REQUIRED",
+      "CODEX_PASS_BUT_LEGACY_BACKFILL_REQUIRED"
+    ],
+    "new_action_kind": "dispatch_legacy_baseline_analysis",
+    "completion_rule": "A worker is fully complete only when CLI + tests + report + status JSON + LEGACY_BASELINE_ANALYSIS.md + legacy_behavior_mapping.json + paired Codex GO/NO-GO PASS marker are all on disk."
+  },
+  "backfill_required_workers_today": [
+    {
+      "worker_id": "v2_feature_snapshot_builder",
+      "reason": "shipped as a V2 extraction from paper_online_runtime before this enforcement existed; legacy_reference comparison was not produced",
+      "backfill_task_descriptor": "claude_worklog/agent_supervisor/tasks/claude_backfill_v2_feature_snapshot_builder_legacy_analysis.json",
+      "paired_codex_review": "claude_worklog/agent_supervisor/tasks/codex_review_v2_feature_snapshot_builder_legacy_backfill.json"
+    }
+  ],
+  "primary_objective_lock": [
+    "v2_independent_paper_shadow_runtime",
+    "live_blocked_human_only",
+    "no_legacy_mutation",
+    "no_old_redis_writes",
+    "no_exchange_actions",
+    "every_worker_must_be_legacy_based_unless_explicitly_justified"
+  ]
+}

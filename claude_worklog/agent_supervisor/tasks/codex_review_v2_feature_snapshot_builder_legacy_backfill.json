@@ -1,0 +1,34 @@
+{
+  "task_id": "codex_review_v2_feature_snapshot_builder_legacy_backfill",
+  "agent": "codex",
+  "lane": "runtime_migration_backfill_audit",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "live_gate": "blocked_human_only",
+  "emit_files": true,
+  "required_input_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_feature_snapshot_builder_LEGACY_BASELINE_ANALYSIS.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_feature_snapshot_builder_legacy_behavior_mapping.json"
+  ],
+  "required_output_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_feature_snapshot_builder_legacy_backfill_review.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_feature_snapshot_builder_legacy_backfill_go_no_go.md"
+  ],
+  "fail_conditions": [
+    "legacy_baseline_analysis_md_missing",
+    "legacy_behavior_mapping_json_missing",
+    "analysis_fails_to_cite_legacy_source_paths",
+    "analysis_fails_to_list_legacy_inputs_outputs_redis_keys_config_dependencies",
+    "analysis_silently_drops_legacy_behavior",
+    "v2_mapping_section_does_not_explain_each_legacy_responsibility",
+    "intentional_changes_missing_reason",
+    "removed_deprecated_behavior_missing_reason",
+    "remediation_items_not_filed_as_follow_up_tasks"
+  ],
+  "go_no_go_file_contents": [
+    "V2_FEATURE_SNAPSHOT_BUILDER_LEGACY_BACKFILL_CODEX_PASS",
+    "V2_FEATURE_SNAPSHOT_BUILDER_LEGACY_BACKFILL_CODEX_FAIL"
+  ],
+  "prompt": "Review the backfilled legacy-baseline analysis for v2_feature_snapshot_builder. Verify the analysis cites concrete legacy source paths under legacy_reference/, enumerates legacy inputs/outputs/Redis-keys/config-dependencies/edge-cases/failure-modes, and maps each legacy responsibility to the V2 implementation. Verify any intentional change or removed legacy behavior carries a written reason. If gaps remain between legacy and V2, the analysis must propose follow-up tasks rather than declaring parity. Emit review markdown and a single-line GO/NO-GO."
+}
