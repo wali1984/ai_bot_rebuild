@@ -344,10 +344,16 @@ def ensure_primary_task() -> dict[str, Any]:
     if path.exists() and state in {"pending", "running", "retry_scheduled", "blocked_quota", "claude_rate_limited_resume_scheduled"}:
         return {"selected": selected, "action": f"existing_{state}", "created": False}
     if state == "completed":
-        selected = "RISK_GATEWAY_RUNTIME_EXPANSION_TESTS"
+        try:
+            next_index = PRIMARY_CHAIN.index(selected) + 1
+            selected = PRIMARY_CHAIN[next_index]
+        except (ValueError, IndexError):
+            selected = "V2_DATA_PLANE_AND_SCRIPT_MIGRATION_BACKLOG"
+        if selected == "FINAL_LIVE_CAPITAL_APPROVAL_REQUIRED":
+            return {"selected": selected, "action": "human_final_gate_required", "created": False}
         path = TASKS / f"{selected}.json"
         state = task_state(selected)
-        if path.exists() and state in {"pending", "running", "retry_scheduled"}:
+        if path.exists() and state in {"pending", "running", "retry_scheduled", "blocked_quota", "claude_rate_limited_resume_scheduled"}:
             return {"selected": selected, "action": f"existing_{state}", "created": False}
     if not path.exists():
         prompt = (
