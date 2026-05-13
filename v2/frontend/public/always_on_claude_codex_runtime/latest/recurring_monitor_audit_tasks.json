@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-05-13T03:03:39.104309+00:00",
+  "tasks": [
+    "monitor_legacy_trainer_runtime",
+    "monitor_ppo_masa_gpu_metrics",
+    "audit_hedge_system_behavior",
+    "audit_stop_loss_and_take_profit",
+    "audit_stealth_profit_profit_taking",
+    "audit_signal_lineage_current",
+    "audit_execution_attribution",
+    "audit_risk_gateway_blocks",
+    "audit_paper_shadow_vs_legacy",
+    "audit_coinank_market_intelligence",
+    "audit_script_migration_progress",
+    "audit_public_dashboard_truth"
+  ]
+}

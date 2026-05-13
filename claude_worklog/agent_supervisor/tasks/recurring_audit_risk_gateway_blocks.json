@@ -1,0 +1,18 @@
+{
+  "agent": "claude",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/always_on_claude_codex_runtime/recurring/audit_risk_gateway_blocks/"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "primary_claude_lane",
+  "next_gate": "recurring_audit_risk_gateway_blocks",
+  "prompt": "Run non-live recurring monitor `audit_risk_gateway_blocks`. Work only in AI BOT REBUILD. Read legacy processes/logs/Redis read-only only. Do not mutate legacy, old Redis, exchange state, leverage, margin, or live trading. Write health evidence and create a remediation recommendation if blocked.\n\nEmit exactly two BEGIN_FILE blocks:\nBEGIN_FILE: claude_worklog/final_readiness/always_on_claude_codex_runtime/recurring/audit_risk_gateway_blocks/recurring_audit_risk_gateway_blocks_REPORT.md\n...report...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/always_on_claude_codex_runtime/recurring/audit_risk_gateway_blocks/recurring_audit_risk_gateway_blocks_GO_NO_GO.md\nrecurring_audit_risk_gateway_blocks_READY\nEND_FILE\n",
+  "required_output_files": [
+    "claude_worklog/final_readiness/always_on_claude_codex_runtime/recurring/audit_risk_gateway_blocks/recurring_audit_risk_gateway_blocks_REPORT.md",
+    "claude_worklog/final_readiness/always_on_claude_codex_runtime/recurring/audit_risk_gateway_blocks/recurring_audit_risk_gateway_blocks_GO_NO_GO.md"
+  ],
+  "risk_level": "L1",
+  "status": "pending",
+  "task_id": "recurring_audit_risk_gateway_blocks"
+}

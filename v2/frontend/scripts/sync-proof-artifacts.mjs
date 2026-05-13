@@ -66,6 +66,7 @@ const artifactSets = [
   'claude_automation_non_drift_governor_lock',
   'non_drift_governor_lock',
   'active_autonomous_dispatch',
+  'always_on_claude_codex_runtime',
   'script_migration_backlog',
   'documentation_governance',
   'continuous_claude_runtime',

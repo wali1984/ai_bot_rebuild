@@ -1,0 +1,1213 @@
+{
+  "codex_audit_tasks_created": [],
+  "codex_go_no_go": "ALWAYS_ON_CLAUDE_CODEX_RUNTIME_CODEX_PASS",
+  "coinank_remediation": {
+    "global_11_key_contract_status": "CURRENT",
+    "go_no_go": "COINANK_PLAN3_RUNTIME_CONTRACT_REMEDIATION_AND_V2_REAUDIT_READY",
+    "lastprice": "LASTPRICE_STALE_KEY_ONLY",
+    "runtime_cycles_passed": true
+  },
+  "dirty_state": {
+    "active_child_present": false,
+    "active_claude_children": [],
+    "active_codex_children": [],
+    "counts": {
+      "durable_artifact_to_commit": 57,
+      "runtime_noise_to_restore_when_idle": 152
+    },
+    "files": [
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/agent_supervisor/tasks/LEGACY_LIVE_BRIDGE_TO_V2_DATA_PLANE_READY.json",
+        "status_line": "A  claude_worklog/agent_supervisor/tasks/LEGACY_LIVE_BRIDGE_TO_V2_DATA_PLANE_READY.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/agent_supervisor/tasks/RISK_GATEWAY_RUNTIME_EXPANSION_TESTS.json",
+        "status_line": "A  claude_worklog/agent_supervisor/tasks/RISK_GATEWAY_RUNTIME_EXPANSION_TESTS.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/agent_supervisor/tasks/codex_audit_coinank_bridge_contract.json",
+        "status_line": "A  claude_worklog/agent_supervisor/tasks/codex_audit_coinank_bridge_contract.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/agent_supervisor/tasks/codex_audit_config_admin_dangerous_controls.json",
+        "status_line": "A  claude_worklog/agent_supervisor/tasks/codex_audit_config_admin_dangerous_controls.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/agent_supervisor/tasks/codex_audit_documentation_completeness.json",
+        "status_line": "A  claude_worklog/agent_supervisor/tasks/codex_audit_documentation_completeness.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/agent_supervisor/tasks/codex_audit_paper_shadow_performance.json",
+        "status_line": "A  claude_worklog/agent_supervisor/tasks/codex_audit_paper_shadow_performance.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/agent_supervisor/tasks/recurring_audit_coinank_market_intelligence.json",
+        "status_line": "A  claude_worklog/agent_supervisor/tasks/recurring_audit_coinank_market_intelligence.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/agent_supervisor/tasks/recurring_audit_execution_attribution.json",
+        "status_line": "A  claude_worklog/agent_supervisor/tasks/recurring_audit_execution_attribution.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/agent_supervisor/tasks/recurring_audit_hedge_system_behavior.json",
+        "status_line": "A  claude_worklog/agent_supervisor/tasks/recurring_audit_hedge_system_behavior.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/agent_supervisor/tasks/recurring_audit_paper_shadow_vs_legacy.json",
+        "status_line": "A  claude_worklog/agent_supervisor/tasks/recurring_audit_paper_shadow_vs_legacy.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/agent_supervisor/tasks/recurring_audit_public_dashboard_truth.json",
+        "status_line": "A  claude_worklog/agent_supervisor/tasks/recurring_audit_public_dashboard_truth.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/agent_supervisor/tasks/recurring_audit_risk_gateway_blocks.json",
+        "status_line": "A  claude_worklog/agent_supervisor/tasks/recurring_audit_risk_gateway_blocks.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/agent_supervisor/tasks/recurring_audit_script_migration_progress.json",
+        "status_line": "A  claude_worklog/agent_supervisor/tasks/recurring_audit_script_migration_progress.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/agent_supervisor/tasks/recurring_audit_signal_lineage_current.json",
+        "status_line": "A  claude_worklog/agent_supervisor/tasks/recurring_audit_signal_lineage_current.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/agent_supervisor/tasks/recurring_audit_stealth_profit_profit_taking.json",
+        "status_line": "A  claude_worklog/agent_supervisor/tasks/recurring_audit_stealth_profit_profit_taking.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/agent_supervisor/tasks/recurring_audit_stop_loss_and_take_profit.json",
+        "status_line": "A  claude_worklog/agent_supervisor/tasks/recurring_audit_stop_loss_and_take_profit.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/agent_supervisor/tasks/recurring_monitor_legacy_trainer_runtime.json",
+        "status_line": "A  claude_worklog/agent_supervisor/tasks/recurring_monitor_legacy_trainer_runtime.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/agent_supervisor/tasks/recurring_monitor_ppo_masa_gpu_metrics.json",
+        "status_line": "A  claude_worklog/agent_supervisor/tasks/recurring_monitor_ppo_masa_gpu_metrics.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json",
+        "status_line": " M claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.md",
+        "status_line": " M claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json",
+        "status_line": " M claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/ACTIVE_AUTONOMOUS_PRIMARY_DISPATCH_AND_SCRIPT_MIGRATION_PROOF_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/active_autonomous_dispatch/latest/ACTIVE_AUTONOMOUS_PRIMARY_DISPATCH_AND_SCRIPT_MIGRATION_PROOF_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/CLAUDE_IDLE_AND_DISPATCH_DIAGNOSTIC.md",
+        "status_line": " M claude_worklog/final_readiness/active_autonomous_dispatch/latest/CLAUDE_IDLE_AND_DISPATCH_DIAGNOSTIC.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/CODEX_PARALLEL_DISPATCH_PROOF.md",
+        "status_line": " M claude_worklog/final_readiness/active_autonomous_dispatch/latest/CODEX_PARALLEL_DISPATCH_PROOF.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/PRIMARY_DISPATCH_PROOF.md",
+        "status_line": " M claude_worklog/final_readiness/active_autonomous_dispatch/latest/PRIMARY_DISPATCH_PROOF.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/claude_idle_and_dispatch_diagnostic.json",
+        "status_line": " M claude_worklog/final_readiness/active_autonomous_dispatch/latest/claude_idle_and_dispatch_diagnostic.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_parallel_dispatch_state.json",
+        "status_line": " M claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_parallel_dispatch_state.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/operator_dashboard_payload.json",
+        "status_line": " M claude_worklog/final_readiness/active_autonomous_dispatch/latest/operator_dashboard_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/primary_dispatch_state.json",
+        "status_line": " M claude_worklog/final_readiness/active_autonomous_dispatch/latest/primary_dispatch_state.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/ALWAYS_ON_CLAUDE_CODEX_PRIMARY_OBJECTIVE_RUNTIME_REPORT.md",
+        "status_line": "A  claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/ALWAYS_ON_CLAUDE_CODEX_PRIMARY_OBJECTIVE_RUNTIME_REPORT.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/ALWAYS_ON_OBJECTIVE_RUNNER_POLICY.md",
+        "status_line": "A  claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/ALWAYS_ON_OBJECTIVE_RUNNER_POLICY.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/AUTOMATION_UTILIZATION_POLICY.md",
+        "status_line": "A  claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/AUTOMATION_UTILIZATION_POLICY.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/CODEX_ALWAYS_ON_RUNTIME_REVIEW.md",
+        "status_line": "A  claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/CODEX_ALWAYS_ON_RUNTIME_REVIEW.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/CODEX_CONTINUOUS_AUDIT_POLICY.md",
+        "status_line": "A  claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/CODEX_CONTINUOUS_AUDIT_POLICY.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/CODEX_GO_NO_GO.md",
+        "status_line": "A  claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/CODEX_GO_NO_GO.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/GIT_DIRTY_STATE_CLASSIFICATION.md",
+        "status_line": "A  claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/GIT_DIRTY_STATE_CLASSIFICATION.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/GO_NO_GO.md",
+        "status_line": "A  claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/GO_NO_GO.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/NEVER_EMPTY_TASK_LADDER.md",
+        "status_line": "A  claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/NEVER_EMPTY_TASK_LADDER.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/RECURRING_MONITOR_AUDIT_TASKS.md",
+        "status_line": "A  claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/RECURRING_MONITOR_AUDIT_TASKS.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/always_on_runtime_state.json",
+        "status_line": "A  claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/always_on_runtime_state.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/automation_utilization_status.json",
+        "status_line": "AM claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/automation_utilization_status.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/git_dirty_state.json",
+        "status_line": "A  claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/git_dirty_state.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/never_empty_task_ladder.json",
+        "status_line": "A  claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/never_empty_task_ladder.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json",
+        "status_line": "A  claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json",
+        "status_line": "A  claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/documentation_governance/latest/doc_update_policy.json",
+        "status_line": " M claude_worklog/final_readiness/documentation_governance/latest/doc_update_policy.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/final_readiness/legacy_live_bridge_to_v2_data_plane/latest/GO_NO_GO.md",
+        "status_line": "A  claude_worklog/final_readiness/legacy_live_bridge_to_v2_data_plane/latest/GO_NO_GO.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/final_readiness/legacy_live_bridge_to_v2_data_plane/latest/LEGACY_LIVE_BRIDGE_TO_V2_DATA_PLANE_REPORT.md",
+        "status_line": "A  claude_worklog/final_readiness/legacy_live_bridge_to_v2_data_plane/latest/LEGACY_LIVE_BRIDGE_TO_V2_DATA_PLANE_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/non_drift_governor_lock/latest/CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/non_drift_governor_lock/latest/CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/non_drift_governor_lock/latest/GOVERNOR_PRIORITY_POLICY.md",
+        "status_line": " M claude_worklog/final_readiness/non_drift_governor_lock/latest/GOVERNOR_PRIORITY_POLICY.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/non_drift_governor_lock/latest/NEXT_TASKS_BY_LANE.md",
+        "status_line": " M claude_worklog/final_readiness/non_drift_governor_lock/latest/NEXT_TASKS_BY_LANE.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/non_drift_governor_lock/latest/PRIMARY_OBJECTIVE_LOCK.md",
+        "status_line": " M claude_worklog/final_readiness/non_drift_governor_lock/latest/PRIMARY_OBJECTIVE_LOCK.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/non_drift_governor_lock/latest/next_tasks_by_lane.json",
+        "status_line": " M claude_worklog/final_readiness/non_drift_governor_lock/latest/next_tasks_by_lane.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/non_drift_governor_lock/latest/objective_drift_status.json",
+        "status_line": " M claude_worklog/final_readiness/non_drift_governor_lock/latest/objective_drift_status.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/non_drift_governor_lock/latest/operator_dashboard_payload.json",
+        "status_line": " M claude_worklog/final_readiness/non_drift_governor_lock/latest/operator_dashboard_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md",
+        "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/MISSING_EVIDENCE_REGISTER.md",
+        "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/MISSING_EVIDENCE_REGISTER.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/REALTIME_TRAINER_MONITOR_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/REALTIME_TRAINER_MONITOR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/SUPERVISOR_STATE_TRUTH_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/SUPERVISOR_STATE_TRUTH_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/operator_dashboard_payload.json",
+        "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/operator_dashboard_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/operator_truth_payload.json",
+        "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/operator_truth_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/realtime_legacy_monitor_status.json",
+        "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/realtime_legacy_monitor_status.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/realtime_trainer_monitor_status.json",
+        "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/realtime_trainer_monitor_status.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/runtime_signal_lineage_status.json",
+        "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/runtime_signal_lineage_status.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/trainer_prediction_stream_status.json",
+        "status_line": " M claude_worklog/final_readiness/operator_truth_recovery/latest/trainer_prediction_stream_status.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/CONTROL_PLANE_FRESHNESS_RECOVERY.md",
+        "status_line": " M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/CONTROL_PLANE_FRESHNESS_RECOVERY.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/LEGACY_TRADER_CONTAINMENT.md",
+        "status_line": " M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/LEGACY_TRADER_CONTAINMENT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/operator_dashboard_payload.json",
+        "status_line": " M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/operator_dashboard_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/operator_truth_payload.json",
+        "status_line": " M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/operator_truth_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/production_operator_webapp/latest/ADMIN_SHELL_REBUILD_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/ADMIN_SHELL_REBUILD_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/production_operator_webapp/latest/ALL_ROUTES_PRODUCTION_CONTENT_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/ALL_ROUTES_PRODUCTION_CONTENT_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/production_operator_webapp/latest/BROWSER_PRODUCTION_ACCEPTANCE_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/BROWSER_PRODUCTION_ACCEPTANCE_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/production_operator_webapp/latest/MISSION_CONTROL_PRODUCTION_REBUILD_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/MISSION_CONTROL_PRODUCTION_REBUILD_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/production_operator_webapp/latest/MONITOR_CENTER_PRODUCTION_REPAIR_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/MONITOR_CENTER_PRODUCTION_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/production_operator_webapp/latest/OPERATOR_TRUTH_GENERATOR_REPAIR_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/OPERATOR_TRUTH_GENERATOR_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/production_operator_webapp/latest/PRODUCTION_OPERATOR_WEBAPP_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/PRODUCTION_OPERATOR_WEBAPP_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/production_operator_webapp/latest/ROUTE_ACCEPTANCE_MATRIX.md",
+        "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/ROUTE_ACCEPTANCE_MATRIX.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/production_operator_webapp/latest/SIGNAL_EXPLAINABILITY_PRODUCTION_REPAIR_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/SIGNAL_EXPLAINABILITY_PRODUCTION_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/production_operator_webapp/latest/SUPERVISOR_FRESHNESS_REPAIR_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/SUPERVISOR_FRESHNESS_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/production_operator_webapp/latest/TRADINGVIEW_PRODUCTION_REPAIR_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/TRADINGVIEW_PRODUCTION_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/production_operator_webapp/latest/TRAINER_MONITOR_PRODUCTION_REPAIR_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/TRAINER_MONITOR_PRODUCTION_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/production_operator_webapp/latest/UI_ACCEPTANCE_FAILURE.md",
+        "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/UI_ACCEPTANCE_FAILURE.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/production_operator_webapp/latest/operator_dashboard_payload.json",
+        "status_line": " M claude_worklog/final_readiness/production_operator_webapp/latest/operator_dashboard_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/BROWSER_OPERATOR_ACCEPTANCE_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/BROWSER_OPERATOR_ACCEPTANCE_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/MISSION_CONTROL_SIMPLIFICATION_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/MISSION_CONTROL_SIMPLIFICATION_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/MONITOR_CENTER_REALITY_REPAIR_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/MONITOR_CENTER_REALITY_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/PAYLOAD_FRESHNESS_DAEMON_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/PAYLOAD_FRESHNESS_DAEMON_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/SIGNAL_EXPLAINABILITY_REALITY_REPAIR_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/SIGNAL_EXPLAINABILITY_REALITY_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/SUPERVISOR_RUNTIME_TRUTH_REPAIR_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/SUPERVISOR_RUNTIME_TRUTH_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/TRAINER_MONITOR_UI_REPAIR_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/TRAINER_MONITOR_UI_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/TRAINER_RUNTIME_EVIDENCE_RECOVERY_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/TRAINER_RUNTIME_EVIDENCE_RECOVERY_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/operator_dashboard_payload.json",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/operator_dashboard_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/operator_truth_payload.json",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/operator_truth_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/trainer_missing_evidence.md",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/trainer_missing_evidence.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/trainer_prediction_current_evidence.json",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/trainer_prediction_current_evidence.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_recovery/latest/trainer_runtime_status.json",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_recovery/latest/trainer_runtime_status.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/BROWSER_VISUAL_ACCEPTANCE_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/BROWSER_VISUAL_ACCEPTANCE_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/MISSION_CONTROL_SIMPLIFICATION_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/MISSION_CONTROL_SIMPLIFICATION_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/RUNTIME_TRUTH_FRESHNESS_FIX.md",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/RUNTIME_TRUTH_FRESHNESS_FIX.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/SUPERVISOR_STATE_RECONCILIATION.md",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/SUPERVISOR_STATE_RECONCILIATION.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/TRAINER_MONITOR_EVIDENCE_REVIEW.md",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/TRAINER_MONITOR_EVIDENCE_REVIEW.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/operator_dashboard_payload.json",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/operator_dashboard_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/operator_truth_payload.json",
+        "status_line": " M claude_worklog/final_readiness/realtime_control_plane_trainer_monitor_recovery/latest/operator_truth_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/historical_pnl_audit/01_DATA_SOURCE_STATUS.md",
+        "status_line": " M claude_worklog/historical_pnl_audit/01_DATA_SOURCE_STATUS.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/legacy_readonly_audit/01_PROCESS_SNAPSHOT.md",
+        "status_line": " M claude_worklog/legacy_readonly_audit/01_PROCESS_SNAPSHOT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/legacy_readonly_audit/03_LEGACY_CODE_FUNCTION_INVENTORY.md",
+        "status_line": " M claude_worklog/legacy_readonly_audit/03_LEGACY_CODE_FUNCTION_INVENTORY.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/tools/always_on_objective_runner.py",
+        "status_line": "A  claude_worklog/tools/always_on_objective_runner.py"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "claude_worklog/tools/automation_utilization_monitor.py",
+        "status_line": "AM claude_worklog/tools/automation_utilization_monitor.py"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/tools/build_active_autonomous_dispatch_packet.py",
+        "status_line": " M claude_worklog/tools/build_active_autonomous_dispatch_packet.py"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/tools/check_objective_drift.py",
+        "status_line": " M claude_worklog/tools/check_objective_drift.py"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/active_autonomous_dispatch/latest/ACTIVE_AUTONOMOUS_PRIMARY_DISPATCH_AND_SCRIPT_MIGRATION_PROOF_REPORT.md",
+        "status_line": " M v2/frontend/public/active_autonomous_dispatch/latest/ACTIVE_AUTONOMOUS_PRIMARY_DISPATCH_AND_SCRIPT_MIGRATION_PROOF_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/active_autonomous_dispatch/latest/CLAUDE_IDLE_AND_DISPATCH_DIAGNOSTIC.md",
+        "status_line": " M v2/frontend/public/active_autonomous_dispatch/latest/CLAUDE_IDLE_AND_DISPATCH_DIAGNOSTIC.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/active_autonomous_dispatch/latest/CODEX_PARALLEL_DISPATCH_PROOF.md",
+        "status_line": " M v2/frontend/public/active_autonomous_dispatch/latest/CODEX_PARALLEL_DISPATCH_PROOF.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/active_autonomous_dispatch/latest/PRIMARY_DISPATCH_PROOF.md",
+        "status_line": " M v2/frontend/public/active_autonomous_dispatch/latest/PRIMARY_DISPATCH_PROOF.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/active_autonomous_dispatch/latest/claude_idle_and_dispatch_diagnostic.json",
+        "status_line": " M v2/frontend/public/active_autonomous_dispatch/latest/claude_idle_and_dispatch_diagnostic.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/active_autonomous_dispatch/latest/codex_parallel_dispatch_state.json",
+        "status_line": " M v2/frontend/public/active_autonomous_dispatch/latest/codex_parallel_dispatch_state.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/active_autonomous_dispatch/latest/operator_dashboard_payload.json",
+        "status_line": " M v2/frontend/public/active_autonomous_dispatch/latest/operator_dashboard_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/active_autonomous_dispatch/latest/primary_dispatch_state.json",
+        "status_line": " M v2/frontend/public/active_autonomous_dispatch/latest/primary_dispatch_state.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/ALWAYS_ON_CLAUDE_CODEX_PRIMARY_OBJECTIVE_RUNTIME_REPORT.md",
+        "status_line": "A  v2/frontend/public/always_on_claude_codex_runtime/latest/ALWAYS_ON_CLAUDE_CODEX_PRIMARY_OBJECTIVE_RUNTIME_REPORT.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/ALWAYS_ON_OBJECTIVE_RUNNER_POLICY.md",
+        "status_line": "A  v2/frontend/public/always_on_claude_codex_runtime/latest/ALWAYS_ON_OBJECTIVE_RUNNER_POLICY.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/AUTOMATION_UTILIZATION_POLICY.md",
+        "status_line": "A  v2/frontend/public/always_on_claude_codex_runtime/latest/AUTOMATION_UTILIZATION_POLICY.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/CODEX_ALWAYS_ON_RUNTIME_REVIEW.md",
+        "status_line": "A  v2/frontend/public/always_on_claude_codex_runtime/latest/CODEX_ALWAYS_ON_RUNTIME_REVIEW.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/CODEX_CONTINUOUS_AUDIT_POLICY.md",
+        "status_line": "A  v2/frontend/public/always_on_claude_codex_runtime/latest/CODEX_CONTINUOUS_AUDIT_POLICY.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/CODEX_GO_NO_GO.md",
+        "status_line": "A  v2/frontend/public/always_on_claude_codex_runtime/latest/CODEX_GO_NO_GO.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/GIT_DIRTY_STATE_CLASSIFICATION.md",
+        "status_line": "A  v2/frontend/public/always_on_claude_codex_runtime/latest/GIT_DIRTY_STATE_CLASSIFICATION.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/GO_NO_GO.md",
+        "status_line": "A  v2/frontend/public/always_on_claude_codex_runtime/latest/GO_NO_GO.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/NEVER_EMPTY_TASK_LADDER.md",
+        "status_line": "A  v2/frontend/public/always_on_claude_codex_runtime/latest/NEVER_EMPTY_TASK_LADDER.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/RECURRING_MONITOR_AUDIT_TASKS.md",
+        "status_line": "A  v2/frontend/public/always_on_claude_codex_runtime/latest/RECURRING_MONITOR_AUDIT_TASKS.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/always_on_runtime_state.json",
+        "status_line": "A  v2/frontend/public/always_on_claude_codex_runtime/latest/always_on_runtime_state.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/automation_utilization_status.json",
+        "status_line": "A  v2/frontend/public/always_on_claude_codex_runtime/latest/automation_utilization_status.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/git_dirty_state.json",
+        "status_line": "A  v2/frontend/public/always_on_claude_codex_runtime/latest/git_dirty_state.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/never_empty_task_ladder.json",
+        "status_line": "A  v2/frontend/public/always_on_claude_codex_runtime/latest/never_empty_task_ladder.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json",
+        "status_line": "A  v2/frontend/public/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json",
+        "status_line": "A  v2/frontend/public/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/documentation_governance/latest/doc_update_policy.json",
+        "status_line": " M v2/frontend/public/documentation_governance/latest/doc_update_policy.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "v2/frontend/public/legacy_live_bridge_to_v2_data_plane/latest/GO_NO_GO.md",
+        "status_line": "A  v2/frontend/public/legacy_live_bridge_to_v2_data_plane/latest/GO_NO_GO.md"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "v2/frontend/public/legacy_live_bridge_to_v2_data_plane/latest/LEGACY_LIVE_BRIDGE_TO_V2_DATA_PLANE_REPORT.md",
+        "status_line": "A  v2/frontend/public/legacy_live_bridge_to_v2_data_plane/latest/LEGACY_LIVE_BRIDGE_TO_V2_DATA_PLANE_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/non_drift_governor_lock/latest/CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md",
+        "status_line": " M v2/frontend/public/non_drift_governor_lock/latest/CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/non_drift_governor_lock/latest/GOVERNOR_PRIORITY_POLICY.md",
+        "status_line": " M v2/frontend/public/non_drift_governor_lock/latest/GOVERNOR_PRIORITY_POLICY.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/non_drift_governor_lock/latest/NEXT_TASKS_BY_LANE.md",
+        "status_line": " M v2/frontend/public/non_drift_governor_lock/latest/NEXT_TASKS_BY_LANE.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/non_drift_governor_lock/latest/PRIMARY_OBJECTIVE_LOCK.md",
+        "status_line": " M v2/frontend/public/non_drift_governor_lock/latest/PRIMARY_OBJECTIVE_LOCK.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/non_drift_governor_lock/latest/next_tasks_by_lane.json",
+        "status_line": " M v2/frontend/public/non_drift_governor_lock/latest/next_tasks_by_lane.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/non_drift_governor_lock/latest/objective_drift_status.json",
+        "status_line": " M v2/frontend/public/non_drift_governor_lock/latest/objective_drift_status.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/non_drift_governor_lock/latest/operator_dashboard_payload.json",
+        "status_line": " M v2/frontend/public/non_drift_governor_lock/latest/operator_dashboard_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/operator_truth/latest/operator_truth_bridge_payload.json",
+        "status_line": " M v2/frontend/public/operator_truth/latest/operator_truth_bridge_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/operator_truth/latest/operator_truth_payload.json",
+        "status_line": " M v2/frontend/public/operator_truth/latest/operator_truth_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md",
+        "status_line": " M v2/frontend/public/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md",
+        "status_line": " M v2/frontend/public/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/operator_truth_recovery/latest/MISSING_EVIDENCE_REGISTER.md",
+        "status_line": " M v2/frontend/public/operator_truth_recovery/latest/MISSING_EVIDENCE_REGISTER.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/operator_truth_recovery/latest/OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_REPORT.md",
+        "status_line": " M v2/frontend/public/operator_truth_recovery/latest/OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/operator_truth_recovery/latest/REALTIME_TRAINER_MONITOR_REPORT.md",
+        "status_line": " M v2/frontend/public/operator_truth_recovery/latest/REALTIME_TRAINER_MONITOR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/operator_truth_recovery/latest/SUPERVISOR_STATE_TRUTH_REPORT.md",
+        "status_line": " M v2/frontend/public/operator_truth_recovery/latest/SUPERVISOR_STATE_TRUTH_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/operator_truth_recovery/latest/operator_dashboard_payload.json",
+        "status_line": " M v2/frontend/public/operator_truth_recovery/latest/operator_dashboard_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/operator_truth_recovery/latest/operator_truth_payload.json",
+        "status_line": " M v2/frontend/public/operator_truth_recovery/latest/operator_truth_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/operator_truth_recovery/latest/realtime_legacy_monitor_status.json",
+        "status_line": " M v2/frontend/public/operator_truth_recovery/latest/realtime_legacy_monitor_status.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/operator_truth_recovery/latest/realtime_trainer_monitor_status.json",
+        "status_line": " M v2/frontend/public/operator_truth_recovery/latest/realtime_trainer_monitor_status.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/operator_truth_recovery/latest/runtime_signal_lineage_status.json",
+        "status_line": " M v2/frontend/public/operator_truth_recovery/latest/runtime_signal_lineage_status.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/operator_truth_recovery/latest/trainer_prediction_stream_status.json",
+        "status_line": " M v2/frontend/public/operator_truth_recovery/latest/trainer_prediction_stream_status.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/paper_online_canonical_truth_bridge/latest/CONTROL_PLANE_FRESHNESS_RECOVERY.md",
+        "status_line": " M v2/frontend/public/paper_online_canonical_truth_bridge/latest/CONTROL_PLANE_FRESHNESS_RECOVERY.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/paper_online_canonical_truth_bridge/latest/LEGACY_TRADER_CONTAINMENT.md",
+        "status_line": " M v2/frontend/public/paper_online_canonical_truth_bridge/latest/LEGACY_TRADER_CONTAINMENT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/paper_online_canonical_truth_bridge/latest/PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_REPORT.md",
+        "status_line": " M v2/frontend/public/paper_online_canonical_truth_bridge/latest/PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/paper_online_canonical_truth_bridge/latest/operator_dashboard_payload.json",
+        "status_line": " M v2/frontend/public/paper_online_canonical_truth_bridge/latest/operator_dashboard_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/paper_online_canonical_truth_bridge/latest/operator_truth_payload.json",
+        "status_line": " M v2/frontend/public/paper_online_canonical_truth_bridge/latest/operator_truth_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/production_operator_webapp/latest/ADMIN_SHELL_REBUILD_REPORT.md",
+        "status_line": " M v2/frontend/public/production_operator_webapp/latest/ADMIN_SHELL_REBUILD_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/production_operator_webapp/latest/ALL_ROUTES_PRODUCTION_CONTENT_REPORT.md",
+        "status_line": " M v2/frontend/public/production_operator_webapp/latest/ALL_ROUTES_PRODUCTION_CONTENT_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/production_operator_webapp/latest/BROWSER_PRODUCTION_ACCEPTANCE_REPORT.md",
+        "status_line": " M v2/frontend/public/production_operator_webapp/latest/BROWSER_PRODUCTION_ACCEPTANCE_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/production_operator_webapp/latest/MISSION_CONTROL_PRODUCTION_REBUILD_REPORT.md",
+        "status_line": " M v2/frontend/public/production_operator_webapp/latest/MISSION_CONTROL_PRODUCTION_REBUILD_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/production_operator_webapp/latest/MONITOR_CENTER_PRODUCTION_REPAIR_REPORT.md",
+        "status_line": " M v2/frontend/public/production_operator_webapp/latest/MONITOR_CENTER_PRODUCTION_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/production_operator_webapp/latest/OPERATOR_TRUTH_GENERATOR_REPAIR_REPORT.md",
+        "status_line": " M v2/frontend/public/production_operator_webapp/latest/OPERATOR_TRUTH_GENERATOR_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/production_operator_webapp/latest/PRODUCTION_OPERATOR_WEBAPP_REPORT.md",
+        "status_line": " M v2/frontend/public/production_operator_webapp/latest/PRODUCTION_OPERATOR_WEBAPP_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/production_operator_webapp/latest/ROUTE_ACCEPTANCE_MATRIX.md",
+        "status_line": " M v2/frontend/public/production_operator_webapp/latest/ROUTE_ACCEPTANCE_MATRIX.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/production_operator_webapp/latest/SIGNAL_EXPLAINABILITY_PRODUCTION_REPAIR_REPORT.md",
+        "status_line": " M v2/frontend/public/production_operator_webapp/latest/SIGNAL_EXPLAINABILITY_PRODUCTION_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/production_operator_webapp/latest/SUPERVISOR_FRESHNESS_REPAIR_REPORT.md",
+        "status_line": " M v2/frontend/public/production_operator_webapp/latest/SUPERVISOR_FRESHNESS_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/production_operator_webapp/latest/TRADINGVIEW_PRODUCTION_REPAIR_REPORT.md",
+        "status_line": " M v2/frontend/public/production_operator_webapp/latest/TRADINGVIEW_PRODUCTION_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/production_operator_webapp/latest/TRAINER_MONITOR_PRODUCTION_REPAIR_REPORT.md",
+        "status_line": " M v2/frontend/public/production_operator_webapp/latest/TRAINER_MONITOR_PRODUCTION_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/production_operator_webapp/latest/UI_ACCEPTANCE_FAILURE.md",
+        "status_line": " M v2/frontend/public/production_operator_webapp/latest/UI_ACCEPTANCE_FAILURE.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/production_operator_webapp/latest/operator_dashboard_payload.json",
+        "status_line": " M v2/frontend/public/production_operator_webapp/latest/operator_dashboard_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_recovery/latest/BROWSER_OPERATOR_ACCEPTANCE_REPORT.md",
+        "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/BROWSER_OPERATOR_ACCEPTANCE_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_recovery/latest/MISSION_CONTROL_SIMPLIFICATION_REPORT.md",
+        "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/MISSION_CONTROL_SIMPLIFICATION_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_recovery/latest/MONITOR_CENTER_REALITY_REPAIR_REPORT.md",
+        "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/MONITOR_CENTER_REALITY_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_recovery/latest/PAYLOAD_FRESHNESS_DAEMON_REPORT.md",
+        "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/PAYLOAD_FRESHNESS_DAEMON_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_recovery/latest/REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md",
+        "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_recovery/latest/SIGNAL_EXPLAINABILITY_REALITY_REPAIR_REPORT.md",
+        "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/SIGNAL_EXPLAINABILITY_REALITY_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_recovery/latest/SUPERVISOR_RUNTIME_TRUTH_REPAIR_REPORT.md",
+        "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/SUPERVISOR_RUNTIME_TRUTH_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_recovery/latest/TRAINER_MONITOR_UI_REPAIR_REPORT.md",
+        "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/TRAINER_MONITOR_UI_REPAIR_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_recovery/latest/TRAINER_RUNTIME_EVIDENCE_RECOVERY_REPORT.md",
+        "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/TRAINER_RUNTIME_EVIDENCE_RECOVERY_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_recovery/latest/operator_dashboard_payload.json",
+        "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/operator_dashboard_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_recovery/latest/operator_truth_payload.json",
+        "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/operator_truth_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_recovery/latest/trainer_missing_evidence.md",
+        "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/trainer_missing_evidence.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_recovery/latest/trainer_prediction_current_evidence.json",
+        "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/trainer_prediction_current_evidence.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_recovery/latest/trainer_runtime_status.json",
+        "status_line": " M v2/frontend/public/realtime_control_plane_recovery/latest/trainer_runtime_status.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/BROWSER_VISUAL_ACCEPTANCE_REPORT.md",
+        "status_line": " M v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/BROWSER_VISUAL_ACCEPTANCE_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/MISSION_CONTROL_SIMPLIFICATION_REPORT.md",
+        "status_line": " M v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/MISSION_CONTROL_SIMPLIFICATION_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md",
+        "status_line": " M v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/RUNTIME_TRUTH_FRESHNESS_FIX.md",
+        "status_line": " M v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/RUNTIME_TRUTH_FRESHNESS_FIX.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/SUPERVISOR_STATE_RECONCILIATION.md",
+        "status_line": " M v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/SUPERVISOR_STATE_RECONCILIATION.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/TRAINER_MONITOR_EVIDENCE_REVIEW.md",
+        "status_line": " M v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/TRAINER_MONITOR_EVIDENCE_REVIEW.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/operator_dashboard_payload.json",
+        "status_line": " M v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/operator_dashboard_payload.json"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/operator_truth_payload.json",
+        "status_line": " M v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/operator_truth_payload.json"
+      },
+      {
+        "classification": "durable_artifact_to_commit",
+        "path": "v2/frontend/scripts/sync-proof-artifacts.mjs",
+        "status_line": "M  v2/frontend/scripts/sync-proof-artifacts.mjs"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_GO_NO_GO.md",
+        "status_line": "?? claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_GO_NO_GO.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_REPORT.md",
+        "status_line": "?? claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_REPORT.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_GO_NO_GO.md",
+        "status_line": "?? v2/frontend/public/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_GO_NO_GO.md"
+      },
+      {
+        "classification": "runtime_noise_to_restore_when_idle",
+        "path": "v2/frontend/public/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_REPORT.md",
+        "status_line": "?? v2/frontend/public/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_REPORT.md"
+      }
+    ],
+    "generated_at": "2026-05-13T03:03:39.056338+00:00",
+    "policy": "Do not clean active-owned or runtime-noise files while control-plane daemons are running; commit durable artifacts separately."
+  },
+  "final_live_capital_gate": "human_approval_required",
+  "final_report_generated_at": "2026-05-13T03:04:28.450818+00:00",
+  "forbidden_actions_by_this_tool": {
+    "exchange_action": false,
+    "legacy_mutation": false,
+    "live_enablement": false,
+    "old_redis_write": false
+  },
+  "generated_at": "2026-05-13T03:03:39.103075+00:00",
+  "git_dirty_counts": {
+    "durable_artifact_to_commit": 57,
+    "runtime_noise_to_restore_when_idle": 152
+  },
+  "go_no_go": "ALWAYS_ON_CLAUDE_CODEX_PRIMARY_OBJECTIVE_RUNTIME_READY",
+  "live_gate_status": "blocked_human_only",
+  "markers": {
+    "active_autonomous_dispatch": "ACTIVE_AUTONOMOUS_PRIMARY_DISPATCH_AND_SCRIPT_MIGRATION_PROOF_READY",
+    "coinank_plan3_runtime_remediation": "COINANK_PLAN3_RUNTIME_CONTRACT_REMEDIATION_AND_V2_REAUDIT_READY",
+    "legacy_execution_containment": "LEGACY_EXECUTION_CONTAINMENT_AND_TRAINER_PARITY_SAFE_MODE_READY\nPacket emitted: read-only containment report + GO_NO_GO. Verdict: `LEGACY_EXECUTION_CONTAINMENT_AND_TRAINER_PARITY_SAFE_MODE_READY`, with trainer bridge in partial-parity safe-mode and Risk Gateway blocking exchange paths.",
+    "legacy_live_bridge_to_v2_data_plane": "LEGACY_LIVE_BRIDGE_TO_V2_DATA_PLANE_READY\nVerdict: `LEGACY_LIVE_BRIDGE_TO_V2_DATA_PLANE_READY` \u2014 read-only legacy bridge is current with `legacy_redis_writes:false`, V2 paper runtime current with full lineage and `live_gate_status:blocked_human_only`, Risk Gateway final-authority blocking incomplete-lineage legacy shadow signals, V2 file audit ledger current and Postgres schema-ready. Three durability/parity items (`POSTGRES_RUNTIME_CONNECTION_NOT_CONFIGURED`, `V2_REDIS_RUNTIME_WRITES_DISABLED`, `LEGACY_MODEL_FULL_PARITY_NOT_CLAIMED`) are tracked under separate gates and do not block the bridge surface.",
+    "non_drift_governor_lock": "CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_READY",
+    "safe_legacy_trainer_bridge": "SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX_READY",
+    "script_migration_backlog": "SCRIPT_MIGRATION_BACKLOG_READY",
+    "tonight_live_like_paper_shadow": "TONIGHT_V2_LIVE_LIKE_PAPER_SHADOW_AND_CANARY_PREFLIGHT_READY"
+  },
+  "next_primary_task": "RISK_GATEWAY_RUNTIME_EXPANSION_TESTS",
+  "paper_runtime": {
+    "freshness": {
+      "generated_at": "2026-05-13T03:03:33Z",
+      "market_age_seconds": 5,
+      "runtime_age_seconds": 0,
+      "source_type": "REALTIME_RUNTIME_EVIDENCE",
+      "status": "CURRENT"
+    },
+    "generated_at": "2026-05-13T03:03:33Z",
+    "live_gate_status": "blocked_human_only"
+  },
+  "primary_task": {
+    "action": "existing_pending",
+    "created": false,
+    "selected": "RISK_GATEWAY_RUNTIME_EXPANSION_TESTS"
+  },
+  "queue_status": {
+    "counts": {
+      "blocked": 10,
+      "cancelled": 1,
+      "claude_rate_limited_resume_scheduled": 0,
+      "completed": 418,
+      "delegated_decision_pending": 0,
+      "failed": 2,
+      "human_attention_required": 1,
+      "pending": 24,
+      "retry_scheduled": 8,
+      "running": 0,
+      "skipped": 0,
+      "superseded_by_evidence": 48,
+      "waiting_decision_packet": 0
+    },
+    "current_running_task": null,
+    "gate": "NON_LIVE_DECISION_PACKETS_PRESENT_QUEUE_CONTINUES",
+    "next_pending_task": "LEGACY_LIVE_BRIDGE_TO_V2_DATA_PLANE_READY"
+  },
+  "recurring_monitor_tasks_created": [],
+  "redis_trim": "deferred_non_blocking_no_approval_file_created",
+  "utilization": {
+    "active_child_count": 0,
+    "classification": "IDLE_EXPECTED_BREAK",
+    "claude_child_count": 0,
+    "codex_child_count": 0,
+    "codex_safe_audits_available": [
+      "codex_audit_no_live_side_effects",
+      "codex_audit_current_runtime_truth",
+      "codex_audit_risk_gateway_fail_closed",
+      "codex_audit_trainer_parity_truth",
+      "codex_audit_legacy_bridge_readonly",
+      "codex_audit_public_dashboard_truth",
+      "codex_audit_script_migration_coverage",
+      "codex_audit_v2_data_plane_independence",
+      "codex_audit_documentation_completeness",
+      "codex_audit_coinank_bridge_contract",
+      "codex_audit_config_admin_dangerous_controls",
+      "codex_audit_paper_shadow_performance"
+    ],
+    "primary_task_action": "existing_pending",
+    "recurring_monitors_available": [
+      "monitor_legacy_trainer_runtime",
+      "monitor_ppo_masa_gpu_metrics",
+      "audit_hedge_system_behavior",
+      "audit_stop_loss_and_take_profit",
+      "audit_stealth_profit_profit_taking",
+      "audit_signal_lineage_current",
+      "audit_execution_attribution",
+      "audit_risk_gateway_blocks",
+      "audit_paper_shadow_vs_legacy",
+      "audit_coinank_market_intelligence",
+      "audit_script_migration_progress",
+      "audit_public_dashboard_truth"
+    ],
+    "selected_primary_task": "RISK_GATEWAY_RUNTIME_EXPANSION_TESTS"
+  },
+  "utilization_monitor": {
+    "active_child_count": 0,
+    "active_claude_children": [],
+    "active_codex_children": [],
+    "artifacts_generated": 879,
+    "classification": "IDLE_EXPECTED_BREAK",
+    "claude_active_minutes": null,
+    "codex_active_minutes": null,
+    "codex_audits_completed_or_observed": 3750,
+    "commits_created_latest": "4cb00e0 Remediate CoinAnk Plan3 runtime contract",
+    "files_changed": 209,
+    "generated_at": "2026-05-13T03:03:39.585756+00:00",
+    "git_dirty_counts": {
+      "durable_artifact_to_commit": 57,
+      "runtime_noise_to_restore_when_idle": 152
+    },
+    "idle_minutes": 0,
+    "idle_reason": "NON_LIVE_DECISION_PACKETS_PRESENT_QUEUE_CONTINUES",
+    "next_action": "always_on_objective_runner selects/dispatches next safe primary task",
+    "primary_task_progress": {
+      "current_running_task": null,
+      "current_status": "pending",
+      "current_task": null,
+      "next_pending_task": "LEGACY_LIVE_BRIDGE_TO_V2_DATA_PLANE_READY",
+      "queue_counts": {
+        "blocked": 10,
+        "cancelled": 1,
+        "claude_rate_limited_resume_scheduled": 0,
+        "completed": 418,
+        "delegated_decision_pending": 0,
+        "failed": 2,
+        "human_attention_required": 1,
+        "pending": 24,
+        "retry_scheduled": 8,
+        "running": 0,
+        "skipped": 0,
+        "superseded_by_evidence": 48,
+        "waiting_decision_packet": 0
+      },
+      "runner_primary_action": "existing_pending",
+      "runner_selected_primary_task": "RISK_GATEWAY_RUNTIME_EXPANSION_TESTS"
+    },
+    "validation_runs_observed": 224
+  },
+  "website_lane": "support_only_unless_regression"
+}

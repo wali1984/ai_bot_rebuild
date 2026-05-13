@@ -1,0 +1,18 @@
+{
+  "agent": "claude",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/legacy_live_bridge_to_v2_data_plane/latest/"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "primary_claude_lane",
+  "next_gate": "LEGACY_LIVE_BRIDGE_TO_V2_DATA_PLANE_READY",
+  "prompt": "You are Claude running under AI BOT REBUILD supervisor.\n\nTask: produce a non-live legacy live bridge to V2 data-plane readiness packet.\n\nScope:\n- Work inside /home/wali/Desktop/AI BOT REBUILD only.\n- Legacy bot mutation is forbidden.\n- Legacy Redis mutation is forbidden.\n- Exchange or capital actions are forbidden.\n- Margin and leverage changes are forbidden.\n- Live gate remains blocked_human_only.\n- Website work is support-only.\n\nInspect current V2 paper runtime, legacy live bridge payloads, live-observer truth payload, V2 data-plane blockers, audit ledger readiness, and risk gateway final-authority evidence. Do not edit source code. Emit exactly two BEGIN_FILE blocks:\n\nBEGIN_FILE: claude_worklog/final_readiness/legacy_live_bridge_to_v2_data_plane/latest/LEGACY_LIVE_BRIDGE_TO_V2_DATA_PLANE_REPORT.md\n...markdown report with READY or BLOCKED and concrete evidence...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/legacy_live_bridge_to_v2_data_plane/latest/GO_NO_GO.md\nLEGACY_LIVE_BRIDGE_TO_V2_DATA_PLANE_READY\nEND_FILE\n",
+  "required_output_files": [
+    "claude_worklog/final_readiness/legacy_live_bridge_to_v2_data_plane/latest/LEGACY_LIVE_BRIDGE_TO_V2_DATA_PLANE_REPORT.md",
+    "claude_worklog/final_readiness/legacy_live_bridge_to_v2_data_plane/latest/GO_NO_GO.md"
+  ],
+  "risk_level": "L1",
+  "status": "pending",
+  "task_id": "LEGACY_LIVE_BRIDGE_TO_V2_DATA_PLANE_READY"
+}

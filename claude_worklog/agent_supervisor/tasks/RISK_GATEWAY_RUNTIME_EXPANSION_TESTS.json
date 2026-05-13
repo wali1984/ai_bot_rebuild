@@ -1,0 +1,18 @@
+{
+  "agent": "claude",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/risk_gateway_runtime_expansion_tests/latest/"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "primary_claude_lane",
+  "next_gate": "RISK_GATEWAY_RUNTIME_EXPANSION_TESTS",
+  "prompt": "Build or validate `RISK_GATEWAY_RUNTIME_EXPANSION_TESTS` as the next primary V2 live-like paper/shadow objective. Website work is support-only. Keep live blocked_human_only. Work only in AI BOT REBUILD. Legacy is read-only observed unless a separate explicit operator patch authorizes one file. Do not write old Redis, place/cancel orders, change leverage/margin, or enable live trading.\n\nEmit exactly two BEGIN_FILE blocks:\nBEGIN_FILE: claude_worklog/final_readiness/risk_gateway_runtime_expansion_tests/latest/RISK_GATEWAY_RUNTIME_EXPANSION_TESTS_REPORT.md\n...report...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/risk_gateway_runtime_expansion_tests/latest/RISK_GATEWAY_RUNTIME_EXPANSION_TESTS_GO_NO_GO.md\nRISK_GATEWAY_RUNTIME_EXPANSION_TESTS_READY\nEND_FILE\n",
+  "required_output_files": [
+    "claude_worklog/final_readiness/risk_gateway_runtime_expansion_tests/latest/RISK_GATEWAY_RUNTIME_EXPANSION_TESTS_REPORT.md",
+    "claude_worklog/final_readiness/risk_gateway_runtime_expansion_tests/latest/RISK_GATEWAY_RUNTIME_EXPANSION_TESTS_GO_NO_GO.md"
+  ],
+  "risk_level": "L2",
+  "status": "pending",
+  "task_id": "RISK_GATEWAY_RUNTIME_EXPANSION_TESTS"
+}

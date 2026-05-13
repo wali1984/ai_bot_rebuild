@@ -1,0 +1,18 @@
+{
+  "agent": "codex",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/always_on_claude_codex_runtime/codex/codex_audit_documentation_completeness/"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "codex_parallel_audit",
+  "next_gate": "codex_audit_documentation_completeness",
+  "prompt": "Run Codex non-live audit `codex_audit_documentation_completeness`. Do not touch /home/wali/Desktop/AI BOT. Do not write old Redis. Do not place/cancel orders. Do not change leverage/margin. Do not enable live trading. Review current runtime truth, primary objective drift, and safety. Create remediation task recommendations on fail.\n\nEmit exactly two BEGIN_FILE blocks:\nBEGIN_FILE: claude_worklog/final_readiness/always_on_claude_codex_runtime/codex/codex_audit_documentation_completeness/codex_audit_documentation_completeness_REPORT.md\n...report...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/always_on_claude_codex_runtime/codex/codex_audit_documentation_completeness/codex_audit_documentation_completeness_GO_NO_GO.md\ncodex_audit_documentation_completeness_READY\nEND_FILE\n",
+  "required_output_files": [
+    "claude_worklog/final_readiness/always_on_claude_codex_runtime/codex/codex_audit_documentation_completeness/codex_audit_documentation_completeness_REPORT.md",
+    "claude_worklog/final_readiness/always_on_claude_codex_runtime/codex/codex_audit_documentation_completeness/codex_audit_documentation_completeness_GO_NO_GO.md"
+  ],
+  "risk_level": "L1",
+  "status": "pending",
+  "task_id": "codex_audit_documentation_completeness"
+}

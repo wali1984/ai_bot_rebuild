@@ -1,0 +1,68 @@
+{
+  "P0_safety_critical_runtime_containment": [
+    "legacy exchange action evidence",
+    "dangerous controls enabled",
+    "old Redis mutation evidence",
+    "live gate hidden/broken",
+    "stale current-truth regression"
+  ],
+  "P1_go_live_readiness_primary_chain": [
+    "TONIGHT_V2_LIVE_LIKE_PAPER_SHADOW_AND_CANARY_PREFLIGHT",
+    "LEGACY_LIVE_BRIDGE_TO_V2_DATA_PLANE",
+    "LEGACY_EXECUTION_CONTAINMENT_AND_TRAINER_PARITY_SAFE_MODE",
+    "SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX",
+    "RISK_GATEWAY_RUNTIME_EXPANSION_TESTS",
+    "V2_DATA_PLANE_AND_SCRIPT_MIGRATION_BACKLOG",
+    "PUBLIC_HOSTING_AND_TELEMETRY_BRIDGE",
+    "LIVE_READINESS_PREFLIGHT",
+    "FINAL_LIVE_CAPITAL_APPROVAL_REQUIRED"
+  ],
+  "P2_continuous_legacy_monitoring_and_audit": [
+    "monitor_legacy_trainer_runtime",
+    "monitor_ppo_masa_gpu_metrics",
+    "audit_hedge_system_behavior",
+    "audit_stop_loss_and_take_profit",
+    "audit_stealth_profit_profit_taking",
+    "audit_liquidation_forced_close",
+    "audit_stale_signal",
+    "audit_duplicate_exchange_order_id",
+    "audit_missing_signal_id_confidence",
+    "audit_legacy_redis_readonly_stream",
+    "audit_coinank_market_intelligence"
+  ],
+  "P3_v2_migration_and_improvement": [
+    "migrate_ingestors_into_v2_wrappers",
+    "migrate_feature_pipeline",
+    "migrate_trainer_parity",
+    "migrate_orchestrator_adapter",
+    "migrate_risk_gateway_rules",
+    "migrate_paper_shadow_ledger",
+    "migrate_config_admin",
+    "migrate_script_registry",
+    "migrate_monitor_center",
+    "migrate_admin_ai",
+    "v2_durable_db_bounded_redis"
+  ],
+  "P4_research_optimization": [
+    "paper_shadow_pnl_improvement",
+    "confidence_calibration",
+    "strategy_scorecards",
+    "symbol_universe_improvements",
+    "win_rate_candidate_discovery",
+    "tail_risk_detection",
+    "drawdown_control",
+    "no_live_strategy_experiments"
+  ],
+  "P5_website_support": [
+    "route_crawl_failure",
+    "data_truth_regression",
+    "broken_page",
+    "new_v2_feature_needs_gui_visibility"
+  ],
+  "P6_deferred_human_decisions": [
+    "Redis trim approval",
+    "final live/capital approval",
+    "legacy trader containment action if human-only",
+    "live API key activation"
+  ]
+}
