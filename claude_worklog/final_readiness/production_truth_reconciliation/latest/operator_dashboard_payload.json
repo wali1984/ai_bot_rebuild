@@ -1,0 +1,293 @@
+{
+  "approval_file_present": false,
+  "claude_codex_improvement_summary": {
+    "by_classification": {
+      "backlog_only": 1,
+      "control_plane_operational": 3,
+      "documentation_only": 1,
+      "paper_shadow_only": 1,
+      "runtime_operational": 2,
+      "website_visibility_improved": 1
+    },
+    "count": 9
+  },
+  "codex_result": "V2_PRODUCTION_TRUTH_RECONCILIATION_CODEX_FAIL",
+  "current_lineage_ids": {
+    "execution_intent_id": "pei_paper_tick_1778647390310",
+    "feature_snapshot_id": "fs_paper_tick_1778647390310",
+    "orchestrator_decision_id": "orch_paper_tick_1778647390310",
+    "prediction_id": "pred_paper_tick_1778647390310",
+    "risk_decision_id": "risk_paper_tick_1778647390310",
+    "signal_id": "sig_paper_tick_1778647390310"
+  },
+  "final_live_approval_token_created": false,
+  "generated_at": "2026-05-13T04:43:38.228869Z",
+  "legacy_vs_v2_comparison_status": {
+    "fixed_in_v2_runtime": 3,
+    "fixed_in_v2_tests_only": 1,
+    "not_migrated": 1,
+    "still_blocking_live": 4,
+    "visible_but_not_fixed": 2
+  },
+  "live_gate_status": "blocked_human_only",
+  "live_readiness_truth": {
+    "approval_file_present": false,
+    "classifications": [
+      "FULL_LIVE_NOT_READY",
+      "PAPER_SHADOW_READY",
+      "MIGRATION_INCOMPLETE",
+      "WEBSITE_DATA_TRUTH_INCOMPLETE",
+      "HUMAN_APPROVAL_REQUIRED"
+    ],
+    "generated_at": "2026-05-13T04:43:38.228869Z",
+    "is_full_live_ready": false,
+    "is_risk_gateway_final_authority_for_v2_paper_runtime": true,
+    "is_tiny_canary_approval_packet_ready": true,
+    "is_trainer_parity_proven": false,
+    "is_v2_executing_live": false,
+    "is_v2_fully_migrated_from_legacy": false,
+    "is_v2_paper_shadow_current": true,
+    "is_website_current_data_complete": false,
+    "live_gate_status": "blocked_human_only",
+    "script_migration_counts": {
+      "backlog_not_migrated": 401,
+      "migrated_to_v2": 1592,
+      "monitor_only": 79,
+      "paper_shadow_only": 4,
+      "unknown_needs_evidence": 1895,
+      "v2_namespace_wrapper_exists": 223,
+      "wrapped_readonly_in_v2": 1
+    },
+    "scripts_backlog_or_not_migrated_count": 2603,
+    "scripts_migrated_count": 1592,
+    "what_blocks_live_tonight": [
+      "No human final approval token exists.",
+      "Final canary checklist still has 3 MISSING_EVIDENCE items.",
+      "Script migration incomplete: 1592 migrated-to-v2 rows vs 2603 backlog/not-migrated rows.",
+      "Legacy system still owns real live execution and trainer/orchestrator runtime.",
+      "Full legacy PPO/MASA trainer parity is not proven.",
+      "Website current-data proof is incomplete: current IDs are not visible on several key routes, and static/hist proof appears on Signals/Executions.",
+      "V2 data plane durability is partial: Postgres runtime writes and V2 Redis writes are not proven/enabled.",
+      "Paper/shadow has current runtime evidence but not a complete 6h/24h profitable strategy proof."
+    ]
+  },
+  "migration_counts": {
+    "active_runtime_script_count": 7,
+    "classification_counts": {
+      "backlog_not_migrated": 401,
+      "migrated_to_v2": 1592,
+      "monitor_only": 79,
+      "paper_shadow_only": 4,
+      "unknown_needs_evidence": 1895,
+      "v2_namespace_wrapper_exists": 223,
+      "wrapped_readonly_in_v2": 1
+    },
+    "exchange_action_script_count": 344,
+    "legacy_like_rows": 2547,
+    "priority_counts": {
+      "P0 execution/risk/live safety": 367,
+      "P1 trainer/feature/signal lineage": 721,
+      "P2 ingestors/market data": 62,
+      "P3 monitor/audit/logging": 213,
+      "P4 admin/config/UI": 195,
+      "P5 cleanup/deprecated": 2637
+    },
+    "redis_writer_script_count": 445,
+    "script_backlog_ready_marker": "SCRIPT_MIGRATION_BACKLOG_READY",
+    "total_script_rows": 4195,
+    "truth": "Backlog exists, but migration is not complete.",
+    "unsafe_unknown_count": 2093
+  },
+  "next_6h_sprint_tasks": [
+    {
+      "codex_audit": "website current-data truth audit",
+      "expected_runtime_proof": "Browser crawl shows current IDs on local and public routes with no static fixture primary.",
+      "files_artifacts": "frontend route components, operator runtime payload readers, website_current_data_matrix.json",
+      "gui_output": "current lineage cards and explicit missing evidence",
+      "live_impact": "prevents operator from approving based on stale proof",
+      "objective": "Make Mission Control, Trainer Monitor, Signal Explainability, Signals, and Executions show current pred/fs/sig/risk/intent IDs first.",
+      "rank": 1,
+      "task": "Fix website current signals/predictions/executions display"
+    },
+    {
+      "codex_audit": "script migration coverage audit",
+      "expected_runtime_proof": "P0/P1 counts move from backlog_not_migrated/unknown to wrapper or migrated classifications.",
+      "files_artifacts": "script_migration_backlog.json, V2 adapter modules, tests",
+      "gui_output": "Script Registry migration status by priority",
+      "live_impact": "reduces dependency on legacy live stack",
+      "objective": "Move highest-risk legacy execution/risk/trainer dependencies from backlog to V2 wrappers or ports.",
+      "rank": 2,
+      "task": "Convert P0/P1 migration backlog into actual V2 wrappers/ports"
+    },
+    {
+      "codex_audit": "paper runtime truth audit",
+      "expected_runtime_proof": "counts, PnL, blocks/allows, fees/slippage over 6h/24h.",
+      "files_artifacts": "paper ledger rollup, paper_shadow_results.json",
+      "gui_output": "Paper Trading performance rollup",
+      "live_impact": "avoids treating alive runtime as profitability proof",
+      "objective": "Turn current paper ticks into a durable result window.",
+      "rank": 3,
+      "task": "Produce 6h/24h paper-shadow result summary"
+    },
+    {
+      "codex_audit": "legacy bridge read-only audit",
+      "expected_runtime_proof": "legacy would-do vs V2 did/block reasons for recent events.",
+      "files_artifacts": "legacy bridge payload, shadow comparison report",
+      "gui_output": "Legacy Comparison panel",
+      "live_impact": "proves V2 prevents specific old failure modes",
+      "objective": "Compare recent legacy executions to V2 shadow risk decisions.",
+      "rank": 4,
+      "task": "Expand legacy-vs-V2 comparison for live recent events"
+    },
+    {
+      "codex_audit": "Admin AI no-live-side-effects audit",
+      "expected_runtime_proof": "query returns latest IDs and blockers with sources.",
+      "files_artifacts": "Admin AI read-only data provider, current payload contracts",
+      "gui_output": "read-only operator query answers",
+      "live_impact": "reduces manual misinterpretation",
+      "objective": "Admin AI should answer from runtime payloads, not proof archive.",
+      "rank": 5,
+      "task": "Build Admin AI answers from current runtime data"
+    },
+    {
+      "codex_audit": "risk fail-closed audit",
+      "expected_runtime_proof": "missing evidence items converted to PASS or explicit blocker.",
+      "files_artifacts": "risk tests, hard gate checklist",
+      "gui_output": "Risk Control gate matrix",
+      "live_impact": "required before tiny canary consideration",
+      "objective": "Cover weekly loss/account/trade-permission and durable dedupe/stop gates.",
+      "rank": 6,
+      "task": "Continue risk gateway runtime tests"
+    },
+    {
+      "codex_audit": "trainer parity truth audit",
+      "expected_runtime_proof": "current legacy prediction mapped to V2 feature snapshot or explicit mismatch.",
+      "files_artifacts": "trainer bridge status, feature snapshots, parity tests",
+      "gui_output": "Trainer Monitor parity board",
+      "live_impact": "prevents canary based on wrong model assumptions",
+      "objective": "Prove or clearly reject parity between legacy PPO/MASA path and V2 wrapper.",
+      "rank": 7,
+      "task": "Continue trainer parity/safe bridge"
+    },
+    {
+      "codex_audit": "final no-live-side-effects audit",
+      "expected_runtime_proof": "approval token absent and no exchange mutations.",
+      "files_artifacts": "final gate checklist, approval packet, approval token absence check",
+      "gui_output": "Live Readiness hard gate",
+      "live_impact": "prevents accidental live activation",
+      "objective": "Final live gate remains human-only.",
+      "rank": 8,
+      "task": "Keep live approval blocked unless tiny canary checklist is green"
+    }
+  ],
+  "paper_shadow_current_status": {
+    "allowed_paper_intents_in_tail": 1,
+    "available_payload_window_note": "Counts are from current payload audit_events/paper_ledger_tail only, not a complete 24h durable paper ledger.",
+    "blocked_paper_intents_in_tail": 0,
+    "fees_slippage_funding_assumptions": {
+      "fee_rate": 0.0004,
+      "funding_assumption": "zero_until_funding_feed_adapter_current",
+      "slippage_bps": 2.0
+    },
+    "generated_at": "2026-05-13T04:43:38.228869Z",
+    "latest_execution_intent_id": "pei_paper_tick_1778647390310",
+    "latest_feature_snapshot_id": "fs_paper_tick_1778647390310",
+    "latest_orchestrator_decision_id": "orch_paper_tick_1778647390310",
+    "latest_paper_ledger_event": {
+      "exchange_order_id": null,
+      "execution_intent_id": "pei_paper_tick_1778647390310",
+      "fee_rate": 0.0004,
+      "fee_usdt": 0.01,
+      "fill_price": 81195.7359,
+      "funding_assumption": "zero_until_funding_feed_adapter_current",
+      "generated_at": "2026-05-13T04:43:10Z",
+      "ledger_action": "PAPER_FILL_SIMULATED",
+      "legacy_redis_write": false,
+      "live_order": false,
+      "notional_usdt": 25.0,
+      "paper_ledger_entry_id": "pledger_paper_tick_1778647390310",
+      "paper_result": "FILLED_PAPER_ONLY",
+      "risk_decision_id": "risk_paper_tick_1778647390310",
+      "signal_id": "sig_paper_tick_1778647390310",
+      "slippage_bps": 2.0,
+      "symbol": "BTCUSDT"
+    },
+    "latest_prediction_id": "pred_paper_tick_1778647390310",
+    "latest_risk_decision_id": "risk_paper_tick_1778647390310",
+    "latest_signal_id": "sig_paper_tick_1778647390310",
+    "missing_evidence": [
+      "complete durable 6h/24h paper ledger rollup",
+      "paper-vs-legacy PnL comparison over a full session",
+      "full trainer PPO/MASA parity evidence"
+    ],
+    "paper_loop_event_count": 2771,
+    "paper_pnl": {
+      "equity": 9976.02,
+      "realized_pnl": -23.98,
+      "starting_equity": 10000.0,
+      "unrealized_pnl": 0.0
+    },
+    "paper_runtime_age_seconds_from_payload": 0,
+    "paper_runtime_age_seconds_wall_clock": 28,
+    "paper_runtime_status": "PAPER_RUNTIME_ONLINE_ACTIVE",
+    "paper_signals_last_1h_available_window": 1,
+    "paper_signals_last_24h_available_window": 1,
+    "paper_signals_last_6h_available_window": 1,
+    "paper_vs_legacy_comparison": "V2 paper/shadow is non-live and uses risk gateway final authority. Legacy still owns real live execution; bridge comparison exists but full equivalence is not proven.",
+    "source": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+    "what_v2_allowed": "Only paper-only simulation when current lineage and risk checks pass; latest current tick may be blocked if confidence is below gate.",
+    "what_v2_blocked_that_legacy_allowed": "Legacy bridge observed executed exchange orders with missing V2 prediction/feature lineage and cross-margin evidence; V2 risk gateway blocks missing lineage and live mode."
+  },
+  "production_live_status": "FULL_LIVE_NOT_READY",
+  "remaining_blockers": [
+    "No human final approval token exists.",
+    "Final canary checklist still has 3 MISSING_EVIDENCE items.",
+    "Script migration incomplete: 1592 migrated-to-v2 rows vs 2603 backlog/not-migrated rows.",
+    "Legacy system still owns real live execution and trainer/orchestrator runtime.",
+    "Full legacy PPO/MASA trainer parity is not proven.",
+    "Website current-data proof is incomplete: current IDs are not visible on several key routes, and static/hist proof appears on Signals/Executions.",
+    "V2 data plane durability is partial: Postgres runtime writes and V2 Redis writes are not proven/enabled.",
+    "Paper/shadow has current runtime evidence but not a complete 6h/24h profitable strategy proof.",
+    "WEBSITE_DATA_TRUTH_INCOMPLETE: route crawl found missing current IDs and/or static/historical proof on required routes.",
+    "MIGRATION_INCOMPLETE: script backlog cannot be treated as migration complete."
+  ],
+  "status": "V2_PRODUCTION_TRUTH_RECONCILIATION_AND_MIGRATION_EXECUTION_GATE_BLOCKED",
+  "website_data_truth_status": {
+    "blocked_routes": 12,
+    "current_lineage_missing_routes": [
+      "local /admin/mission-control?role=admin",
+      "local /admin/trainer-prediction-monitor?role=admin",
+      "local /admin/signal-explainability?role=admin",
+      "local /admin/script-registry?role=admin",
+      "public /admin/mission-control?role=admin",
+      "public /admin/trainer-prediction-monitor?role=admin",
+      "public /admin/signal-explainability?role=admin",
+      "public /admin/signals?role=admin",
+      "public /admin/executions?role=admin",
+      "public /admin/paper-trading?role=admin",
+      "public /admin/risk-control?role=admin",
+      "public /admin/live-readiness?role=admin",
+      "public /admin/script-registry?role=admin",
+      "public /admin/claude-admin-ai?role=admin"
+    ],
+    "dangerous_controls_enabled": 0,
+    "hist_visible_routes": [
+      "local /admin/signals?role=admin",
+      "local /admin/executions?role=admin",
+      "local /admin/risk-control?role=admin",
+      "public /admin/signals?role=admin",
+      "public /admin/executions?role=admin",
+      "public /admin/risk-control?role=admin"
+    ],
+    "local_routes_checked": 10,
+    "public_routes_checked": 10,
+    "routes_checked": 20,
+    "static_fixture_routes": [
+      "local /admin/signals?role=admin",
+      "local /admin/executions?role=admin",
+      "public /admin/signals?role=admin",
+      "public /admin/executions?role=admin"
+    ],
+    "truth_status": "WEBSITE_DATA_TRUTH_INCOMPLETE"
+  }
+}

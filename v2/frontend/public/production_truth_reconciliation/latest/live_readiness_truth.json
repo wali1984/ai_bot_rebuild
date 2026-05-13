@@ -1,0 +1,41 @@
+{
+  "approval_file_present": false,
+  "classifications": [
+    "FULL_LIVE_NOT_READY",
+    "PAPER_SHADOW_READY",
+    "MIGRATION_INCOMPLETE",
+    "WEBSITE_DATA_TRUTH_INCOMPLETE",
+    "HUMAN_APPROVAL_REQUIRED"
+  ],
+  "generated_at": "2026-05-13T04:43:38.228869Z",
+  "is_full_live_ready": false,
+  "is_risk_gateway_final_authority_for_v2_paper_runtime": true,
+  "is_tiny_canary_approval_packet_ready": true,
+  "is_trainer_parity_proven": false,
+  "is_v2_executing_live": false,
+  "is_v2_fully_migrated_from_legacy": false,
+  "is_v2_paper_shadow_current": true,
+  "is_website_current_data_complete": false,
+  "live_gate_status": "blocked_human_only",
+  "script_migration_counts": {
+    "backlog_not_migrated": 401,
+    "migrated_to_v2": 1592,
+    "monitor_only": 79,
+    "paper_shadow_only": 4,
+    "unknown_needs_evidence": 1895,
+    "v2_namespace_wrapper_exists": 223,
+    "wrapped_readonly_in_v2": 1
+  },
+  "scripts_backlog_or_not_migrated_count": 2603,
+  "scripts_migrated_count": 1592,
+  "what_blocks_live_tonight": [
+    "No human final approval token exists.",
+    "Final canary checklist still has 3 MISSING_EVIDENCE items.",
+    "Script migration incomplete: 1592 migrated-to-v2 rows vs 2603 backlog/not-migrated rows.",
+    "Legacy system still owns real live execution and trainer/orchestrator runtime.",
+    "Full legacy PPO/MASA trainer parity is not proven.",
+    "Website current-data proof is incomplete: current IDs are not visible on several key routes, and static/hist proof appears on Signals/Executions.",
+    "V2 data plane durability is partial: Postgres runtime writes and V2 Redis writes are not proven/enabled.",
+    "Paper/shadow has current runtime evidence but not a complete 6h/24h profitable strategy proof."
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "generated_at": "2026-05-13T04:43:38.228869Z",
+  "improvements": [
+    {
+      "artifact_or_code_changed": "legacy_reference snapshots, CoinAnk bridge payloads, runtime remediation reports",
+      "classification": "runtime_operational",
+      "commit": "4cb00e0",
+      "improvement": "CoinAnk Plan-3 remediation",
+      "issue_observed": "Plan-3 bridge blocked on runtime contract violations and missing manifest/SMC/funding evidence.",
+      "risk_reduction": "Prevents stale/static CoinAnk fixture from being treated as current.",
+      "v2_behavior_change": "V2 market intelligence can read current LIVE_COINANK_READONLY payloads.",
+      "validation_passed": "COINANK_PLAN3_RUNTIME_CONTRACT_REMEDIATION_CODEX_PASS",
+      "website_displays_it": true
+    },
+    {
+      "artifact_or_code_changed": "claude_worklog/tools/always_on_objective_runner.py and utilization payloads",
+      "classification": "control_plane_operational",
+      "commit": "40d46fd",
+      "improvement": "Always-on runner",
+      "issue_observed": "Claude/Codex idle drift and final-gate dispatch risk.",
+      "risk_reduction": "Keeps automation working without bypassing human final approval.",
+      "v2_behavior_change": "Selects non-live tasks after final live gate instead of live dispatch.",
+      "validation_passed": "ALWAYS_ON_CLAUDE_CODEX_RUNTIME_CODEX_PASS",
+      "website_displays_it": true
+    },
+    {
+      "artifact_or_code_changed": "non-drift policy and lane payloads",
+      "classification": "control_plane_operational",
+      "commit": "1af9dd5",
+      "improvement": "Non-drift governor lock",
+      "issue_observed": "Website/support tasks could supersede primary V2 migration work.",
+      "risk_reduction": "Reduces marker-only or UI-only drift.",
+      "v2_behavior_change": "Primary chain remains V2 paper/shadow, bridge, risk, trainer, migration.",
+      "validation_passed": "CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_CODEX_PASS",
+      "website_displays_it": true
+    },
+    {
+      "artifact_or_code_changed": "operator runtime and operator truth payloads",
+      "classification": "runtime_operational",
+      "commit": "6714e00",
+      "improvement": "Canonical paper runtime truth bridge",
+      "issue_observed": "Older dashboard presented stale proof/archive records as current.",
+      "risk_reduction": "Allows operator to see current V2 paper lineage instead of hist/static examples.",
+      "v2_behavior_change": "Current pred/fs/sig/risk/intent IDs are available as runtime truth.",
+      "validation_passed": "paper runtime payload current in this reconciliation",
+      "website_displays_it": "partial"
+    },
+    {
+      "artifact_or_code_changed": "active autonomous dispatch reports and supervisor state",
+      "classification": "control_plane_operational",
+      "commit": "f1f0632",
+      "improvement": "Supervisor persistence and active dispatch proof",
+      "issue_observed": "Claude utilization appeared idle without exact blocker.",
+      "risk_reduction": "Prevents silent automation stalls.",
+      "v2_behavior_change": "Idle cause is classified and dispatch lanes are explicit.",
+      "validation_passed": "ACTIVE_AUTONOMOUS_PRIMARY_DISPATCH_AND_SCRIPT_MIGRATION_CODEX_PASS",
+      "website_displays_it": true
+    },
+    {
+      "artifact_or_code_changed": "risk gateway runtime expansion artifacts and paper runtime checks",
+      "classification": "paper_shadow_only",
+      "commit": "56103a7",
+      "improvement": "Risk gateway runtime expansion",
+      "issue_observed": "Legacy failure modes needed V2 fail-closed coverage.",
+      "risk_reduction": "Blocks live/canary until attribution and safety checks are present.",
+      "v2_behavior_change": "Paper runtime checks missing lineage, stale signals, leverage, stop policy, kill switch.",
+      "validation_passed": "RISK_GATEWAY_RUNTIME_EXPANSION_TESTS_READY",
+      "website_displays_it": true
+    },
+    {
+      "artifact_or_code_changed": "script_migration_backlog.json",
+      "classification": "backlog_only",
+      "commit": "f1f0632",
+      "improvement": "Script migration backlog",
+      "issue_observed": "Legacy scripts were not comprehensively classified.",
+      "risk_reduction": "Exposes P0/P1 migration surface instead of hiding it.",
+      "v2_behavior_change": "Creates migration inventory but not actual migration completion.",
+      "validation_passed": "SCRIPT_MIGRATION_BACKLOG_READY",
+      "website_displays_it": true
+    },
+    {
+      "artifact_or_code_changed": "public hosting telemetry artifacts",
+      "classification": "website_visibility_improved",
+      "commit": "56103a7",
+      "improvement": "Public hosting telemetry bridge",
+      "issue_observed": "Public dashboard needed route availability and telemetry freshness model.",
+      "risk_reduction": "Makes public support lane observable without exposing live controls.",
+      "v2_behavior_change": "Public dashboard is reachable, but current-data visibility still requires repair.",
+      "validation_passed": "PUBLIC_HOSTING_AND_TELEMETRY_BRIDGE_READY",
+      "website_displays_it": true
+    },
+    {
+      "artifact_or_code_changed": "final_live_capital_gate approval packet and checklist",
+      "classification": "documentation_only",
+      "commit": "56103a7",
+      "improvement": "Final approval packet",
+      "issue_observed": "Preflight markers could be mistaken for live approval.",
+      "risk_reduction": "Prevents automatic live activation.",
+      "v2_behavior_change": "Human-only tiny canary packet exists, approval token absent.",
+      "validation_passed": "FINAL_LIVE_CAPITAL_GATE_CODEX_PASS",
+      "website_displays_it": true
+    }
+  ]
+}
