@@ -1,0 +1,12 @@
+# Paper Shadow Monitor Continuation
+
+Generated at: `2026-05-13T13:19:18Z`
+
+| Field | Value |
+| --- | --- |
+| generated_at | 2026-05-13T13:19:18Z |
+| paper_shadow_observation_command | python3 -m v2.backend.app.cli.paper_shadow_observation --write |
+| paper_shadow_observation_loop_running | True |
+| paper_online_runtime_loop_running | True |
+| process_lines | [" 573824 1011413   20512  0.0  0.0 python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30", " 573883 1011413   20506  0.0  0.0 bash -c while true; do python3 -m v2.backend.app.cli.paper_shadow_observation --write >> v2/runtime/paper_shadow_observation/latest/paper_shadow_observation.log 2>&1; sleep 300; done"] |
+| status | PAPER_SHADOW_MONITOR_RUNNING |

@@ -1,0 +1,29 @@
+{
+  "account_evidence_status": "READONLY_ACCOUNT_EVIDENCE_STALE",
+  "account_mode": "MISSING_EVIDENCE",
+  "age_seconds": 307158,
+  "can_read_balance": false,
+  "can_read_open_orders_readonly": false,
+  "can_read_positions": false,
+  "canary_blocker": true,
+  "classifications": [
+    "READONLY_ACCOUNT_EVIDENCE_STALE",
+    "READONLY_ADAPTER_NOT_CONFIGURED",
+    "READONLY_KEY_STATUS_UNKNOWN",
+    "EVIDENCE_PROVIDER_REQUIRED"
+  ],
+  "exchange": "Binance USD-M",
+  "generated_at": "2026-05-13T13:19:18Z",
+  "generated_at_source": "2026-05-10T00:00:00Z",
+  "key_permissions_known": false,
+  "key_present_redacted": false,
+  "missing_fields": [
+    "fresh_current_payload",
+    "balance_read",
+    "position_read",
+    "open_orders_read",
+    "key_status_known"
+  ],
+  "safety_notes": "No secrets printed. No account endpoint was called by this task. Existing payload is treated as evidence only if current.",
+  "source_path": "claude_worklog/final_readiness/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json"
+}
