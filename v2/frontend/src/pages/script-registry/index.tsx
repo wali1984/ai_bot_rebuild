@@ -4,8 +4,8 @@ import route from './route';
 import { useEffect, useState } from 'react';
 import { Panel } from '../cockpitComponents';
 import { statusClass, valueText } from '../cockpitData';
-import { useCoinankMarketIntelligencePayload } from '../operatorTruthData';
-import { CoinankMarketIntelligencePanel } from '../operatorTruthComponents';
+import { useCoinankMarketIntelligencePayload, usePaperOnlineRuntimePayload } from '../operatorTruthData';
+import { CoinankMarketIntelligencePanel, PaperOnlineRuntimeStatusPanel } from '../operatorTruthComponents';
 
 interface ScriptRegistryPayload {
   generated_at: string;
@@ -16,6 +16,7 @@ interface ScriptRegistryPayload {
 export default function ScriptRegistryPage(): JSX.Element {
   const [payload, setPayload] = useState<ScriptRegistryPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { payload: paperRuntime } = usePaperOnlineRuntimePayload();
   const { payload: coinankPayload, error: coinankError } = useCoinankMarketIntelligencePayload();
 
   useEffect(() => {
@@ -45,6 +46,7 @@ export default function ScriptRegistryPage(): JSX.Element {
           <p>{meta.description}</p>
         </div>
       </header>
+      <PaperOnlineRuntimeStatusPanel payload={paperRuntime} />
       {!payload ? (
         <p className="cockpit-evidence-gap">{error ?? 'Loading script registry evidence...'}</p>
       ) : (

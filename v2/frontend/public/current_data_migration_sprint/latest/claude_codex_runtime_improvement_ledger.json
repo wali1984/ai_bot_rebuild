@@ -1,0 +1,77 @@
+{
+  "generated_at": "2026-05-13T05:08:06Z",
+  "improvements": [
+    {
+      "classification": "runtime_operational",
+      "evidence": "v2/frontend/public/operator_runtime/coinank_market_intelligence/latest/coinank_market_intelligence_status.json",
+      "gui_route": "Market Intelligence / Monitor Center / Mission Control",
+      "issue_found": "CoinAnk Plan-3 remediation",
+      "reduces_legacy_risk": true,
+      "runtime_effect": "non-live V2 visibility/control improvement"
+    },
+    {
+      "classification": "control_plane_operational",
+      "evidence": "claude_worklog/tools/always_on_objective_runner.py",
+      "gui_route": "Mission Control / Build Validation",
+      "issue_found": "always-on runner",
+      "reduces_legacy_risk": true,
+      "runtime_effect": "non-live V2 visibility/control improvement"
+    },
+    {
+      "classification": "control_plane_operational",
+      "evidence": "claude_worklog/final_readiness/non_drift_governor_lock/latest",
+      "gui_route": "Mission Control",
+      "issue_found": "non-drift lock",
+      "reduces_legacy_risk": true,
+      "runtime_effect": "non-live V2 visibility/control improvement"
+    },
+    {
+      "classification": "runtime_operational",
+      "evidence": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+      "gui_route": "Mission Control / Paper Trading / Signals / Executions",
+      "issue_found": "canonical paper runtime truth bridge",
+      "reduces_legacy_risk": true,
+      "runtime_effect": "non-live V2 visibility/control improvement"
+    },
+    {
+      "classification": "runtime_operational",
+      "evidence": "claude_worklog/final_readiness/risk_gateway_runtime_expansion/latest",
+      "gui_route": "Risk Control / Live Readiness",
+      "issue_found": "risk gateway runtime expansion",
+      "reduces_legacy_risk": true,
+      "runtime_effect": "non-live V2 visibility/control improvement"
+    },
+    {
+      "classification": "backlog_only",
+      "evidence": "claude_worklog/final_readiness/script_migration_backlog/latest/script_migration_backlog.json",
+      "gui_route": "Script Registry",
+      "issue_found": "script migration backlog",
+      "reduces_legacy_risk": false,
+      "runtime_effect": "non-live V2 visibility/control improvement"
+    },
+    {
+      "classification": "runtime_operational",
+      "evidence": "v2/backend/app/composition/execution_attribution_normalizer/runtime.py",
+      "gui_route": "/admin/executions?role=admin",
+      "issue_found": "P0 execution attribution normalizer",
+      "reduces_legacy_risk": true,
+      "runtime_effect": "non-live V2 visibility/control improvement"
+    },
+    {
+      "classification": "runtime_operational",
+      "evidence": "v2/backend/app/composition/current_signal_lineage_adapter/runtime.py",
+      "gui_route": "/admin/signal-explainability?role=admin",
+      "issue_found": "P1 current signal lineage adapter",
+      "reduces_legacy_risk": true,
+      "runtime_effect": "non-live V2 visibility/control improvement"
+    },
+    {
+      "classification": "website_visibility_improved",
+      "evidence": "v2/frontend/src/components/layout/PageShell.tsx",
+      "gui_route": "Signals / Executions / required routes",
+      "issue_found": "website current data repair",
+      "reduces_legacy_risk": true,
+      "runtime_effect": "non-live V2 visibility/control improvement"
+    }
+  ]
+}

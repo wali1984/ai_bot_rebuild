@@ -64,6 +64,7 @@ const artifactSets = [
   'final_live_capital_gate',
   'v2_production_truth_reconciliation',
   'production_truth_reconciliation',
+  'current_data_migration_sprint',
   'legacy_coinank_plan3_bridge',
   'coinank_plan3_runtime_remediation',
   'v2_live_observer_shadow_twin',

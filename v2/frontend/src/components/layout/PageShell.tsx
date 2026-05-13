@@ -1,7 +1,7 @@
 import type { PageMeta, PageRbac, PageRoute } from '../../types/page';
 import { DangerousControlPanel } from '../controls/DangerousControlPanel';
 import { Metric, Panel } from '../../pages/cockpitComponents';
-import { useCockpitPayload } from '../../pages/cockpitData';
+import { valueText } from '../../pages/cockpitData';
 import { useOperatorTruthPayload, usePaperOnlineRuntimePayload, useTonightReadinessPayload } from '../../pages/operatorTruthData';
 
 interface Props {
@@ -99,7 +99,6 @@ const ROUTE_PROFILES: Record<string, { source: string; status: string; next: str
 
 export function PageShell({ meta, rbac, route }: Props): JSX.Element {
   const { payload: truthPayload, error: truthError } = useOperatorTruthPayload();
-  const { payload: cockpitPayload } = useCockpitPayload();
   const { payload: paperRuntime } = usePaperOnlineRuntimePayload(15_000);
   const { payload: tonightReadiness } = useTonightReadinessPayload(15_000);
   const profile = ROUTE_PROFILES[meta.id] ?? {
@@ -108,9 +107,13 @@ export function PageShell({ meta, rbac, route }: Props): JSX.Element {
     next: `Keep ${meta.title} backed by current V2 paper/shadow, operator truth, and route-specific payloads.`,
     data: ['current data', 'freshness', 'source evidence', 'missing evidence', 'next task'],
   };
-  const lineageIds = paperRuntime?.current_signal_lineage?.lineage_ids as Record<string, unknown> | undefined;
+  const lineage = paperRuntime?.current_signal_lineage as Record<string, unknown> | undefined;
+  const lineageIds = lineage?.lineage_ids as Record<string, unknown> | undefined;
+  const signal = lineage?.signal as Record<string, unknown> | undefined;
+  const executionIntent = lineage?.execution_intent as Record<string, unknown> | undefined;
   const currentRisk = paperRuntime?.current_risk_decision as Record<string, unknown> | undefined;
-  const firstDecision = cockpitPayload?.decisions[0];
+  const trainerPrediction = paperRuntime?.trainer_prediction as Record<string, unknown> | undefined;
+  const latestPaperEvent = paperRuntime?.last_paper_event as Record<string, unknown> | undefined;
   const sourceRows = [
     ['live gate', truthPayload?.live_gate_status ?? 'blocked_human_only'],
     ['supervisor', truthPayload?.supervisor_status.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT_OR_LOADING'],
@@ -167,13 +170,24 @@ export function PageShell({ meta, rbac, route }: Props): JSX.Element {
       </Panel>
       <Panel id={`${meta.id}-current-runtime-snapshot`} title="Current Runtime Snapshot" right={<span className="chip solid-ok">REALTIME_RUNTIME_EVIDENCE</span>}>
         <div className="cockpit-lineage-grid">
+          <div><span>live gate</span><strong>{paperRuntime?.live_gate_status ?? truthPayload?.live_gate_status ?? 'blocked_human_only'}</strong></div>
           <div><span>BTCUSDT price</span><strong>{paperRuntime?.market_feed?.price ?? 'loading'}</strong></div>
-          <div><span>prediction_id</span><strong>{String(lineageIds?.prediction_id ?? 'loading')}</strong></div>
-          <div><span>feature_snapshot_id</span><strong>{String(lineageIds?.feature_snapshot_id ?? 'loading')}</strong></div>
-          <div><span>signal_id</span><strong>{String(lineageIds?.signal_id ?? 'loading')}</strong></div>
-          <div><span>risk result</span><strong>{String(currentRisk?.risk_result ?? 'loading')}</strong></div>
-          <div><span>paper equity</span><strong>{paperRuntime?.paper_account?.equity ?? 'loading'}</strong></div>
+          <div><span>prediction_id</span><strong>{valueText(lineageIds?.prediction_id ?? 'loading')}</strong></div>
+          <div><span>feature_snapshot_id</span><strong>{valueText(lineageIds?.feature_snapshot_id ?? 'loading')}</strong></div>
+          <div><span>signal_id</span><strong>{valueText(lineageIds?.signal_id ?? 'loading')}</strong></div>
+          <div><span>risk_decision_id</span><strong>{valueText(lineageIds?.risk_decision_id ?? currentRisk?.risk_decision_id ?? 'loading')}</strong></div>
+          <div><span>execution_intent_id</span><strong>{valueText(lineageIds?.execution_intent_id ?? executionIntent?.execution_intent_id ?? 'loading')}</strong></div>
+          <div><span>trainer state</span><strong>{valueText(trainerPrediction?.trainer_state ?? 'loading')}</strong></div>
+          <div><span>signal action</span><strong>{valueText(signal?.proposed_action ?? 'loading')}</strong></div>
+          <div><span>confidence</span><strong>{valueText(signal?.confidence ?? trainerPrediction?.confidence_calibrated ?? 'loading')}</strong></div>
+          <div><span>risk result</span><strong>{valueText(currentRisk?.risk_result ?? 'loading')}</strong></div>
+          <div><span>paper ledger event</span><strong>{valueText(latestPaperEvent?.paper_ledger_entry_id ?? latestPaperEvent?.paper_event_id ?? 'loading')}</strong></div>
+          <div><span>paper action</span><strong>{valueText(latestPaperEvent?.paper_action ?? executionIntent?.intent_action ?? 'loading')}</strong></div>
+          <div><span>paper equity</span><strong>{valueText(paperRuntime?.paper_account?.equity ?? 'loading')}</strong></div>
         </div>
+        <p className="cockpit-evidence-note">
+          Current V2 paper/shadow lineage is rendered before archive evidence. Historical proof rows and static fixtures are not current runtime truth.
+        </p>
       </Panel>
       <Panel id={`${meta.id}-required-data`} title="Required Production Data Contract" right={<span className="chip solid-warn">No placeholder-only route</span>}>
         <div className="cockpit-card-grid">
@@ -187,18 +201,6 @@ export function PageShell({ meta, rbac, route }: Props): JSX.Element {
       </Panel>
       {truthError ? (
         <p className="cockpit-evidence-gap" role="alert">Operator truth payload unavailable: {truthError}</p>
-      ) : null}
-      {firstDecision && ['signals', 'executions', 'positions', 'audit-ledger'].includes(meta.id) ? (
-        <Panel id={`${meta.id}-fixture-context`} title="Static Proof Context" right={<span className="chip solid-paper">STATIC_PROOF_FIXTURE</span>}>
-          <div className="cockpit-lineage-grid">
-            <div><span>signal_id</span><strong>{firstDecision.signal_id}</strong></div>
-            <div><span>prediction_id</span><strong>{firstDecision.prediction_id}</strong></div>
-            <div><span>risk_decision_id</span><strong>{firstDecision.risk_decision_id}</strong></div>
-            <div><span>execution_intent_id</span><strong>{firstDecision.execution_intent_id}</strong></div>
-            <div><span>result</span><strong>{firstDecision.result}</strong></div>
-            <div><span>classification</span><strong>not current runtime</strong></div>
-          </div>
-        </Panel>
       ) : null}
     </article>
   );

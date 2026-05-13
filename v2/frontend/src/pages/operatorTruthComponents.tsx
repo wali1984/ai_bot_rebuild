@@ -289,6 +289,13 @@ export function LiveObserverShadowTwinPanel({ payload }: { payload: OperatorTrut
 export function PaperOnlineRuntimeStatusPanel({ payload }: { payload: PaperOnlineRuntimePayload | null }): JSX.Element {
   const state = payload?.runtime_state ?? 'PAPER_ONLINE_RUNTIME_MISSING';
   const market = payload?.market_feed;
+  const lineage = payload?.current_signal_lineage as Record<string, unknown> | undefined;
+  const lineageIds = lineage?.lineage_ids as Record<string, unknown> | undefined;
+  const signal = lineage?.signal as Record<string, unknown> | undefined;
+  const trainerPrediction = payload?.trainer_prediction as Record<string, unknown> | undefined;
+  const riskDecision = payload?.current_risk_decision as Record<string, unknown> | undefined;
+  const executionIntent = lineage?.execution_intent as Record<string, unknown> | undefined;
+  const latestPaperEvent = payload?.last_paper_event as Record<string, unknown> | undefined;
   return (
     <Panel
       id="v2-paper-online-runtime"
@@ -312,6 +319,12 @@ export function PaperOnlineRuntimeStatusPanel({ payload }: { payload: PaperOnlin
         <div><span>margin mode changes</span><strong>{String(payload?.margin_mode_changes ?? false)}</strong></div>
         <div><span>live gate</span><strong>{payload?.live_gate_status ?? 'blocked_human_only'}</strong></div>
         <div><span>market age</span><strong>{formatAge(market?.age_seconds)}</strong></div>
+        <div><span>prediction_id</span><strong>{valueText(lineageIds?.prediction_id ?? trainerPrediction?.prediction_id ?? 'MISSING_EVIDENCE')}</strong></div>
+        <div><span>feature_snapshot_id</span><strong>{valueText(lineageIds?.feature_snapshot_id ?? trainerPrediction?.feature_snapshot_id ?? 'MISSING_EVIDENCE')}</strong></div>
+        <div><span>signal_id</span><strong>{valueText(lineageIds?.signal_id ?? signal?.signal_id ?? 'MISSING_EVIDENCE')}</strong></div>
+        <div><span>risk_decision_id</span><strong>{valueText(lineageIds?.risk_decision_id ?? riskDecision?.risk_decision_id ?? 'MISSING_EVIDENCE')}</strong></div>
+        <div><span>execution_intent_id</span><strong>{valueText(lineageIds?.execution_intent_id ?? executionIntent?.execution_intent_id ?? 'MISSING_EVIDENCE')}</strong></div>
+        <div><span>paper ledger event</span><strong>{valueText(latestPaperEvent?.paper_ledger_entry_id ?? latestPaperEvent?.paper_event_id ?? 'MISSING_EVIDENCE')}</strong></div>
       </div>
       <p className="cockpit-evidence-note">
         {payload
@@ -337,6 +350,11 @@ export function CoinankMarketIntelligencePanel({ payload, error, context = 'Mark
   const availability = payload?.availability ?? {};
   const endpointCounts = payload?.endpoint_key_counts ?? {};
   const missing = payload?.missing_evidence ?? [];
+  const activeSymbols = Array.isArray(payload?.active_symbols) ? payload.active_symbols : [];
+  const hotSymbols = Array.isArray(payload?.hot_symbols) ? payload.hot_symbols : [];
+  const requiredTfs = Array.isArray(payload?.required_tfs) ? payload.required_tfs : [];
+  const requiredTfStatus = payload?.required_tfs_status ?? {};
+  const forbiddenSourceChecks = payload?.forbidden_source_checks ?? {};
   return (
     <Panel
       id={`coinank-market-intelligence-${context.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
@@ -349,19 +367,19 @@ export function CoinankMarketIntelligencePanel({ payload, error, context = 'Mark
             <Metric label="Payload generated" value={payload.generated_at} />
             <Metric label="Live gate" value={payload.live_gate_status} />
             <Metric label="Endpoint manifest" value={payload.endpoint_manifest_version} />
-            <Metric label="Active symbols" value={payload.active_symbols.length} />
+            <Metric label="Active symbols" value={activeSymbols.length} />
             <Metric label="Global 11 contract" value={payload.global_11_key_contract_status} />
             <Metric label="CVD keys" value={endpointCounts.agg_cvd ?? 0} />
             <Metric label="SMC keys" value={endpointCounts.indicator_smc ?? 0} />
             <Metric label="Weighted funding keys" value={endpointCounts.weighted_funding ?? 0} />
           </div>
           <div className="cockpit-lineage-grid">
-            <div><span>Required TFs</span><strong>{payload.required_tfs.map((tf) => `${tf}:${payload.required_tfs_status[tf] ? 'yes' : 'missing'}`).join(' / ')}</strong></div>
-            <div><span>Hot symbols</span><strong>{payload.hot_symbols.length ? payload.hot_symbols.slice(0, 8).join(', ') : 'MISSING_EVIDENCE'}</strong></div>
+            <div><span>Required TFs</span><strong>{requiredTfs.length ? requiredTfs.map((tf) => `${tf}:${requiredTfStatus[tf] ? 'yes' : 'missing'}`).join(' / ') : 'MISSING_EVIDENCE'}</strong></div>
+            <div><span>Hot symbols</span><strong>{hotSymbols.length ? hotSymbols.slice(0, 8).join(', ') : 'MISSING_EVIDENCE'}</strong></div>
             <div><span>Liquidation orders</span><strong>{String(availability.liquidation_orders ?? false)}</strong></div>
             <div><span>Long/short</span><strong>{String(availability.long_short ?? false)}</strong></div>
-            <div><span>Forbidden last-price/KLine source</span><strong>{String(payload.forbidden_source_checks.kline_endpoint_keys_observed ?? false)}</strong></div>
-            <div><span>Forbidden orderbook source</span><strong>{String(payload.forbidden_source_checks.orderbook_endpoint_keys_observed ?? false)}</strong></div>
+            <div><span>Forbidden last-price/KLine source</span><strong>{String(forbiddenSourceChecks.kline_endpoint_keys_observed ?? false)}</strong></div>
+            <div><span>Forbidden orderbook source</span><strong>{String(forbiddenSourceChecks.orderbook_endpoint_keys_observed ?? false)}</strong></div>
           </div>
           <p className="cockpit-evidence-note">{payload.data_truth_rule}</p>
           {missing.length ? (

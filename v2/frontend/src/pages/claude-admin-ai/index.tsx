@@ -4,16 +4,18 @@ import route from './route';
 import { AutonomousGovernorPanel, CockpitLoading, Panel } from '../cockpitComponents';
 import { useCockpitPayload } from '../cockpitData';
 import { DesignPageShell, SourceRibbon } from '../designShell';
-import { useOperatorTruthPayload } from '../operatorTruthData';
-import { OperatorTruthLoading, RouteTruthSummary } from '../operatorTruthComponents';
+import { useOperatorTruthPayload, usePaperOnlineRuntimePayload } from '../operatorTruthData';
+import { OperatorTruthLoading, PaperOnlineRuntimeStatusPanel, RouteTruthSummary } from '../operatorTruthComponents';
 
 export default function ClaudeAdminAiPage(): JSX.Element {
   const { autonomousGovernor, error } = useCockpitPayload();
   const { payload: truthPayload, error: truthError } = useOperatorTruthPayload();
+  const { payload: paperRuntime } = usePaperOnlineRuntimePayload();
   return (
     <DesignPageShell meta={meta} rbac={rbac} route={route} eyebrow="Claude Admin AI" source="AUTONOMOUS_GOVERNOR_PAYLOAD / non-live only" status="CANNOT ENABLE LIVE TRADING">
       <SourceRibbon labels={['Claude primary builder', 'Codex parallel auditor', 'Ollama draft-only helper', 'final live gate human-only']} />
       {truthPayload ? <RouteTruthSummary payload={truthPayload} title="Claude Admin AI" /> : <OperatorTruthLoading error={truthError} />}
+      <PaperOnlineRuntimeStatusPanel payload={paperRuntime} />
       <Panel id="claude-admin-ai-query-surface" title="Non-Live Operator Query Surface" right={<span className="chip">read-only evidence</span>}>
         <div className="cockpit-two-col">
           <label className="field-stack">

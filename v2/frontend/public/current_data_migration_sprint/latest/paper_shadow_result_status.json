@@ -1,0 +1,49 @@
+{
+  "fees_slippage_funding_assumptions": {
+    "fee_rate": 0.0004,
+    "fee_usdt": 0.0,
+    "funding_assumption": "zero_until_funding_feed_adapter_current",
+    "slippage_bps": 2.0
+  },
+  "generated_at": "2026-05-13T05:08:06Z",
+  "latest_execution_intent_id": "pei_paper_tick_1778648877299",
+  "latest_feature_snapshot_id": "fs_paper_tick_1778648877299",
+  "latest_paper_ledger_event": {
+    "exchange_order_id": null,
+    "execution_intent_id": "pei_paper_tick_1778648877299",
+    "fee_rate": 0.0004,
+    "fee_usdt": 0.0,
+    "fill_price": null,
+    "funding_assumption": "zero_until_funding_feed_adapter_current",
+    "generated_at": "2026-05-13T05:07:57Z",
+    "ledger_action": "PAPER_INTENT_BLOCKED",
+    "legacy_redis_write": false,
+    "live_order": false,
+    "notional_usdt": 0.0,
+    "paper_ledger_entry_id": "pledger_paper_tick_1778648877299",
+    "paper_result": "NO_FILL_RISK_BLOCKED",
+    "risk_decision_id": "risk_paper_tick_1778648877299",
+    "signal_id": "sig_paper_tick_1778648877299",
+    "slippage_bps": 2.0,
+    "symbol": "BTCUSDT"
+  },
+  "latest_prediction_id": "pred_paper_tick_1778648877299",
+  "latest_risk_decision_id": "risk_paper_tick_1778648877299",
+  "latest_signal_id": "sig_paper_tick_1778648877299",
+  "live_gate_status": "blocked_human_only",
+  "paper_pnl": {
+    "equity": 9975.65,
+    "realized_pnl": -24.35,
+    "unrealized_pnl": 0.0
+  },
+  "profitability_proof_status": "PAPER_RUNTIME_ALIVE_BUT_6H_24H_PROFITABILITY_PROOF_PENDING",
+  "reason": "Current tail and runtime counters are visible, but a persisted 6h/24h window ledger summary is not yet present. This sprint does not claim profitability proof.",
+  "runtime_generated_at": "2026-05-13T05:07:57Z",
+  "runtime_state": "PAPER_RUNTIME_ONLINE_ACTIVE",
+  "window_counts": {
+    "current_allowed_paper_intents": 0,
+    "current_blocked_paper_intents": 1,
+    "ledger_tail_entries": 1,
+    "paper_loop_event_count": 2816
+  }
+}

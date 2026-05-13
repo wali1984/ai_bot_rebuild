@@ -1,0 +1,220 @@
+{
+  "codex_result": "V2_CURRENT_DATA_GUI_AND_MIGRATION_EXECUTION_SPRINT_CODEX_PASS",
+  "concrete_p0_migration_work_completed": {
+    "blocker_if_not_migrated": null,
+    "current_legacy_role": "legacy live execution surface; observed read-only only",
+    "gui_route_where_visible": "/admin/executions?role=admin",
+    "implementation_file_path": "v2/backend/app/composition/execution_attribution_normalizer/runtime.py",
+    "legacy_path": "legacy_reference/trading/trader.py",
+    "migration_action": "migrated_to_v2",
+    "migration_priority": "P0 execution/risk/live safety",
+    "runtime_proof": {
+      "blockers": [
+        "missing_execution_attribution"
+      ],
+      "classification": "P0_EXECUTION_ATTRIBUTION_BLOCKED",
+      "duplicate_exchange_order_id": false,
+      "generated_at_ms": 1778648886791,
+      "lineage": {
+        "exchange_order_id": null,
+        "execution_intent_id": "pei_paper_tick_1778648877299",
+        "feature_snapshot_id": null,
+        "paper_ledger_entry_id": "pledger_paper_tick_1778648877299",
+        "prediction_id": null,
+        "risk_decision_id": "risk_paper_tick_1778648877299",
+        "signal_id": "sig_paper_tick_1778648877299"
+      },
+      "live_gate_status": "blocked_human_only",
+      "live_order_observed_readonly": false,
+      "missing_fields": [
+        "prediction_id",
+        "feature_snapshot_id"
+      ],
+      "safe_for_live": false,
+      "source": "V2_EXECUTION_ATTRIBUTION_NORMALIZER",
+      "stale_signal": false
+    },
+    "test_path": "v2/backend/tests/unit/composition/execution_attribution_normalizer/test_runtime.py",
+    "v2_target_module": "v2.backend.app.composition.execution_attribution_normalizer"
+  },
+  "concrete_p1_migration_work_completed": {
+    "blocker_if_not_migrated": null,
+    "current_legacy_role": "legacy feature/signal context producer; observed/read-only bridge input",
+    "gui_route_where_visible": "/admin/signal-explainability?role=admin",
+    "implementation_file_path": "v2/backend/app/composition/current_signal_lineage_adapter/runtime.py",
+    "legacy_path": "legacy_reference/feature_pipeline.py",
+    "migration_action": "migrated_to_v2",
+    "migration_priority": "P1 trainer/feature/signal lineage",
+    "runtime_proof": {
+      "blockers": [],
+      "classification": "CURRENT_V2_PAPER_LINEAGE",
+      "coinank_availability": {},
+      "generated_at_ms": 1778648886791,
+      "legacy_bridge_status": "V2_LIVE_OBSERVER_SHADOW_TWIN_ACTIVE",
+      "lineage_ids": {
+        "execution_intent_id": "pei_paper_tick_1778648877299",
+        "feature_snapshot_id": "fs_paper_tick_1778648877299",
+        "prediction_id": "pred_paper_tick_1778648877299",
+        "risk_decision_id": "risk_paper_tick_1778648877299",
+        "signal_id": "sig_paper_tick_1778648877299"
+      },
+      "live_gate_status": "blocked_human_only",
+      "missing_ids": [],
+      "paper_only": true,
+      "risk_result": "BLOCKED",
+      "runtime_age_seconds": 9,
+      "safe_for_live": false,
+      "signal_action": "open_long",
+      "source": "V2_CURRENT_SIGNAL_LINEAGE_ADAPTER",
+      "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
+    },
+    "test_path": "v2/backend/tests/unit/composition/current_signal_lineage_adapter/test_runtime.py",
+    "v2_target_module": "v2.backend.app.composition.current_signal_lineage_adapter"
+  },
+  "generated_at": "2026-05-13T05:08:06Z",
+  "improvement_summary": [
+    {
+      "classification": "runtime_operational",
+      "evidence": "v2/frontend/public/operator_runtime/coinank_market_intelligence/latest/coinank_market_intelligence_status.json",
+      "gui_route": "Market Intelligence / Monitor Center / Mission Control",
+      "issue_found": "CoinAnk Plan-3 remediation",
+      "reduces_legacy_risk": true,
+      "runtime_effect": "non-live V2 visibility/control improvement"
+    },
+    {
+      "classification": "control_plane_operational",
+      "evidence": "claude_worklog/tools/always_on_objective_runner.py",
+      "gui_route": "Mission Control / Build Validation",
+      "issue_found": "always-on runner",
+      "reduces_legacy_risk": true,
+      "runtime_effect": "non-live V2 visibility/control improvement"
+    },
+    {
+      "classification": "control_plane_operational",
+      "evidence": "claude_worklog/final_readiness/non_drift_governor_lock/latest",
+      "gui_route": "Mission Control",
+      "issue_found": "non-drift lock",
+      "reduces_legacy_risk": true,
+      "runtime_effect": "non-live V2 visibility/control improvement"
+    },
+    {
+      "classification": "runtime_operational",
+      "evidence": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+      "gui_route": "Mission Control / Paper Trading / Signals / Executions",
+      "issue_found": "canonical paper runtime truth bridge",
+      "reduces_legacy_risk": true,
+      "runtime_effect": "non-live V2 visibility/control improvement"
+    },
+    {
+      "classification": "runtime_operational",
+      "evidence": "claude_worklog/final_readiness/risk_gateway_runtime_expansion/latest",
+      "gui_route": "Risk Control / Live Readiness",
+      "issue_found": "risk gateway runtime expansion",
+      "reduces_legacy_risk": true,
+      "runtime_effect": "non-live V2 visibility/control improvement"
+    },
+    {
+      "classification": "backlog_only",
+      "evidence": "claude_worklog/final_readiness/script_migration_backlog/latest/script_migration_backlog.json",
+      "gui_route": "Script Registry",
+      "issue_found": "script migration backlog",
+      "reduces_legacy_risk": false,
+      "runtime_effect": "non-live V2 visibility/control improvement"
+    },
+    {
+      "classification": "runtime_operational",
+      "evidence": "v2/backend/app/composition/execution_attribution_normalizer/runtime.py",
+      "gui_route": "/admin/executions?role=admin",
+      "issue_found": "P0 execution attribution normalizer",
+      "reduces_legacy_risk": true,
+      "runtime_effect": "non-live V2 visibility/control improvement"
+    },
+    {
+      "classification": "runtime_operational",
+      "evidence": "v2/backend/app/composition/current_signal_lineage_adapter/runtime.py",
+      "gui_route": "/admin/signal-explainability?role=admin",
+      "issue_found": "P1 current signal lineage adapter",
+      "reduces_legacy_risk": true,
+      "runtime_effect": "non-live V2 visibility/control improvement"
+    },
+    {
+      "classification": "website_visibility_improved",
+      "evidence": "v2/frontend/src/components/layout/PageShell.tsx",
+      "gui_route": "Signals / Executions / required routes",
+      "issue_found": "website current data repair",
+      "reduces_legacy_risk": true,
+      "runtime_effect": "non-live V2 visibility/control improvement"
+    }
+  ],
+  "legacy_vs_v2_current_comparison_status": "CURRENT_COMPARISON_CREATED",
+  "live_gate_status": "blocked_human_only",
+  "live_status_correction": "FULL_LIVE_NOT_READY_CANARY_ONLY_BLOCKED_HUMAN_APPROVAL_REQUIRED",
+  "migration_counts": {
+    "backlog_not_migrated": 188,
+    "monitor_only": 1671,
+    "v2_namespace_wrapper_exists": 224,
+    "wrapped_readonly_in_v2": 2112
+  },
+  "next_task": "PERSIST_6H_24H_PAPER_SHADOW_SUMMARY_AND_NEXT_P0_P1_SCRIPT_PORT",
+  "paper_shadow_result_status": {
+    "fees_slippage_funding_assumptions": {
+      "fee_rate": 0.0004,
+      "fee_usdt": 0.0,
+      "funding_assumption": "zero_until_funding_feed_adapter_current",
+      "slippage_bps": 2.0
+    },
+    "generated_at": "2026-05-13T05:08:06Z",
+    "latest_execution_intent_id": "pei_paper_tick_1778648877299",
+    "latest_feature_snapshot_id": "fs_paper_tick_1778648877299",
+    "latest_paper_ledger_event": {
+      "exchange_order_id": null,
+      "execution_intent_id": "pei_paper_tick_1778648877299",
+      "fee_rate": 0.0004,
+      "fee_usdt": 0.0,
+      "fill_price": null,
+      "funding_assumption": "zero_until_funding_feed_adapter_current",
+      "generated_at": "2026-05-13T05:07:57Z",
+      "ledger_action": "PAPER_INTENT_BLOCKED",
+      "legacy_redis_write": false,
+      "live_order": false,
+      "notional_usdt": 0.0,
+      "paper_ledger_entry_id": "pledger_paper_tick_1778648877299",
+      "paper_result": "NO_FILL_RISK_BLOCKED",
+      "risk_decision_id": "risk_paper_tick_1778648877299",
+      "signal_id": "sig_paper_tick_1778648877299",
+      "slippage_bps": 2.0,
+      "symbol": "BTCUSDT"
+    },
+    "latest_prediction_id": "pred_paper_tick_1778648877299",
+    "latest_risk_decision_id": "risk_paper_tick_1778648877299",
+    "latest_signal_id": "sig_paper_tick_1778648877299",
+    "live_gate_status": "blocked_human_only",
+    "paper_pnl": {
+      "equity": 9975.65,
+      "realized_pnl": -24.35,
+      "unrealized_pnl": 0.0
+    },
+    "profitability_proof_status": "PAPER_RUNTIME_ALIVE_BUT_6H_24H_PROFITABILITY_PROOF_PENDING",
+    "reason": "Current tail and runtime counters are visible, but a persisted 6h/24h window ledger summary is not yet present. This sprint does not claim profitability proof.",
+    "runtime_generated_at": "2026-05-13T05:07:57Z",
+    "runtime_state": "PAPER_RUNTIME_ONLINE_ACTIVE",
+    "window_counts": {
+      "current_allowed_paper_intents": 0,
+      "current_blocked_paper_intents": 1,
+      "ledger_tail_entries": 1,
+      "paper_loop_event_count": 2816
+    }
+  },
+  "remaining_blockers": [
+    "Full script migration remains incomplete.",
+    "6h/24h persisted paper-shadow profitability summary is pending.",
+    "Full legacy trainer/GPU parity remains unproven.",
+    "Final live approval token absent by design."
+  ],
+  "status": "V2_CURRENT_DATA_GUI_AND_MIGRATION_EXECUTION_SPRINT_READY",
+  "website_current_data": {
+    "blocked_count": 0,
+    "pass_count": 20,
+    "route_count": 20
+  }
+}

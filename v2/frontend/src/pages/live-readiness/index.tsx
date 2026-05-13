@@ -4,17 +4,19 @@ import route from './route';
 import { CockpitLoading, Metric, Panel } from '../cockpitComponents';
 import { useCockpitPayload } from '../cockpitData';
 import { DesignPageShell, SourceRibbon } from '../designShell';
-import { useOperatorTruthPayload, useTonightReadinessPayload } from '../operatorTruthData';
-import { OperatorTruthLoading, RouteTruthSummary } from '../operatorTruthComponents';
+import { useOperatorTruthPayload, usePaperOnlineRuntimePayload, useTonightReadinessPayload } from '../operatorTruthData';
+import { OperatorTruthLoading, PaperOnlineRuntimeStatusPanel, RouteTruthSummary } from '../operatorTruthComponents';
 
 export default function LiveReadinessPage(): JSX.Element {
   const { payload, error } = useCockpitPayload();
   const { payload: truthPayload, error: truthError } = useOperatorTruthPayload();
+  const { payload: paperRuntime } = usePaperOnlineRuntimePayload();
   const { payload: tonightPayload } = useTonightReadinessPayload();
   return (
     <DesignPageShell meta={meta} rbac={rbac} route={route} eyebrow="Live Readiness" source="GO_NO_GO / final live gate policy" status="FINAL LIVE CAPITAL APPROVAL REQUIRED">
       <SourceRibbon labels={['live blocked', 'human-only final gate', 'dangerous controls disabled', 'paper/shadow first']} />
       {truthPayload ? <RouteTruthSummary payload={truthPayload} title="Live Readiness" /> : <OperatorTruthLoading error={truthError} />}
+      <PaperOnlineRuntimeStatusPanel payload={paperRuntime} />
       {payload ? (
         <Panel id="live-readiness-hard-stop" title="Live Readiness Hard Stop" right={<span className="chip solid-block">LIVE BLOCKED</span>}>
           <div className="cockpit-analytics-grid">
