@@ -337,43 +337,89 @@ def ensure_codex_audit_tasks() -> list[str]:
     return created
 
 
+def first_recurring_monitor_task() -> str | None:
+    """Return a pending/runnable recurring Claude monitor task after final gate hold."""
+    for name in RECURRING_MONITORS:
+        task_id = f"recurring_{name}"
+        state = task_state(task_id)
+        if state in {"pending", "running", "retry_scheduled", "blocked_quota", "claude_rate_limited_resume_scheduled"}:
+            return task_id
+    for name in RECURRING_MONITORS:
+        task_id = f"recurring_{name}"
+        if task_state(task_id) == "completed":
+            write_json(STATE_TASKS / f"{task_id}.json", {
+                "task_id": task_id,
+                "status": "pending",
+                "retry_count": 0,
+                "run_pid": None,
+                "last_run": None,
+                "last_summary": "requeued by always_on_objective_runner after final gate hold",
+                "resume_after_utc": None,
+                "last_status_change_ts": now(),
+                "last_retry_reason": None,
+                "attention_reason": None,
+                "history": [],
+                "last_event_ts": now(),
+            })
+            return task_id
+    return None
+
+
+def ensure_post_final_non_live_task() -> dict[str, Any]:
+    selected = POST_FINAL_GATE_NON_LIVE_TASK
+    path = TASKS / f"{selected}.json"
+    state = task_state(selected)
+    runnable_states = {"pending", "running", "retry_scheduled", "blocked_quota", "claude_rate_limited_resume_scheduled"}
+    if path.exists() and state in runnable_states:
+        return {"selected": selected, "action": f"final_gate_held_existing_{state}", "created": False}
+    if not path.exists():
+        prompt = (
+            "Continue non-live V2 monitoring and hardening while final live/capital approval is absent. "
+            "Do not enable live trading, do not place/cancel orders, do not write old Redis, and do not change leverage/margin. "
+            "Focus on trainer parity, risk gateway expansion, paper/shadow performance review, V2 data-plane hardening, "
+            "script migration backlog, documentation governance, and website support only if runtime data visibility regresses."
+        )
+        task = make_task(selected, "claude", prompt, f"claude_worklog/final_readiness/{selected.lower()}/latest", "L2")
+        write_json(path, task)
+        return {"selected": selected, "action": "final_gate_held_created_non_live_continuation", "created": True}
+    recurring = first_recurring_monitor_task()
+    if recurring:
+        return {"selected": recurring, "action": "final_gate_held_recurring_monitor_selected", "created": False}
+    return {"selected": selected, "action": f"final_gate_held_state_{state}", "created": False}
+
+
 def ensure_primary_task() -> dict[str, Any]:
     selected = selected_primary_task()
     if selected == "FINAL_LIVE_CAPITAL_APPROVAL_REQUIRED":
         if FINAL_LIVE_APPROVAL.exists():
             return {"selected": selected, "action": "human_final_gate_approval_present_manual_review_required", "created": False}
-        selected = POST_FINAL_GATE_NON_LIVE_TASK
-        path = TASKS / f"{selected}.json"
-        state = task_state(selected)
-        if path.exists() and state in {"pending", "running", "retry_scheduled", "blocked_quota", "claude_rate_limited_resume_scheduled"}:
-            return {"selected": selected, "action": f"final_gate_held_existing_{state}", "created": False}
-        if not path.exists() or state == "completed":
-            prompt = (
-                "Continue non-live V2 monitoring and hardening while final live/capital approval is absent. "
-                "Do not enable live trading, do not place/cancel orders, do not write old Redis, and do not change leverage/margin. "
-                "Focus on trainer parity, risk gateway expansion, paper/shadow performance review, V2 data-plane hardening, "
-                "script migration backlog, documentation governance, and website support only if runtime data visibility regresses."
-            )
-            task = make_task(selected, "claude", prompt, f"claude_worklog/final_readiness/{selected.lower()}/latest", "L2")
-            write_json(path, task)
-            return {"selected": selected, "action": "final_gate_held_created_non_live_continuation", "created": True}
-        return {"selected": selected, "action": f"final_gate_held_state_{state}", "created": False}
+        return ensure_post_final_non_live_task()
     path = TASKS / f"{selected}.json"
     state = task_state(selected)
     if path.exists() and state in {"pending", "running", "retry_scheduled", "blocked_quota", "claude_rate_limited_resume_scheduled"}:
         return {"selected": selected, "action": f"existing_{state}", "created": False}
     if state == "completed":
         try:
-            next_index = PRIMARY_CHAIN.index(selected) + 1
-            selected = PRIMARY_CHAIN[next_index]
-        except (ValueError, IndexError):
-            selected = "V2_DATA_PLANE_AND_SCRIPT_MIGRATION_BACKLOG"
-        if selected == "FINAL_LIVE_CAPITAL_APPROVAL_REQUIRED":
+            chain_index = PRIMARY_CHAIN.index(selected) + 1
+        except ValueError:
+            chain_index = 0
+        for candidate in PRIMARY_CHAIN[chain_index:]:
+            if candidate == "FINAL_LIVE_CAPITAL_APPROVAL_REQUIRED":
+                if FINAL_LIVE_APPROVAL.exists():
+                    return {"selected": candidate, "action": "human_final_gate_approval_present_manual_review_required", "created": False}
+                return ensure_post_final_non_live_task()
+            candidate_state = task_state(candidate)
+            candidate_path = TASKS / f"{candidate}.json"
+            if candidate_path.exists() and candidate_state == "completed":
+                continue
+            selected = candidate
+            path = candidate_path
+            state = candidate_state
+            break
+        else:
             if FINAL_LIVE_APPROVAL.exists():
-                return {"selected": selected, "action": "human_final_gate_approval_present_manual_review_required", "created": False}
-            selected = POST_FINAL_GATE_NON_LIVE_TASK
-        path = TASKS / f"{selected}.json"
-        state = task_state(selected)
+                return {"selected": "FINAL_LIVE_CAPITAL_APPROVAL_REQUIRED", "action": "human_final_gate_approval_present_manual_review_required", "created": False}
+            return ensure_post_final_non_live_task()
         if path.exists() and state in {"pending", "running", "retry_scheduled", "blocked_quota", "claude_rate_limited_resume_scheduled"}:
             return {"selected": selected, "action": f"existing_{state}", "created": False}
     if not path.exists():
