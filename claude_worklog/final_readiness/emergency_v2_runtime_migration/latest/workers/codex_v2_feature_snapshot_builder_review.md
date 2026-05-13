@@ -1,58 +1,72 @@
 # Codex Review: V2 Feature Snapshot Builder
 
-Generated: 2026-05-13T21:51:00Z
+Generated: 2026-05-13T21:43:51Z
 
-Result: `V2_FEATURE_SNAPSHOT_BUILDER_CODEX_FAIL`
+Result: `V2_FEATURE_SNAPSHOT_BUILDER_CODEX_PASS`
 
-This review ran as the Codex audit lane for `codex_review_v2_feature_snapshot_builder`. It did not implement the worker, did not start bootstrap, did not touch legacy, did not write old Redis, and did not call exchange mutation APIs.
+This review ran after Claude emitted commit `2f15ca5` for `claude_port_v2_feature_snapshot_builder`. Codex did not implement the worker, did not start bootstrap, did not touch legacy, did not write old Redis, and did not call exchange mutation APIs.
 
 ## Required Artifact Checks
 
 | Requirement | Result | Evidence |
 | --- | --- | --- |
-| Standalone runnable CLI exists | FAIL | `v2/backend/app/cli/v2_feature_snapshot_builder.py` is absent. |
-| Required integration tests exist | FAIL | `v2/backend/tests/integration/cli/test_v2_feature_snapshot_builder.py` is absent. |
-| Required public payload exists | FAIL | `v2/frontend/public/operator_runtime/v2_feature_snapshot_builder/latest/v2_feature_snapshot_builder_status.json` is absent. |
-| Worker report/status exists | FAIL | `claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_feature_snapshot_builder_report.md` and status JSON are absent. |
-| Live gate remains blocked | PASS | Emergency package and task descriptors still state `blocked_human_only`; no live approval token was created. |
+| Standalone runnable CLI exists | PASS | `v2/backend/app/cli/v2_feature_snapshot_builder.py` exists and compiles. |
+| Tests exist and pass | PASS | `v2/backend/tests/integration/cli/test_v2_feature_snapshot_builder.py`; `9 passed`. |
+| Feature snapshot ID deterministic | PASS | Integration test `test_snapshot_id_is_deterministic_given_inputs` passes. |
+| Stale input labeling explicit | PASS | Integration test `test_stale_input_marked_explicitly_as_stale` passes; payload exposes `stale_features`. |
+| Missing required category fails closed | PASS | Integration test `test_fail_closed_when_required_feature_category_missing` passes; single-shot CLI returns code 2. |
+| Trainer readiness propagated | PASS | Integration test `test_trainer_readiness_signal_propagates_correctly` passes; payload exposes `trainer_readiness`. |
+| Public payload exists | PASS | `v2/frontend/public/operator_runtime/v2_feature_snapshot_builder/latest/v2_feature_snapshot_builder_status.json`. |
+| Live gate remains blocked | PASS | Public payload and worker status both report `blocked_human_only`. |
 
-## Underlying Service Checks
-
-The existing library service is present at `v2/backend/app/services/feature_snapshots/service.py` and existing unit tests pass.
-
-Command run:
+## Commands Run
 
 ```text
-PYTHONPATH=. .venv/bin/pytest -q v2/backend/tests/unit/feature_snapshots
+python3 -m py_compile v2/backend/app/cli/v2_feature_snapshot_builder.py
+PYTHONPATH=. .venv/bin/pytest -q v2/backend/tests/integration/cli/test_v2_feature_snapshot_builder.py
+PYTHONPATH=. python3 -m v2.backend.app.cli.v2_feature_snapshot_builder --once --payload-file v2/backend/tests/fixtures/feature_snapshots/sample_legacy_feature_payload.json --no-write
 ```
 
-Result: `5 passed`
+Results:
+- Python compile: PASS.
+- Integration tests: `9 passed`.
+- Dry-run CLI: exit code 0.
+- Public payload required fields: all present.
 
-Additional service-level probe:
-- Snapshot ID deterministic for identical fixture inputs: PASS.
-- Missing required feature fails closed at service level: PASS.
-- Stale feature labels are explicit at service level: PASS.
-- Trainer readiness signal propagates through `trainer_payload()`: PASS.
+## Public Payload Review
 
-These service-level passes do not satisfy the P0 worker task because the standalone worker CLI, integration tests, and public payload are still missing.
+Required fields present:
+- `worker_id`
+- `last_run_ts`
+- `last_snapshot_id`
+- `last_snapshot_ts`
+- `feature_categories_present`
+- `stale_features`
+- `missing_features`
+- `trainer_readiness`
+- `source_payload_path`
+- `freshness_seconds`
+
+Observed payload state:
+- `worker_id`: `v2_feature_snapshot_builder`
+- `trainer_readiness`: `READY`
+- `feature_categories_present`: `price`, `liquidity`
+- `live_gate`: `blocked_human_only`
+- `current_gate_state`: `blocked_human_only`
 
 ## Safety Checks
 
 | Safety check | Result |
 | --- | --- |
-| Old Redis write performed | PASS: none by Codex review. |
-| Legacy mutation performed | PASS: none by Codex review. |
-| Exchange action performed | PASS: none by Codex review. |
+| Old Redis write performed | PASS: none by Codex review; worker source has no Redis import. |
+| Legacy mutation performed | PASS: none by Codex review; no changed `legacy_reference/` path in active diffs. |
+| Exchange action performed | PASS: no high-confidence executable mutation call pattern in worker source or active diffs. |
 | Live enabled | PASS: live remains `blocked_human_only`. |
 | Final approval token created | PASS: absent. |
 | Bootstrap started | PASS: not started. |
 
-## Blockers
+## Codex Decision
 
-1. Claude has not emitted the standalone V2 feature snapshot builder CLI.
-2. Claude has not emitted the required integration test file.
-3. Claude has not emitted the required public status payload.
-4. Claude has not emitted the required worker report/status artifacts.
-5. Codex cannot issue PASS until the above artifacts exist and tests pass.
+`V2_FEATURE_SNAPSHOT_BUILDER_CODEX_PASS`
 
-Next action: keep P0 focused on `claude_port_v2_feature_snapshot_builder`. Do not move to risk gateway, paper execution, ledger, signal lineage, account monitor, UI, or bootstrap until this worker emits artifacts and Codex can re-review.
+Next P0 worker in sequence: `claude_port_v2_risk_gateway_runtime_worker`. Bootstrap must still wait; the aggregate emergency migration remains blocked until the remaining P0 workers emit artifacts and Codex reviews them.
