@@ -1,0 +1,14 @@
+{
+  "generated_at": "2026-05-13T06:59:54.381Z",
+  "classification": "ZERO_FILL_CONDITION_RESOLVED_CURRENT_PAPER_FILL_OBSERVED",
+  "prior_context": "The previous primary focus report described 2962 paper events and 0 fills because risk/orchestrator held intents at that time.",
+  "current_observation": {
+    "total_paper_events": 3018,
+    "current_tail_fills": 1,
+    "latest_paper_result": "FILLED_PAPER_ONLY",
+    "latest_risk_result": "APPROVED_FOR_PAPER_ONLY",
+    "latest_risk_reason_code": "allow_proceed_short"
+  },
+  "interpretation": "The paper engine can fill paper-only allowed intents. This is not profitability proof and does not authorize live.",
+  "no_live_safety": true
+}

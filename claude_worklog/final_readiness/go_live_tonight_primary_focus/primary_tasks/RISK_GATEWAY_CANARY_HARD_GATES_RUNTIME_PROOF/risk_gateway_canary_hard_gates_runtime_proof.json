@@ -1,0 +1,289 @@
+{
+  "task_id": "RISK_GATEWAY_CANARY_HARD_GATES_RUNTIME_PROOF",
+  "generated_at": "2026-05-13T06:53:07Z",
+  "branch": "master",
+  "repo": "AI BOT REBUILD",
+  "mode": "paper_only_non_live",
+  "live_gate_status": "blocked_human_only",
+  "live_approval_token_created": false,
+  "classification": "RISK_GATEWAY_CANARY_HARD_GATES_CURRENT_FOR_NINE_OF_THIRTEEN_AND_BLOCKED_BY_FOUR_MISSING_EVIDENCE",
+  "can_tiny_canary_be_considered_tonight": "no",
+  "runtime_liveness": {
+    "runtime_state": "PAPER_RUNTIME_ONLINE_ACTIVE",
+    "pid": 3446733,
+    "pid_verified_via": "[ -d /proc/3446733 ] -> ALIVE at 2026-05-13T06:52:39Z",
+    "last_tick_at": "2026-05-13T06:53:07Z",
+    "last_tick_id": "paper_tick_1778655187143",
+    "last_risk_decision_id": "risk_paper_tick_1778655187143",
+    "paper_event_count": 3006,
+    "loop_interval_seconds": 30,
+    "paper_account_equity_usdt": 9974.0,
+    "paper_account_starting_equity_usdt": 10000.0,
+    "paper_account_realized_pnl_usdt": -26.0,
+    "paper_account_open_position_count": 1,
+    "market_feed_source": "binance_usdm_public_get_only",
+    "market_feed_source_pointer": "/fapi/v1/ticker/price + /fapi/v1/klines",
+    "market_feed_freshness_state": "CURRENT",
+    "market_age_seconds": 8,
+    "legacy_redis_writes": false,
+    "exchange_orders": false,
+    "leverage_changes": false,
+    "margin_mode_changes": false,
+    "writes_only_local_v2_artifacts": true
+  },
+  "source_files": {
+    "composition_root": "v2/backend/app/composition/live_canary_blocker_guard/runtime.py",
+    "composition_required_canary_gates_lines": "10-24",
+    "composition_gate_evaluation_lines": "82-96",
+    "paper_runtime_status": "v2/runtime/paper_online/latest/paper_runtime_status.json",
+    "current_risk_decisions": "v2/runtime/paper_online/latest/current_risk_decisions.json",
+    "current_signal_lineage": "v2/runtime/paper_online/latest/current_signal_lineage.json",
+    "paper_ledger_tail": "v2/runtime/paper_online/latest/paper_ledger_tail.json",
+    "paper_online_runtime_pid": "v2/runtime/paper_online/latest/paper_online_runtime.pid",
+    "public_runtime_status": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+    "live_like_risk_profile": "v2/frontend/public/tonight_live_like_paper_shadow/latest/live_like_risk_profile.json",
+    "canary_recheck_md": "claude_worklog/final_readiness/go_live_tonight_primary_focus/latest/CANARY_READINESS_RECHECK.md",
+    "canary_recheck_json": "claude_worklog/final_readiness/go_live_tonight_primary_focus/latest/canary_readiness_recheck.json",
+    "tonight_live_like_paper_shadow_cli": "v2/backend/app/cli/tonight_live_like_paper_shadow.py"
+  },
+  "runtime_required_blocks_observed_on_latest_decision": [
+    "missing_signal_id",
+    "missing_prediction_id",
+    "missing_feature_snapshot_id",
+    "missing_confidence",
+    "stale_signal",
+    "duplicate_signal_execution",
+    "cross_margin_live_mode",
+    "leverage_above_cap",
+    "adjust_leverage_disabled",
+    "missing_stop_policy",
+    "disabled_kill_switch",
+    "daily_loss_breach",
+    "untraceable_execution"
+  ],
+  "declared_canary_required_blocks_from_profile": [
+    "missing_signal_id",
+    "missing_prediction_id",
+    "missing_feature_snapshot_id",
+    "missing_confidence",
+    "duplicate_exchange_order_id",
+    "missing_stop_policy",
+    "kill_switch_missing",
+    "daily_loss_hard_stop_missing",
+    "weekly_loss_hard_stop_missing",
+    "human_approval_file_missing",
+    "cross_margin_observed",
+    "leverage_above_1x"
+  ],
+  "blocks_declared_in_profile_but_not_in_runtime_decision": [
+    "weekly_loss_breach"
+  ],
+  "hard_gate_matrix": [
+    {
+      "gate": "human_final_approval_token_present",
+      "status": "PASS",
+      "evidence": "canary_readiness_recheck.json:final_approval_token_absent=true",
+      "human_approval_required": true,
+      "is_blocker": false
+    },
+    {
+      "gate": "paper_runtime_current",
+      "status": "PASS",
+      "evidence": "paper_runtime_status.json:runtime_state=PAPER_RUNTIME_ONLINE_ACTIVE; last_tick_at=2026-05-13T06:53:07Z; max_paper_runtime_age_seconds=300",
+      "is_blocker": false
+    },
+    {
+      "gate": "live_gate_still_blocked_until_activation",
+      "status": "PASS",
+      "evidence": "paper_runtime_status.json:live_gate_status=blocked_human_only; safety.live_trading=blocked_human_only",
+      "is_blocker": false
+    },
+    {
+      "gate": "read_only_account_verified",
+      "status": "MISSING_EVIDENCE",
+      "evidence": "no V2 exchange_account_payload artifact emits read_only_account_status=VERIFIED_READONLY",
+      "is_blocker": true
+    },
+    {
+      "gate": "trade_permission_known",
+      "status": "MISSING_EVIDENCE",
+      "evidence": "no V2 exchange_account_payload artifact emits trade_permission_status in {DISABLED, ENABLED_REQUIRES_APPROVAL}",
+      "is_blocker": true
+    },
+    {
+      "gate": "isolated_margin_verified",
+      "status": "PASS",
+      "evidence": "live_like_risk_profile.json:margin_mode_required_for_canary=isolated; runtime_decision required_blocks_checked includes cross_margin_live_mode",
+      "is_blocker": false
+    },
+    {
+      "gate": "leverage_cap_verified",
+      "status": "PASS",
+      "evidence": "live_like_risk_profile.json:leverage_cap_for_canary=1x; runtime_decision required_blocks_checked includes leverage_above_cap and adjust_leverage_disabled",
+      "is_blocker": false
+    },
+    {
+      "gate": "stop_policy_runtime_proven",
+      "status": "PASS",
+      "evidence": "required_blocks_checked includes missing_stop_policy on risk_paper_tick_1778655187143",
+      "is_blocker": false
+    },
+    {
+      "gate": "kill_switch_runtime_proven",
+      "status": "PASS",
+      "evidence": "required_blocks_checked includes disabled_kill_switch on risk_paper_tick_1778655187143",
+      "is_blocker": false
+    },
+    {
+      "gate": "daily_loss_gate_runtime_proven",
+      "status": "PASS",
+      "evidence": "required_blocks_checked includes daily_loss_breach on risk_paper_tick_1778655187143",
+      "is_blocker": false
+    },
+    {
+      "gate": "weekly_loss_gate_runtime_proven",
+      "status": "MISSING_EVIDENCE",
+      "evidence": "neither weekly_loss_breach appears in required_blocks_checked nor risk_runtime_payload.weekly_loss_gate_required=true exists under v2/runtime/**",
+      "is_blocker": true
+    },
+    {
+      "gate": "old_redis_write_isolated",
+      "status": "PASS",
+      "evidence": "paper_runtime_status.json:legacy_redis_writes=false; safety.legacy_redis_mutation=false",
+      "is_blocker": false
+    },
+    {
+      "gate": "exchange_action_absent",
+      "status": "PASS",
+      "evidence": "paper_runtime_status.json:exchange_orders=false; safety.orders=BLOCKED_NO_EXCHANGE_MUTATION",
+      "is_blocker": false
+    }
+  ],
+  "counts": {
+    "PASS": 9,
+    "MISSING_EVIDENCE": 4,
+    "BLOCKED": 0
+  },
+  "exact_remaining_blockers": [
+    "weekly_loss_gate_runtime_proven",
+    "read_only_account_verified",
+    "trade_permission_known",
+    "paper_shadow_6h_24h_profitability_window"
+  ],
+  "stale_missing_duplicate_blockers": {
+    "stale_signal": {
+      "runtime_status": "PRESENT_IN_REQUIRED_BLOCKS_CHECKED",
+      "feature_snapshot_freshness_state": "CURRENT",
+      "market_age_seconds": 8,
+      "stale_risk_add_max_age_seconds_policy": 10,
+      "intent_level_blocker_code": "stale_risk_add_signal",
+      "intent_level_wiring_pointer": "v2/backend/app/composition/live_canary_blocker_guard/runtime.py:182-183",
+      "evidence_pointer": "v2/runtime/paper_online/latest/paper_runtime_status.json"
+    },
+    "missing_attribution": {
+      "runtime_status": "PRESENT_IN_REQUIRED_BLOCKS_CHECKED",
+      "codes": [
+        "missing_signal_id",
+        "missing_prediction_id",
+        "missing_feature_snapshot_id",
+        "missing_confidence",
+        "untraceable_execution"
+      ],
+      "current_decision_missing_fields": [],
+      "lineage_thread_id": "paper_tick_1778655187143",
+      "evidence_pointer": "v2/runtime/paper_online/latest/current_risk_decisions.json"
+    },
+    "duplicate_execution": {
+      "runtime_status": "PRESENT_IN_REQUIRED_BLOCKS_CHECKED",
+      "runtime_code": "duplicate_signal_execution",
+      "declared_profile_code": "duplicate_exchange_order_id",
+      "intent_level_codes": [
+        "duplicate_exchange_order_id",
+        "duplicate_execution_intent_id",
+        "duplicate_signal_id"
+      ],
+      "intent_level_wiring_pointer": "v2/backend/app/composition/live_canary_blocker_guard/runtime.py:185-190",
+      "ledger_uniqueness_verified": true,
+      "evidence_pointer": "v2/runtime/paper_online/latest/paper_ledger_tail.json"
+    }
+  },
+  "margin_leverage_policy_evidence": {
+    "margin_mode_required_for_canary": "isolated",
+    "leverage_cap_for_canary": "1x",
+    "adjust_leverage": "disabled",
+    "adjust_leverage_and_position": "disabled",
+    "hedge_dca": "disabled_initially",
+    "position_notional_cap": "tiny_human_approved_only",
+    "canary_enabled": false,
+    "live_enabled": false,
+    "runtime_required_block_codes_enforced": [
+      "cross_margin_live_mode",
+      "leverage_above_cap",
+      "adjust_leverage_disabled"
+    ],
+    "intent_level_codes_enforced": [
+      "hedge_dca_disabled_initially",
+      "adjust_leverage_disabled_by_default",
+      "adjust_leverage_and_position_disabled_by_default",
+      "cross_margin_blocked_for_canary",
+      "isolated_margin_not_verified",
+      "leverage_cap_unknown",
+      "leverage_above_cap"
+    ],
+    "intent_level_wiring_pointer": "v2/backend/app/composition/live_canary_blocker_guard/runtime.py:169-203",
+    "leverage_changes_observed_in_paper_runtime": false,
+    "margin_mode_changes_observed_in_paper_runtime": false,
+    "profile_pointer": "v2/frontend/public/tonight_live_like_paper_shadow/latest/live_like_risk_profile.json"
+  },
+  "weekly_loss_gate_runtime_proof": {
+    "status": "MISSING_EVIDENCE",
+    "satisfaction_paths_per_composition_root": [
+      "required_blocks_checked contains weekly_loss_breach on every risk decision",
+      "risk_runtime_payload publishes weekly_loss_gate_required=true under v2/runtime/**"
+    ],
+    "current_state": "neither satisfaction path is yet emitted by the V2 paper runtime",
+    "policy_intent_declared_in_profile": "weekly_loss_hard_stop_missing",
+    "composition_pointer": "v2/backend/app/composition/live_canary_blocker_guard/runtime.py:93",
+    "preferred_owner_fix": "emit risk_runtime_payload.json with weekly_loss_gate_required=true (path 2)"
+  },
+  "kill_switch_runtime_proof": {
+    "status": "PASS",
+    "satisfaction_path_used": "required_blocks_checked contains disabled_kill_switch on every risk decision",
+    "composition_pointer": "v2/backend/app/composition/live_canary_blocker_guard/runtime.py:91",
+    "intent_level_wiring_pointer": "v2/backend/app/composition/live_canary_blocker_guard/runtime.py:207-208",
+    "evidence_pointer": "v2/runtime/paper_online/latest/current_risk_decisions.json:decisions[0].required_blocks_checked"
+  },
+  "canary_blocker_status": {
+    "source": "claude_worklog/final_readiness/go_live_tonight_primary_focus/latest/canary_readiness_recheck.json",
+    "can_tiny_canary_be_considered_tonight": "no",
+    "final_approval_token_absent": true,
+    "live_still_blocked": true,
+    "counts": {"PASS": 9, "MISSING_EVIDENCE": 4}
+  },
+  "safety_affirmation": {
+    "placed_or_cancelled_exchange_orders": false,
+    "changed_leverage": false,
+    "changed_margin_mode": false,
+    "wrote_to_old_redis_keys": false,
+    "restarted_live_trader": false,
+    "restarted_live_trainer": false,
+    "enabled_live_trading": false,
+    "created_live_approval_token": false,
+    "mutated_legacy_bot": false,
+    "self_healed_legacy_bot": false,
+    "writes_confined_to": ["claude_worklog/**"]
+  },
+  "verification_commands": [
+    "cat 'v2/runtime/paper_online/latest/paper_runtime_status.json'",
+    "cat 'v2/runtime/paper_online/latest/current_risk_decisions.json'",
+    "cat 'v2/runtime/paper_online/latest/paper_ledger_tail.json'",
+    "cat 'v2/runtime/paper_online/latest/paper_online_runtime.pid'",
+    "[ -d /proc/3446733 ] && echo ALIVE || echo DEAD",
+    "cat 'v2/frontend/public/tonight_live_like_paper_shadow/latest/live_like_risk_profile.json'",
+    "cat 'claude_worklog/final_readiness/go_live_tonight_primary_focus/latest/canary_readiness_recheck.json'",
+    "sed -n '10,24p' 'v2/backend/app/composition/live_canary_blocker_guard/runtime.py'",
+    "sed -n '82,96p' 'v2/backend/app/composition/live_canary_blocker_guard/runtime.py'"
+  ],
+  "next_step": "Owner-side: implement runtime emission of weekly_loss_breach inside the paper-online risk decision builder and publish a paired risk_runtime_payload.json with weekly_loss_gate_required=true; independently stand up a V2 read-only account / trade-permission probe. Until then canary stays BLOCKED and live stays blocked_human_only."
+}
+Two BEGIN_FILE blocks emitted. Proof refreshed against current paper runtime (PID 3446733 alive, tick `paper_tick_1778655187143` at 2026-05-13T06:53:07Z, 3006 events); 9/13 canary hard-gates PASS, 4 still MISSING_EVIDENCE (`weekly_loss_gate_runtime_proven`, `read_only_account_verified`, `trade_permission_known`, 6h/24h paper proof). No live approval token, no exchange/legacy mutation; live remains `blocked_human_only`.

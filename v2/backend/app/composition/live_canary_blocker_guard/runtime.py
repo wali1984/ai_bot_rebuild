@@ -23,6 +23,29 @@ REQUIRED_CANARY_GATES = (
     "exchange_action_absent",
 )
 
+RISK_ADD_ACTIONS = frozenset(
+    {
+        "OPEN",
+        "INCREASE",
+        "FLIP",
+        "HEDGE",
+        "DCA",
+        "REBALANCE",
+        "ADJUST_LEVERAGE",
+        "ADJUST_LEVERAGE_AND_POSITION",
+        "OPEN_LONG",
+        "OPEN_SHORT",
+    }
+)
+DEFAULT_BLOCKED_ACTIONS = frozenset(
+    {
+        "HEDGE",
+        "DCA",
+        "ADJUST_LEVERAGE",
+        "ADJUST_LEVERAGE_AND_POSITION",
+    }
+)
+
 
 class LiveCanaryBlockerGuardRuntime:
     __slots__ = ("evaluate_now",)
@@ -46,6 +69,7 @@ def build_live_canary_blocker_guard_runtime(
         paper_runtime_payload: Mapping[str, Any],
         exchange_account_payload: Mapping[str, Any] | None = None,
         risk_runtime_payload: Mapping[str, Any] | None = None,
+        intent_payload: Mapping[str, Any] | None = None,
         approval_token_present: bool = False,
     ) -> dict[str, Any]:
         now_ms = _valid_now_ms(now_ms_clock())
@@ -71,6 +95,13 @@ def build_live_canary_blocker_guard_runtime(
             "exchange_action_absent": paper.get("exchange_orders") is False,
         }
         blockers = [name for name, passed in gates.items() if not passed]
+        intent = _as_mapping(intent_payload, "intent_payload")
+        intent_blockers = _intent_blockers(
+            intent=intent,
+            now_ms=now_ms,
+            risk=risk,
+            account=account,
+        )
         gate_rows = [
             {
                 "gate": name,
@@ -80,13 +111,15 @@ def build_live_canary_blocker_guard_runtime(
             for name, passed in gates.items()
         ]
         return {
-            "classification": "LIVE_CANARY_BLOCKED" if blockers else "LIVE_CANARY_CAN_BE_CONSIDERED_BY_HUMAN_ONLY",
+            "classification": "LIVE_CANARY_BLOCKED" if blockers or intent_blockers else "LIVE_CANARY_CAN_BE_CONSIDERED_BY_HUMAN_ONLY",
             "source": "V2_LIVE_CANARY_BLOCKER_GUARD",
             "generated_at_ms": now_ms,
             "paper_runtime_age_seconds": paper_age,
             "live_gate_status": live_gate,
             "gate_rows": gate_rows,
             "blockers": blockers,
+            "intent_blockers": intent_blockers,
+            "intent_evaluation_status": "BLOCKED" if intent_blockers else "NO_INTENT_BLOCKERS",
             "approval_token_present": bool(approval_token_present),
             "safe_for_live": False,
             "automation_can_enable_live": False,
@@ -118,6 +151,75 @@ def _numeric(value: Any) -> float | None:
         except ValueError:
             return None
     return None
+
+
+def _intent_blockers(
+    *,
+    intent: Mapping[str, Any],
+    now_ms: int,
+    risk: Mapping[str, Any],
+    account: Mapping[str, Any],
+) -> list[str]:
+    if not intent:
+        return []
+    blockers: list[str] = []
+    action = str(intent.get("action") or intent.get("side") or "").strip().upper()
+    risk_add = action in RISK_ADD_ACTIONS
+
+    if action in DEFAULT_BLOCKED_ACTIONS:
+        blockers.append(f"{action.lower()}_disabled_by_default")
+    if action in {"HEDGE", "DCA"}:
+        blockers.append("hedge_dca_disabled_initially")
+
+    if risk_add:
+        for field in ("signal_id", "prediction_id", "feature_snapshot_id", "confidence", "source_module"):
+            if not intent.get(field):
+                blockers.append(f"missing_{field}")
+
+        signal_ts = _generated_at_ms(intent.get("signal_generated_at_ms") or intent.get("signal_generated_at"))
+        if signal_ts is None:
+            blockers.append("missing_signal_timestamp")
+        elif int((now_ms - signal_ts) / 1000) > int(_numeric(risk.get("max_risk_add_signal_age_seconds")) or 10):
+            blockers.append("stale_risk_add_signal")
+
+    if intent.get("exchange_order_id") and intent.get("exchange_order_id") in set(_as_list(intent.get("seen_exchange_order_ids"))):
+        blockers.append("duplicate_exchange_order_id")
+    if intent.get("execution_intent_id") and intent.get("execution_intent_id") in set(_as_list(intent.get("seen_execution_intent_ids"))):
+        blockers.append("duplicate_execution_intent_id")
+    if intent.get("signal_id") and intent.get("signal_id") in set(_as_list(intent.get("seen_signal_ids"))):
+        blockers.append("duplicate_signal_id")
+
+    margin_mode = str(intent.get("margin_mode") or account.get("margin_mode") or risk.get("required_margin_mode") or "").strip().lower()
+    if margin_mode == "cross":
+        blockers.append("cross_margin_blocked_for_canary")
+    elif risk_add and margin_mode != "isolated":
+        blockers.append("isolated_margin_not_verified")
+
+    leverage_cap = None if "leverage_cap" in intent and intent.get("leverage_cap") is None else _numeric(intent.get("leverage_cap") or account.get("leverage_cap") or risk.get("leverage_cap"))
+    leverage = _numeric(intent.get("leverage"))
+    if leverage_cap is None:
+        blockers.append("leverage_cap_unknown")
+    elif leverage is not None and leverage > leverage_cap:
+        blockers.append("leverage_above_cap")
+
+    if intent.get("stop_policy_present") is False:
+        blockers.append("missing_stop_policy")
+    if intent.get("kill_switch_healthy") is False:
+        blockers.append("kill_switch_unhealthy")
+    if intent.get("daily_loss_gate_present") is False:
+        blockers.append("daily_loss_gate_missing")
+    if intent.get("weekly_loss_gate_present") is False:
+        blockers.append("weekly_loss_gate_missing")
+    if intent.get("market_feed_current") is False:
+        blockers.append("market_feed_stale_or_missing")
+    if intent.get("feature_snapshot_current") is False:
+        blockers.append("feature_snapshot_stale_or_missing")
+    if risk_add and "risk_config_version" in intent and not intent.get("risk_config_version"):
+        blockers.append("missing_risk_config_version")
+    elif risk_add and not (intent.get("risk_config_version") or risk.get("risk_config_version")):
+        blockers.append("missing_risk_config_version")
+
+    return sorted(set(blockers))
 
 
 def _age_seconds(now_ms: int, generated_at: Any) -> int | None:

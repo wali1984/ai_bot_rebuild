@@ -1,0 +1,136 @@
+{
+  "generated_at": "2026-05-13T06:59:54.381Z",
+  "live_gate_status": "blocked_human_only",
+  "approval_packet_is_not_approval": true,
+  "default_canary_profile": {
+    "symbol": "BTCUSDT",
+    "margin_mode": "isolated_only",
+    "leverage_cap": "1x",
+    "notional": "tiny_human_approved_only",
+    "hedge_dca": "disabled",
+    "adjust_leverage": "disabled",
+    "live_enabled_by_automation": false
+  },
+  "hard_gates": [
+    {
+      "gate": "final_approval_token_absent_blocks_live",
+      "required_behavior": "human approval still required",
+      "current_status": "PASS",
+      "evidence": "Approval token absent and live_gate_status remains blocked_human_only."
+    },
+    {
+      "gate": "read_only_account_evidence_required",
+      "required_behavior": "blocks canary",
+      "current_status": "MISSING_EVIDENCE",
+      "evidence": "No current V2 read-only exchange account payload was found."
+    },
+    {
+      "gate": "trade_permission_known_required",
+      "required_behavior": "blocks canary",
+      "current_status": "MISSING_EVIDENCE",
+      "evidence": "No current V2 trade-permission status payload was found."
+    },
+    {
+      "gate": "cross_margin_blocks_canary",
+      "required_behavior": "required for canary",
+      "current_status": "PASS",
+      "evidence": "Runtime decision checks cross-margin block code; V2 unit tests cover cross margin intent blocker."
+    },
+    {
+      "gate": "isolated_margin_unknown_blocks_canary",
+      "required_behavior": "required for canary",
+      "current_status": "PASS",
+      "evidence": "V2 unit tests cover isolated-margin missing/unknown blocker."
+    },
+    {
+      "gate": "leverage_cap_unknown_blocks_canary",
+      "required_behavior": "required for canary",
+      "current_status": "PASS",
+      "evidence": "V2 unit tests cover missing cap and above-cap blockers."
+    },
+    {
+      "gate": "ADJUST_LEVERAGE_disabled_by_default",
+      "required_behavior": "required for canary",
+      "current_status": "PASS",
+      "evidence": "Runtime decision checks adjust-leverage block code; V2 unit tests cover adjust-leverage actions."
+    },
+    {
+      "gate": "hedge_dca_disabled_initially",
+      "required_behavior": "required for canary",
+      "current_status": "PASS",
+      "evidence": "V2 unit tests cover HEDGE and DCA default blockers."
+    },
+    {
+      "gate": "missing_signal_id_blocks",
+      "required_behavior": "required for canary",
+      "current_status": "PASS",
+      "evidence": "Runtime decision checks missing signal_id; V2 unit tests cover intent blocker."
+    },
+    {
+      "gate": "missing_prediction_id_blocks",
+      "required_behavior": "required for canary",
+      "current_status": "PASS",
+      "evidence": "Runtime decision checks missing prediction_id; V2 unit tests cover intent blocker."
+    },
+    {
+      "gate": "missing_feature_snapshot_id_blocks",
+      "required_behavior": "required for canary",
+      "current_status": "PASS",
+      "evidence": "Runtime decision checks missing feature_snapshot_id; V2 unit tests cover intent blocker."
+    },
+    {
+      "gate": "missing_confidence_blocks",
+      "required_behavior": "required for canary",
+      "current_status": "PASS",
+      "evidence": "Runtime decision checks missing confidence; V2 unit tests cover intent blocker."
+    },
+    {
+      "gate": "stale_risk_add_signal_blocks",
+      "required_behavior": "required for canary",
+      "current_status": "PASS",
+      "evidence": "Runtime decision checks stale signal; V2 unit tests cover >10s risk-add signal."
+    },
+    {
+      "gate": "duplicate_execution_dedupes_or_blocks",
+      "required_behavior": "required for canary",
+      "current_status": "PASS",
+      "evidence": "Runtime decision checks duplicate signal execution; V2 unit tests cover duplicate order, intent, signal IDs."
+    },
+    {
+      "gate": "mandatory_stop_policy_required",
+      "required_behavior": "required for canary",
+      "current_status": "PASS",
+      "evidence": "Runtime decision checks missing stop policy; V2 unit tests cover missing stop."
+    },
+    {
+      "gate": "kill_switch_required",
+      "required_behavior": "required for canary",
+      "current_status": "PASS",
+      "evidence": "Runtime decision checks disabled kill switch; V2 unit tests cover unhealthy switch."
+    },
+    {
+      "gate": "daily_loss_gate_required",
+      "required_behavior": "required for canary",
+      "current_status": "PASS",
+      "evidence": "Runtime decision checks daily-loss breach; V2 unit tests cover missing daily gate."
+    },
+    {
+      "gate": "weekly_loss_gate_required",
+      "required_behavior": "blocks canary evidence",
+      "current_status": "MISSING_EVIDENCE",
+      "evidence": "Current runtime decisions still do not list weekly_loss_breach; V2 unit tests cover missing weekly gate."
+    },
+    {
+      "gate": "market_and_feature_freshness_required",
+      "required_behavior": "required for canary",
+      "current_status": "PASS",
+      "evidence": "Market=CURRENT, feature=CURRENT."
+    },
+    {
+      "gate": "live_gate_remains_blocked_human_only",
+      "required_behavior": "hard stop",
+      "current_status": "PASS",
+      "evidence": "live_gate_status=blocked_human_only"
+    }
+  ]
+}
