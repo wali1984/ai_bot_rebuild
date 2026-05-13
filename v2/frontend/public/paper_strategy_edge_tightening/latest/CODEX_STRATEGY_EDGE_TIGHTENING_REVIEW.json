@@ -1,0 +1,22 @@
+{
+  "checks": {
+    "account_missing_marked_present": false,
+    "canary_readiness_overstated": false,
+    "exchange_action_occurred": false,
+    "final_live_approval_token_created": false,
+    "live_readiness_overstated": false,
+    "margin_leverage_missing_explicit": true,
+    "negative_6h_root_cause_exists": true,
+    "negative_pnl_hidden_or_softened": false,
+    "old_redis_write_occurred": false,
+    "paper_runtime_alive_called_profitability_proof": false,
+    "pnl_linkage_missing": false,
+    "tightened_profile_evaluation_exists": true,
+    "tightened_profile_weakens_risk_hard_gates": false,
+    "trade_permission_unknown_blocks_canary": true,
+    "twenty_four_h_proof_faked": false,
+    "ui_task_superseded_primary": false
+  },
+  "generated_at": "2026-05-13T19:39:03Z",
+  "result": "PAPER_STRATEGY_EDGE_TIGHTENING_CODEX_PASS"
+}
