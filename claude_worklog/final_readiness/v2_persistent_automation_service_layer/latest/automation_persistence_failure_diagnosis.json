@@ -1,0 +1,29 @@
+{
+  "generated_at": "2026-05-13T23:38:09Z",
+  "classification": [
+    "ORCHESTRATOR_SELECTION_VALID",
+    "SUPERVISOR_DAEMON_NOT_PERSISTENT",
+    "TMUX_FROM_CHAT_HARNESS_NOT_PERSISTENT",
+    "SYSTEMD_USER_PERSISTENCE_REQUIRED",
+    "LIVE_GATE_BLOCKED_HUMAN_ONLY"
+  ],
+  "selected_worker": "v2_market_ingestor_from_legacy_baseline",
+  "next_action": "dispatch_legacy_baseline_analysis",
+  "agent_supervisor_alive_after_install": true,
+  "v2_worker_porting_orchestrator_alive_after_install": true,
+  "parallel_capacity_scheduler_alive_after_install": true,
+  "codex_non_live_watchdog_alive_after_install": true,
+  "tmux_sessions_required": false,
+  "systemd_user_available": true,
+  "login_linger_enabled": false,
+  "why_worker_was_not_in_flight": "control-plane daemons were not persistent and dispatcher did not admit the selected legacy-baseline analysis task",
+  "fixes_applied": [
+    "systemd user units installed and enabled",
+    "dispatch_legacy_baseline_analysis now selects its Claude descriptor",
+    "supervisor permits orchestrator-selected V2 porting task through the non-drift lock",
+    "supervisor file-path dependencies are satisfied by existing in-workspace files"
+  ],
+  "live_gate": "blocked_human_only",
+  "final_approval_token": "absent",
+  "redis_trim_approval": "absent"
+}

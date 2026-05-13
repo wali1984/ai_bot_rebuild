@@ -1,0 +1,143 @@
+{
+  "actions": [],
+  "blockers": [],
+  "classification": [
+    "SYSTEMD_USER_PERSISTENCE_REQUIRED",
+    "LIVE_GATE_BLOCKED_HUMAN_ONLY",
+    "NO_LEGACY_RESTART"
+  ],
+  "current_worker": null,
+  "current_worker_dispatch_proof": {
+    "claude_worker_process_active": true,
+    "proved": true,
+    "selected_task_id": "claude_port_v2_market_ingestor_from_legacy_baseline",
+    "supervisor_status": "running",
+    "supervisor_task_id": "claude_port_v2_market_ingestor_from_legacy_baseline"
+  },
+  "final_approval_token": "absent",
+  "generated_at": "2026-05-13T23:39:31Z",
+  "git_corruption_detected": false,
+  "in_flight_workers": [],
+  "last_completed_worker": "v2_feature_snapshot_builder",
+  "live_gate": "blocked_human_only",
+  "next_action": "dispatch_legacy_baseline_analysis",
+  "next_worker": "v2_market_ingestor_from_legacy_baseline",
+  "paper_runtime_freshness": {
+    "age_seconds": 30,
+    "generated_at": "2026-05-13T23:39:00Z",
+    "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+    "status": "fresh"
+  },
+  "pending_codex_reviews": [
+    "codex_review_legacy_startup_baseline_v2_migration.json",
+    "codex_review_parallel_trading_platform_consumer_ui.json",
+    "codex_review_v2_account_position_monitor.json",
+    "codex_review_v2_coinank_and_liquidation_bridge_from_legacy_baseline.json",
+    "codex_review_v2_coinank_liquidation_bridge.json",
+    "codex_review_v2_config_admin_manager.json",
+    "codex_review_v2_execution_ledger_worker.json",
+    "codex_review_v2_feature_pipeline_and_ta_worker_from_legacy_baseline.json",
+    "codex_review_v2_feature_snapshot_builder.json",
+    "codex_review_v2_feature_snapshot_builder_legacy_backfill.json",
+    "codex_review_v2_market_ingestor.json",
+    "codex_review_v2_market_ingestor_from_legacy_baseline.json",
+    "codex_review_v2_orchestrator_adapter.json",
+    "codex_review_v2_p2_binance_usdm_adapter_stub.json",
+    "codex_review_v2_p2_default_blocked_execution_adapter_stub.json",
+    "codex_review_v2_p2_deployment_helpers.json",
+    "codex_review_v2_paper_execution_worker.json",
+    "codex_review_v2_replay_worker.json",
+    "codex_review_v2_risk_gateway_runtime_worker.json",
+    "codex_review_v2_script_monitor.json",
+    "codex_review_v2_signal_lineage_worker.json",
+    "codex_review_v2_signal_publisher.json",
+    "codex_review_v2_trainer_bridge.json",
+    "codex_review_v2_worker_porting_orchestrator.json"
+  ],
+  "processes": {
+    "agent_supervisor": [
+      "76160    5737     154 ./.venv/bin/python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30"
+    ],
+    "claude_worker": [
+      "76171   76160     153 claude --print LEGACY-FIRST MANDATE \u2014 BASELINE-ANCHORED. This worker ports the legacy market ingestor responsibility. Before writing any V2 code: (1) READ the relevant preserved baseline sources under v2/legacy_preserved/startup_baseline/ingest/ (live_binance.py, live_kucoin.py, realtime_price_provider.py, live_coinapi_wsds.py, live_coinapi_v1.py). (2) Run the closure scanner to confirm transitive local dependencies are present in the baseline; copy any uncovered helpers (e.g., utils, services, telegram_alerts, config_accounts) before declaring closure complete or classify them MISSING_IN_LEGACY_BASELINE with a written reason. (3) Read copied_baseline_manifest.json and CITE the SHA256 of every baseline file you actually relied on inside the LEGACY_BASELINE_ANALYSIS.md and the legacy_behavior_mapping.json (Codex review fails if SHAs are absent or don't match). (4) Produce both baseline files BEFORE writing v2/backend/app/cli/v2_market_ingestor.py. The analysis must list legacy_source_paths, legacy_functions_preserved, legacy_inputs, legacy_outputs, legacy_redis_keys (read-only references only; the V2 worker must NEVER write old Redis keys \u2014 V2 writes only v2:* namespaced streams), legacy_config_dependencies, legacy_edge_cases (rate-limit backoff, reconnect/retry, market hours, CoinAPI fallback policy), legacy_failure_modes, legacy_tests_or_expected_behavior, V2_mapping, intentional_changes, removed/deprecated behavior with reason. (5) Build v2_market_ingestor.py with the data-source priority from the startup script's data-source table (OHLCV: CoinAPI V1 primary, Binance REST fallback; quote/BBO: CoinAPI DS primary, Binance bookTicker fallback; funding/mark/premium-index: Binance WS or REST exclusive; OI: Binance REST primary, CoinAnk fallback; liquidations covered by a separate worker; orderbook depth: Binance REST+WS). (6) The worker must write only V2-namespaced data plane (suggested prefix v2:market:*) and a public status payload. (7) Tests must cover preserved legacy behavior + V2 safety upgrades (no real exchange mutating method invoked, no old Redis write contract). Trigger codex_review_v2_market_ingestor_from_legacy_baseline on emit. --output-format text"
+    ],
+    "codex_non_live_watchdog": [
+      "73192    5737     396 ./.venv/bin/python3 claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll-seconds 300"
+    ],
+    "feature_snapshot_builder": [
+      "73368    5737     396 ./.venv/bin/python3 -m v2.backend.app.cli.v2_feature_snapshot_builder --loop --read-from-paper-runtime --interval 60"
+    ],
+    "paper_online_runtime": [
+      "73257    5737     396 ./.venv/bin/python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30"
+    ],
+    "paper_shadow_observation": [
+      "73348    5737     396 bash -lc mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.paper_shadow_observation --write >> v2/runtime/paper_shadow_observation.log 2>&1; sleep 60; done"
+    ],
+    "parallel_capacity_scheduler": [
+      "73164    5737     396 ./.venv/bin/python3 claude_worklog/tools/parallel_capacity_scheduler.py --daemon --poll-seconds 600"
+    ],
+    "v2_worker_porting_orchestrator": [
+      "75728    5737     212 ./.venv/bin/python3 claude_worklog/tools/v2_worker_porting_orchestrator.py --daemon --poll-seconds 120"
+    ]
+  },
+  "redis_trim_approval": "absent",
+  "result": "PASS",
+  "service_units": [
+    {
+      "active_state": "active",
+      "enabled_state": "enabled",
+      "installed": true,
+      "unit": "ai-bot-v2-worker-porting-orchestrator.service"
+    },
+    {
+      "active_state": "active",
+      "enabled_state": "enabled",
+      "installed": true,
+      "unit": "ai-bot-v2-agent-supervisor.service"
+    },
+    {
+      "active_state": "active",
+      "enabled_state": "enabled",
+      "installed": true,
+      "unit": "ai-bot-v2-parallel-scheduler.service"
+    },
+    {
+      "active_state": "active",
+      "enabled_state": "enabled",
+      "installed": true,
+      "unit": "ai-bot-v2-codex-watchdog.service"
+    },
+    {
+      "active_state": "active",
+      "enabled_state": "enabled",
+      "installed": true,
+      "unit": "ai-bot-v2-paper-online-runtime.service"
+    },
+    {
+      "active_state": "active",
+      "enabled_state": "enabled",
+      "installed": true,
+      "unit": "ai-bot-v2-paper-shadow-observation.service"
+    },
+    {
+      "active_state": "active",
+      "enabled_state": "enabled",
+      "installed": true,
+      "unit": "ai-bot-v2-feature-snapshot-builder.service"
+    },
+    {
+      "active_state": "active",
+      "enabled_state": "enabled",
+      "installed": true,
+      "unit": "ai-bot-v2-automation-liveness-watchdog.timer"
+    }
+  ],
+  "state_age_seconds": 92,
+  "supervisor_current_status": {
+    "run_pid": 76171,
+    "status": "running",
+    "task_id": "claude_port_v2_market_ingestor_from_legacy_baseline"
+  },
+  "systemd_user_available": true,
+  "worker_state_path": "claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/worker_porting_state.json"
+}

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run AI Bot V2 automation liveness watchdog every two minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+AccuracySec=20s
+Unit=ai-bot-v2-automation-liveness-watchdog.service
+
+[Install]
+WantedBy=timers.target

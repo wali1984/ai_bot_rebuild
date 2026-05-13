@@ -1,0 +1,32 @@
+{
+  "generated_at": "2026-05-13T23:38:09Z",
+  "result": "V2_PERSISTENT_AUTOMATION_SERVICE_LAYER_READY",
+  "codex_result": "V2_PERSISTENT_AUTOMATION_SERVICE_LAYER_CODEX_PASS",
+  "systemd_user_available": true,
+  "systemd_services_installed": true,
+  "systemd_services_enabled": true,
+  "systemd_services_active": true,
+  "liveness_watchdog_active": true,
+  "login_linger_enabled": false,
+  "tmux_primary": false,
+  "tmux_fallback_available": true,
+  "current_worker": "v2_market_ingestor_from_legacy_baseline",
+  "next_action": "dispatch_legacy_baseline_analysis",
+  "current_worker_in_flight": true,
+  "supervisor_current_task": "claude_port_v2_market_ingestor_from_legacy_baseline",
+  "live_gate": "blocked_human_only",
+  "final_approval_token": "absent",
+  "redis_trim_approval": "absent",
+  "old_redis_writes": "none",
+  "exchange_actions": "none",
+  "leverage_or_margin_changes": "none",
+  "public_payloads": [
+    "v2/frontend/public/v2_persistent_automation_service_layer/latest/operator_dashboard_payload.json",
+    "v2/frontend/public/v2_persistent_automation_service_layer/latest/automation_liveness_watchdog_status.json"
+  ],
+  "local_payloads": [
+    "claude_worklog/final_readiness/v2_persistent_automation_service_layer/latest/operator_dashboard_payload.json",
+    "claude_worklog/final_readiness/v2_persistent_automation_service_layer/latest/automation_liveness_watchdog_status.json",
+    "claude_worklog/final_readiness/v2_persistent_automation_service_layer/latest/current_worker_autodispatch_proof.json"
+  ]
+}

@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
 # Report status of the worker-porting control plane.
+# Primary persistence is the systemd user service layer; tmux is fallback only.
 set -euo pipefail
 
 ROOT="$HOME/Desktop/AI BOT REBUILD"
 cd "$ROOT"
+
+if [ -x "$ROOT/claude_worklog/tools/status_v2_persistent_automation_services.sh" ]; then
+  echo "=== systemd-primary V2 automation status ==="
+  bash "$ROOT/claude_worklog/tools/status_v2_persistent_automation_services.sh"
+  echo
+  echo "=== tmux fallback status ==="
+fi
 
 echo "=== live gate state ==="
 test -f "claude_worklog/approvals/APPROVED_FINAL_LIVE_TINY_CANARY_ONLY.md" && echo "WARNING: final approval token present" || echo "no final approval token"

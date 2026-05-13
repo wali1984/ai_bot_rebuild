@@ -1,0 +1,15 @@
+[Unit]
+Description=AI Bot V2 agent supervisor
+After=network-online.target ai-bot-v2-worker-porting-orchestrator.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-agent-supervisor'
+ExecStart=/usr/bin/env bash -lc 'mkdir -p claude_worklog/agent_supervisor/logs/control_plane; exec ./.venv/bin/python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30 >> claude_worklog/agent_supervisor/logs/control_plane/agent_supervisor.log 2>&1'
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

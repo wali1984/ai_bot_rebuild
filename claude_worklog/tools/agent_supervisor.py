@@ -53,6 +53,9 @@ HEARTBEAT_FILE = STATUS_DIR / "supervisor_heartbeat.json"
 LOCK_FILE = BASE_DIR / "supervisor.lock"
 NEXT_PHASE_FILE = BASE_DIR / "state/NEXT_PHASE.md"
 NON_DRIFT_LOCK_FILE = pathlib.Path("claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json")
+V2_WORKER_PORTING_STATE_FILE = pathlib.Path(
+    "claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/worker_porting_state.json"
+)
 
 AUTONOMOUS_CONTROL_PLANE_DIR = pathlib.Path("claude_worklog/autonomous_control_plane")
 PLANNER_INPUT_PACKET_FILE = PLANNER_DIR / "PLANNER_INPUT_PACKET.md"
@@ -255,6 +258,36 @@ def non_drift_lock() -> Dict[str, Any]:
     return data if isinstance(data, dict) and data.get("status") == "ACTIVE" else {}
 
 
+def task_allowed_by_v2_worker_porting_state(task: Dict[str, Any]) -> Tuple[bool, str]:
+    state = load_optional_json(V2_WORKER_PORTING_STATE_FILE)
+    if not isinstance(state, dict):
+        return False, "v2_worker_porting_state_missing"
+    if state.get("live_gate") != "blocked_human_only":
+        return False, "v2_worker_porting_live_gate_not_blocked"
+    if state.get("final_approval_token") not in {None, "absent"}:
+        return False, "v2_worker_porting_final_approval_present"
+
+    action = state.get("next_action")
+    if not isinstance(action, dict):
+        return False, "v2_worker_porting_next_action_missing"
+    kind = str(action.get("kind") or "")
+    if not kind.startswith("dispatch_"):
+        return False, "v2_worker_porting_next_action_not_dispatch"
+
+    descriptor = str(action.get("task_descriptor") or action.get("codex_descriptor") or "")
+    task_id = str(task.get("task_id") or "")
+    expected_task_id = pathlib.Path(descriptor).stem if descriptor else ""
+    if expected_task_id and task_id == expected_task_id:
+        return True, "selected_by_v2_worker_porting_orchestrator"
+
+    next_worker = str(action.get("next_worker") or "")
+    if kind in {"dispatch_legacy_baseline_analysis", "dispatch_claude"} and next_worker and task_id == f"claude_port_{next_worker}":
+        return True, "selected_by_v2_worker_porting_orchestrator"
+    if kind == "dispatch_codex_review" and next_worker and task_id == f"codex_review_{next_worker}":
+        return True, "selected_by_v2_worker_porting_orchestrator"
+    return False, "not_selected_by_v2_worker_porting_orchestrator"
+
+
 def task_allowed_by_non_drift_lock(task: Dict[str, Any]) -> Tuple[bool, str]:
     lock = non_drift_lock()
     if not lock:
@@ -270,6 +303,9 @@ def task_allowed_by_non_drift_lock(task: Dict[str, Any]) -> Tuple[bool, str]:
         and str(task.get("lane", "")) == "non_drift_codex_audit"
     ):
         return True, "parallel_codex_audit_allowed_by_non_drift_lock"
+    v2_allowed, v2_reason = task_allowed_by_v2_worker_porting_state(task)
+    if v2_allowed:
+        return True, v2_reason
     return False, "blocked_by_non_drift_governor_lock_selected_task_only"
 
 
@@ -1715,7 +1751,24 @@ def dependency_blockers(task: Dict[str, Any], status_map: Dict[str, str]) -> Lis
     deps = [str(x) for x in task.get("depends_on", []) if str(x).strip()]
     deps.extend(str(x) for x in task.get("predecessor_task_ids", []) if str(x).strip())
     satisfied = {"completed", "superseded_by_evidence"}
-    return [d for d in deps if status_map.get(d) not in satisfied]
+    blockers: List[str] = []
+    for dep in deps:
+        dep_path = pathlib.Path(dep)
+        looks_like_path = dep_path.is_absolute() or "/" in dep or "\\" in dep
+        if looks_like_path:
+            candidate = dep_path if dep_path.is_absolute() else WORKSPACE_ROOT / dep_path
+            try:
+                candidate = candidate.resolve()
+            except Exception:
+                blockers.append(dep)
+                continue
+            if in_workspace(candidate) and candidate.exists():
+                continue
+            blockers.append(dep)
+            continue
+        if status_map.get(dep) not in satisfied:
+            blockers.append(dep)
+    return blockers
 
 
 def task_effective_status(task: Dict[str, Any]) -> str:

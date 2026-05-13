@@ -1,0 +1,15 @@
+[Unit]
+Description=AI Bot V2 feature snapshot builder
+After=network-online.target ai-bot-v2-paper-online-runtime.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-feature-snapshot-builder'
+ExecStart=/usr/bin/env bash -lc 'mkdir -p v2/runtime; exec ./.venv/bin/python3 -m v2.backend.app.cli.v2_feature_snapshot_builder --loop --read-from-paper-runtime --interval 60 >> v2/runtime/feature_snapshot_builder.log 2>&1'
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

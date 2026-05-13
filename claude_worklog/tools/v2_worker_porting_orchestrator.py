@@ -644,12 +644,17 @@ def select_task_descriptor(action: Dict[str, Any], dry_run: bool) -> Optional[st
     operators and external watchers can see which task is next.
     """
     kind = action.get("kind")
-    if kind not in {"dispatch_claude", "dispatch_codex_review", "dispatch_remediation"}:
+    if kind not in {
+        "dispatch_legacy_baseline_analysis",
+        "dispatch_claude",
+        "dispatch_codex_review",
+        "dispatch_remediation",
+    }:
         return None
     worker_id = action.get("next_worker")
     if not worker_id:
         return None
-    if kind == "dispatch_claude":
+    if kind in {"dispatch_legacy_baseline_analysis", "dispatch_claude"}:
         target = task_descriptor_path(worker_id)
     elif kind == "dispatch_codex_review":
         target = codex_review_descriptor_path(worker_id)

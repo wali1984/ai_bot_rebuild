@@ -1,0 +1,17 @@
+{
+  "task_id": "codex_review_v2_persistent_automation_service_layer",
+  "agent": "codex",
+  "lane": "v2_persistent_automation_review",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/v2_persistent_automation_service_layer/latest/"
+  ],
+  "required_output_files": [
+    "claude_worklog/final_readiness/v2_persistent_automation_service_layer/latest/CODEX_PERSISTENT_AUTOMATION_SERVICE_LAYER_REVIEW.md",
+    "claude_worklog/final_readiness/v2_persistent_automation_service_layer/latest/CODEX_GO_NO_GO.md"
+  ],
+  "prompt": "Review the persistent V2 automation service layer. Fail if systemd user services are not primary, tmux is the only persistence path, Restart=always is missing from long-running services, status/start/stop/install/uninstall scripts are missing, liveness watchdog is missing, services can unlock live mode, services can create final approval markers, services can start legacy runtime, services can use exchange mutation APIs, services can change leverage or margin mode, secrets appear in unit files, current worker dispatch proof is missing, or live gate is not blocked_human_only. CODEX_GO_NO_GO.md must contain exactly V2_PERSISTENT_AUTOMATION_SERVICE_LAYER_CODEX_PASS or V2_PERSISTENT_AUTOMATION_SERVICE_LAYER_CODEX_FAIL."
+}

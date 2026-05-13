@@ -1,11 +1,40 @@
 #!/usr/bin/env bash
-# Start the V2 worker-porting control-plane daemons under tmux.
-# Safe to re-run: each session is created only if missing.
-# Does NOT start anything live, anything legacy, or anything that places orders.
+# Fallback tmux starter for the V2 worker-porting control plane.
+# Primary persistence is now the systemd user service layer:
+#   bash claude_worklog/tools/install_v2_persistent_automation_services.sh
+#
+# Keep this script for environments where systemd user services are not
+# available. Sessions launched from a chat harness may be collected with the
+# parent shell, so this script is no longer the durable path.
 set -euo pipefail
 
 ROOT="$HOME/Desktop/AI BOT REBUILD"
 cd "$ROOT"
+
+SYSTEMD_UNITS=(
+  ai-bot-v2-worker-porting-orchestrator.service
+  ai-bot-v2-agent-supervisor.service
+  ai-bot-v2-parallel-scheduler.service
+  ai-bot-v2-codex-watchdog.service
+)
+
+if command -v systemctl >/dev/null 2>&1 && systemctl --user is-system-running >/dev/null 2>&1; then
+  running=0
+  for unit in "${SYSTEMD_UNITS[@]}"; do
+    if systemctl --user is-active --quiet "$unit"; then
+      running=$((running + 1))
+    fi
+  done
+  if [ "$running" -eq "${#SYSTEMD_UNITS[@]}" ]; then
+    echo "systemd user control-plane services are already active; tmux fallback not needed"
+    bash "$ROOT/claude_worklog/tools/status_v2_persistent_automation_services.sh"
+    exit 0
+  fi
+  echo "systemd user services are available; prefer:"
+  echo "  bash claude_worklog/tools/install_v2_persistent_automation_services.sh"
+fi
+
+echo "WARNING: tmux fallback sessions launched from a chat harness may not persist after the shell exits."
 
 if [ -f "claude_worklog/approvals/APPROVED_FINAL_LIVE_TINY_CANARY_ONLY.md" ]; then
   echo "BLOCKED: final approval token present; refusing to start control plane."
