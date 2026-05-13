@@ -62,6 +62,7 @@ const artifactSets = [
   'public_hosting_and_telemetry_bridge',
   'live_readiness_preflight',
   'final_live_capital_gate',
+  'v2_production_truth_reconciliation',
   'legacy_coinank_plan3_bridge',
   'coinank_plan3_runtime_remediation',
   'v2_live_observer_shadow_twin',

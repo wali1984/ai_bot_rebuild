@@ -1,0 +1,50 @@
+{
+  "classification": "MIGRATION_EXECUTION_REQUIRED_BEFORE_PRODUCTION_LIVE_READY",
+  "generated_at": "2026-05-13T04:22:07.783209Z",
+  "hard_blockers": [
+    "FINAL_GATE_MISSING_EVIDENCE: read-only account status, trade permission status, and weekly loss hard stop evidence are missing.",
+    "SCRIPT_MIGRATION_UNSAFE_UNKNOWNS: 2093 scripts remain unsafe_unknown in migration backlog.",
+    "EXCHANGE_ACTION_SCRIPT_MIGRATION_INCOMPLETE: 344 exchange-action references still require migration/containment mapping.",
+    "REDIS_WRITER_MIGRATION_INCOMPLETE: 445 Redis writer references still require V2 namespace/durability migration.",
+    "TRAINER_FULL_MODEL_PARITY_NOT_PROVEN: V2 wrapper is current but legacy PPO/MASA checkpoint parity is not claimed.",
+    "POSTGRES_RUNTIME_CONNECTION_NOT_CONFIGURED: schema-ready only; runtime durable DB writes are not proven.",
+    "V2_REDIS_RUNTIME_WRITES_DISABLED: bounded namespace contract exists but runtime writes are disabled for safety.",
+    "COINANK_BRIDGE_PAYLOAD_STALE_OR_UNVERIFIED: generated_at age_seconds=11524; refresh cadence must be proven before production truth claim.",
+    "OPERATOR_TRUTH_BRIDGE_PAYLOAD_STALE: generated_at age_seconds=1130; website truth bridge needs refresh before production truth claim.",
+    "LEGACY_EXECUTED_ORDER_EVIDENCE_PRESENT: legacy stack has real exchange_order_id evidence; V2 must remain observer until cutover/containment is complete.",
+    "LEGACY_CROSS_MARGIN_EVIDENCE_PRESENT: legacy observed position after execution shows cross margin; V2 canary requires isolated only."
+  ],
+  "next_non_live_tasks": [
+    "refresh operator truth bridge and CoinAnk bridge payload cadence",
+    "reduce script_migration_backlog unsafe_unknown_count with evidence-based classification",
+    "implement/prove V2 Postgres runtime audit ledger connection without secrets exposure",
+    "enable isolated V2 bounded Redis runtime writes only after proving no legacy key overlap",
+    "complete safe legacy trainer bridge fields and GPU/PPO/MASA parity sandbox",
+    "browser crawl current production pages after refreshed runtime payloads",
+    "verify read-only account status, trade permissions, and weekly loss hard stop before any human canary decision"
+  ],
+  "ready_to_continue_non_live_migration": true,
+  "ready_to_enable_live": false,
+  "required_execution_lanes": [
+    {
+      "count": 367,
+      "lane": "P0 execution/risk/live safety",
+      "status": "MUST_CONTINUE"
+    },
+    {
+      "count": 721,
+      "lane": "P1 trainer/feature/signal lineage",
+      "status": "MUST_CONTINUE"
+    },
+    {
+      "count": 62,
+      "lane": "P2 ingestors/market data",
+      "status": "MUST_CONTINUE"
+    },
+    {
+      "count": 212,
+      "lane": "P3 monitor/audit/logging",
+      "status": "MUST_CONTINUE"
+    }
+  ]
+}

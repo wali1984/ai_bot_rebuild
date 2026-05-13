@@ -1,0 +1,159 @@
+{
+  "approval_file_present": false,
+  "codex_review": "V2_PRODUCTION_TRUTH_RECONCILIATION_CODEX_PASS",
+  "gate_marker": "V2_PRODUCTION_TRUTH_RECONCILIATION_AND_MIGRATION_EXECUTION_GATE_READY",
+  "generated_at": "2026-05-13T04:22:07.783209Z",
+  "legacy_execution_observation": {
+    "latest_executed_signal_age_seconds": 537,
+    "latest_legacy_exchange_order_id_observed": 49657465674,
+    "latest_legacy_margin_type_after": "cross",
+    "latest_legacy_source": "trainer",
+    "latest_legacy_symbol": "LINKUSDT",
+    "legacy_bridge_status": "LEGACY_LIVE_BRIDGE_IMPORTER_CURRENT",
+    "legacy_redis_writes_by_v2": false
+  },
+  "legacy_vs_v2_improvements": [
+    "Current V2 paper runtime emits pred_*/fs_*/sig_*/orch_*/risk_*/pei_* lineage from real-time payload, not hist_* fixtures.",
+    "Risk Gateway is final authority; the current V2 paper intent is approved for paper only and still produces no exchange_order_id.",
+    "V2 paper ledger records paper-only outcomes, including simulated fills or risk blocks, without live orders.",
+    "Legacy live bridge is read-only and V2 shadow risk blocks legacy-observed signals missing prediction_id/feature_snapshot_id.",
+    "CoinAnk Plan-3 remediation is recorded as READY and market-intelligence payload labels source as LIVE_COINANK_READONLY.",
+    "Website route rebuild and PageShell data layer expose current paper runtime IDs, risk status, and live-blocked banner from runtime payloads."
+  ],
+  "live_gate_status": "blocked_human_only",
+  "next_gate": "MIGRATION_EXECUTION_CONTINUES_NON_LIVE; do not request human canary review until blockers are reduced or explicitly accepted.",
+  "paper_shadow_status": "CURRENT_NON_LIVE_RUNTIME_ACTIVE",
+  "payload_freshness": {
+    "coinank_payload_age_seconds": 11524,
+    "coinank_payload_status_at_generation": "CURRENT",
+    "operator_truth_bridge_age_seconds": 1130,
+    "operator_truth_bridge_status": "PAPER_ONLINE_CANONICAL_TRUTH_ACTIVE",
+    "paper_runtime_age_seconds": 0,
+    "paper_runtime_status": "CURRENT"
+  },
+  "primary_markers": {
+    "coinank_remediation": "COINANK_PLAN3_RUNTIME_CONTRACT_REMEDIATION_AND_V2_REAUDIT_READY",
+    "final_live_capital_gate": "FINAL_LIVE_CAPITAL_GATE_RECONCILIATION_AND_CANARY_APPROVAL_PACKET_READY",
+    "live_readiness_preflight": "LIVE_READINESS_PREFLIGHT_READY",
+    "production_website_full_rebuild": "PRODUCTION_WEBSITE_FULL_PUBLIC_ROUTE_CRAWL_AND_COINANK_STYLE_REBUILD_READY",
+    "public_hosting_and_telemetry_bridge": "PUBLIC_HOSTING_AND_TELEMETRY_BRIDGE_READY",
+    "risk_gateway_runtime_expansion_tests": "RISK_GATEWAY_RUNTIME_EXPANSION_TESTS_READY",
+    "script_migration_backlog": "SCRIPT_MIGRATION_BACKLOG_READY",
+    "v2_data_plane_and_script_migration_backlog": "V2_DATA_PLANE_AND_SCRIPT_MIGRATION_BACKLOG_READY"
+  },
+  "production_live_status": "BLOCKED_NOT_LIVE_READY",
+  "remaining_live_blockers": [
+    "FINAL_GATE_MISSING_EVIDENCE: read-only account status, trade permission status, and weekly loss hard stop evidence are missing.",
+    "SCRIPT_MIGRATION_UNSAFE_UNKNOWNS: 2093 scripts remain unsafe_unknown in migration backlog.",
+    "EXCHANGE_ACTION_SCRIPT_MIGRATION_INCOMPLETE: 344 exchange-action references still require migration/containment mapping.",
+    "REDIS_WRITER_MIGRATION_INCOMPLETE: 445 Redis writer references still require V2 namespace/durability migration.",
+    "TRAINER_FULL_MODEL_PARITY_NOT_PROVEN: V2 wrapper is current but legacy PPO/MASA checkpoint parity is not claimed.",
+    "POSTGRES_RUNTIME_CONNECTION_NOT_CONFIGURED: schema-ready only; runtime durable DB writes are not proven.",
+    "V2_REDIS_RUNTIME_WRITES_DISABLED: bounded namespace contract exists but runtime writes are disabled for safety.",
+    "COINANK_BRIDGE_PAYLOAD_STALE_OR_UNVERIFIED: generated_at age_seconds=11524; refresh cadence must be proven before production truth claim.",
+    "OPERATOR_TRUTH_BRIDGE_PAYLOAD_STALE: generated_at age_seconds=1130; website truth bridge needs refresh before production truth claim.",
+    "LEGACY_EXECUTED_ORDER_EVIDENCE_PRESENT: legacy stack has real exchange_order_id evidence; V2 must remain observer until cutover/containment is complete.",
+    "LEGACY_CROSS_MARGIN_EVIDENCE_PRESENT: legacy observed position after execution shows cross margin; V2 canary requires isolated only."
+  ],
+  "runtime_records": {
+    "feature_snapshot": {
+      "feature_snapshot_id": "fs_paper_tick_1778646096231",
+      "source_type": "READONLY_MARKET_FEED",
+      "status": "CURRENT"
+    },
+    "market_feed": {
+      "age_seconds": 8,
+      "source": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+      "status": "CURRENT"
+    },
+    "orchestrator_decision": {
+      "orchestrator_decision_id": "orch_paper_tick_1778646096231"
+    },
+    "paper_execution": {
+      "exchange_order_id": null,
+      "execution_intent_id": "pei_paper_tick_1778646096231",
+      "live_order": false,
+      "paper_action": "PAPER_FILL_SIMULATED",
+      "paper_result": "FILLED_PAPER_ONLY"
+    },
+    "risk_decision": {
+      "live_blocked": true,
+      "risk_decision_id": "risk_paper_tick_1778646096231",
+      "risk_reason_code": "allow_proceed_long",
+      "risk_result": "APPROVED_FOR_PAPER_ONLY"
+    },
+    "signal": {
+      "feature_snapshot_id": "fs_paper_tick_1778646096231",
+      "prediction_id": "pred_paper_tick_1778646096231",
+      "signal_id": "sig_paper_tick_1778646096231"
+    },
+    "trainer_prediction": {
+      "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
+      "prediction_id": "pred_paper_tick_1778646096231",
+      "source_type": "V2_PAPER_TRAINER_WRAPPER",
+      "status": "CURRENT"
+    }
+  },
+  "safety_assertions": {
+    "approval_file_created_by_this_task": false,
+    "exchange_action_by_this_task": false,
+    "legacy_bot_modified_by_this_task": false,
+    "leverage_or_margin_changed_by_this_task": false,
+    "live_enabled_by_this_task": false,
+    "old_redis_written_by_this_task": false
+  },
+  "script_migration_summary": {
+    "active_runtime_script_count": 7,
+    "exchange_action_script_count": 344,
+    "migration_priority_counts": {
+      "P0 execution/risk/live safety": 367,
+      "P1 trainer/feature/signal lineage": 721,
+      "P2 ingestors/market data": 62,
+      "P3 monitor/audit/logging": 212,
+      "P4 admin/config/UI": 195,
+      "P5 cleanup/deprecated": 2637
+    },
+    "phase3a_go_no_go": "PHASE3A_SYSTEM_ATLAS_12H_RUNTIME_COVERAGE_AND_EVIDENCE_INTEGRITY_BLOCKED",
+    "phase3b_go_no_go": "PHASE3B_SYSTEM_ATLAS_GAP_REMEDIATION_ZERO_UNKNOWNS_READY",
+    "redis_writer_script_count": 445,
+    "script_count": 4194,
+    "unsafe_unknown_count": 2093,
+    "zero_unclassified_active_runtime_scripts": true
+  },
+  "trainer_parity": {
+    "detail": "Legacy trainer/process/GPU can be observed read-only; V2 paper wrapper remains separate and full PPO/MASS checkpoint parity is not claimed.",
+    "legacy_trainer_gpu_status": "GPU_RUNTIME_EVIDENCE_MISSING",
+    "legacy_trainer_monitor_status": "PROCESS_NOT_OBSERVED",
+    "legacy_trainer_status": "PROCESS_OBSERVED_READONLY",
+    "parity_status": "PARTIAL_RUNTIME_BRIDGE_PARITY_NOT_FULL_MODEL_PARITY",
+    "v2_wrapper_status": "CURRENT"
+  },
+  "v2_data_plane": {
+    "exchange_orders": false,
+    "generated_at": "2026-05-12T20:27:47Z",
+    "legacy_redis_writes": false,
+    "postgres_audit_ledger": {
+      "schema_ready": true,
+      "secret_values_exposed": false,
+      "status": "POSTGRES_RUNTIME_WRITE_NOT_ATTEMPTED_NO_V2_DATABASE_URL"
+    },
+    "v2_bounded_redis_namespace": {
+      "max_stream_length": 10000,
+      "prefix": "v2:live_observer:",
+      "reason": "This task reads legacy Redis only. V2 Redis writes require explicit isolated V2 endpoint or approval that v2:* writes cannot affect legacy keys.",
+      "status": "V2_REDIS_NAMESPACE_CONTRACT_READY_WRITE_DISABLED_FOR_SAFETY",
+      "write_enabled": false
+    }
+  },
+  "website_visibility": {
+    "classification": "PAYLOAD_WIRED_PRIOR_ROUTE_CRAWL_VALID_BUT_BROWSER_RECRAWL_NOT_RUN_THIS_TURN",
+    "current_runtime_payload_available": true,
+    "evidence": [
+      "v2/frontend/src/components/layout/PageShell.tsx references lineage_ids.prediction_id and feature_snapshot_id",
+      "v2/frontend/src/components/layout/AdminShell.tsx reads current_risk_decision from paper runtime",
+      "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json contains current pred_*/fs_*/sig_*/risk_* IDs"
+    ],
+    "frontend_references_current_ids": true,
+    "not_revalidated_this_turn": "No public/local browser crawl was run in this reconciliation turn; prior production website crawl remains the latest route-level evidence."
+  }
+}
