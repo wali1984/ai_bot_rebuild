@@ -48,6 +48,17 @@ PRIMARY_CHAIN = [
     "FINAL_LIVE_CAPITAL_APPROVAL_REQUIRED",
 ]
 
+PRIMARY_MARKER_FILES = {
+    "TONIGHT_V2_LIVE_LIKE_PAPER_SHADOW_AND_CANARY_PREFLIGHT": "claude_worklog/final_readiness/tonight_live_like_paper_shadow/latest/GO_NO_GO.md",
+    "LEGACY_LIVE_BRIDGE_TO_V2_DATA_PLANE": "claude_worklog/final_readiness/legacy_live_bridge_to_v2_data_plane/latest/GO_NO_GO.md",
+    "LEGACY_EXECUTION_CONTAINMENT_AND_TRAINER_PARITY_SAFE_MODE": "claude_worklog/final_readiness/legacy_execution_containment/latest/GO_NO_GO.md",
+    "SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX": "claude_worklog/final_readiness/safe_legacy_trainer_bridge/latest/GO_NO_GO.md",
+    "RISK_GATEWAY_RUNTIME_EXPANSION_TESTS": "claude_worklog/final_readiness/risk_gateway_runtime_expansion_tests/latest/RISK_GATEWAY_RUNTIME_EXPANSION_TESTS_GO_NO_GO.md",
+    "V2_DATA_PLANE_AND_SCRIPT_MIGRATION_BACKLOG": "claude_worklog/final_readiness/v2_data_plane_and_script_migration_backlog/latest/V2_DATA_PLANE_AND_SCRIPT_MIGRATION_BACKLOG_GO_NO_GO.md",
+    "PUBLIC_HOSTING_AND_TELEMETRY_BRIDGE": "claude_worklog/final_readiness/public_hosting_and_telemetry_bridge/latest/PUBLIC_HOSTING_AND_TELEMETRY_BRIDGE_GO_NO_GO.md",
+    "LIVE_READINESS_PREFLIGHT": "claude_worklog/final_readiness/live_readiness_preflight/latest/LIVE_READINESS_PREFLIGHT_GO_NO_GO.md",
+}
+
 NEVER_EMPTY_LADDER = {
     "P0_safety_critical_runtime_containment": [
         "legacy exchange action evidence",
@@ -195,6 +206,14 @@ def task_state(task_id: str) -> str:
     state = read_json(STATE_TASKS / f"{task_id}.json")
     definition = read_json(TASKS / f"{task_id}.json")
     return str(state.get("status") or definition.get("status") or "missing")
+
+
+def primary_task_marker_ready(task_id: str) -> bool:
+    marker_path = PRIMARY_MARKER_FILES.get(task_id)
+    if not marker_path:
+        return False
+    first_line = (marker(marker_path) or "").strip().splitlines()
+    return bool(first_line and first_line[0].strip().endswith("_READY"))
 
 
 def primary_go_no_go() -> dict[str, str]:
@@ -396,21 +415,29 @@ def ensure_primary_task() -> dict[str, Any]:
         return ensure_post_final_non_live_task()
     path = TASKS / f"{selected}.json"
     state = task_state(selected)
+    if selected in PRIMARY_CHAIN and primary_task_marker_ready(selected):
+        state = "completed"
     if path.exists() and state in {"pending", "running", "retry_scheduled", "blocked_quota", "claude_rate_limited_resume_scheduled"}:
         return {"selected": selected, "action": f"existing_{state}", "created": False}
     if state == "completed":
         try:
             chain_index = PRIMARY_CHAIN.index(selected) + 1
         except ValueError:
-            chain_index = 0
+            if FINAL_LIVE_APPROVAL.exists():
+                return {"selected": "FINAL_LIVE_CAPITAL_APPROVAL_REQUIRED", "action": "human_final_gate_approval_present_manual_review_required", "created": False}
+            return ensure_post_final_non_live_task()
         for candidate in PRIMARY_CHAIN[chain_index:]:
             if candidate == "FINAL_LIVE_CAPITAL_APPROVAL_REQUIRED":
                 if FINAL_LIVE_APPROVAL.exists():
                     return {"selected": candidate, "action": "human_final_gate_approval_present_manual_review_required", "created": False}
                 return ensure_post_final_non_live_task()
             candidate_state = task_state(candidate)
+            if primary_task_marker_ready(candidate):
+                candidate_state = "completed"
             candidate_path = TASKS / f"{candidate}.json"
             if candidate_path.exists() and candidate_state == "completed":
+                continue
+            if not candidate_path.exists() and candidate_state == "completed":
                 continue
             selected = candidate
             path = candidate_path
