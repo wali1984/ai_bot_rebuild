@@ -35,6 +35,11 @@ import symbolsMeta from './symbols/meta';
 import symbolsRbac from './symbols/rbac';
 import symbolsRoute from './symbols/route';
 
+import MarketIntelligencePage from './market-intelligence';
+import marketIntelligenceMeta from './market-intelligence/meta';
+import marketIntelligenceRbac from './market-intelligence/rbac';
+import marketIntelligenceRoute from './market-intelligence/route';
+
 import SignalsPage from './signals';
 import signalsMeta from './signals/meta';
 import signalsRbac from './signals/rbac';
@@ -168,6 +173,7 @@ export const PAGES: ReadonlyArray<PageModule> = [
   { meta: trainerPredictionMonitorMeta, rbac: trainerPredictionMonitorRbac, route: trainerPredictionMonitorRoute, Component: TrainerPredictionMonitorPage },
   { meta: signalExplainabilityMeta, rbac: signalExplainabilityRbac, route: signalExplainabilityRoute, Component: SignalExplainabilityPage },
   { meta: symbolsMeta, rbac: symbolsRbac, route: symbolsRoute, Component: SymbolsPage },
+  { meta: marketIntelligenceMeta, rbac: marketIntelligenceRbac, route: marketIntelligenceRoute, Component: MarketIntelligencePage },
   { meta: signalsMeta, rbac: signalsRbac, route: signalsRoute, Component: SignalsPage },
   { meta: executionsMeta, rbac: executionsRbac, route: executionsRoute, Component: ExecutionsPage },
   { meta: positionsMeta, rbac: positionsRbac, route: positionsRoute, Component: PositionsPage },

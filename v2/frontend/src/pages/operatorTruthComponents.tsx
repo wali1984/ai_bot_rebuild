@@ -162,7 +162,7 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
           label="Signal lineage"
           value={signal.status}
           detail={signalLineageDetail}
-          source={signal.status === 'REALTIME_RUNTIME_EVIDENCE' ? 'RUNTIME_MONITOR_PAYLOAD' : 'STATIC_PROOF_FIXTURE'}
+          source={signal.status === 'REALTIME_RUNTIME_EVIDENCE' ? 'RUNTIME_MONITOR_PAYLOAD' : 'ARCHIVE_ONLY_FIXTURE'}
         />
         <TruthStateCard
           label="Legacy observer twin"
@@ -190,7 +190,7 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
         />
       </div>
       <div className="truth-classification-rail" aria-label="Data truth classification legend">
-        {['REALTIME_RUNTIME_EVIDENCE', 'READONLY_MARKET_FEED', 'READONLY_ACCOUNT_FEED', 'RUNTIME_MONITOR_PAYLOAD', 'V2_PROOF_ARTIFACT', 'STATIC_PROOF_FIXTURE', 'STALE_PAYLOAD', 'MISSING_EVIDENCE'].map((label) => (
+        {['REALTIME_RUNTIME_EVIDENCE', 'READONLY_MARKET_FEED', 'READONLY_ACCOUNT_FEED', 'RUNTIME_MONITOR_PAYLOAD', 'V2_PROOF_ARTIFACT', 'ARCHIVE_ONLY_FIXTURE', 'STALE_PAYLOAD', 'MISSING_EVIDENCE'].map((label) => (
           <span key={label} className={`truth-source-chip truth-source-chip--${truthTone(label)}`}>{label}</span>
         ))}
       </div>

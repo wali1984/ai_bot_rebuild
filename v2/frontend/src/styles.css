@@ -893,6 +893,147 @@ a { color: inherit; }
   gap: 8px;
 }
 
+.trading-cockpit-shell {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(107, 121, 138, 0.34);
+  border-radius: 6px;
+  background:
+    linear-gradient(180deg, rgba(15, 20, 27, 0.98), rgba(8, 12, 17, 0.98)),
+    #0b0f14;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 18px 44px rgba(0, 0, 0, 0.34);
+}
+
+.trading-cockpit-top-rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+  min-height: 38px;
+  padding: 6px;
+  border: 1px solid rgba(107, 121, 138, 0.28);
+  border-radius: 6px;
+  background: rgba(13, 19, 26, 0.92);
+}
+
+.trading-cockpit-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.9fr) minmax(300px, 0.72fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.trading-cockpit-chart-stack,
+.trading-cockpit-side-stack {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.trading-cockpit-section-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 2px 0;
+}
+
+.trading-cockpit-section-head h2 {
+  margin: 0;
+  color: var(--color-fg);
+  font-size: 20px;
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+.trading-cockpit-shell .cockpit-panel[id="charting-market-data"] {
+  margin: 0;
+  border-color: rgba(107, 121, 138, 0.38);
+  background: #090d12;
+}
+
+.trading-cockpit-shell .readonly-market-chart {
+  min-height: 360px;
+}
+
+.trading-cockpit-shell .cockpit-chart {
+  min-height: 300px;
+}
+
+.trading-market-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(135px, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid rgba(107, 121, 138, 0.28);
+  border-radius: 6px;
+  background: rgba(107, 121, 138, 0.28);
+}
+
+.trading-cockpit-card {
+  display: grid;
+  gap: 6px;
+  min-height: 78px;
+  padding: 10px;
+  border: 1px solid rgba(107, 121, 138, 0.22);
+  border-radius: 6px;
+  background: rgba(13, 19, 26, 0.96);
+}
+
+.trading-cockpit-card--market {
+  min-height: 88px;
+  border: 0;
+  border-radius: 0;
+}
+
+.trading-cockpit-card--blocker {
+  min-height: 104px;
+  border-color: rgba(217, 119, 6, 0.48);
+  background: rgba(27, 18, 9, 0.78);
+}
+
+.trading-cockpit-card span,
+.trading-legacy-v2-comparison span {
+  color: var(--text-dim);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.trading-cockpit-card strong,
+.trading-legacy-v2-comparison strong {
+  overflow-wrap: anywhere;
+  color: var(--color-fg);
+  font-size: 16px;
+  line-height: 1.15;
+}
+
+.trading-cockpit-card small,
+.trading-legacy-v2-comparison small {
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.trading-legacy-v2-comparison {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid rgba(107, 121, 138, 0.28);
+  border-radius: 6px;
+  background: rgba(107, 121, 138, 0.28);
+}
+
+.trading-legacy-v2-comparison > div {
+  display: grid;
+  gap: 6px;
+  min-height: 88px;
+  padding: 12px;
+  background: rgba(10, 15, 21, 0.96);
+}
+
 .truth-status-strip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
@@ -2039,6 +2180,8 @@ a { color: inherit; }
   .enterprise-cockpit-hero { display: grid; }
   .mission-command-hero,
   .public-hero,
+  .trading-cockpit-main-grid,
+  .trading-legacy-v2-comparison,
   .mission-command-layout,
   .mission-system-grid,
   .design-page-hero,
@@ -2046,6 +2189,7 @@ a { color: inherit; }
     grid-template-columns: 1fr;
   }
   .mission-command-stats,
+  .trading-market-strip,
   .mission-subsystem-strip,
   .mission-boundary-flow,
   .truth-command-grid,

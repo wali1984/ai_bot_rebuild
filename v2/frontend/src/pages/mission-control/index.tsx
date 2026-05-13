@@ -6,7 +6,7 @@ import { AutonomousGovernorPanel, ChartPanel, CockpitLoading, ConfigTable, Decis
 import type { AutonomousGovernorPayload, CockpitPayload } from '../cockpitData';
 import { statusClass, useCockpitPayload, valueText } from '../cockpitData';
 import { MissionControlReadinessBanner } from '../../components/banners/MissionControlReadinessBanner';
-import { useCoinankMarketIntelligencePayload, useOperatorTruthPayload, usePaperOnlineRuntimePayload, type PaperOnlineRuntimePayload } from '../operatorTruthData';
+import { useCoinankMarketIntelligencePayload, useOperatorTruthPayload, usePaperOnlineRuntimePayload, type CoinankMarketIntelligencePayload, type OperatorTruthPayload, type PaperOnlineRuntimePayload } from '../operatorTruthData';
 import { ActualRuntimeNowPanel, CoinankMarketIntelligencePanel, LegacyRuntimeMonitorPanel, LiveObserverShadowTwinPanel, MissingEvidencePanel, OperatorTruthCommandDeck, OperatorTruthLoading, PaperOnlineRuntimeStatusPanel, PayloadFreshnessPanel, RuntimeTruthMatrix, SignalLineageTruthPanel, TrainerPredictionTruthPanel, WhatIsWorkingPanel } from '../operatorTruthComponents';
 import { MissionTradingPlatformPanel } from '../tradingPlatformPanels';
 
@@ -31,11 +31,18 @@ export default function MissionControlPage(): JSX.Element {
   return (
     <article className="enterprise-cockpit-page mission-control-design-page grid-bg" data-testid="page-mission-control" data-page-id={meta.id} data-page-path={route.path} data-page-min-role={rbac.minRole}>
       <MissionControlReadinessBanner />
+      <TradingCockpitFirstScreen
+        payload={payload}
+        marketFeedSource={marketFeedSource}
+        paperRuntime={paperRuntime}
+        coinankPayload={coinankPayload}
+        truthPayload={truthPayload}
+      />
       {truthPayload ? <OperatorTruthCommandDeck payload={truthPayload} /> : <OperatorTruthLoading error={truthError} />}
       {truthPayload ? <ActualRuntimeNowPanel payload={truthPayload} /> : null}
       {truthPayload ? <RuntimeTruthMatrix payload={truthPayload} /> : null}
-      <PaperOnlineRuntimeStatusPanel payload={paperRuntime} />
       <MissionTradingPlatformPanel paperRuntime={paperRuntime} coinankPayload={coinankPayload} truthPayload={truthPayload} />
+      <PaperOnlineRuntimeStatusPanel payload={paperRuntime} />
       <CoinankMarketIntelligencePanel payload={coinankPayload} error={coinankError} context="Mission Control" />
       {truthPayload ? <LiveObserverShadowTwinPanel payload={truthPayload} /> : null}
       {truthPayload ? <MissionCriticalSystemsGrid payload={payload} truthPayload={truthPayload} paperRuntime={paperRuntime} /> : null}
@@ -59,6 +66,156 @@ export default function MissionControlPage(): JSX.Element {
         AI BOT V2 Modern Dashboard Loaded
       </footer>
     </article>
+  );
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function firstString(values: unknown[]): unknown {
+  return values.find((value) => value !== undefined && value !== null && value !== '');
+}
+
+function shortText(value: unknown, fallback = 'MISSING_EVIDENCE'): string {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+  const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
+  return text.length > 138 ? `${text.slice(0, 135)}...` : text;
+}
+
+function blockerSummary(value: unknown): string {
+  const record = recordValue(value);
+  if (record.id || record.detail) {
+    return shortText([record.id, record.detail].filter(Boolean).join(': '));
+  }
+  return shortText(value, 'Continue live blocker burn-down');
+}
+
+function paperLineageIds(payload: PaperOnlineRuntimePayload | null): Record<string, unknown> {
+  return recordValue(recordValue(payload?.current_signal_lineage).lineage_ids);
+}
+
+function paperSignal(payload: PaperOnlineRuntimePayload | null): Record<string, unknown> {
+  return recordValue(recordValue(payload?.current_signal_lineage).signal);
+}
+
+function paperExecutionIntent(payload: PaperOnlineRuntimePayload | null): Record<string, unknown> {
+  return recordValue(recordValue(payload?.current_signal_lineage).execution_intent);
+}
+
+function latestLegacyExecutionFromTruth(payload: OperatorTruthPayload | null): Record<string, unknown> {
+  const bridge = recordValue(recordValue(payload?.live_observer_shadow_twin).legacy_read_only_bridge);
+  const streams = recordValue(bridge.streams);
+  const executed = recordValue(streams.executed_signals);
+  const latest = recordValue(executed.latest_entry);
+  return recordValue(recordValue(latest.fields).data);
+}
+
+function TradingCockpitFirstScreen({
+  payload,
+  marketFeedSource,
+  paperRuntime,
+  coinankPayload,
+  truthPayload,
+}: {
+  payload: CockpitPayload;
+  marketFeedSource?: string;
+  paperRuntime: PaperOnlineRuntimePayload | null;
+  coinankPayload: CoinankMarketIntelligencePayload | null;
+  truthPayload: OperatorTruthPayload | null;
+}): JSX.Element {
+  const ids = paperLineageIds(paperRuntime);
+  const signal = paperSignal(paperRuntime);
+  const executionIntent = paperExecutionIntent(paperRuntime);
+  const risk = recordValue(paperRuntime?.current_risk_decision);
+  const trainer = recordValue(paperRuntime?.trainer_prediction);
+  const paperEvent = recordValue(paperRuntime?.last_paper_event);
+  const availability = coinankPayload?.availability ?? {};
+  const endpointCounts = coinankPayload?.endpoint_key_counts ?? {};
+  const legacyExecution = latestLegacyExecutionFromTruth(truthPayload);
+  const observerTwin = recordValue(recordValue(truthPayload?.live_observer_shadow_twin).legacy_shadow_twin);
+  const observerRisk = recordValue(observerTwin.risk_decision);
+  const blocker = truthPayload?.current_blockers[0] ?? payload.blockers[0]?.id ?? payload.evidence_gaps[0] ?? 'Continue live blocker burn-down';
+  const activeTask = truthPayload?.supervisor_status.current_running_task ?? 'non-live monitor/audit loop';
+  const marketCards = [
+    ['Price', paperRuntime?.market_feed?.price ?? 'MISSING_EVIDENCE', paperRuntime?.market_feed?.source_type ?? marketFeedSource ?? 'READONLY_MARKET_FEED'],
+    ['Funding', endpointCounts.weighted_funding ? 'LIVE_COINANK_READONLY' : 'MISSING_EVIDENCE', 'CoinAnk weighted funding'],
+    ['Open interest', endpointCounts.open_interest ? 'LIVE_COINANK_READONLY' : 'MISSING_EVIDENCE', 'CoinAnk OI / OI change'],
+    ['Long / short', availability.long_short ? 'LIVE_COINANK_READONLY' : 'MISSING_EVIDENCE', 'CoinAnk ratios'],
+    ['Liquidations', availability.liquidation_orders || availability.liquidation_rank ? 'LIVE_COINANK_READONLY' : 'MISSING_EVIDENCE', 'CoinAnk liquidation rank/orders'],
+  ] satisfies Array<[string, unknown, string]>;
+  const riskCards = [
+    ['prediction_id', firstString([ids.prediction_id, trainer.prediction_id, 'MISSING_EVIDENCE'])],
+    ['signal_id', firstString([ids.signal_id, signal.signal_id, 'MISSING_EVIDENCE'])],
+    ['risk_decision_id', firstString([ids.risk_decision_id, risk.risk_decision_id, 'MISSING_EVIDENCE'])],
+    ['execution_intent_id', firstString([ids.execution_intent_id, paperEvent.execution_intent_id, executionIntent.execution_intent_id, 'MISSING_EVIDENCE'])],
+    ['paper PnL', firstString([paperEvent.pnl, paperEvent.realized_pnl, paperRuntime?.paper_account?.realized_pnl, 'MISSING_EVIDENCE'])],
+    ['shadow / risk blocks', `${paperRuntime?.paper_loop.last_shadow_decision_count ?? 0} / ${paperRuntime?.paper_loop.last_risk_block_count ?? 0}`],
+  ] satisfies Array<[string, unknown]>;
+  return (
+    <section className="trading-cockpit-shell" data-testid="mission-trading-cockpit-first-screen" aria-label="Mission Control trading cockpit">
+      <div className="trading-cockpit-top-rail">
+        <span className="chip solid-block">LIVE GATE: {paperRuntime?.live_gate_status ?? truthPayload?.live_gate_status ?? payload.live_gate_status}</span>
+        <span className="chip solid-paper">MODE: paper / shadow / live blocked</span>
+        <span className="chip">SYMBOL: {paperRuntime?.market_feed?.symbol ?? payload.selected_symbol ?? 'BTCUSDT'}</span>
+        <span className="chip">PAPER AGE: {valueText(paperRuntime?.freshness?.runtime_age_seconds ?? 'MISSING_EVIDENCE')}s</span>
+        <span className="chip">LEGACY BRIDGE: {truthPayload?.runtime_monitor_status.trader_status ?? 'MISSING_EVIDENCE'}</span>
+        <span className="chip">CLAUDE/CODEX: {valueText(activeTask)}</span>
+      </div>
+      <div className="trading-cockpit-main-grid">
+        <div className="trading-cockpit-chart-stack">
+          <div className="trading-cockpit-section-head">
+            <div>
+              <p className="eyebrow">Trade Cockpit / read-only market context</p>
+              <h2>{paperRuntime?.market_feed?.symbol ?? 'BTCUSDT'} paper-shadow command view</h2>
+            </div>
+            <span className="chip">{marketFeedSource === 'READONLY_MARKET_FEED' ? 'READONLY_MARKET_FEED_PRIMARY' : 'FALLBACK_READONLY_CHART'}</span>
+          </div>
+          <ChartPanel candles={payload.candles} decisions={payload.decisions} sourceType={marketFeedSource} />
+          <div className="trading-market-strip">
+            {marketCards.map(([label, value, source]) => (
+              <div className="trading-cockpit-card trading-cockpit-card--market" key={label}>
+                <span>{label}</span>
+                <strong className={statusClass(value)}>{valueText(value)}</strong>
+                <small>Source/freshness: {source}</small>
+              </div>
+            ))}
+          </div>
+        </div>
+        <aside className="trading-cockpit-side-stack">
+          <div className="trading-cockpit-card trading-cockpit-card--blocker">
+            <span>Next blocker</span>
+            <strong>{blockerSummary(blocker)}</strong>
+            <small>Primary lane remains migration, risk, trainer parity, and paper/shadow proof.</small>
+          </div>
+          {riskCards.map(([label, value]) => (
+            <div className="trading-cockpit-card" key={label}>
+              <span>{label}</span>
+              <strong className={statusClass(value)}>{valueText(value)}</strong>
+            </div>
+          ))}
+        </aside>
+      </div>
+      <div className="trading-legacy-v2-comparison">
+        <div>
+          <span>Legacy read-only import</span>
+          <strong>{valueText(legacyExecution.exchange_order_id ?? 'MISSING_EVIDENCE')}</strong>
+          <small>Imported only; V2 does not mutate legacy or exchange state.</small>
+        </div>
+        <div>
+          <span>V2 risk outcome</span>
+          <strong className={statusClass(observerRisk.risk_result ?? risk.risk_result)}>{valueText(observerRisk.risk_result ?? risk.risk_result ?? 'MISSING_EVIDENCE')}</strong>
+          <small>{valueText(observerRisk.risk_reason_code ?? risk.risk_reason_code ?? 'Risk Gateway remains final authority')}</small>
+        </div>
+        <div>
+          <span>Paper/execution state</span>
+          <strong>{valueText(paperEvent.paper_result ?? paperEvent.paper_action ?? 'MISSING_EVIDENCE')}</strong>
+          <small>No live order controls are exposed from Mission Control.</small>
+        </div>
+      </div>
+    </section>
   );
 }
 

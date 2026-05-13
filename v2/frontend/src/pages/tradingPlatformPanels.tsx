@@ -123,7 +123,7 @@ export function TradingPlatformRoutePanel({
   coinankPayload: CoinankMarketIntelligencePayload | null;
   truthPayload: OperatorTruthPayload | null;
 }): JSX.Element | null {
-  if (routeId === 'symbols') {
+  if (routeId === 'symbols' || routeId === 'market-intelligence') {
     return <MarketIntelligencePlatformPanel paperRuntime={paperRuntime} coinankPayload={coinankPayload} />;
   }
   if (routeId === 'signals') {

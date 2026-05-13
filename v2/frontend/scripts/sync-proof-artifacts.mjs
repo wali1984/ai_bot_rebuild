@@ -66,6 +66,7 @@ const artifactSets = [
   'production_truth_reconciliation',
   'current_data_migration_sprint',
   'live_blocker_burndown_trading_platform_ui',
+  'public_trading_platform_visual_parity',
   'legacy_coinank_plan3_bridge',
   'coinank_plan3_runtime_remediation',
   'v2_live_observer_shadow_twin',
@@ -132,6 +133,11 @@ for (const name of artifactSets) {
       cpSync(resolve(source, file), resolve(target, file));
     }
   } else if (name === 'redis_trim_approval_hold') {
+    mkdirSync(target, { recursive: true });
+    for (const file of ['operator_dashboard_payload.json']) {
+      cpSync(resolve(source, file), resolve(target, file));
+    }
+  } else if (name === 'public_trading_platform_visual_parity') {
     mkdirSync(target, { recursive: true });
     for (const file of ['operator_dashboard_payload.json']) {
       cpSync(resolve(source, file), resolve(target, file));

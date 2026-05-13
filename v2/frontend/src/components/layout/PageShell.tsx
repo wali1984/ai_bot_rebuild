@@ -18,6 +18,12 @@ const ROUTE_PROFILES: Record<string, { source: string; status: string; next: str
     next: 'Wire V2 symbol universe payload with exchange/source freshness and selection status.',
     data: ['symbol', 'exchange', 'status', 'market feed freshness', 'enabled for paper/shadow'],
   },
+  'market-intelligence': {
+    source: 'LIVE_COINANK_READONLY / V2 market-intelligence bridge',
+    status: 'CoinAnk-style intelligence; no mock market data as current truth',
+    next: 'Keep funding, OI, long/short, liquidation, and radar panels backed by current CoinAnk bridge evidence.',
+    data: ['symbol', 'price', 'funding', 'open interest', 'long/short', 'liquidations', 'radar rank', 'freshness'],
+  },
   signals: {
     source: 'RUNTIME_MONITOR_PAYLOAD / signal lineage',
     status: 'current runtime signal lineage required',
@@ -150,6 +156,7 @@ export function PageShell({ meta, rbac, route }: Props): JSX.Element {
         </div>
       </header>
       <DangerousControlPanel controlIds={meta.dangerousControlIds} />
+      <TradingPlatformRoutePanel routeId={meta.id} paperRuntime={paperRuntime} coinankPayload={coinankPayload} truthPayload={truthPayload} />
       <Panel id={`${meta.id}-production-summary`} title={`${meta.title} Production Surface`}>
         <div className="cockpit-analytics-grid">
           {sourceRows.map(([label, value]) => <Metric key={label} label={label} value={value} />)}
@@ -191,7 +198,6 @@ export function PageShell({ meta, rbac, route }: Props): JSX.Element {
           Current V2 paper/shadow lineage is rendered before archive evidence. Historical proof rows and static fixtures are not current runtime truth.
         </p>
       </Panel>
-      <TradingPlatformRoutePanel routeId={meta.id} paperRuntime={paperRuntime} coinankPayload={coinankPayload} truthPayload={truthPayload} />
       <Panel id={`${meta.id}-required-data`} title="Required Production Data Contract" right={<span className="chip solid-warn">No placeholder-only route</span>}>
         <div className="cockpit-card-grid">
           {profile.data.map((item) => (
