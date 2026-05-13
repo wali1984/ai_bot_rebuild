@@ -22,6 +22,8 @@ V2_ROOT = REPO_ROOT / "v2"
 PUBLIC_RUNTIME_DIR = V2_ROOT / "frontend" / "public" / "operator_runtime" / "paper_online" / "latest"
 LOCAL_RUNTIME_DIR = V2_ROOT / "runtime" / "paper_online" / "latest"
 FINAL_DIR = REPO_ROOT / "claude_worklog" / "final_readiness" / "v2_paper_online_recovery" / "latest"
+WEEKLY_LOSS_LIMIT_USDT = -250.0
+DAILY_LOSS_LIMIT_USDT = -75.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -338,6 +340,7 @@ def build_signal_lineage(
             "missing_stop_policy",
             "disabled_kill_switch",
             "daily_loss_breach",
+            "weekly_loss_breach",
             "untraceable_execution",
         ],
         "missing_fields": missing_fields,
@@ -422,6 +425,81 @@ def build_paper_ledger_entry(
     return ledger_entry, account
 
 
+def build_risk_runtime_payload(
+    *,
+    generated_at: str,
+    lineage: dict[str, Any],
+    ledger_entry: dict[str, Any],
+    paper_account: dict[str, Any],
+) -> dict[str, Any]:
+    realized_pnl = float(paper_account["realized_pnl"])
+    return {
+        "generated_at": generated_at,
+        "source": "V2_PAPER_RUNTIME_RISK_RUNTIME_PAYLOAD",
+        "live_gate_status": LIVE_GATE_STATUS,
+        "risk_decision_id": lineage["risk_decision"]["risk_decision_id"],
+        "signal_id": lineage["signal"]["signal_id"],
+        "execution_intent_id": ledger_entry["execution_intent_id"],
+        "daily_loss_gate_required": True,
+        "weekly_loss_gate_required": True,
+        "kill_switch_required": True,
+        "stop_policy_required": True,
+        "risk_config_version": "v2_paper_canary_hard_gates_v1",
+        "daily_pnl_source": "V2_PAPER_ACCOUNT_REALIZED_PNL_CURRENT",
+        "weekly_pnl_source": "V2_PAPER_ACCOUNT_REALIZED_PNL_CURRENT_UNTIL_DURABLE_WINDOW_LEDGER",
+        "daily_realized_pnl_usdt": realized_pnl,
+        "weekly_realized_pnl_usdt": realized_pnl,
+        "daily_loss_limit_usdt": DAILY_LOSS_LIMIT_USDT,
+        "weekly_loss_limit_usdt": WEEKLY_LOSS_LIMIT_USDT,
+        "daily_loss_breach": realized_pnl <= DAILY_LOSS_LIMIT_USDT,
+        "weekly_loss_breach": realized_pnl <= WEEKLY_LOSS_LIMIT_USDT,
+        "reset_window": {
+            "daily": "UTC calendar day until V2 durable account ledger is installed",
+            "weekly": "UTC ISO week until V2 durable account ledger is installed",
+        },
+        "dedupe_source": "paper_ledger_entry_id + execution_intent_id + risk_decision_id",
+        "audit_event": "WEEKLY_LOSS_GATE_RUNTIME_EVALUATED",
+        "exchange_order": False,
+        "legacy_redis_write": False,
+    }
+
+
+def append_paper_event(root: Path, payload: dict[str, Any], risk_runtime_payload: dict[str, Any]) -> None:
+    ledger_entry = payload["paper_ledger_tail"][0]
+    event = {
+        "generated_at": payload["generated_at"],
+        "tick_id": payload["paper_loop"]["tick_id"],
+        "symbol": ledger_entry["symbol"],
+        "prediction_id": payload["current_signal_lineage"]["lineage_ids"]["prediction_id"],
+        "feature_snapshot_id": payload["current_signal_lineage"]["lineage_ids"]["feature_snapshot_id"],
+        "signal_id": ledger_entry["signal_id"],
+        "risk_decision_id": ledger_entry["risk_decision_id"],
+        "execution_intent_id": ledger_entry["execution_intent_id"],
+        "paper_ledger_entry_id": ledger_entry["paper_ledger_entry_id"],
+        "risk_action": payload["current_risk_decision"]["risk_action"],
+        "risk_result": payload["current_risk_decision"]["risk_result"],
+        "risk_reason_code": payload["current_risk_decision"]["risk_reason_code"],
+        "ledger_action": ledger_entry["ledger_action"],
+        "paper_result": ledger_entry["paper_result"],
+        "confidence": payload["current_signal_lineage"]["signal"]["confidence"],
+        "notional_usdt": ledger_entry["notional_usdt"],
+        "fee_usdt": ledger_entry["fee_usdt"],
+        "slippage_bps": ledger_entry["slippage_bps"],
+        "funding_assumption": ledger_entry["funding_assumption"],
+        "paper_equity": payload["paper_account"]["equity"],
+        "paper_realized_pnl": payload["paper_account"]["realized_pnl"],
+        "weekly_loss_gate_required": risk_runtime_payload["weekly_loss_gate_required"],
+        "weekly_loss_breach": risk_runtime_payload["weekly_loss_breach"],
+        "live_gate_status": LIVE_GATE_STATUS,
+        "exchange_order": False,
+        "legacy_redis_write": False,
+        "source_type": "V2_PAPER_RUNTIME_JSONL_EVENT",
+    }
+    root.mkdir(parents=True, exist_ok=True)
+    with (root / "paper_events.jsonl").open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event, sort_keys=True) + "\n")
+
+
 def build_runtime_payload(symbol: str, interval: int) -> tuple[dict[str, Any], dict[str, Any]]:
     market = fetch_market_snapshot(symbol)
     previous = _read_json(LOCAL_RUNTIME_DIR / "paper_runtime_status.json") or {}
@@ -445,6 +523,12 @@ def build_runtime_payload(symbol: str, interval: int) -> tuple[dict[str, Any], d
         market=market,
         lineage=lineage,
         previous_equity=previous_equity,
+    )
+    risk_runtime_payload = build_risk_runtime_payload(
+        generated_at=generated_at,
+        lineage=lineage,
+        ledger_entry=ledger_entry,
+        paper_account=paper_account,
     )
     runtime_state = "PAPER_RUNTIME_ONLINE_ACTIVE" if runtime_online else "PAPER_RUNTIME_BLOCKED_MARKET_FEED_MISSING"
     blockers: list[dict[str, str]] = []
@@ -500,6 +584,7 @@ def build_runtime_payload(symbol: str, interval: int) -> tuple[dict[str, Any], d
         "trainer_prediction": trainer_prediction,
         "current_signal_lineage": lineage,
         "current_risk_decision": lineage["risk_decision"],
+        "risk_runtime_payload": risk_runtime_payload,
         "paper_ledger_tail": [ledger_entry],
         "audit_events": [
             {
@@ -562,7 +647,9 @@ def write_runtime_payload(symbol: str, interval: int, write_evidence: bool) -> d
         _write_json(root / "trainer_prediction_current_record.json", payload["trainer_prediction"])
         _write_json(root / "current_signal_lineage.json", payload["current_signal_lineage"])
         _write_json(root / "current_risk_decisions.json", {"generated_at": payload["generated_at"], "decisions": [payload["current_risk_decision"]]})
+        _write_json(root / "risk_runtime_payload.json", payload["risk_runtime_payload"])
         _write_json(root / "paper_ledger_tail.json", {"generated_at": payload["generated_at"], "entries": payload["paper_ledger_tail"]})
+        append_paper_event(root, payload, payload["risk_runtime_payload"])
     if write_evidence:
         write_evidence_packet(payload, positions)
     return payload
@@ -589,6 +676,7 @@ def write_evidence_packet(payload: dict[str, Any], positions: dict[str, Any]) ->
         "generated_at": payload["generated_at"],
         "decisions": [payload["current_risk_decision"]],
     })
+    _write_json(FINAL_DIR / "risk_runtime_payload.json", payload["risk_runtime_payload"])
     _write_json(FINAL_DIR / "paper_ledger_tail.json", {
         "generated_at": payload["generated_at"],
         "entries": payload["paper_ledger_tail"],

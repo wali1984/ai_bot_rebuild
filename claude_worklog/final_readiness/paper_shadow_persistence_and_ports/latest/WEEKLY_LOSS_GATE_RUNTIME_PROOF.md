@@ -1,0 +1,23 @@
+# Weekly Loss Gate Runtime Proof
+
+Generated at: 2026-05-13T07:27:58.557Z
+
+Classification: WEEKLY_LOSS_GATE_RUNTIME_PROVEN
+
+| Field | Value |
+| --- | --- |
+| classification | WEEKLY_LOSS_GATE_RUNTIME_PROVEN |
+| risk_runtime_payload_path | v2/runtime/paper_online/latest/risk_runtime_payload.json |
+| public_runtime_payload_path | v2/frontend/public/operator_runtime/paper_online/latest/risk_runtime_payload.json |
+| weekly_loss_gate_required | true |
+| weekly_loss_breach | false |
+| weekly_realized_pnl_usdt | -26.43 |
+| weekly_loss_limit_usdt | -250 |
+| daily_loss_gate_required | true |
+| daily_realized_pnl_usdt | -26.43 |
+| daily_loss_limit_usdt | -75 |
+| reset_window | {"daily":"UTC calendar day until V2 durable account ledger is installed","weekly":"UTC ISO week until V2 durable account ledger is installed"} |
+| dedupe_logic | paper_ledger_entry_id + execution_intent_id + risk_decision_id |
+| test_coverage | v2/backend/tests/unit/cli/test_paper_online_runtime_weekly_loss.py |
+
+The V2 paper runtime now emits weekly-loss gate evidence. This does not approve live; it removes the prior weekly-loss evidence gap.

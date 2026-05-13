@@ -1,0 +1,36 @@
+{
+  "generated_at": "2026-05-13T07:27:58.557Z",
+  "selected_items": [
+    {
+      "priority": "P0",
+      "item": "weekly loss gate runtime proof",
+      "legacy_source_path": "legacy risk/loss accounting behavior (read-only reference only)",
+      "v2_target_module": "v2.backend.app.cli.paper_online_runtime",
+      "implementation_path": "v2/backend/app/cli/paper_online_runtime.py",
+      "test_path": "v2/backend/tests/unit/cli/test_paper_online_runtime_weekly_loss.py",
+      "gui_payload_visibility": "v2/frontend/public/operator_runtime/paper_online/latest/risk_runtime_payload.json and paper_shadow_persistence_and_ports payload",
+      "runtime_proof": "WEEKLY_LOSS_GATE_RUNTIME_PROVEN",
+      "blocker": "none"
+    },
+    {
+      "priority": "P1",
+      "item": "paper-shadow observation and trainer/signal lineage summary adapter",
+      "legacy_source_path": "legacy paper/shadow/proposal lineage concepts (read-only reference only)",
+      "v2_target_module": "v2.backend.app.cli.paper_shadow_observation",
+      "implementation_path": "v2/backend/app/cli/paper_shadow_observation.py",
+      "test_path": "v2/backend/tests/unit/cli/test_paper_shadow_observation.py",
+      "gui_payload_visibility": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
+      "runtime_proof": "PAPER_SHADOW_OBSERVATION_PAYLOAD_CURRENT",
+      "blocker": "6h_24h_window_pending"
+    }
+  ],
+  "backlog_counts": {
+    "P0 execution/risk/live safety": 367,
+    "P1 trainer/feature/signal lineage": 721,
+    "P2 ingestors/market data": 62,
+    "P3 monitor/audit/logging": 212,
+    "P4 admin/config/UI": 195,
+    "P5 cleanup/deprecated": 2637
+  },
+  "conclusion": "P0 weekly-loss runtime proof and P1 paper-shadow observation adapter were implemented in V2. Script migration remains incomplete overall."
+}

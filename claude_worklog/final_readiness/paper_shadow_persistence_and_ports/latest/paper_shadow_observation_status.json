@@ -1,0 +1,96 @@
+{
+  "allowed_intents": 2,
+  "blocked_intents": 0,
+  "fees_slippage_funding_assumptions": {
+    "fee_rate": 0.0004,
+    "funding": "zero_until_funding_feed_adapter_current",
+    "slippage_bps": 2
+  },
+  "generated_at": "2026-05-13T07:24:41Z",
+  "latest_execution_intent_id": "pei_paper_tick_1778657044980",
+  "latest_paper_fill_id": "pledger_paper_tick_1778657044980",
+  "latest_paper_ledger_entry_id": "pledger_paper_tick_1778657044980",
+  "latest_prediction_id": "pred_paper_tick_1778657044980",
+  "latest_risk_decision_id": "risk_paper_tick_1778657044980",
+  "latest_signal_id": "sig_paper_tick_1778657044980",
+  "legacy_vs_v2_comparison": "MISSING_EVIDENCE_UNTIL_RECENT_LEGACY_EXECUTION_IMPORT_WINDOW",
+  "live_gate_status": "blocked_human_only",
+  "paper_events_count": 2,
+  "paper_pnl_current_usdt": -26.43,
+  "paper_shadow_24h_status": "PAPER_SHADOW_24H_PENDING",
+  "paper_shadow_6h_status": "PAPER_SHADOW_6H_PENDING",
+  "profitability_proof_status": "PROFITABILITY_PROOF_PENDING",
+  "runtime_age_seconds": 0,
+  "runtime_state": "PAPER_RUNTIME_ONLINE_ACTIVE",
+  "safety": {
+    "exchange_order": false,
+    "final_live_approval_token": false,
+    "leverage_change": false,
+    "margin_mode_change": false,
+    "old_redis_write": false
+  },
+  "simulated_fills": 2,
+  "source": "V2_PAPER_RUNTIME_JSONL_EVENT",
+  "windows": {
+    "1h": {
+      "allowed_intents": 2,
+      "blocked_intents": 0,
+      "classification": "PAPER_SHADOW_1H_PENDING",
+      "confidence_bucket_distribution": {
+        "0.75_plus": 2
+      },
+      "event_count": 2,
+      "hours": 1,
+      "paper_pnl_delta_status": "CURRENT_WINDOW_PNL_AVAILABLE",
+      "paper_pnl_delta_usdt": -0.06,
+      "reason_distribution": {
+        "allow_proceed_short": 2
+      },
+      "simulated_fills": 2,
+      "symbol_distribution": {
+        "BTCUSDT": 2
+      },
+      "window_complete": false
+    },
+    "24h": {
+      "allowed_intents": 2,
+      "blocked_intents": 0,
+      "classification": "PAPER_SHADOW_24H_PENDING",
+      "confidence_bucket_distribution": {
+        "0.75_plus": 2
+      },
+      "event_count": 2,
+      "hours": 24,
+      "paper_pnl_delta_status": "CURRENT_WINDOW_PNL_AVAILABLE",
+      "paper_pnl_delta_usdt": -0.06,
+      "reason_distribution": {
+        "allow_proceed_short": 2
+      },
+      "simulated_fills": 2,
+      "symbol_distribution": {
+        "BTCUSDT": 2
+      },
+      "window_complete": false
+    },
+    "6h": {
+      "allowed_intents": 2,
+      "blocked_intents": 0,
+      "classification": "PAPER_SHADOW_6H_PENDING",
+      "confidence_bucket_distribution": {
+        "0.75_plus": 2
+      },
+      "event_count": 2,
+      "hours": 6,
+      "paper_pnl_delta_status": "CURRENT_WINDOW_PNL_AVAILABLE",
+      "paper_pnl_delta_usdt": -0.06,
+      "reason_distribution": {
+        "allow_proceed_short": 2
+      },
+      "simulated_fills": 2,
+      "symbol_distribution": {
+        "BTCUSDT": 2
+      },
+      "window_complete": false
+    }
+  }
+}
