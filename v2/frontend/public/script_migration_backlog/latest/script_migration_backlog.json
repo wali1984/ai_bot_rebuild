@@ -43058,11 +43058,20 @@
       "v2_destination": "wrap_v2_namespace"
     },
     {
-      "classification": "unsafe_unknown",
+      "classification": "active_runtime",
       "coinank_plan3_last_reviewed_at": "2026-05-13T00:45:24Z",
+      "coinank_plan3_runtime_remediation": [
+        "LASTPRICE_STALE_KEY_ONLY",
+        "COINANK_MANIFEST_CURRENT",
+        "COINANK_GLOBAL_11_KEY_CONTRACT_CURRENT",
+        "NO_FORBIDDEN_ORDERBOOK_SOURCE_CURRENT",
+        "RUNTIME_CYCLES_PASSED",
+        "COINANK_PATCH_RUNTIME_CURRENT"
+      ],
       "configs_env": [],
       "current_blocker": "unknown_requires_evidence",
       "current_legacy_role": "Feature snapshot contract consumer for trainer/signal lineage.",
+      "dashboard_page_visibility": "Mission Control, Market Intelligence, Monitor Center, Script Registry, Trainer/Signal evidence notes",
       "dependencies": [],
       "exchange_calls": [],
       "logs": true,
@@ -45570,11 +45579,20 @@
       "v2_destination": "wrap_readonly"
     },
     {
-      "classification": "unsafe_unknown",
+      "classification": "active_runtime",
       "coinank_plan3_last_reviewed_at": "2026-05-13T00:45:24Z",
+      "coinank_plan3_runtime_remediation": [
+        "LASTPRICE_STALE_KEY_ONLY",
+        "COINANK_MANIFEST_CURRENT",
+        "COINANK_GLOBAL_11_KEY_CONTRACT_CURRENT",
+        "NO_FORBIDDEN_ORDERBOOK_SOURCE_CURRENT",
+        "RUNTIME_CYCLES_PASSED",
+        "COINANK_PATCH_RUNTIME_CURRENT"
+      ],
       "configs_env": [],
       "current_blocker": "unknown_requires_evidence",
       "current_legacy_role": "Liquidation stream/feature bridge; must remain read-only to V2 until ported.",
+      "dashboard_page_visibility": "Mission Control, Market Intelligence, Monitor Center, Script Registry, Trainer/Signal evidence notes",
       "dependencies": [
         "config",
         "json",
@@ -45608,11 +45626,20 @@
       "v2_destination": "wrap_v2_namespace"
     },
     {
-      "classification": "unsafe_unknown",
+      "classification": "active_runtime",
       "coinank_plan3_last_reviewed_at": "2026-05-13T00:45:24Z",
+      "coinank_plan3_runtime_remediation": [
+        "LASTPRICE_STALE_KEY_ONLY",
+        "COINANK_MANIFEST_CURRENT",
+        "COINANK_GLOBAL_11_KEY_CONTRACT_CURRENT",
+        "NO_FORBIDDEN_ORDERBOOK_SOURCE_CURRENT",
+        "RUNTIME_CYCLES_PASSED",
+        "COINANK_PATCH_RUNTIME_CURRENT"
+      ],
       "configs_env": [],
       "current_blocker": "unknown_requires_evidence",
       "current_legacy_role": "Liquidation level feature worker.",
+      "dashboard_page_visibility": "Mission Control, Market Intelligence, Monitor Center, Script Registry, Trainer/Signal evidence notes",
       "dependencies": [
         "collections",
         "config",
@@ -45889,6 +45916,14 @@
     {
       "classification": "active_runtime",
       "coinank_plan3_last_reviewed_at": "2026-05-13T00:45:24Z",
+      "coinank_plan3_runtime_remediation": [
+        "LASTPRICE_STALE_KEY_ONLY",
+        "COINANK_MANIFEST_CURRENT",
+        "COINANK_GLOBAL_11_KEY_CONTRACT_CURRENT",
+        "NO_FORBIDDEN_ORDERBOOK_SOURCE_CURRENT",
+        "RUNTIME_CYCLES_PASSED",
+        "COINANK_PATCH_RUNTIME_CURRENT"
+      ],
       "configs_env": [
         "COINANK_BACKFILL",
         "COINANK_BACKFILL_MAX_EMPTY",
@@ -45908,7 +45943,7 @@
       ],
       "current_blocker": "none",
       "current_legacy_role": "Plan-3 CoinAnk market-intelligence ingestor; legacy live writes Redis, V2 reads it read-only.",
-      "dashboard_page_visibility": "Mission Control CoinAnk panel; Monitor Center; Script Registry; Trainer/Signal evidence notes",
+      "dashboard_page_visibility": "Mission Control, Market Intelligence, Monitor Center, Script Registry, Trainer/Signal evidence notes",
       "dependencies": [],
       "endpoint_contracts": [
         "marketOrder_getAggCvd exchanges/baseCoin",
@@ -45960,6 +45995,14 @@
     {
       "classification": "active_runtime",
       "coinank_plan3_last_reviewed_at": "2026-05-13T00:45:24Z",
+      "coinank_plan3_runtime_remediation": [
+        "LASTPRICE_STALE_KEY_ONLY",
+        "COINANK_MANIFEST_CURRENT",
+        "COINANK_GLOBAL_11_KEY_CONTRACT_CURRENT",
+        "NO_FORBIDDEN_ORDERBOOK_SOURCE_CURRENT",
+        "RUNTIME_CYCLES_PASSED",
+        "COINANK_PATCH_RUNTIME_CURRENT"
+      ],
       "configs_env": [
         "COINANK_GLOBAL_AGG_INTERVAL_SEC",
         "COINANK_GLOBAL_AGG_LOCK_KEY",
@@ -45974,6 +46017,7 @@
       ],
       "current_blocker": "none",
       "current_legacy_role": "Global CoinAnk feature aggregation contract for features:global_coinank:*:latest.",
+      "dashboard_page_visibility": "Mission Control, Market Intelligence, Monitor Center, Script Registry, Trainer/Signal evidence notes",
       "dependencies": [
         "__future__",
         "config",
@@ -60074,11 +60118,20 @@
       "v2_destination": "rewrite_clean"
     },
     {
-      "classification": "unsafe_unknown",
+      "classification": "active_runtime",
       "coinank_plan3_last_reviewed_at": "2026-05-13T00:45:24Z",
+      "coinank_plan3_runtime_remediation": [
+        "LASTPRICE_STALE_KEY_ONLY",
+        "COINANK_MANIFEST_CURRENT",
+        "COINANK_GLOBAL_11_KEY_CONTRACT_CURRENT",
+        "NO_FORBIDDEN_ORDERBOOK_SOURCE_CURRENT",
+        "RUNTIME_CYCLES_PASSED",
+        "COINANK_PATCH_RUNTIME_CURRENT"
+      ],
       "configs_env": [],
       "current_blocker": "unknown_requires_evidence",
       "current_legacy_role": "Feature snapshot contract consumer for trainer/signal lineage.",
+      "dashboard_page_visibility": "Mission Control, Market Intelligence, Monitor Center, Script Registry, Trainer/Signal evidence notes",
       "dependencies": [
         "datetime",
         "json",
@@ -129752,10 +129805,18 @@
     {
       "classification": "active_runtime",
       "coinank_plan3_last_reviewed_at": "2026-05-13T00:45:24Z",
+      "coinank_plan3_runtime_remediation": [
+        "LASTPRICE_STALE_KEY_ONLY",
+        "COINANK_MANIFEST_CURRENT",
+        "COINANK_GLOBAL_11_KEY_CONTRACT_CURRENT",
+        "NO_FORBIDDEN_ORDERBOOK_SOURCE_CURRENT",
+        "RUNTIME_CYCLES_PASSED",
+        "COINANK_PATCH_RUNTIME_CURRENT"
+      ],
       "configs_env": [],
       "current_blocker": "none",
       "current_legacy_role": "CoinAnk endpoint health monitor; reads Redis metrics and reports failing endpoints.",
-      "dashboard_page_visibility": "Monitor Center CoinAnk monitor status",
+      "dashboard_page_visibility": "Mission Control, Market Intelligence, Monitor Center, Script Registry, Trainer/Signal evidence notes",
       "dependencies": [],
       "endpoint_contracts": [
         "coinank:endpoint_manifest",

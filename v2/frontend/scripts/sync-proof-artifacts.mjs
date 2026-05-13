@@ -58,6 +58,7 @@ const artifactSets = [
   'safe_legacy_trainer_bridge',
   'legacy_live_bridge_to_v2_data_plane',
   'legacy_coinank_plan3_bridge',
+  'coinank_plan3_runtime_remediation',
   'v2_live_observer_shadow_twin',
   'tonight_live_like_paper_shadow',
   'production_website_public_route_rebuild',

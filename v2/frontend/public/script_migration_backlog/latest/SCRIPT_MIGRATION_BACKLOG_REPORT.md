@@ -22,3 +22,8 @@ Active runtime scripts are explicitly classified in `script_migration_backlog.js
 - V2 action: live CoinAnk remains read-only evidence until ported; V2 bridge writes only V2 payloads.
 - Runtime classifications: `COINANK_PATCH_RUNTIME_CURRENT, COINANK_MANIFEST_MISSING, COINANK_GLOBAL_11_KEY_CONTRACT_CURRENT, COINANK_FORBIDDEN_MARKET_SOURCE_OBSERVED, COINANK_CONTRACT_BLOCKED`
 - Live gate: `blocked_human_only`
+
+## CoinAnk Plan-3 Runtime Remediation Update
+- Updated at: 2026-05-13T01:10:03Z
+- Runtime classifications: LASTPRICE_STALE_KEY_ONLY, COINANK_MANIFEST_CURRENT, COINANK_GLOBAL_11_KEY_CONTRACT_CURRENT, NO_FORBIDDEN_ORDERBOOK_SOURCE_CURRENT, RUNTIME_CYCLES_PASSED, COINANK_PATCH_RUNTIME_CURRENT
+- V2 action remains wrap/read-only first, then port to V2-owned market data workers.

@@ -1,0 +1,17 @@
+{
+  "classification": "LASTPRICE_STALE_KEY_ONLY",
+  "generated_at": "2026-05-13T01:10:03Z",
+  "process_state": {
+    "count": 1,
+    "rows": [
+      " 251241 1011413 Tue May 12 21:06:39 2026     203 python3 ingest/live_coinank.py"
+    ]
+  },
+  "scan": {
+    "current_count": 0,
+    "freshest": [],
+    "key_count": 0,
+    "pattern": "features:coinank_endpoint:instruments_getLastPrice:*:latest",
+    "sample_keys": []
+  }
+}
