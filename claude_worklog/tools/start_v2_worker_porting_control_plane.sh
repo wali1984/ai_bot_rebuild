@@ -12,40 +12,34 @@ if [ -f "claude_worklog/approvals/APPROVED_FINAL_LIVE_TINY_CANARY_ONLY.md" ]; th
   exit 2
 fi
 
-VENV_PY3="$ROOT/.venv/bin/python3"
-if [ ! -x "$VENV_PY3" ]; then
-  echo "WARN: .venv/bin/python3 not found; falling back to system python3"
-  VENV_PY3="$(command -v python3)"
-fi
-
 mkdir -p "$ROOT/claude_worklog/agent_supervisor/logs/control_plane"
 
 start_session () {
   local name="$1"
-  local cmd="$2"
+  local loop_script="$2"
   if tmux has-session -t "$name" 2>/dev/null; then
     echo "session $name already alive"
     return 0
   fi
-  tmux new-session -d -s "$name" "bash -c 'cd \"$ROOT\" && $cmd'"
+  if [ ! -x "$loop_script" ]; then
+    echo "WARN: $loop_script not executable; skipping $name"
+    return 0
+  fi
+  tmux new-session -d -s "$name" "$loop_script"
   echo "started session $name"
 }
 
 start_session "ai_bot_worker_porting_orchestrator" \
-  "while true; do '$VENV_PY3' claude_worklog/tools/v2_worker_porting_orchestrator.py --daemon --poll-seconds 120 >> claude_worklog/agent_supervisor/logs/control_plane/v2_worker_porting_orchestrator.log 2>&1; echo restart_loop >> claude_worklog/agent_supervisor/logs/control_plane/v2_worker_porting_orchestrator.log; sleep 5; done"
+  "$ROOT/claude_worklog/tools/_run_v2_worker_porting_orchestrator_loop.sh"
 
 start_session "ai_bot_agent_supervisor" \
-  "while true; do '$VENV_PY3' claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30 >> claude_worklog/agent_supervisor/logs/control_plane/agent_supervisor.log 2>&1; echo restart_loop >> claude_worklog/agent_supervisor/logs/control_plane/agent_supervisor.log; sleep 5; done"
+  "$ROOT/claude_worklog/tools/_run_agent_supervisor_loop.sh"
 
-if [ -f "claude_worklog/tools/parallel_capacity_scheduler.py" ]; then
-  start_session "ai_bot_parallel_scheduler" \
-    "while true; do '$VENV_PY3' claude_worklog/tools/parallel_capacity_scheduler.py --daemon --poll-seconds 600 >> claude_worklog/agent_supervisor/logs/control_plane/parallel_capacity_scheduler.log 2>&1; echo restart_loop >> claude_worklog/agent_supervisor/logs/control_plane/parallel_capacity_scheduler.log; sleep 5; done"
-fi
+start_session "ai_bot_parallel_scheduler" \
+  "$ROOT/claude_worklog/tools/_run_parallel_capacity_scheduler_loop.sh"
 
-if [ -f "claude_worklog/tools/codex_non_live_watchdog.py" ]; then
-  start_session "ai_bot_codex_watchdog" \
-    "while true; do '$VENV_PY3' claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll-seconds 300 >> claude_worklog/agent_supervisor/logs/control_plane/codex_non_live_watchdog.log 2>&1; echo restart_loop >> claude_worklog/agent_supervisor/logs/control_plane/codex_non_live_watchdog.log; sleep 5; done"
-fi
+start_session "ai_bot_codex_watchdog" \
+  "$ROOT/claude_worklog/tools/_run_codex_non_live_watchdog_loop.sh"
 
 tmux list-sessions || true
 echo "control plane requested"
