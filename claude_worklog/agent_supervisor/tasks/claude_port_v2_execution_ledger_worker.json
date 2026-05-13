@@ -1,0 +1,49 @@
+{
+  "task_id": "claude_port_v2_execution_ledger_worker",
+  "agent": "claude",
+  "lane": "runtime_migration",
+  "priority": "P0",
+  "risk_level": "L2",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "live_gate": "blocked_human_only",
+  "allowed_paths": ["v2/**", "claude_worklog/**"],
+  "forbidden": [
+    "legacy_mutation",
+    "old_redis_write",
+    "exchange_action",
+    "leverage_change",
+    "margin_mode_change",
+    "live_gate_unlock",
+    "approval_token_creation"
+  ],
+  "depends_on": "claude_port_v2_paper_execution_worker (consumes its fills); shares library with paper_execution_ledger",
+  "required_output_files": [
+    "v2/backend/app/cli/v2_execution_ledger_worker.py",
+    "v2/backend/tests/integration/cli/test_v2_execution_ledger_worker.py",
+    "v2/frontend/public/operator_runtime/v2_execution_ledger_worker/latest/v2_execution_ledger_worker_status.json",
+    "v2/runtime/v2_execution_ledger_worker/latest/paper_events.jsonl",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_execution_ledger_worker_report.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_execution_ledger_worker_status.json"
+  ],
+  "required_tests": [
+    "append_only_jsonl_preserves_history",
+    "tail_payload_reflects_last_N_entries",
+    "fail_closed_when_ledger_dir_unwritable",
+    "no_log_truncation_of_paper_events_jsonl",
+    "rejects_entry_with_action_outside_allow_deny_set"
+  ],
+  "required_public_payload_fields": [
+    "worker_id",
+    "last_run_ts",
+    "last_entry_ts",
+    "entries_total",
+    "entries_last_24h",
+    "ledger_path",
+    "source_payload_path",
+    "freshness_seconds"
+  ],
+  "required_codex_review_task": "codex_review_v2_execution_ledger_worker",
+  "runnable_invocation_template": "python3 -m v2.backend.app.cli.v2_execution_ledger_worker --loop --interval 30",
+  "prompt": "Build a standalone V2 execution ledger worker CLI. Task: subscribe to the paper execution worker's output stream; append each entry to a durable append-only JSONL ledger under v2/runtime/v2_execution_ledger_worker/latest/paper_events.jsonl; expose a tail payload via public_runtime payload; never modify existing entries; reject entries with actions outside {allow, deny}. Tests: append-only invariant, tail payload reflects last N, fail-closed on unwritable directory, no truncation, action-set rejection. Trigger codex_review_v2_execution_ledger_worker on emit. Must not contact any exchange."
+}

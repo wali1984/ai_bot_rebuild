@@ -1,0 +1,17 @@
+{
+  "task_id": "codex_review_v2_script_monitor",
+  "agent": "codex",
+  "lane": "runtime_migration_audit",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "live_gate": "blocked_human_only",
+  "emit_files": true,
+  "required_output_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_script_monitor_review.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_script_monitor_go_no_go.md"
+  ],
+  "fail_conditions": ["monitor_executes_legacy_scripts", "scripts_misclassified", "no_alert_emission_on_broken_script", "writes_old_redis"],
+  "go_no_go_file_contents": ["V2_SCRIPT_MONITOR_CODEX_PASS", "V2_SCRIPT_MONITOR_CODEX_FAIL"],
+  "prompt": "Audit the V2 script monitor. Critical: must NEVER execute legacy bot scripts (read-only enumeration only). Emit review and a single-line GO/NO-GO."
+}

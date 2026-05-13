@@ -1,0 +1,84 @@
+{
+  "task_id": "emergency_v2_runtime_migration_and_online_bootstrap",
+  "as_of_utc": "2026-05-13T20:45:00Z",
+  "phase_completed_this_turn": "A_through_L_planner_dispatch",
+  "go_no_go": "EMERGENCY_V2_RUNTIME_MIGRATION_AND_ONLINE_BOOTSTRAP_BLOCKED",
+  "live_gate": "blocked_human_only",
+  "final_approval_token": "absent",
+  "redis_trim_approval": "absent",
+  "old_system_shutdown_acknowledged": true,
+  "legacy_role": "frozen_reference_only",
+  "v2_independence_score": {
+    "standalone_runnable_workers_today": 1,
+    "after_p0_estimate": 7,
+    "total_paper_shadow_responsibilities": 16
+  },
+  "queued_task_descriptors": {
+    "p0_worker_count": 6,
+    "p0_codex_review_count": 6,
+    "p1_worker_count": 8,
+    "p1_codex_review_count": 8,
+    "p2_stub_count": 3,
+    "p2_codex_review_count": 3,
+    "total": 34
+  },
+  "p0_workers_queued": [
+    "claude_port_v2_risk_gateway_runtime_worker",
+    "claude_port_v2_paper_execution_worker",
+    "claude_port_v2_execution_ledger_worker",
+    "claude_port_v2_account_position_monitor",
+    "claude_port_v2_signal_lineage_worker",
+    "claude_port_v2_feature_snapshot_builder"
+  ],
+  "p1_workers_queued": [
+    "claude_port_v2_market_ingestor",
+    "claude_port_v2_coinank_liquidation_bridge",
+    "claude_port_v2_trainer_bridge",
+    "claude_port_v2_orchestrator_adapter",
+    "claude_port_v2_signal_publisher",
+    "claude_port_v2_replay_worker",
+    "claude_port_v2_script_monitor",
+    "claude_port_v2_config_admin_manager"
+  ],
+  "p2_stubs_queued": [
+    "claude_port_v2_p2_default_blocked_execution_adapter_stub",
+    "claude_port_v2_p2_binance_usdm_adapter_stub",
+    "claude_port_v2_p2_deployment_helpers"
+  ],
+  "missing_workers": [
+    "market_ingestor",
+    "coinank_liquidation_bridge",
+    "account_position_monitor",
+    "pnl_accounting_worker",
+    "signal_publisher_placeholder",
+    "monitor_runner_placeholder",
+    "config_admin_manager_skeleton",
+    "admin_ai_backend_skeleton"
+  ],
+  "currently_down_processes": [
+    "v2.backend.app.cli.paper_online_runtime",
+    "v2.backend.app.cli.paper_shadow_observation",
+    "agent_supervisor.py",
+    "parallel_capacity_scheduler.py",
+    "codex_non_live_watchdog.py",
+    "always_on_objective_runner.py"
+  ],
+  "codex_aggregate_status": "EMERGENCY_V2_RUNTIME_MIGRATION_CODEX_FAIL",
+  "v2_local_online_status": "DOWN_awaiting_bootstrap_after_workers_ship",
+  "validation_summary": {
+    "json_syntax_ok_count": 38,
+    "json_syntax_fail_count": 0,
+    "forbidden_pattern_scan": "clean",
+    "secret_scan": "clean",
+    "approval_tokens_absent": true
+  },
+  "next_primary_task": "claude_port_v2_feature_snapshot_builder",
+  "must_not_supersede_primary_objective": true,
+  "primary_objective_lock": [
+    "v2_independent_paper_shadow_runtime",
+    "live_blocked_human_only",
+    "no_legacy_mutation",
+    "no_old_redis_writes",
+    "no_exchange_actions"
+  ]
+}

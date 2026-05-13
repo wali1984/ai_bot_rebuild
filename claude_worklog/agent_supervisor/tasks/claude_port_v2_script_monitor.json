@@ -1,0 +1,26 @@
+{
+  "task_id": "claude_port_v2_script_monitor",
+  "agent": "claude",
+  "lane": "runtime_migration",
+  "priority": "P1",
+  "risk_level": "L2",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "live_gate": "blocked_human_only",
+  "allowed_paths": ["v2/**", "claude_worklog/**"],
+  "forbidden": ["legacy_mutation", "old_redis_write", "exchange_action", "leverage_change", "margin_mode_change", "live_gate_unlock", "approval_token_creation", "script_monitor_executing_legacy_scripts"],
+  "depends_on": "replaces placeholder v2/backend/app/services/monitor_runner.py",
+  "required_output_files": [
+    "v2/backend/app/cli/v2_script_monitor.py",
+    "v2/backend/app/services/monitor_runner.py",
+    "v2/backend/tests/integration/cli/test_v2_script_monitor.py",
+    "v2/frontend/public/operator_runtime/v2_script_monitor/latest/v2_script_monitor_status.json",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_script_monitor_report.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_script_monitor_status.json"
+  ],
+  "required_tests": ["each_monitored_script_status_captured", "broken_script_classified_correctly", "unused_script_classified_correctly", "monitor_does_not_execute_legacy_scripts_invariant", "no_old_redis_write_contract"],
+  "required_public_payload_fields": ["worker_id", "last_run_ts", "scripts_enumerated_total", "scripts_by_status", "scripts_broken", "scripts_unused", "alerts_generated", "freshness_seconds"],
+  "required_codex_review_task": "codex_review_v2_script_monitor",
+  "runnable_invocation_template": "python3 -m v2.backend.app.cli.v2_script_monitor --loop --interval 300",
+  "prompt": "Replace the v2/backend/app/services/monitor_runner.py placeholder with a real implementation and build a CLI. Enumerate V2 worker scripts (NOT legacy scripts), capture per-script status (last_run, last_success, last_failure, metrics_emitted, alerts), classify each as active/broken/unused/duplicate/unknown. Invariant test: monitor never executes legacy bot scripts. Trigger codex_review_v2_script_monitor on emit."
+}

@@ -1,0 +1,27 @@
+{
+  "task_id": "codex_review_v2_paper_execution_worker",
+  "agent": "codex",
+  "lane": "runtime_migration_audit",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "live_gate": "blocked_human_only",
+  "emit_files": true,
+  "trigger": "after_claude_port_v2_paper_execution_worker_emits_artifacts",
+  "required_output_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_paper_execution_worker_review.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_paper_execution_worker_go_no_go.md"
+  ],
+  "fail_conditions": [
+    "worker_calls_a_real_exchange_method_in_paper_path",
+    "worker_writes_old_redis",
+    "worker_modifies_legacy",
+    "fill_logic_uses_static_proof_data_as_current",
+    "no_runnable_command_documented",
+    "no_test_file_or_tests_skip_no_real_exchange_invariant",
+    "public_payload_missing_required_fields",
+    "backlog_counted_as_migration"
+  ],
+  "go_no_go_file_contents": ["V2_PAPER_EXECUTION_WORKER_CODEX_PASS", "V2_PAPER_EXECUTION_WORKER_CODEX_FAIL"],
+  "prompt": "Audit the V2 paper execution worker port. The worker must NEVER call a real exchange method in the paper path. Verify the contract invariant test exists and asserts no real exchange-order method is invoked. Verify simulated fills compute fee/slippage correctly. Verify the public payload includes worker_id, last_fill_ts, fills_processed_total, current_paper_equity, current_paper_pnl, and a current_gate_state field equal to blocked_human_only. Emit the review markdown and a single-line GO/NO-GO file."
+}

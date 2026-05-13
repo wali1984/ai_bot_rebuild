@@ -1,0 +1,22 @@
+{
+  "task_id": "codex_review_v2_p2_default_blocked_execution_adapter_stub",
+  "agent": "codex",
+  "lane": "runtime_migration_audit",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "live_gate": "blocked_human_only",
+  "emit_files": true,
+  "required_output_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_p2_default_blocked_execution_adapter_stub_review.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_p2_default_blocked_execution_adapter_stub_go_no_go.md"
+  ],
+  "fail_conditions": [
+    "any_mutation_method_does_not_raise_BLOCKED_GATE_NOT_APPROVED",
+    "real_exchange_method_reachable_from_stub",
+    "stub_can_be_silently_enabled",
+    "writes_old_redis"
+  ],
+  "go_no_go_file_contents": ["V2_P2_DEFAULT_BLOCKED_EXECUTION_ADAPTER_STUB_CODEX_PASS", "V2_P2_DEFAULT_BLOCKED_EXECUTION_ADAPTER_STUB_CODEX_FAIL"],
+  "prompt": "Audit the fail-closed default-blocked execution adapter stub. Every mutation method must raise BLOCKED_GATE_NOT_APPROVED; no real exchange method may be reachable. Emit review and a single-line GO/NO-GO."
+}

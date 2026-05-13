@@ -1,0 +1,37 @@
+{
+  "task_id": "codex_review_v2_risk_gateway_runtime_worker",
+  "agent": "codex",
+  "lane": "runtime_migration_audit",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "live_gate": "blocked_human_only",
+  "emit_files": true,
+  "trigger": "after_claude_port_v2_risk_gateway_runtime_worker_emits_artifacts",
+  "required_input_files": [
+    "v2/backend/app/cli/v2_risk_gateway_runtime_worker.py",
+    "v2/backend/tests/integration/cli/test_v2_risk_gateway_runtime_worker.py",
+    "v2/frontend/public/operator_runtime/v2_risk_gateway_runtime_worker/latest/v2_risk_gateway_runtime_worker_status.json",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_risk_gateway_runtime_worker_report.md"
+  ],
+  "required_output_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_risk_gateway_runtime_worker_review.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_risk_gateway_runtime_worker_go_no_go.md"
+  ],
+  "fail_conditions": [
+    "no_runnable_command_documented",
+    "no_test_file",
+    "test_file_missing_gate_always_blocked_human_only_invariant",
+    "no_public_payload_or_payload_missing_required_fields",
+    "worker_writes_old_redis",
+    "worker_modifies_legacy",
+    "worker_introduces_order_or_leverage_or_margin_mutation",
+    "worker_hides_missing_evidence",
+    "worker_depends_on_stale_static_proof_as_current",
+    "worker_claims_current_runtime_while_only_using_frozen_legacy",
+    "live_gate_not_blocked_human_only_in_payload",
+    "backlog_counted_as_migration"
+  ],
+  "go_no_go_file_contents": ["V2_RISK_GATEWAY_RUNTIME_WORKER_CODEX_PASS", "V2_RISK_GATEWAY_RUNTIME_WORKER_CODEX_FAIL"],
+  "prompt": "Audit the V2 risk gateway runtime worker port. Verify (1) the runnable CLI exists with a documented invocation, (2) tests cover the gate-always-blocked-human-only invariant plus fail-closed on missing fields, (3) the public payload includes required fields with explicit MISSING_EVIDENCE labels where applicable, (4) the worker never writes old Redis, modifies legacy, places/cancels/modifies exchange orders, changes leverage, or changes margin mode, (5) freshness labels are present. Output the review markdown and a single-line GO/NO-GO file containing exactly V2_RISK_GATEWAY_RUNTIME_WORKER_CODEX_PASS or V2_RISK_GATEWAY_RUNTIME_WORKER_CODEX_FAIL."
+}

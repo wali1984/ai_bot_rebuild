@@ -1,0 +1,23 @@
+{
+  "task_id": "codex_review_v2_feature_snapshot_builder",
+  "agent": "codex",
+  "lane": "runtime_migration_audit",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "live_gate": "blocked_human_only",
+  "emit_files": true,
+  "required_output_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_feature_snapshot_builder_review.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_feature_snapshot_builder_go_no_go.md"
+  ],
+  "fail_conditions": [
+    "snapshot_id_not_deterministic_given_identical_inputs",
+    "no_explicit_stale_input_labeling",
+    "missing_category_does_not_fail_closed",
+    "trainer_readiness_signal_dropped",
+    "public_payload_missing_required_fields"
+  ],
+  "go_no_go_file_contents": ["V2_FEATURE_SNAPSHOT_BUILDER_CODEX_PASS", "V2_FEATURE_SNAPSHOT_BUILDER_CODEX_FAIL"],
+  "prompt": "Audit the V2 feature snapshot builder port. Verify the snapshot_id is deterministic given identical inputs, stale-input labeling is explicit, fail-closed on missing required category exists, trainer_readiness is propagated, and the public payload includes the required fields. Emit review markdown and a single-line GO/NO-GO."
+}

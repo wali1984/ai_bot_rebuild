@@ -1,0 +1,43 @@
+{
+  "task_id": "emergency_v2_runtime_migration_and_online_bootstrap",
+  "as_of_utc": "2026-05-13T20:45:00Z",
+  "phase_completed_this_turn": "A_through_L_planner_dispatch",
+  "go_no_go": "EMERGENCY_V2_RUNTIME_MIGRATION_AND_ONLINE_BOOTSTRAP_BLOCKED",
+  "live_gate": "blocked_human_only",
+  "final_approval_token": "absent",
+  "redis_trim_approval": "absent",
+  "old_system_shutdown_acknowledged": true,
+  "legacy_role": "frozen_reference_only",
+  "v2_independence_score": {
+    "standalone_runnable_workers_today": 1,
+    "after_p0_estimate": 7,
+    "total_paper_shadow_responsibilities": 16
+  },
+  "queued_task_descriptors": {
+    "p0_worker_count": 6,
+    "p0_codex_review_count": 6,
+    "p1_worker_count": 8,
+    "p1_codex_review_count": 8,
+    "p2_stub_count": 3,
+    "p2_codex_review_count": 3,
+    "total": 34
+  },
+  "p0_workers_queued": [
+    "claude_port_v2_risk_gateway_runtime_worker",
+    "claude_port_v2_paper_execution_worker",
+    "claude_port_v2_execution_ledger_worker",
+    "claude_port_v2_account_position_monitor",
+    "claude_port_v2_signal_lineage_worker",
+    "claude_port_v2_feature_snapshot_builder"
+  ],
+  "codex_aggregate_status": "EMERGENCY_V2_RUNTIME_MIGRATION_CODEX_FAIL",
+  "v2_local_online_status": "DOWN_awaiting_bootstrap_after_workers_ship",
+  "next_primary_task": "claude_port_v2_feature_snapshot_builder",
+  "primary_objective_lock": [
+    "v2_independent_paper_shadow_runtime",
+    "live_blocked_human_only",
+    "no_legacy_mutation",
+    "no_old_redis_writes",
+    "no_exchange_actions"
+  ]
+}

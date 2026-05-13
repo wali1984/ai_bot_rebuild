@@ -1,0 +1,94 @@
+{
+  "task_id": "emergency_v2_runtime_migration_and_online_bootstrap",
+  "phase": "A_context",
+  "as_of_utc": "2026-05-13T20:40:00Z",
+  "operator_declaration": {
+    "old_system_state": "shut_down_by_operator",
+    "legacy_role": "frozen_reference_only",
+    "v2_current_state": "partial_control_plane_until_worker_audit_proves_otherwise",
+    "live_gate": "blocked_human_only",
+    "final_approval_token": "absent",
+    "redis_trim_approval": "absent",
+    "old_redis_writes": "forbidden",
+    "exchange_actions": "forbidden",
+    "migration_mode": "emergency_parallel_worker_porting"
+  },
+  "objectives": {
+    "primary": "bring V2 online locally as an independent paper/shadow runtime",
+    "secondary": "expose every V2 worker (existing, queued, missing, blocked) in GUI/Admin AI with source/freshness labels"
+  },
+  "repo_snapshot": {
+    "branch": "master",
+    "head": "36e234a337a01e12acb079c28a28ae156128b2e1",
+    "origin_master": "36e234a337a01e12acb079c28a28ae156128b2e1",
+    "last_commit_message": "Add parallel trading platform consumer UI support task",
+    "dirty_file_count": 230,
+    "dirty_untracked_roots": [".claude/", "claude_worklog/", "v2/"],
+    "dirty_ownership_note": "daemon-owned runtime churn; not owned by this migration task"
+  },
+  "active_processes": [
+    {"name": "trading/trader.py", "pid": 14912, "etimes_seconds": 794, "classification": "stray_legacy_process_pending_operator_termination"},
+    {"name": "npm run dev (vite)", "pid": 14711, "classification": "v2_frontend_dev_server"},
+    {"name": "node vite", "pid": 14739, "classification": "v2_frontend_dev_server"}
+  ],
+  "expected_running_but_down": [
+    "v2.backend.app.cli.paper_online_runtime",
+    "v2.backend.app.cli.paper_shadow_observation",
+    "rl.hybrid_trainer",
+    "rl.orchestrator_worker",
+    "ingest/live_coinank.py",
+    "agent_supervisor.py",
+    "parallel_capacity_scheduler.py",
+    "codex_non_live_watchdog.py",
+    "always_on_objective_runner.py"
+  ],
+  "v2_workers_quick_state": {
+    "migrated_runnable_standalone_cli": ["paper_online_runtime", "paper_shadow_observation"],
+    "migrated_library_only_no_standalone_cli": [
+      "orchestrator_decision",
+      "risk_gateway",
+      "paper_execution_ledger",
+      "feature_snapshots",
+      "replay_backtest_runner"
+    ],
+    "wrapper_or_bridge_only": [
+      "trainer_parity",
+      "signal_publisher_placeholder",
+      "live_execution_adapter_middleware_block"
+    ],
+    "missing_in_v2": [
+      "market_ingestor",
+      "coinank_liquidation_bridge",
+      "account_position_monitor",
+      "pnl_accounting_worker",
+      "script_monitor",
+      "config_admin_manager",
+      "admin_ai_backend"
+    ]
+  },
+  "hard_constraints": [
+    "do_not_modify_/home/wali/Desktop/AI_BOT",
+    "no_legacy_redis_writes",
+    "no_redis_xadd_set_hset_del_xdel_xtrim_flush_against_old_redis",
+    "no_redis_trim_approval_file",
+    "no_final_live_approval_token",
+    "no_place_cancel_modify_exchange_orders",
+    "no_change_leverage",
+    "no_change_margin_mode",
+    "no_activate_live_keys",
+    "no_enable_live_trading",
+    "no_commit_secrets",
+    "work_only_inside_AI_BOT_REBUILD",
+    "live_remains_blocked_human_only",
+    "legacy_frozen_reference_only"
+  ],
+  "safety_classification": {
+    "primary_objective": "V2_INDEPENDENT_PAPER_SHADOW_RUNTIME",
+    "live_gate": "blocked_human_only",
+    "final_approval_token": "absent",
+    "redis_trim_approval": "absent",
+    "legacy_mutation": "forbidden",
+    "exchange_action": "forbidden",
+    "migration_mode": "emergency_parallel_worker_porting"
+  }
+}

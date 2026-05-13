@@ -1,0 +1,74 @@
+{
+  "bootstrap_id": "v2_local_online_bootstrap",
+  "phase": "H",
+  "live_gate": "blocked_human_only",
+  "preconditions": {
+    "approval_token_absent": true,
+    "redis_trim_approval_absent": true,
+    "operator_declared_legacy_shutdown": true,
+    "paper_online_runtime_cli_present": true
+  },
+  "allowed_targets": ["127.0.0.1", "localhost", "loopback_only"],
+  "forbidden_targets": ["public_internet", "real_exchange_credentials_with_mutate_scope"],
+  "sequence": [
+    {
+      "step": 0,
+      "name": "preflight_check",
+      "runnable_cmd": "v2/scripts/deployment/preflight_check.py",
+      "must_print": "PREFLIGHT_OK",
+      "blocker_token_if_present_path": "claude_worklog/approvals/APPROVED_FINAL_LIVE_TINY_CANARY_ONLY.md"
+    },
+    {
+      "step": 1,
+      "name": "restart_paper_online_runtime",
+      "runnable_cmd": "python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30 --symbol BTCUSDT",
+      "verify_payload_fresh_path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+      "freshness_threshold_seconds": 60
+    },
+    {
+      "step": 2,
+      "name": "restart_paper_shadow_observation",
+      "runnable_cmd": "python3 -m v2.backend.app.cli.paper_shadow_observation --write",
+      "verify_payload_fresh_path": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
+      "freshness_threshold_seconds": 60
+    },
+    {
+      "step": 3,
+      "name": "start_p0_workers_in_order",
+      "order": [
+        "v2_feature_snapshot_builder",
+        "v2_risk_gateway_runtime_worker",
+        "v2_paper_execution_worker",
+        "v2_execution_ledger_worker",
+        "v2_signal_lineage_worker",
+        "v2_account_position_monitor"
+      ],
+      "verify_each_payload_under": "v2/frontend/public/operator_runtime/<worker>/latest/"
+    },
+    {
+      "step": 4,
+      "name": "restart_automation_supervisors",
+      "supervisors": [
+        "agent_supervisor",
+        "parallel_capacity_scheduler",
+        "codex_non_live_watchdog",
+        "always_on_objective_runner"
+      ]
+    },
+    {
+      "step": 5,
+      "name": "expose_admin_ai_and_monitor_center_after_p1_ships",
+      "depends_on": ["claude_port_v2_script_monitor", "claude_port_v2_config_admin_manager"]
+    }
+  ],
+  "safety_invariants": [
+    "preflight_returned_ok",
+    "all_started_workers_have_fresh_public_payload",
+    "every_worker_payload_reports_live_gate_blocked_human_only",
+    "no_approval_token",
+    "no_redis_trim_approval",
+    "no_legacy_path_modified",
+    "no_exchange_mutating_call_attempted",
+    "no_secrets_in_any_payload"
+  ]
+}

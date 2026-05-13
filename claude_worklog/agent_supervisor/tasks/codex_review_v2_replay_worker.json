@@ -1,0 +1,17 @@
+{
+  "task_id": "codex_review_v2_replay_worker",
+  "agent": "codex",
+  "lane": "runtime_migration_audit",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "live_gate": "blocked_human_only",
+  "emit_files": true,
+  "required_output_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_replay_worker_review.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_replay_worker_go_no_go.md"
+  ],
+  "fail_conditions": ["replay_overwrites_current_runtime_payloads", "no_fail_closed_on_invalid_window", "writes_old_redis", "public_payload_missing_required_fields"],
+  "go_no_go_file_contents": ["V2_REPLAY_WORKER_CODEX_PASS", "V2_REPLAY_WORKER_CODEX_FAIL"],
+  "prompt": "Audit the V2 replay worker. Critical: replay output must NEVER overwrite current runtime payload paths. Emit review and a single-line GO/NO-GO."
+}

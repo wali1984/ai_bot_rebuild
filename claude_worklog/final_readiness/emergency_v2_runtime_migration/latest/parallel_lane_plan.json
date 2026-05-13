@@ -1,0 +1,76 @@
+{
+  "lanes": [
+    {
+      "lane_id": "L1_claude_primary_runtime_migration",
+      "purpose": "implement real V2 workers in priority order",
+      "owner": "claude_sub_agents_via_claude_port_task_descriptors",
+      "precedence": "primary",
+      "can_be_paused_by_other_lanes": false,
+      "outputs_per_worker": [
+        "v2/backend/app/cli/<worker>.py",
+        "v2/backend/tests/.../<worker>_test.py",
+        "v2/frontend/public/operator_runtime/<worker>/latest/<worker>_status.json",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/<worker>_report.md",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/<worker>_status.json"
+      ]
+    },
+    {
+      "lane_id": "L2_codex_parallel_audit",
+      "purpose": "audit every worker port for safety/evidence/fail-closed/no-forbidden-actions",
+      "owner": "codex_sub_agents_via_codex_review_task_descriptors",
+      "precedence": "parallel_to_L1",
+      "trigger": "after_each_worker_emits_artifacts",
+      "fail_conditions": [
+        "backlog_counted_as_migration",
+        "no_runnable_command",
+        "no_test",
+        "no_public_payload",
+        "writes_old_redis",
+        "modifies_legacy",
+        "mutates_orders_leverage_margin",
+        "hides_missing_evidence",
+        "uses_stale_static_proof_as_current",
+        "claims_runtime_while_only_using_frozen_legacy",
+        "live_gate_not_blocked_human_only"
+      ],
+      "aggregate_outputs": [
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/CODEX_EMERGENCY_MIGRATION_REVIEW.md",
+        "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/CODEX_GO_NO_GO.md"
+      ]
+    },
+    {
+      "lane_id": "L3_v2_local_online_bootstrap",
+      "purpose": "start V2 services locally after workers exist",
+      "owner": "operator_manual_or_supervised_launcher",
+      "precedence": "support_to_L1",
+      "gating": "wait_for_p0_workers_and_codex_review_available_pass_or_explicit_blocked",
+      "targets": ["127.0.0.1", "localhost"],
+      "allowed_modes": ["paper", "shadow", "read_only_account_monitor_if_safely_configured"],
+      "forbidden": ["live_trading", "exchange_orders", "leverage_change", "margin_mode_change"]
+    },
+    {
+      "lane_id": "L4_gui_admin_ai_visibility",
+      "purpose": "surface worker existence/running/missing/payload-age/error/blocker/codex/live-gate in Mission Control + Monitor Center + Script Registry + Admin AI",
+      "owner": "claude_sub_agents_visibility_subtasks",
+      "precedence": "support_only_pauses_on_conflict_with_L1",
+      "rule": "no_major_ui_redesign_only_needed_visibility",
+      "related_existing_task": "parallel_trading_platform_consumer_ui_from_real_v2_payloads"
+    },
+    {
+      "lane_id": "L5_continuous_evidence",
+      "purpose": "keep paper/shadow/runtime payloads fresh and report gaps when stale",
+      "owner": "supervisor_daemons_plus_new_workers",
+      "current_status": "FAILING_supervisors_and_paper_online_runtime_currently_down",
+      "restoration": "part_of_bootstrap_in_V2_LOCAL_RUNBOOK.md"
+    }
+  ],
+  "cross_lane_rules": [
+    "L1_runtime_migration_is_primary",
+    "L2_codex_runs_in_parallel_after_each_worker_emits_artifacts_never_blocks_L1_starting_next",
+    "L3_bootstrap_only_starts_services_after_workers_exist_and_cannot_enable_live",
+    "L4_ui_admin_pauses_on_conflict_with_L1",
+    "L5_continuous_evidence_restored_as_part_of_bootstrap",
+    "no_final_live_approval_task_may_run",
+    "no_legacy_mutation_task_may_run"
+  ]
+}

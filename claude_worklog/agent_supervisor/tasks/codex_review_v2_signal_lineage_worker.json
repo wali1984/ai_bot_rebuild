@@ -1,0 +1,23 @@
+{
+  "task_id": "codex_review_v2_signal_lineage_worker",
+  "agent": "codex",
+  "lane": "runtime_migration_audit",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "live_gate": "blocked_human_only",
+  "emit_files": true,
+  "required_output_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_signal_lineage_worker_review.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_signal_lineage_worker_go_no_go.md"
+  ],
+  "fail_conditions": [
+    "signal_publisher_still_a_placeholder",
+    "explanations_guess_instead_of_citing_evidence_or_labeling_missing",
+    "no_fail_closed_on_missing_chain_record",
+    "lineage_remains_hard_coded_in_paper_online_runtime",
+    "public_payload_missing_required_fields"
+  ],
+  "go_no_go_file_contents": ["V2_SIGNAL_LINEAGE_WORKER_CODEX_PASS", "V2_SIGNAL_LINEAGE_WORKER_CODEX_FAIL"],
+  "prompt": "Audit the V2 signal lineage worker port. Verify signal_publisher.py is now real (not a placeholder), the lineage chain captures all stages, explanations cite evidence or label missing without guessing, fail-closed on missing chain records exists, and the lineage is no longer hard-coded inside paper_online_runtime. Emit review markdown and a single-line GO/NO-GO."
+}

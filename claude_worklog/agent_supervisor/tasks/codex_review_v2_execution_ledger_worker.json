@@ -1,0 +1,24 @@
+{
+  "task_id": "codex_review_v2_execution_ledger_worker",
+  "agent": "codex",
+  "lane": "runtime_migration_audit",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "live_gate": "blocked_human_only",
+  "emit_files": true,
+  "required_output_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_execution_ledger_worker_review.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_execution_ledger_worker_go_no_go.md"
+  ],
+  "fail_conditions": [
+    "ledger_writer_truncates_or_overwrites_existing_entries",
+    "ledger_writer_calls_a_real_exchange_method",
+    "no_append_only_invariant_test",
+    "tail_payload_does_not_reflect_underlying_jsonl",
+    "fail_closed_on_unwritable_dir_missing",
+    "public_payload_missing_required_fields"
+  ],
+  "go_no_go_file_contents": ["V2_EXECUTION_LEDGER_WORKER_CODEX_PASS", "V2_EXECUTION_LEDGER_WORKER_CODEX_FAIL"],
+  "prompt": "Audit the V2 execution ledger worker port. Verify the ledger is append-only, the tail payload reflects the underlying JSONL, fail-closed behavior on unwritable directory exists, and no real exchange method is wired up. Emit the review markdown and a single-line GO/NO-GO file."
+}

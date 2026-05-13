@@ -1,0 +1,22 @@
+{
+  "task_id": "codex_review_v2_p2_deployment_helpers",
+  "agent": "codex",
+  "lane": "runtime_migration_audit",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "live_gate": "blocked_human_only",
+  "emit_files": true,
+  "required_output_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_p2_deployment_helpers_review.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_p2_deployment_helpers_go_no_go.md"
+  ],
+  "fail_conditions": [
+    "preflight_does_not_fail_on_approval_token_presence",
+    "start_script_can_flip_to_real_mode",
+    "stop_script_targets_legacy_pids",
+    "scripts_modify_legacy_paths"
+  ],
+  "go_no_go_file_contents": ["V2_P2_DEPLOYMENT_HELPERS_CODEX_PASS", "V2_P2_DEPLOYMENT_HELPERS_CODEX_FAIL"],
+  "prompt": "Audit the V2 deployment helpers. Preflight must fail on approval token presence; start script must not flip to real mode; stop script must never target legacy PIDs; scripts must not modify legacy paths. Emit review and a single-line GO/NO-GO."
+}
