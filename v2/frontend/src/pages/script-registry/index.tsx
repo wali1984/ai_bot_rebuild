@@ -4,6 +4,8 @@ import route from './route';
 import { useEffect, useState } from 'react';
 import { Panel } from '../cockpitComponents';
 import { statusClass, valueText } from '../cockpitData';
+import { useCoinankMarketIntelligencePayload } from '../operatorTruthData';
+import { CoinankMarketIntelligencePanel } from '../operatorTruthComponents';
 
 interface ScriptRegistryPayload {
   generated_at: string;
@@ -14,6 +16,7 @@ interface ScriptRegistryPayload {
 export default function ScriptRegistryPage(): JSX.Element {
   const [payload, setPayload] = useState<ScriptRegistryPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { payload: coinankPayload, error: coinankError } = useCoinankMarketIntelligencePayload();
 
   useEffect(() => {
     let active = true;
@@ -45,23 +48,26 @@ export default function ScriptRegistryPage(): JSX.Element {
       {!payload ? (
         <p className="cockpit-evidence-gap">{error ?? 'Loading script registry evidence...'}</p>
       ) : (
-        <Panel id="script-registry-table" title={`Mapped Scripts (${payload.count})`}>
-          <div className="cockpit-market-table" role="table">
-            <div className="cockpit-table-row cockpit-table-row--head" role="row">
-              <span>Path</span><span>Classification</span><span>Risk</span><span>Redis writes</span><span>Exchange actions</span><span>V2 action</span>
-            </div>
-            {payload.scripts.slice(0, 120).map((row) => (
-              <div className="cockpit-table-row" role="row" key={row.path}>
-                <span>{row.path}</span>
-                <span className={statusClass(row.classification)}>{row.classification}</span>
-                <span className={statusClass(row.risk_level)}>{row.risk_level}</span>
-                <span>{valueText(row.redis_writes)}</span>
-                <span>{valueText(row.exchange_api_calls)}</span>
-                <span>{row.v2_action}</span>
+        <>
+          <CoinankMarketIntelligencePanel payload={coinankPayload} error={coinankError} context="Script Registry" />
+          <Panel id="script-registry-table" title={`Mapped Scripts (${payload.count})`}>
+            <div className="cockpit-market-table" role="table">
+              <div className="cockpit-table-row cockpit-table-row--head" role="row">
+                <span>Path</span><span>Classification</span><span>Risk</span><span>Redis writes</span><span>Exchange actions</span><span>V2 action</span>
               </div>
-            ))}
-          </div>
-        </Panel>
+              {payload.scripts.slice(0, 120).map((row) => (
+                <div className="cockpit-table-row" role="row" key={row.path}>
+                  <span>{row.path}</span>
+                  <span className={statusClass(row.classification)}>{row.classification}</span>
+                  <span className={statusClass(row.risk_level)}>{row.risk_level}</span>
+                  <span>{valueText(row.redis_writes)}</span>
+                  <span>{valueText(row.exchange_api_calls)}</span>
+                  <span>{row.v2_action}</span>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        </>
       )}
     </article>
   );

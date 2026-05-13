@@ -4,17 +4,19 @@ import route from './route';
 import { CockpitLoading, DecisionDrawers, Panel } from '../cockpitComponents';
 import { useCockpitPayload } from '../cockpitData';
 import { DesignPageShell, SourceRibbon } from '../designShell';
-import { useOperatorTruthPayload } from '../operatorTruthData';
-import { LiveObserverShadowTwinPanel, OperatorTruthLoading, RouteTruthSummary, SignalLineageTruthPanel } from '../operatorTruthComponents';
+import { useCoinankMarketIntelligencePayload, useOperatorTruthPayload } from '../operatorTruthData';
+import { CoinankMarketIntelligencePanel, LiveObserverShadowTwinPanel, OperatorTruthLoading, RouteTruthSummary, SignalLineageTruthPanel } from '../operatorTruthComponents';
 
 export default function SignalExplainabilityPage(): JSX.Element {
   const { payload, error } = useCockpitPayload();
   const { payload: truthPayload, error: truthError } = useOperatorTruthPayload();
+  const { payload: coinankPayload, error: coinankError } = useCoinankMarketIntelligencePayload();
   return (
     <DesignPageShell meta={meta} rbac={rbac} route={route} eyebrow="Signal Explainability" source="V2_PROOF_ARTIFACT / no-guessing contract">
       <SourceRibbon labels={['feature attribution', 'source freshness', 'risk reason', 'orchestrator reason', 'no guessing']} />
       {truthPayload ? <RouteTruthSummary payload={truthPayload} title="Signal Explainability" /> : <OperatorTruthLoading error={truthError} />}
       {truthPayload ? <SignalLineageTruthPanel payload={truthPayload} /> : null}
+      <CoinankMarketIntelligencePanel payload={coinankPayload} error={coinankError} context="Signal Feature Evidence" />
       {truthPayload ? <LiveObserverShadowTwinPanel payload={truthPayload} /> : null}
       {truthPayload?.signal_lineage_status.status !== 'REALTIME_RUNTIME_EVIDENCE' ? (
         <Panel id="signal-explainability-no-guessing" title="No-Guessing Rule" right={<span className="chip solid-warn">MISSING_EVIDENCE</span>}>

@@ -8,8 +8,8 @@
       "path": "claude_worklog/tools/agent_supervisor.py",
       "risk_level": "P3",
       "runtime_evidence": [
-        "  68607 1029421    5511  0.0  0.0 bash -c cd '/home/wali/Desktop/AI BOT REBUILD' && while true; do   if [ -f '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/control_plane/STOP_REBUILD_CONTROL_PLANE' ]; then echo stop-file-seen; exit 0; fi;   printf '[%s] starting agent_supervisor.py %s\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" '--daemon --poll-seconds 30' >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/agent_supervisor.log';   python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30 >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/agent_supervisor.log' 2>&1;   rc=$?;   printf '{\"ts\":\"%s\",\"event\":\"agent_supervisor_loop_exit\",\"rc\":%s}\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \"$rc\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/events.jsonl';   sleep 10; done",
-        "  68613   68607    5511  0.3  0.0 python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30"
+        "  68607 1029421    6368  0.0  0.0 bash -c cd '/home/wali/Desktop/AI BOT REBUILD' && while true; do   if [ -f '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/control_plane/STOP_REBUILD_CONTROL_PLANE' ]; then echo stop-file-seen; exit 0; fi;   printf '[%s] starting agent_supervisor.py %s\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" '--daemon --poll-seconds 30' >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/agent_supervisor.log';   python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30 >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/agent_supervisor.log' 2>&1;   rc=$?;   printf '{\"ts\":\"%s\",\"event\":\"agent_supervisor_loop_exit\",\"rc\":%s}\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \"$rc\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/events.jsonl';   sleep 10; done",
+        "  68613   68607    6368  0.3  0.0 python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30"
       ],
       "v2_action": "monitor_only"
     },
@@ -20,8 +20,8 @@
       "path": "claude_worklog/tools/parallel_capacity_scheduler.py",
       "risk_level": "P3",
       "runtime_evidence": [
-        "  54966 1029421    6312  0.0  0.0 bash -c cd '/home/wali/Desktop/AI BOT REBUILD' && while true; do   if [ -f '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/control_plane/STOP_REBUILD_CONTROL_PLANE' ]; then echo stop-file-seen; exit 0; fi;   printf '[%s] starting parallel_capacity_scheduler.py\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/parallel_capacity_scheduler.log';   python3 claude_worklog/tools/parallel_capacity_scheduler.py --daemon --poll-seconds 600 >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/parallel_capacity_scheduler.log' 2>&1;   rc=$?;   printf '{\"ts\":\"%s\",\"event\":\"parallel_capacity_scheduler_loop_exit\",\"rc\":%s}\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \"$rc\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/events.jsonl';   sleep 30; done",
-        "  55934   54966    6247  0.1  0.0 python3 claude_worklog/tools/parallel_capacity_scheduler.py --daemon --poll-seconds 600"
+        "  54966 1029421    7169  0.0  0.0 bash -c cd '/home/wali/Desktop/AI BOT REBUILD' && while true; do   if [ -f '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/control_plane/STOP_REBUILD_CONTROL_PLANE' ]; then echo stop-file-seen; exit 0; fi;   printf '[%s] starting parallel_capacity_scheduler.py\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/parallel_capacity_scheduler.log';   python3 claude_worklog/tools/parallel_capacity_scheduler.py --daemon --poll-seconds 600 >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/parallel_capacity_scheduler.log' 2>&1;   rc=$?;   printf '{\"ts\":\"%s\",\"event\":\"parallel_capacity_scheduler_loop_exit\",\"rc\":%s}\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \"$rc\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/events.jsonl';   sleep 30; done",
+        "  55934   54966    7104  0.1  0.0 python3 claude_worklog/tools/parallel_capacity_scheduler.py --daemon --poll-seconds 600"
       ],
       "v2_action": "monitor_only"
     },
@@ -32,8 +32,8 @@
       "path": "claude_worklog/tools/codex_non_live_watchdog.py",
       "risk_level": "P3",
       "runtime_evidence": [
-        "  68622 1029421    5511  0.0  0.0 bash -c cd '/home/wali/Desktop/AI BOT REBUILD' && while true; do   if [ -f '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/control_plane/STOP_REBUILD_CONTROL_PLANE' ]; then echo stop-file-seen; exit 0; fi;   printf '[%s] starting codex_non_live_watchdog.py\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/codex_non_live_watchdog.log';   python3 claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll-seconds 300 >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/codex_non_live_watchdog.log' 2>&1;   rc=$?;   printf '{\"ts\":\"%s\",\"event\":\"codex_non_live_watchdog_loop_exit\",\"rc\":%s}\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \"$rc\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/events.jsonl';   sleep 30; done",
-        "  68624   68622    5511  0.0  0.0 python3 claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll-seconds 300"
+        "  68622 1029421    6368  0.0  0.0 bash -c cd '/home/wali/Desktop/AI BOT REBUILD' && while true; do   if [ -f '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/control_plane/STOP_REBUILD_CONTROL_PLANE' ]; then echo stop-file-seen; exit 0; fi;   printf '[%s] starting codex_non_live_watchdog.py\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/codex_non_live_watchdog.log';   python3 claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll-seconds 300 >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/codex_non_live_watchdog.log' 2>&1;   rc=$?;   printf '{\"ts\":\"%s\",\"event\":\"codex_non_live_watchdog_loop_exit\",\"rc\":%s}\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \"$rc\" >> '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/events.jsonl';   sleep 30; done",
+        "  68624   68622    6368  0.0  0.0 python3 claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll-seconds 300"
       ],
       "v2_action": "monitor_only"
     },
@@ -44,7 +44,7 @@
       "path": "v2/backend/app/cli/paper_online_runtime.py",
       "risk_level": "P3",
       "runtime_evidence": [
-        "3446733 1011413   70457  0.0  0.0 python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30"
+        "3446733 1011413   71314  0.0  0.0 python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30"
       ],
       "v2_action": "preserve_exact"
     },
@@ -55,7 +55,7 @@
       "path": "legacy_module:rl.hybrid_trainer",
       "risk_level": "P1",
       "runtime_evidence": [
-        "3980694 1011413   25754 79.4  2.9 python3 -m rl.hybrid_trainer --mode hybrid --training-mode live --enhanced-features"
+        "3980694 1011413   26612 79.4  3.2 python3 -m rl.hybrid_trainer --mode hybrid --training-mode live --enhanced-features"
       ],
       "v2_action": "wrap_readonly"
     },
@@ -66,7 +66,7 @@
       "path": "legacy_module:rl.orchestrator_worker",
       "risk_level": "P1",
       "runtime_evidence": [
-        "1042465 1011413  320366  0.3  0.3 python3 -m rl.orchestrator_worker"
+        "1042465 1011413  321223  0.3  0.3 python3 -m rl.orchestrator_worker"
       ],
       "v2_action": "wrap_readonly"
     },
@@ -77,15 +77,28 @@
       "path": "/home/wali/Desktop/AI BOT/trading/trader.py",
       "risk_level": "P0",
       "runtime_evidence": [
-        "3324271 1011413   77988  0.0  0.0 /bin/bash -O extglob -c snap=$(command cat <&3) && builtin shopt -s extglob && builtin eval -- \"$snap\" && { builtin set +u 2>/dev/null || true; builtin eval \"${__CURSOR_SANDBOX_ENV_RESTORE:-}\" 2>/dev/null; builtin export PWD=\"$(builtin pwd)\"; builtin shopt -s expand_aliases 2>/dev/null; builtin eval \"$1\"; }; COMMAND_EXIT_CODE=$?; dump_bash_state >&4; builtin exit $COMMAND_EXIT_CODE -- cd \"/home/wali/Desktop/AI BOT\" && mkdir -p .logs && nohup python3 -u trading/trader.py >> .logs/trader.log 2>&1 & disown; sleep 1; pgrep -af \"python3( -u)? trading/trader\\.py\" || true",
-        "3324274 3324271   77988  0.6  0.5 python3 -u trading/trader.py"
+        "3324271 1011413   78845  0.0  0.0 /bin/bash -O extglob -c snap=$(command cat <&3) && builtin shopt -s extglob && builtin eval -- \"$snap\" && { builtin set +u 2>/dev/null || true; builtin eval \"${__CURSOR_SANDBOX_ENV_RESTORE:-}\" 2>/dev/null; builtin export PWD=\"$(builtin pwd)\"; builtin shopt -s expand_aliases 2>/dev/null; builtin eval \"$1\"; }; COMMAND_EXIT_CODE=$?; dump_bash_state >&4; builtin exit $COMMAND_EXIT_CODE -- cd \"/home/wali/Desktop/AI BOT\" && mkdir -p .logs && nohup python3 -u trading/trader.py >> .logs/trader.log 2>&1 & disown; sleep 1; pgrep -af \"python3( -u)? trading/trader\\.py\" || true",
+        "3324274 3324271   78845  0.6  0.5 python3 -u trading/trader.py"
       ],
       "v2_action": "monitor_only"
     }
   ],
   "canonical_registry_decision": "Phase 3A SCRIPT_REGISTRY.json plus Phase 3B remediation overlays",
+  "coinank_plan3_bridge_update": {
+    "live_gate_status": "blocked_human_only",
+    "source": "LEGACY_COINANK_PLAN3_PATCH_DELTA_SYNC",
+    "updated_at": "2026-05-13T00:45:24Z",
+    "updated_paths": [
+      "feature_pipeline.py",
+      "ingest/coinank_pipeline_monitor.py",
+      "ingest/liquidation_bridge.py",
+      "ingest/liquidation_levels_engine.py",
+      "ingest/live_coinank.py",
+      "ingest/live_coinank_global_aggregator.py"
+    ]
+  },
   "exchange_action_script_count": 344,
-  "generated_at": "2026-05-12T23:07:37.841899+00:00",
+  "generated_at": "2026-05-13T00:45:24Z",
   "migration_priority_counts": {
     "P0 execution/risk/live safety": 367,
     "P1 trainer/feature/signal lineage": 721,
@@ -43046,8 +43059,10 @@
     },
     {
       "classification": "unsafe_unknown",
+      "coinank_plan3_last_reviewed_at": "2026-05-13T00:45:24Z",
       "configs_env": [],
       "current_blocker": "unknown_requires_evidence",
+      "current_legacy_role": "Feature snapshot contract consumer for trainer/signal lineage.",
       "dependencies": [],
       "exchange_calls": [],
       "logs": true,
@@ -43070,7 +43085,7 @@
         "subprocess_callers": false
       },
       "test_requirements": [],
-      "v2_action": "review_before_use",
+      "v2_action": "port_to_v2_feature_store_contract_after_atlas",
       "v2_destination": "wrap_v2_namespace"
     },
     {
@@ -45556,8 +45571,10 @@
     },
     {
       "classification": "unsafe_unknown",
+      "coinank_plan3_last_reviewed_at": "2026-05-13T00:45:24Z",
       "configs_env": [],
       "current_blocker": "unknown_requires_evidence",
+      "current_legacy_role": "Liquidation stream/feature bridge; must remain read-only to V2 until ported.",
       "dependencies": [
         "config",
         "json",
@@ -45587,13 +45604,15 @@
         "subprocess_callers": false
       },
       "test_requirements": [],
-      "v2_action": "review_before_use",
+      "v2_action": "preserve_contract_then_port_to_v2_liquidation_worker",
       "v2_destination": "wrap_v2_namespace"
     },
     {
       "classification": "unsafe_unknown",
+      "coinank_plan3_last_reviewed_at": "2026-05-13T00:45:24Z",
       "configs_env": [],
       "current_blocker": "unknown_requires_evidence",
+      "current_legacy_role": "Liquidation level feature worker.",
       "dependencies": [
         "collections",
         "config",
@@ -45629,7 +45648,7 @@
         "subprocess_callers": false
       },
       "test_requirements": [],
-      "v2_action": "review_before_use",
+      "v2_action": "port_to_v2_feature_worker",
       "v2_destination": "wrap_v2_namespace"
     },
     {
@@ -45869,6 +45888,7 @@
     },
     {
       "classification": "active_runtime",
+      "coinank_plan3_last_reviewed_at": "2026-05-13T00:45:24Z",
       "configs_env": [
         "COINANK_BACKFILL",
         "COINANK_BACKFILL_MAX_EMPTY",
@@ -45887,21 +45907,41 @@
         "RLBOT_DEBUG_SAFE"
       ],
       "current_blocker": "none",
+      "current_legacy_role": "Plan-3 CoinAnk market-intelligence ingestor; legacy live writes Redis, V2 reads it read-only.",
+      "dashboard_page_visibility": "Mission Control CoinAnk panel; Monitor Center; Script Registry; Trainer/Signal evidence notes",
       "dependencies": [],
+      "endpoint_contracts": [
+        "marketOrder_getAggCvd exchanges/baseCoin",
+        "indicator_smc",
+        "fundingRate_getWeiFr",
+        "ls_buy_sell",
+        "ls_toptrader_positions",
+        "raw:coinank:liquidation_orders:global",
+        "features:global_coinank:*:latest"
+      ],
       "exchange_calls": [],
       "logs": true,
       "migration_priority": "P2 ingestors/market data",
       "old_path": "legacy_reference/ingest/live_coinank.py",
       "purpose": "see RUNTIME_PROCESS_MAP and SCRIPT_USAGE_EVIDENCE",
       "redis_reads": [
-        "get("
+        "get(",
+        "hgetall",
+        "scan"
       ],
       "redis_writes": [
-        "xadd",
         "set(",
-        "hset"
+        "hset",
+        "lpush"
       ],
       "risk_level": "TIER_A_REDIS_WRITER_REVIEW_REQUIRED",
+      "runtime_monitor_status": [
+        "COINANK_PATCH_RUNTIME_CURRENT",
+        "COINANK_MANIFEST_MISSING",
+        "COINANK_GLOBAL_11_KEY_CONTRACT_CURRENT",
+        "COINANK_FORBIDDEN_MARKET_SOURCE_OBSERVED",
+        "COINANK_CONTRACT_BLOCKED"
+      ],
       "startup_mechanism": {
         "cli_entry_points": false,
         "cron_systemd_tmux_docker_references": false,
@@ -45909,11 +45949,17 @@
         "subprocess_callers": false
       },
       "test_requirements": [],
-      "v2_action": "wrap_or_reference_readonly",
+      "tests_required": [
+        "source contract snapshot",
+        "read-only Redis contract check",
+        "V2 market intelligence payload schema"
+      ],
+      "v2_action": "wrap_readonly_then_port_to_v2",
       "v2_destination": "wrap_v2_namespace"
     },
     {
       "classification": "active_runtime",
+      "coinank_plan3_last_reviewed_at": "2026-05-13T00:45:24Z",
       "configs_env": [
         "COINANK_GLOBAL_AGG_INTERVAL_SEC",
         "COINANK_GLOBAL_AGG_LOCK_KEY",
@@ -45927,6 +45973,7 @@
         "REDIS_URL"
       ],
       "current_blocker": "none",
+      "current_legacy_role": "Global CoinAnk feature aggregation contract for features:global_coinank:*:latest.",
       "dependencies": [
         "__future__",
         "config",
@@ -45960,7 +46007,7 @@
         "subprocess_callers": false
       },
       "test_requirements": [],
-      "v2_action": "wrap_or_reference_readonly",
+      "v2_action": "preserve_contract_then_port_to_v2_feature_aggregator",
       "v2_destination": "wrap_v2_namespace"
     },
     {
@@ -60028,8 +60075,10 @@
     },
     {
       "classification": "unsafe_unknown",
+      "coinank_plan3_last_reviewed_at": "2026-05-13T00:45:24Z",
       "configs_env": [],
       "current_blocker": "unknown_requires_evidence",
+      "current_legacy_role": "Feature snapshot contract consumer for trainer/signal lineage.",
       "dependencies": [
         "datetime",
         "json",
@@ -60060,7 +60109,7 @@
         "subprocess_callers": false
       },
       "test_requirements": [],
-      "v2_action": "review_before_use",
+      "v2_action": "port_to_v2_feature_store_contract_after_atlas",
       "v2_destination": "wrap_v2_namespace"
     },
     {
@@ -129699,6 +129748,43 @@
       "test_requirements": [],
       "v2_action": "keep_and_monitor",
       "v2_destination": "preserve_exact"
+    },
+    {
+      "classification": "active_runtime",
+      "coinank_plan3_last_reviewed_at": "2026-05-13T00:45:24Z",
+      "configs_env": [],
+      "current_blocker": "none",
+      "current_legacy_role": "CoinAnk endpoint health monitor; reads Redis metrics and reports failing endpoints.",
+      "dashboard_page_visibility": "Monitor Center CoinAnk monitor status",
+      "dependencies": [],
+      "endpoint_contracts": [
+        "coinank:endpoint_manifest",
+        "coinank:metrics",
+        "coinank:monitor:last_report"
+      ],
+      "exchange_calls": [],
+      "logs": true,
+      "migration_priority": "P3 monitor/audit/logging",
+      "old_path": "legacy_reference/ingest/coinank_pipeline_monitor.py",
+      "purpose": "CoinAnk endpoint health monitor; reads Redis metrics and reports failing endpoints.",
+      "redis_reads": [
+        "get("
+      ],
+      "redis_writes": [],
+      "risk_level": "L1_NON_LIVE_READONLY_MONITOR",
+      "runtime_monitor_status": [
+        "COINANK_PATCH_RUNTIME_CURRENT",
+        "COINANK_MANIFEST_MISSING",
+        "COINANK_GLOBAL_11_KEY_CONTRACT_CURRENT",
+        "COINANK_FORBIDDEN_MARKET_SOURCE_OBSERVED",
+        "COINANK_CONTRACT_BLOCKED"
+      ],
+      "startup_mechanism": {},
+      "tests_required": [
+        "read-only monitor payload",
+        "missing endpoint manifest fallback"
+      ],
+      "v2_action": "preserve_monitor_then_port_to_v2_monitor_center"
     }
   ],
   "source_registry": "claude_worklog/final_readiness/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json",

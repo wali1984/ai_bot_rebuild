@@ -1,5 +1,5 @@
 import { Panel, Metric } from './cockpitComponents';
-import type { OperatorTruthPayload, OperatorTruthStatusRow, PaperOnlineRuntimePayload } from './operatorTruthData';
+import type { CoinankMarketIntelligencePayload, OperatorTruthPayload, OperatorTruthStatusRow, PaperOnlineRuntimePayload } from './operatorTruthData';
 import { statusClass, valueText } from './cockpitData';
 
 const MISSING = 'Evidence missing — cannot explain without guessing.';
@@ -328,6 +328,66 @@ export function PaperOnlineRuntimeStatusPanel({ payload }: { payload: PaperOnlin
           ))}
         </div>
       ) : null}
+    </Panel>
+  );
+}
+
+export function CoinankMarketIntelligencePanel({ payload, error, context = 'Market Intelligence' }: { payload: CoinankMarketIntelligencePayload | null; error?: string | null; context?: string }): JSX.Element {
+  const source = payload?.source ?? 'MISSING_EVIDENCE';
+  const availability = payload?.availability ?? {};
+  const endpointCounts = payload?.endpoint_key_counts ?? {};
+  const missing = payload?.missing_evidence ?? [];
+  return (
+    <Panel
+      id={`coinank-market-intelligence-${context.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+      title={`${context} - CoinAnk Plan-3 Read-Only Bridge`}
+      right={<span className={payload ? 'chip solid-ok' : 'chip solid-warn'}>{source}</span>}
+    >
+      {payload ? (
+        <>
+          <div className="cockpit-analytics-grid">
+            <Metric label="Payload generated" value={payload.generated_at} />
+            <Metric label="Live gate" value={payload.live_gate_status} />
+            <Metric label="Endpoint manifest" value={payload.endpoint_manifest_version} />
+            <Metric label="Active symbols" value={payload.active_symbols.length} />
+            <Metric label="Global 11 contract" value={payload.global_11_key_contract_status} />
+            <Metric label="CVD keys" value={endpointCounts.agg_cvd ?? 0} />
+            <Metric label="SMC keys" value={endpointCounts.indicator_smc ?? 0} />
+            <Metric label="Weighted funding keys" value={endpointCounts.weighted_funding ?? 0} />
+          </div>
+          <div className="cockpit-lineage-grid">
+            <div><span>Required TFs</span><strong>{payload.required_tfs.map((tf) => `${tf}:${payload.required_tfs_status[tf] ? 'yes' : 'missing'}`).join(' / ')}</strong></div>
+            <div><span>Hot symbols</span><strong>{payload.hot_symbols.length ? payload.hot_symbols.slice(0, 8).join(', ') : 'MISSING_EVIDENCE'}</strong></div>
+            <div><span>Liquidation orders</span><strong>{String(availability.liquidation_orders ?? false)}</strong></div>
+            <div><span>Long/short</span><strong>{String(availability.long_short ?? false)}</strong></div>
+            <div><span>Forbidden last-price/KLine source</span><strong>{String(payload.forbidden_source_checks.kline_endpoint_keys_observed ?? false)}</strong></div>
+            <div><span>Forbidden orderbook source</span><strong>{String(payload.forbidden_source_checks.orderbook_endpoint_keys_observed ?? false)}</strong></div>
+          </div>
+          <p className="cockpit-evidence-note">{payload.data_truth_rule}</p>
+          {missing.length ? (
+            <details className="mission-evidence-details">
+              <summary>
+                <span>Missing CoinAnk evidence</span>
+                <small>{missing.length} item{missing.length === 1 ? '' : 's'} remain explicit, not mocked.</small>
+              </summary>
+              <div className="mission-evidence-details__body">
+                <div className="missing-evidence-board">
+                  {missing.slice(0, 12).map((item) => (
+                    <div className="missing-evidence-card" key={item}>
+                      <strong>MISSING_EVIDENCE</strong>
+                      <p>{item}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </details>
+          ) : null}
+        </>
+      ) : (
+        <p className="cockpit-evidence-gap">
+          Evidence missing — cannot explain CoinAnk market intelligence without guessing. Missing source: `/operator_runtime/coinank_market_intelligence/latest/coinank_market_intelligence_status.json`. {error ?? ''}
+        </p>
+      )}
     </Panel>
   );
 }

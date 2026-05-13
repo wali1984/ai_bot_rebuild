@@ -6,8 +6,8 @@ import { AutonomousGovernorPanel, ChartPanel, CockpitLoading, ConfigTable, Decis
 import type { AutonomousGovernorPayload, CockpitPayload } from '../cockpitData';
 import { statusClass, useCockpitPayload, valueText } from '../cockpitData';
 import { MissionControlReadinessBanner } from '../../components/banners/MissionControlReadinessBanner';
-import { useOperatorTruthPayload, usePaperOnlineRuntimePayload, type PaperOnlineRuntimePayload } from '../operatorTruthData';
-import { ActualRuntimeNowPanel, LegacyRuntimeMonitorPanel, LiveObserverShadowTwinPanel, MissingEvidencePanel, OperatorTruthCommandDeck, OperatorTruthLoading, PaperOnlineRuntimeStatusPanel, PayloadFreshnessPanel, RuntimeTruthMatrix, SignalLineageTruthPanel, TrainerPredictionTruthPanel, WhatIsWorkingPanel } from '../operatorTruthComponents';
+import { useCoinankMarketIntelligencePayload, useOperatorTruthPayload, usePaperOnlineRuntimePayload, type PaperOnlineRuntimePayload } from '../operatorTruthData';
+import { ActualRuntimeNowPanel, CoinankMarketIntelligencePanel, LegacyRuntimeMonitorPanel, LiveObserverShadowTwinPanel, MissingEvidencePanel, OperatorTruthCommandDeck, OperatorTruthLoading, PaperOnlineRuntimeStatusPanel, PayloadFreshnessPanel, RuntimeTruthMatrix, SignalLineageTruthPanel, TrainerPredictionTruthPanel, WhatIsWorkingPanel } from '../operatorTruthComponents';
 
 const EVIDENCE_MISSING = 'Evidence missing - cannot explain without guessing.';
 
@@ -15,6 +15,7 @@ export default function MissionControlPage(): JSX.Element {
   const { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, redisExportCapacity, redisFullExport, redisSafeTrimPacket, autonomousGovernor, error } = useCockpitPayload();
   const { payload: truthPayload, error: truthError } = useOperatorTruthPayload();
   const { payload: paperRuntime } = usePaperOnlineRuntimePayload();
+  const { payload: coinankPayload, error: coinankError } = useCoinankMarketIntelligencePayload();
 
   if (!payload) {
     return (
@@ -33,6 +34,7 @@ export default function MissionControlPage(): JSX.Element {
       {truthPayload ? <ActualRuntimeNowPanel payload={truthPayload} /> : null}
       {truthPayload ? <RuntimeTruthMatrix payload={truthPayload} /> : null}
       <PaperOnlineRuntimeStatusPanel payload={paperRuntime} />
+      <CoinankMarketIntelligencePanel payload={coinankPayload} error={coinankError} context="Mission Control" />
       {truthPayload ? <LiveObserverShadowTwinPanel payload={truthPayload} /> : null}
       {truthPayload ? <MissionCriticalSystemsGrid payload={payload} truthPayload={truthPayload} paperRuntime={paperRuntime} /> : null}
       <OperatorDetailLinksPanel />

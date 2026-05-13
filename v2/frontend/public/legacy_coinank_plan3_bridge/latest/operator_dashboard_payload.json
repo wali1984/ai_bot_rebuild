@@ -1,0 +1,48 @@
+{
+  "codex_result": "LEGACY_COINANK_PLAN3_PATCH_DELTA_SYNC_CODEX_FAIL",
+  "coinank_patch_audited": true,
+  "current_blockers": [
+    {
+      "detail": "indicator_smc: no matching endpoint feature keys observed",
+      "id": "MISSING_EVIDENCE",
+      "severity": "market_data_optional_or_contract"
+    },
+    {
+      "detail": "weighted_funding: no matching endpoint feature keys observed",
+      "id": "MISSING_EVIDENCE",
+      "severity": "market_data_optional_or_contract"
+    },
+    {
+      "detail": "liquidation_rank: no matching endpoint feature keys observed",
+      "id": "MISSING_EVIDENCE",
+      "severity": "market_data_optional_or_contract"
+    },
+    {
+      "detail": "endpoint manifest keys coinank:endpoint_manifest / coinank:endpoints not observed",
+      "id": "MISSING_EVIDENCE",
+      "severity": "market_data_optional_or_contract"
+    },
+    {
+      "detail": "Forbidden market/orderbook source or Redis read failure observed.",
+      "id": "COINANK_CONTRACT_BLOCKED",
+      "severity": "blocking"
+    }
+  ],
+  "exchange_actions": false,
+  "generated_at": "2026-05-13T00:45:24Z",
+  "go_no_go": "LEGACY_COINANK_PLAN3_PATCH_DELTA_SYNC_AND_V2_MARKET_INTELLIGENCE_BRIDGE_BLOCKED",
+  "legacy_bot_modified_by_this_task": false,
+  "legacy_reference_refreshed_as_evidence": true,
+  "live_gate_status": "blocked_human_only",
+  "non_drift_result": "PASSED_SUPPORTS_PRIMARY_V2_MARKET_INTELLIGENCE_BRIDGE",
+  "old_redis_writes": false,
+  "runtime_contract_classifications": [
+    "COINANK_PATCH_RUNTIME_CURRENT",
+    "COINANK_MANIFEST_MISSING",
+    "COINANK_GLOBAL_11_KEY_CONTRACT_CURRENT",
+    "COINANK_FORBIDDEN_MARKET_SOURCE_OBSERVED",
+    "COINANK_CONTRACT_BLOCKED"
+  ],
+  "script_migration_backlog_updated": true,
+  "v2_bridge_payload_status": "CURRENT"
+}

@@ -4,12 +4,13 @@ import route from './route';
 import { CockpitLoading, DecisionDrawers, Panel } from '../cockpitComponents';
 import { useCockpitPayload } from '../cockpitData';
 import { DesignPageShell, SourceRibbon } from '../designShell';
-import { useOperatorTruthPayload } from '../operatorTruthData';
-import { LiveObserverShadowTwinPanel, OperatorTruthLoading, RouteTruthSummary, TrainerPredictionTruthPanel } from '../operatorTruthComponents';
+import { useCoinankMarketIntelligencePayload, useOperatorTruthPayload } from '../operatorTruthData';
+import { CoinankMarketIntelligencePanel, LiveObserverShadowTwinPanel, OperatorTruthLoading, RouteTruthSummary, TrainerPredictionTruthPanel } from '../operatorTruthComponents';
 
 export default function TrainerPredictionMonitorPage(): JSX.Element {
   const { payload, error } = useCockpitPayload();
   const { payload: truthPayload, error: truthError } = useOperatorTruthPayload();
+  const { payload: coinankPayload, error: coinankError } = useCoinankMarketIntelligencePayload();
   const hasCurrentTrainer = truthPayload?.trainer_monitor_status.status === 'REALTIME_RUNTIME_EVIDENCE'
     || truthPayload?.trainer_monitor_status.status === 'V2_PAPER_TRAINER_WRAPPER_CURRENT';
   return (
@@ -17,6 +18,7 @@ export default function TrainerPredictionMonitorPage(): JSX.Element {
       <SourceRibbon labels={['prediction_id', 'feature_snapshot_id', 'model checkpoint', 'confidence calibration', 'missing evidence warnings']} />
       {truthPayload ? <RouteTruthSummary payload={truthPayload} title="Trainer Prediction Monitor" /> : <OperatorTruthLoading error={truthError} />}
       {truthPayload ? <TrainerPredictionTruthPanel payload={truthPayload} /> : null}
+      <CoinankMarketIntelligencePanel payload={coinankPayload} error={coinankError} context="Trainer Feature Inputs" />
       {truthPayload ? <LiveObserverShadowTwinPanel payload={truthPayload} /> : null}
       {truthPayload && !hasCurrentTrainer ? (
         <Panel id="trainer-current-missing-source" title="Current Trainer Runtime Source Missing" right={<span className="chip solid-warn">TRAINER_RUNTIME_EVIDENCE_MISSING</span>}>

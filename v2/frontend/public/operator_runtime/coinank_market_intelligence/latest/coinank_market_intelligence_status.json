@@ -1,0 +1,153 @@
+{
+  "active_symbols": [
+    "1000SHIBUSDT",
+    "ASTERUSDT",
+    "BTCUSDT",
+    "DOGEUSDT",
+    "ETHUSDT",
+    "LINKUSDT",
+    "LTCUSDT",
+    "SOLUSDT",
+    "UNIUSDT",
+    "XRPUSDT"
+  ],
+  "availability": {
+    "cvd": true,
+    "funding_weighted": false,
+    "liquidation_orders": true,
+    "liquidation_rank": false,
+    "long_short": true,
+    "smc": false
+  },
+  "current_blockers": [
+    {
+      "detail": "indicator_smc: no matching endpoint feature keys observed",
+      "id": "MISSING_EVIDENCE",
+      "severity": "market_data_optional_or_contract"
+    },
+    {
+      "detail": "weighted_funding: no matching endpoint feature keys observed",
+      "id": "MISSING_EVIDENCE",
+      "severity": "market_data_optional_or_contract"
+    },
+    {
+      "detail": "liquidation_rank: no matching endpoint feature keys observed",
+      "id": "MISSING_EVIDENCE",
+      "severity": "market_data_optional_or_contract"
+    },
+    {
+      "detail": "endpoint manifest keys coinank:endpoint_manifest / coinank:endpoints not observed",
+      "id": "MISSING_EVIDENCE",
+      "severity": "market_data_optional_or_contract"
+    },
+    {
+      "detail": "Forbidden market/orderbook source or Redis read failure observed.",
+      "id": "COINANK_CONTRACT_BLOCKED",
+      "severity": "blocking"
+    }
+  ],
+  "data_truth_rule": "CoinAnk-derived data is shown only when this LIVE_COINANK_READONLY payload provides current read-only evidence; missing optional endpoints remain MISSING_EVIDENCE.",
+  "endpoint_count": null,
+  "endpoint_key_counts": {
+    "agg_cvd": 46,
+    "global_coinank": 20,
+    "indicator_smc": 0,
+    "liquidation_rank": 0,
+    "weighted_funding": 0
+  },
+  "endpoint_manifest_version": "MISSING_EVIDENCE",
+  "exchange_actions_by_this_task": false,
+  "forbidden_source_checks": {
+    "kline_endpoint_keys_observed": true,
+    "orderbook_endpoint_keys_observed": false
+  },
+  "generated_at": "2026-05-13T00:45:24Z",
+  "global_11_key_contract_status": "CURRENT",
+  "hot_symbols": [
+    "1000SHIBUSDT",
+    "ASTERUSDT",
+    "BTCUSDT",
+    "DOGEUSDT",
+    "ETHUSDT",
+    "LINKUSDT",
+    "LTCUSDT",
+    "SOLUSDT",
+    "UNIUSDT",
+    "XRPUSDT"
+  ],
+  "legacy_bot_modified_by_this_task": false,
+  "legacy_monitor_file_hash": "55820c3eb988afd2041bc8b392db2650e297ac75ac82180068737a9d2ab96ced",
+  "legacy_redis_writes_by_this_task": false,
+  "legacy_reference_hash_after_refresh": "2cd0263d4f50c8531a7b2f2400ff502250309d1a8daf9dc6d1192c46269d268d",
+  "legacy_source_file_hash": "2cd0263d4f50c8531a7b2f2400ff502250309d1a8daf9dc6d1192c46269d268d",
+  "live_gate_status": "blocked_human_only",
+  "missing_evidence": [
+    "indicator_smc: no matching endpoint feature keys observed",
+    "weighted_funding: no matching endpoint feature keys observed",
+    "liquidation_rank: no matching endpoint feature keys observed",
+    "endpoint manifest keys coinank:endpoint_manifest / coinank:endpoints not observed"
+  ],
+  "radar_symbols": "MISSING_EVIDENCE",
+  "required_tfs": [
+    "5m",
+    "15m",
+    "30m",
+    "1h",
+    "4h",
+    "1d"
+  ],
+  "required_tfs_status": {
+    "15m": true,
+    "1d": false,
+    "1h": true,
+    "30m": true,
+    "4h": true,
+    "5m": false
+  },
+  "runtime_classifications": [
+    "COINANK_PATCH_RUNTIME_CURRENT",
+    "COINANK_MANIFEST_MISSING",
+    "COINANK_GLOBAL_11_KEY_CONTRACT_CURRENT",
+    "COINANK_FORBIDDEN_MARKET_SOURCE_OBSERVED",
+    "COINANK_CONTRACT_BLOCKED"
+  ],
+  "sample_endpoint_keys": {
+    "agg_cvd": [
+      "features:coinank_endpoint:marketOrder_getAggCvd:1000SHIBUSDT:Binance:15m:latest",
+      "features:coinank_endpoint:marketOrder_getAggCvd:1000SHIBUSDT:Binance:1h:latest",
+      "features:coinank_endpoint:marketOrder_getAggCvd:1000SHIBUSDT:Binance:30m:latest",
+      "features:coinank_endpoint:marketOrder_getAggCvd:1000SHIBUSDT:Binance:4h:latest",
+      "features:coinank_endpoint:marketOrder_getAggCvd:1000SHIBUSDT:Binance:8h:latest",
+      "features:coinank_endpoint:marketOrder_getAggCvd:ASTERUSDT:Binance:15m:latest",
+      "features:coinank_endpoint:marketOrder_getAggCvd:ASTERUSDT:Binance:1h:latest",
+      "features:coinank_endpoint:marketOrder_getAggCvd:ASTERUSDT:Binance:30m:latest",
+      "features:coinank_endpoint:marketOrder_getAggCvd:ASTERUSDT:Binance:4h:latest",
+      "features:coinank_endpoint:marketOrder_getAggCvd:BTCUSDT:Binance:15m:latest",
+      "features:coinank_endpoint:marketOrder_getAggCvd:BTCUSDT:Binance:1h:latest",
+      "features:coinank_endpoint:marketOrder_getAggCvd:BTCUSDT:Binance:30m:latest"
+    ],
+    "global_coinank": [
+      "features:global_coinank:alt_season_index:latest",
+      "features:global_coinank:btc_dominance:latest",
+      "features:global_coinank:eth_dominance:latest",
+      "features:global_coinank:fear_greed:latest",
+      "features:global_coinank:fund_fundReal:latest",
+      "features:global_coinank:fundingRate_accumulated:latest",
+      "features:global_coinank:fundingRate_current:latest",
+      "features:global_coinank:fundingRate_frHeatmap:latest",
+      "features:global_coinank:funding_rate_avg:latest",
+      "features:global_coinank:hyper_topAction:latest",
+      "features:global_coinank:hyper_topPosition:latest",
+      "features:global_coinank:liqMap_getLiqHeatMapSymbol:latest"
+    ],
+    "indicator_smc": [],
+    "liquidation_rank": [],
+    "weighted_funding": []
+  },
+  "source": "LIVE_COINANK_READONLY",
+  "stale_evidence": [],
+  "unified_features_sample_status": {
+    "BTCUSDT_5m": "CURRENT",
+    "ETHUSDT_15m": "CURRENT"
+  }
+}

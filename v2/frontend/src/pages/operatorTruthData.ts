@@ -179,9 +179,39 @@ export interface TonightReadinessPayload {
   exchange_actions: boolean;
 }
 
+export interface CoinankMarketIntelligencePayload {
+  generated_at: string;
+  source: string;
+  live_gate_status: string;
+  legacy_source_file_hash: string | null;
+  legacy_monitor_file_hash?: string | null;
+  endpoint_manifest_version: string;
+  required_tfs: string[];
+  required_tfs_status: Record<string, boolean>;
+  active_symbols: string[];
+  hot_symbols: string[];
+  endpoint_count: number | null;
+  radar_symbols: unknown;
+  availability: Record<string, boolean>;
+  endpoint_key_counts: Record<string, number>;
+  sample_endpoint_keys: Record<string, string[]>;
+  global_11_key_contract_status: string;
+  unified_features_sample_status: Record<string, string | null | undefined>;
+  forbidden_source_checks: Record<string, boolean>;
+  runtime_classifications: string[];
+  missing_evidence: string[];
+  stale_evidence: string[];
+  current_blockers: Array<{ id: string; severity: string; detail: string }>;
+  legacy_redis_writes_by_this_task: boolean;
+  legacy_bot_modified_by_this_task: boolean;
+  exchange_actions_by_this_task: boolean;
+  data_truth_rule: string;
+}
+
 const operatorTruthPayloadPath = '/operator_truth/latest/operator_truth_payload.json';
 const paperOnlineRuntimePayloadPath = '/operator_runtime/paper_online/latest/paper_runtime_status.json';
 const liveObserverRuntimePayloadPath = '/operator_runtime/live_observer/latest/current_runtime_truth_payload.json';
+const coinankMarketIntelligencePayloadPath = '/operator_runtime/coinank_market_intelligence/latest/coinank_market_intelligence_status.json';
 const tonightReadinessPayloadPath = '/tonight_live_like_paper_shadow/latest/operator_dashboard_payload.json';
 const RUNTIME_CURRENT_SECONDS = 120;
 
@@ -498,6 +528,40 @@ export function useTonightReadinessPayload(intervalMs = 10_000): {
     let timer: number | undefined;
     const load = (): void => {
       fetchJson<TonightReadinessPayload>(`${tonightReadinessPayloadPath}?ts=${Date.now()}`)
+        .then((data) => {
+          if (!active) return;
+          setPayload(data);
+          setError(null);
+        })
+        .catch((err: unknown) => {
+          if (!active) return;
+          setPayload(null);
+          setError(err instanceof Error ? err.message : String(err));
+        });
+    };
+    load();
+    timer = window.setInterval(load, intervalMs);
+    return () => {
+      active = false;
+      if (timer !== undefined) window.clearInterval(timer);
+    };
+  }, [intervalMs]);
+
+  return { payload, error };
+}
+
+export function useCoinankMarketIntelligencePayload(intervalMs = 10_000): {
+  payload: CoinankMarketIntelligencePayload | null;
+  error: string | null;
+} {
+  const [payload, setPayload] = useState<CoinankMarketIntelligencePayload | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    let timer: number | undefined;
+    const load = (): void => {
+      fetchJson<CoinankMarketIntelligencePayload>(`${coinankMarketIntelligencePayloadPath}?ts=${Date.now()}`)
         .then((data) => {
           if (!active) return;
           setPayload(data);
