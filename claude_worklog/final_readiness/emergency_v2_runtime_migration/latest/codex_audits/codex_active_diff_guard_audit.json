@@ -1,0 +1,29 @@
+{
+  "audits": {
+    "codex_audit_legacy_mutation_absent": {
+      "changed_legacy_paths": [],
+      "result": "PASS"
+    },
+    "codex_audit_no_live_side_effects": {
+      "high_confidence_executable_hits": [],
+      "result": "PASS"
+    },
+    "codex_audit_old_redis_write_absent": {
+      "high_confidence_executable_hits": [],
+      "result": "PASS"
+    },
+    "codex_audit_worker_claims_not_backlog": {
+      "context_hits": [
+        "claude_worklog/final_readiness/always_on_claude_codex_runtime/recurring/audit_script_migration_progress/recurring_audit_script_migration_progress_REPORT.md"
+      ],
+      "interpretation": "The active text explicitly says backlog is not migrated; no backlog-as-migration claim found.",
+      "result": "PASS"
+    }
+  },
+  "bootstrap_started": false,
+  "final_live_approval_token_absent": true,
+  "generated_at": "2026-05-13T21:51:00Z",
+  "live_gate": "blocked_human_only",
+  "tracked_changed_count_at_audit": 222,
+  "untracked_count_at_audit": 38
+}
