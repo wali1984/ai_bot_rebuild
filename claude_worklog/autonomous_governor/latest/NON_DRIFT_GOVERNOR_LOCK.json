@@ -1,11 +1,9 @@
 {
   "canonical_packet_path": "claude_worklog/final_readiness/non_drift_governor_lock/latest",
   "codex_parallel_lane_allowed": true,
-  "current_primary_blockers": [
-    "legacy_trainer_restart_runtime_parity_sync_blocked"
-  ],
+  "current_primary_blockers": [],
   "exchange_mutation_allowed": false,
-  "generated_at": "2026-05-12T23:07:37.561845+00:00",
+  "generated_at": "2026-05-13T03:07:45.204833+00:00",
   "legacy_bot_mutation_allowed": false,
   "live_gate_status": "blocked_human_only",
   "lock_id": "CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK",
@@ -18,13 +16,18 @@
     "codex_audit_legacy_bridge_readonly",
     "codex_audit_public_dashboard_truth",
     "codex_audit_script_migration_coverage",
-    "codex_audit_v2_data_plane_independence"
+    "codex_audit_v2_data_plane_independence",
+    "codex_audit_documentation_completeness",
+    "codex_audit_coinank_bridge_contract",
+    "codex_audit_config_admin_dangerous_controls",
+    "codex_audit_paper_shadow_performance"
   ],
   "primary_lane": "v2_live_like_paper_shadow_canary_preflight",
   "primary_objective": "V2 live-like paper/shadow, legacy bridge, risk gateway, trainer parity, and canary preflight",
   "redis_trim": "deferred_non_blocking",
-  "selected_primary_task": "SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX",
-  "selected_task_id": "SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX",
+  "selected_primary_task": "RISK_GATEWAY_RUNTIME_EXPANSION_TESTS",
+  "selected_task_id": "RISK_GATEWAY_RUNTIME_EXPANSION_TESTS",
+  "selection_source": "always_on_objective_runner",
   "status": "ACTIVE",
   "support_lane_policy": "Website/UI/proof work is support-only unless it fixes a fresh route/data-truth regression or unblocks primary runtime truth."
 }

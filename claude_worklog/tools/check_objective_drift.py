@@ -20,7 +20,7 @@ BLOCKED = "CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_BLOCKED"
 CODEX_PASS = "CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_CODEX_PASS"
 CODEX_FAIL = "CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_CODEX_FAIL"
 LIVE_GATE = "blocked_human_only"
-SELECTED_PRIMARY_TASK = "SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX"
+SELECTED_PRIMARY_TASK = "RISK_GATEWAY_RUNTIME_EXPANSION_TESTS"
 PARALLEL_CODEX_TASKS = [
     "codex_audit_no_live_side_effects",
     "codex_audit_current_runtime_truth",
@@ -218,7 +218,7 @@ def build_lanes(status: dict[str, Any]) -> dict[str, Any]:
         "generated_at": generated_at,
         "primary_claude_lane": {
             "selected_task": status["recommended_next_primary_task"],
-            "why_selected": "Website rebuild passed; legacy execution containment proof exists; trainer runtime/parity remains the active primary blocker.",
+            "why_selected": "Website rebuild passed and legacy live bridge data-plane evidence exists; risk gateway runtime expansion is the next primary-chain task.",
             "objective_mapping": [
                 "V2 live-like paper/shadow",
                 "legacy bridge read-only evidence",

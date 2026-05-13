@@ -1,13 +1,9 @@
 # Next Task Selection
 
-Generated: 2026-05-12T23:07:37.561845+00:00
+Generated: 2026-05-13T03:07:45.204833+00:00
 
-- Selected primary task: `SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX`
-- Primary lane: `v2_live_like_paper_shadow_canary_preflight`
-- Website lane: `secondary_support_lane`
-- Live gate: `blocked_human_only`
-- Legacy mutation: `none`
-- Redis mutation: `none`
-- Exchange mutation: `none`
+Selected task: `RISK_GATEWAY_RUNTIME_EXPANSION_TESTS`
 
-Website work is support-only after the production route crawl pass. The next autonomous lane must stay on V2 live-like paper/shadow, legacy bridge, risk gateway, trainer parity, and canary preflight.
+Source: `always_on_objective_runner`
+
+Live gate: `blocked_human_only`

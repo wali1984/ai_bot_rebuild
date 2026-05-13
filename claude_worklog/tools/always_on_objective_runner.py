@@ -26,6 +26,9 @@ STATUS = ROOT / "claude_worklog/agent_supervisor/status"
 EVENTS = ROOT / "claude_worklog/agent_supervisor/events.jsonl"
 FINAL = ROOT / "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest"
 PUBLIC = ROOT / "v2/frontend/public/always_on_claude_codex_runtime/latest"
+GOV = ROOT / "claude_worklog/autonomous_governor/latest"
+NON_DRIFT_FINAL = ROOT / "claude_worklog/final_readiness/non_drift_governor_lock/latest"
+NON_DRIFT_PUBLIC = ROOT / "v2/frontend/public/non_drift_governor_lock/latest"
 
 LIVE_GATE = "blocked_human_only"
 READY = "ALWAYS_ON_CLAUDE_CODEX_PRIMARY_OBJECTIVE_RUNTIME_READY"
@@ -361,6 +364,73 @@ def ensure_primary_task() -> dict[str, Any]:
     return {"selected": selected, "action": f"state_{state}", "created": False}
 
 
+def refresh_non_drift_selection(primary: dict[str, Any], markers: dict[str, str]) -> dict[str, Any]:
+    selected = str(primary.get("selected") or "")
+    if not selected or selected == "FINAL_LIVE_CAPITAL_APPROVAL_REQUIRED":
+        return {"updated": False, "reason": "human_final_gate_or_missing_selection"}
+    generated_at = now()
+    blockers: list[str] = []
+    if "BLOCKED" in markers.get("legacy_trainer_restart_runtime", "") or markers.get("legacy_trainer_restart_runtime") == "MISSING":
+        blockers.append("legacy_trainer_restart_runtime_parity_sync_blocked")
+    if "BLOCKED" in markers.get("legacy_execution_containment", "") or markers.get("legacy_execution_containment") == "MISSING":
+        blockers.append("legacy_execution_containment_marker_missing")
+    lock = {
+        "canonical_packet_path": "claude_worklog/final_readiness/non_drift_governor_lock/latest",
+        "codex_parallel_lane_allowed": True,
+        "current_primary_blockers": blockers,
+        "exchange_mutation_allowed": False,
+        "generated_at": generated_at,
+        "legacy_bot_mutation_allowed": False,
+        "live_gate_status": LIVE_GATE,
+        "lock_id": "CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK",
+        "old_redis_mutation_allowed": False,
+        "parallel_codex_tasks": CODEX_LANES,
+        "primary_lane": "v2_live_like_paper_shadow_canary_preflight",
+        "primary_objective": "V2 live-like paper/shadow, legacy bridge, risk gateway, trainer parity, and canary preflight",
+        "redis_trim": "deferred_non_blocking",
+        "selected_primary_task": selected,
+        "selected_task_id": selected,
+        "status": "ACTIVE",
+        "support_lane_policy": "Website/UI/proof work is support-only unless it fixes a fresh route/data-truth regression or unblocks primary runtime truth.",
+        "selection_source": "always_on_objective_runner",
+    }
+    selection = {
+        "generated_at": generated_at,
+        "selected_primary_task": selected,
+        "selected_task_id": selected,
+        "primary_lane": "v2_live_like_paper_shadow_canary_preflight",
+        "why_selected": "Always-on runner advanced from completed/stale primary task to the next V2 primary-chain task.",
+        "parallel_codex_tasks": CODEX_LANES,
+        "human_input_required": "false_unless_final_live_capital_gate",
+        "legacy_mutation": "none",
+        "redis_mutation": "none",
+        "exchange_mutation": "none",
+        "live_gate_status": LIVE_GATE,
+        "redis_trim": "deferred_non_blocking",
+        "current_primary_blockers": blockers,
+        "non_drift_lock_path": "claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json",
+        "selection_source": "always_on_objective_runner",
+    }
+    write_json(GOV / "NON_DRIFT_GOVERNOR_LOCK.json", lock)
+    write_json(GOV / "NEXT_TASK_SELECTION.json", selection)
+    write_text(
+        GOV / "NEXT_TASK_SELECTION.md",
+        f"# Next Task Selection\n\nGenerated: {generated_at}\n\nSelected task: `{selected}`\n\nSource: `always_on_objective_runner`\n\nLive gate: `{LIVE_GATE}`\n",
+    )
+    write_json(NON_DRIFT_FINAL / "objective_drift_status.json", {
+        "generated_at": generated_at,
+        "classification": "ON_PRIMARY_OBJECTIVE",
+        "selected_task": selected,
+        "recommended_next_primary_task": selected,
+        "primary_objective": lock["primary_objective"],
+        "current_primary_blockers": blockers,
+        "live_gate_status": LIVE_GATE,
+        "selection_source": "always_on_objective_runner",
+    })
+    write_json(NON_DRIFT_PUBLIC / "objective_drift_status.json", read_json(NON_DRIFT_FINAL / "objective_drift_status.json"))
+    return {"updated": True, "selected": selected, "blockers": blockers}
+
+
 def check_once(write_artifacts: bool = True) -> dict[str, Any]:
     FINAL.mkdir(parents=True, exist_ok=True)
     PUBLIC.mkdir(parents=True, exist_ok=True)
@@ -368,12 +438,13 @@ def check_once(write_artifacts: bool = True) -> dict[str, Any]:
     recurring_created = ensure_recurring_monitor_tasks()
     codex_created = ensure_codex_audit_tasks()
     primary = ensure_primary_task()
+    markers = primary_go_no_go()
+    non_drift_refresh = refresh_non_drift_selection(primary, markers)
     claude_children = process_lines(r"claude --print")
     codex_children = process_lines(r"codex exec")
     queue = read_json(STATUS / "queue_status.json")
     paper_runtime = read_json(ROOT / "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json")
     coinank = read_json(ROOT / "v2/frontend/public/operator_runtime/coinank_market_intelligence/latest/coinank_market_intelligence_status.json")
-    markers = primary_go_no_go()
     utilization = {
         "classification": "ACTIVE_OK" if claude_children else "IDLE_NO_TASK_SELECTED" if primary.get("action") in {"created_pending", "completed_select_next_required"} else "IDLE_EXPECTED_BREAK",
         "claude_child_count": len(claude_children),
@@ -395,6 +466,7 @@ def check_once(write_artifacts: bool = True) -> dict[str, Any]:
         "live_gate_status": LIVE_GATE,
         "dirty_state": dirty,
         "primary_task": primary,
+        "non_drift_selection_refresh": non_drift_refresh,
         "recurring_monitor_tasks_created": recurring_created,
         "codex_audit_tasks_created": codex_created,
         "utilization": utilization,
