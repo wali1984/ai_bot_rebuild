@@ -1,0 +1,24 @@
+{
+  "canary_blocker": true,
+  "cancel_methods_fail_closed": true,
+  "classifications": [
+    "TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY",
+    "V2_ORDER_METHODS_ABSENT_OR_FAIL_CLOSED",
+    "V2_ORDER_CAPABILITY_NOT_CONFIGURED",
+    "EVIDENCE_PROVIDER_REQUIRED"
+  ],
+  "evidence_source": "existing_readonly_payload_and_v2_fail_closed_connector",
+  "generated_at": "2026-05-13T19:23:12Z",
+  "leverage_methods_fail_closed": true,
+  "margin_methods_fail_closed": true,
+  "order_method_stubs_present_fail_closed": true,
+  "order_methods_fail_closed": true,
+  "order_methods_present": false,
+  "position_mode_methods_fail_closed": true,
+  "source_payload_key_status": "not_configured",
+  "source_payload_order_capability": "BLOCKED",
+  "trade_permission_status": "TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY",
+  "unknowns": [
+    "actual exchange key permission metadata is not current"
+  ]
+}

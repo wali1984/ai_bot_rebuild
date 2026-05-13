@@ -71,6 +71,7 @@ const artifactSets = [
   'risk_gateway_canary_hard_gates',
   'paper_shadow_persistence_and_ports',
   'account_permission_and_soak',
+  'paper_shadow_soak_negative_pnl',
   'legacy_coinank_plan3_bridge',
   'coinank_plan3_runtime_remediation',
   'v2_live_observer_shadow_twin',
