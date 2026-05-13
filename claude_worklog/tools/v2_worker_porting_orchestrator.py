@@ -61,21 +61,31 @@ EVENTS_FILE = REPO_ROOT / "claude_worklog" / "agent_supervisor" / "events.jsonl"
 LIVE_GATE_STATUS = "blocked_human_only"
 
 # Strict worker sequence, encoded once. Do NOT reorder without operator approval.
+# Updated after legacy_startup_baseline_v2_migration: the legacy startup script
+# proves the system begins with ingestors -> feature pipeline / TA -> trainer ->
+# orchestrator -> trader. The three new "*_from_legacy_baseline" workers are
+# inserted at the FRONT of P0 so the baseline data plane lands before risk
+# gateway / paper execution / signal lineage / account monitor.
 WORKER_SEQUENCE: List[Dict[str, str]] = [
+    # P0 — baseline-anchored data plane (ingestor-first, per legacy startup script)
     {"id": "v2_feature_snapshot_builder", "priority": "P0"},
+    {"id": "v2_market_ingestor_from_legacy_baseline", "priority": "P0"},
+    {"id": "v2_coinank_and_liquidation_bridge_from_legacy_baseline", "priority": "P0"},
+    {"id": "v2_feature_pipeline_and_ta_worker_from_legacy_baseline", "priority": "P0"},
+    # P0 — V2-native gates that consume the baseline data plane
     {"id": "v2_risk_gateway_runtime_worker", "priority": "P0"},
     {"id": "v2_paper_execution_worker", "priority": "P0"},
     {"id": "v2_execution_ledger_worker", "priority": "P0"},
     {"id": "v2_signal_lineage_worker", "priority": "P0"},
     {"id": "v2_account_position_monitor", "priority": "P0"},
-    {"id": "v2_market_ingestor", "priority": "P1"},
-    {"id": "v2_coinank_liquidation_bridge", "priority": "P1"},
+    # P1
     {"id": "v2_trainer_bridge", "priority": "P1"},
     {"id": "v2_orchestrator_adapter", "priority": "P1"},
     {"id": "v2_signal_publisher", "priority": "P1"},
     {"id": "v2_replay_worker", "priority": "P1"},
     {"id": "v2_script_monitor", "priority": "P1"},
     {"id": "v2_config_admin_manager", "priority": "P1"},
+    # P2 fail-closed stubs
     {"id": "v2_p2_default_blocked_execution_adapter_stub", "priority": "P2"},
     {"id": "v2_p2_binance_usdm_adapter_stub", "priority": "P2"},
     {"id": "v2_p2_deployment_helpers", "priority": "P2"},

@@ -1,0 +1,20 @@
+# Legacy baseline external-dependency inventory
+# Source: closure scan of v2/legacy_preserved/startup_baseline/ (Phase D).
+# This is a snapshot only — not a pip install target. The V2 venv resolves
+# these on a per-port basis under operator approval.
+
+redis            # 19 files (read-only against legacy Redis from V2 side)
+requests         # 6 files (HTTP)
+psutil           # 5 files (process telemetry — monitoring)
+websockets       # 5 files (exchange live feeds — read-only)
+binance          # 4 files (python-binance SDK — read-only wrap only in V2)
+aiohttp          # 4 files (async HTTP — CoinAPI ingestors)
+numpy            # 2 files (feature pipeline, TA)
+torch            # 2 files (trainer only — DEFER to trainer bridge task)
+ccxt             # 2 files (exchange abstraction — read-only wrap only)
+pynvml           # 1 file (NVIDIA GPU telemetry — optional)
+stable_baselines3  # 1 file (RL trainer — DEFER to trainer bridge task)
+
+# Detected indirectly but skipped for V2:
+# python-dotenv    # V2 reads env from venv/system; no .env reliance
+# urllib3          # transitive via requests

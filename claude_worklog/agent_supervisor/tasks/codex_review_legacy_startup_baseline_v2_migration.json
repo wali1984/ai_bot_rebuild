@@ -1,0 +1,44 @@
+{
+  "task_id": "codex_review_legacy_startup_baseline_v2_migration",
+  "agent": "codex",
+  "lane": "baseline_audit",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "live_gate": "blocked_human_only",
+  "emit_files": true,
+  "required_input_files": [
+    "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/CURRENT_RUNTIME_CLASSIFICATION.md",
+    "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/LEGACY_STARTUP_BASELINE_REPORT.md",
+    "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/legacy_startup_baseline_matrix.json",
+    "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/COPIED_BASELINE_SCRIPTS_REPORT.md",
+    "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/copied_baseline_manifest.json",
+    "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/LEGACY_DEPENDENCY_CLOSURE_REPORT.md",
+    "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/legacy_dependency_closure_matrix.json",
+    "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/ENV_PARITY_FOR_BASELINE_REPORT.md",
+    "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/env_parity_for_baseline.json",
+    "claude_worklog/tools/copy_legacy_startup_baseline.py",
+    "v2/backend/app/cli/legacy_dependency_closure.py"
+  ],
+  "required_output_files": [
+    "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/CODEX_LEGACY_STARTUP_BASELINE_REVIEW.md",
+    "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/CODEX_GO_NO_GO.md"
+  ],
+  "fail_conditions": [
+    "startup_script_phases_not_fully_parsed",
+    "any_ingestor_in_phase_1_missing_from_copy_set_without_explicit_blocker",
+    "any_TA_or_feature_pipeline_script_missing_without_explicit_blocker",
+    "any_liquidation_script_missing_without_explicit_blocker",
+    "trainer_or_orchestrator_or_trader_dependencies_not_mapped",
+    "any_secret_copied_into_v2_legacy_preserved",
+    "any_v2_write_to_old_redis",
+    "any_exchange_mutating_call_or_leverage_change_or_margin_change_from_v2",
+    "final_approval_token_present_or_created",
+    "redis_trim_approval_present_or_created",
+    "backlog_or_planning_artifact_counted_as_migration",
+    "worker_sequence_not_updated_to_ingestor_first",
+    "website_task_consumes_legacy_runtime_as_current_truth"
+  ],
+  "go_no_go_file_contents": ["LEGACY_STARTUP_BASELINE_TO_V2_MIGRATION_CODEX_PASS", "LEGACY_STARTUP_BASELINE_TO_V2_MIGRATION_CODEX_FAIL"],
+  "prompt": "Independently audit Claude's startup-baseline-to-V2 migration. Parse scripts/start_all_services_production.sh yourself and verify every startup phase appears in the baseline matrix. Confirm all 10 ingestors (live_binance, live_kucoin, live_coinank, live_coinank_global_aggregator, live_binance_liquidations, liquidation_bridge, liquidation_levels_engine, realtime_price_provider, live_coinapi_wsds, live_coinapi_v1), all feature/TA scripts (ohlcv_resampler_hotfix, feature_pipeline, live_technical_analysis, validate_symbol_universe_data, paralysis_detectors), and trainer/orchestrator/trader baselines are either copied into v2/legacy_preserved/startup_baseline/ or explicitly classified MISSING_IN_LEGACY_BASELINE. Confirm no secrets copied (the manifest's safe_to_commit=true count must equal the copied count). Confirm no V2 write to old Redis namespace. Confirm no exchange/leverage/margin mutation from V2. Confirm the worker sequence is updated so v2_market_ingestor_from_legacy_baseline is the next action. Confirm the website task remains support-only and reads only V2 worker payloads. Emit CODEX_LEGACY_STARTUP_BASELINE_REVIEW.md and CODEX_GO_NO_GO.md containing exactly LEGACY_STARTUP_BASELINE_TO_V2_MIGRATION_CODEX_PASS or LEGACY_STARTUP_BASELINE_TO_V2_MIGRATION_CODEX_FAIL."
+}

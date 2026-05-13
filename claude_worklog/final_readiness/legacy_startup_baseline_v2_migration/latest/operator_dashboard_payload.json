@@ -1,0 +1,45 @@
+{
+  "task_id": "legacy_startup_baseline_v2_migration",
+  "as_of_utc": "2026-05-13T23:10:00Z",
+  "go_no_go": "LEGACY_STARTUP_BASELINE_TO_V2_WORKER_MIGRATION_READY",
+  "live_gate": "blocked_human_only",
+  "final_approval_token": "absent",
+  "redis_trim_approval": "absent",
+  "operator_declaration_vs_observed": {
+    "operator_said": "legacy_started_without_trader",
+    "observed": "legacy_trader_alive_pid_14912_etimes_about_7559s",
+    "classification": "LEGACY_TRADER_PROCESS_OBSERVED_READONLY",
+    "action": "not_killed_operator_decision_required"
+  },
+  "phase_summary": {
+    "A_classification": "complete",
+    "B_baseline_matrix": "complete",
+    "C_copy": {"copied": 33, "missing": 6, "secret_flagged": 0, "size_mb": 6.2},
+    "D_dependency_closure": {"files_analyzed": 32, "parse_errors": 0, "tests_pass": "7/7", "files_with_redis_use": 20, "files_with_exchange_api_use": 16},
+    "E_env_parity": "inventory_only_no_installs",
+    "F_orchestrator_descriptor_patch": "complete; 3 new claude_port descriptors + 3 codex_review pairs + 1 baseline audit descriptor",
+    "G_porting_sequence": "complete; ingestor-first ordering encoded",
+    "H_dispatch_status": "next_worker=v2_market_ingestor_from_legacy_baseline",
+    "I_codex_review_descriptor": "queued",
+    "J_website_realignment": "support_only_v2_payloads_only",
+    "K_v2_local_runtime": "V2_LOCAL_ONLINE_BLOCKED_BASELINE_COPY_COMPLETE_BUT_WORKERS_NOT_PORTED_YET",
+    "L_validation": {"py_compile": "OK", "tests": "7/7", "json_valid": "16/16", "approval_tokens": "absent"}
+  },
+  "next_worker": "v2_market_ingestor_from_legacy_baseline",
+  "next_action_kind": "dispatch_legacy_baseline_analysis",
+  "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_market_ingestor_from_legacy_baseline.json",
+  "paired_codex_review_descriptor_path": "claude_worklog/agent_supervisor/tasks/codex_review_v2_market_ingestor_from_legacy_baseline.json",
+  "baseline_audit_codex_descriptor": "claude_worklog/agent_supervisor/tasks/codex_review_legacy_startup_baseline_v2_migration.json",
+  "operator_action_to_start_dispatch": [
+    "bash claude_worklog/tools/start_v2_worker_porting_control_plane.sh",
+    "bash claude_worklog/tools/status_v2_worker_porting_control_plane.sh"
+  ],
+  "primary_objective_lock": [
+    "v2_independent_paper_shadow_runtime_via_legacy_baseline_anchored_workers",
+    "live_blocked_human_only",
+    "no_legacy_mutation",
+    "no_old_redis_writes_from_v2",
+    "no_exchange_actions",
+    "every_baseline_worker_must_cite_sha256_from_copied_baseline_manifest"
+  ]
+}

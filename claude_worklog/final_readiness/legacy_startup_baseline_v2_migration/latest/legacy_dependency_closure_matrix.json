@@ -1,0 +1,1130 @@
+{
+  "root": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_preserved/startup_baseline",
+  "entries": [
+    "config.py",
+    "feature_pipeline.py",
+    "ingest/liquidation_bridge.py",
+    "ingest/liquidation_levels_engine.py",
+    "ingest/live_binance.py",
+    "ingest/live_binance_liquidations.py",
+    "ingest/live_coinank.py",
+    "ingest/live_coinank_global_aggregator.py",
+    "ingest/live_coinapi_v1.py",
+    "ingest/live_coinapi_wsds.py",
+    "ingest/live_kucoin.py",
+    "ingest/live_technical_analysis.py",
+    "ingest/realtime_price_provider.py",
+    "monitor_portfolio_asjad.py",
+    "monitor_portfolio_primary.py",
+    "monitor_system_memory.py",
+    "ohlcv_resampler_hotfix.py",
+    "rl/hybrid_trainer.py",
+    "rl/orchestrator_worker.py",
+    "scripts/health_probe.py",
+    "scripts/memory_monitor.py",
+    "scripts/monitor_dashboard.sh",
+    "scripts/monitor_trainer_predictions.py",
+    "scripts/paralysis_detectors.py",
+    "scripts/start_all_services_production.sh",
+    "scripts/stop_all_services_production.sh",
+    "scripts/stop_ingestors.sh",
+    "scripts/validate_symbol_universe_data.py",
+    "system_telegram_monitor.py",
+    "trading/trader-asjad.py",
+    "trading/trader.py",
+    "vpn_monitor.py"
+  ],
+  "analyses": {
+    "vpn_monitor.py": {
+      "legacy_rel_path": "vpn_monitor.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config"
+      ],
+      "external_imports": [
+        "requests"
+      ],
+      "stdlib_imports": [
+        "asyncio",
+        "datetime",
+        "logging",
+        "os",
+        "pathlib",
+        "socket",
+        "subprocess",
+        "sys",
+        "time",
+        "traceback"
+      ],
+      "unknown_imports": [
+        "telegram_alerts"
+      ],
+      "redis_usage": false,
+      "exchange_api_usage": false,
+      "subprocess_usage": true,
+      "config_usage": true,
+      "log_file_writes": [
+        "logging.FileHandler('logs/vpn_monitor.log'),"
+      ]
+    },
+    "trading/trader.py": {
+      "legacy_rel_path": "trading/trader.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config",
+        "ingest",
+        "rl",
+        "trading"
+      ],
+      "external_imports": [
+        "binance",
+        "numpy",
+        "redis",
+        "requests"
+      ],
+      "stdlib_imports": [
+        "asyncio",
+        "collections",
+        "datetime",
+        "hashlib",
+        "hmac",
+        "json",
+        "logging",
+        "math",
+        "os",
+        "pathlib",
+        "random",
+        "re",
+        "socket",
+        "sys",
+        "threading",
+        "time",
+        "traceback",
+        "typing",
+        "urllib",
+        "uuid"
+      ],
+      "unknown_imports": [
+        "config_accounts",
+        "dotenv",
+        "risk",
+        "secrets",
+        "services",
+        "telegram_alerts",
+        "urllib3",
+        "utils"
+      ],
+      "redis_usage": true,
+      "exchange_api_usage": true,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": [
+        "TRADER_LOG_FILE = os.getenv(\"TRADER_LOG_FILE\", \"logs/trader-primary.log\")",
+        "Default: logs/trader-<account>.log unless TRADER_LOG_FILE env override is set.",
+        "desired = f\"logs/trader-{self.account_id}.log\""
+      ]
+    },
+    "trading/trader-asjad.py": {
+      "legacy_rel_path": "trading/trader-asjad.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "trading"
+      ],
+      "external_imports": [],
+      "stdlib_imports": [
+        "os",
+        "pathlib",
+        "sys"
+      ],
+      "unknown_imports": [],
+      "redis_usage": false,
+      "exchange_api_usage": false,
+      "subprocess_usage": false,
+      "config_usage": false,
+      "log_file_writes": [
+        "- TRADER_LOG_FILE=logs/trader-asjad.log",
+        "os.environ.setdefault(\"TRADER_LOG_FILE\", \"logs/trader-asjad.log\")"
+      ]
+    },
+    "system_telegram_monitor.py": {
+      "legacy_rel_path": "system_telegram_monitor.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config"
+      ],
+      "external_imports": [
+        "psutil",
+        "redis"
+      ],
+      "stdlib_imports": [
+        "asyncio",
+        "collections",
+        "datetime",
+        "json",
+        "logging",
+        "os",
+        "pathlib",
+        "sys",
+        "threading",
+        "time",
+        "typing"
+      ],
+      "unknown_imports": [
+        "telegram_alerts"
+      ],
+      "redis_usage": true,
+      "exchange_api_usage": false,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": []
+    },
+    "scripts/validate_symbol_universe_data.py": {
+      "legacy_rel_path": "scripts/validate_symbol_universe_data.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config"
+      ],
+      "external_imports": [
+        "redis"
+      ],
+      "stdlib_imports": [
+        "json",
+        "os",
+        "pathlib",
+        "sys",
+        "time",
+        "typing"
+      ],
+      "unknown_imports": [
+        "__future__"
+      ],
+      "redis_usage": true,
+      "exchange_api_usage": false,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": []
+    },
+    "scripts/stop_ingestors.sh": {
+      "legacy_rel_path": "scripts/stop_ingestors.sh",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "live_.*\\.py",
+        "live_alphavantage_news.py",
+        "live_binance.py",
+        "live_coinank.py",
+        "live_kucoin.py",
+        "live_tokenmetrics.py"
+      ],
+      "external_imports": [],
+      "stdlib_imports": [],
+      "unknown_imports": [],
+      "redis_usage": true,
+      "exchange_api_usage": true,
+      "subprocess_usage": false,
+      "config_usage": false,
+      "log_file_writes": [
+        "local pid_file=\"$PROJECT_ROOT/logs/${name}.pid\"",
+        "find \"$PROJECT_ROOT\" -name \"*.pid\" -path \"*/logs/*\" -type f -delete 2>/dev/null || true"
+      ]
+    },
+    "scripts/stop_all_services_production.sh": {
+      "legacy_rel_path": "scripts/stop_all_services_production.sh",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "feature_pipeline.py",
+        "hybrid_trainer.py",
+        "live_technical_analysis.py",
+        "monitor_portfolio_asjad.py",
+        "monitor_portfolio_primary.py",
+        "monitor_system_memory.py",
+        "ohlcv_resampler_hotfix.py",
+        "scripts/paralysis_detectors.py",
+        "scripts/validate_symbol_universe_data.py",
+        "signal_router.py",
+        "system_telegram_monitor.py",
+        "trading/trader-asjad.py",
+        "trading/trader.py",
+        "vpn_monitor.py"
+      ],
+      "external_imports": [],
+      "stdlib_imports": [],
+      "unknown_imports": [],
+      "redis_usage": false,
+      "exchange_api_usage": true,
+      "subprocess_usage": false,
+      "config_usage": false,
+      "log_file_writes": []
+    },
+    "scripts/start_all_services_production.sh": {
+      "legacy_rel_path": "scripts/start_all_services_production.sh",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config.py",
+        "feature_pipeline.py",
+        "hybrid_trainer.py",
+        "ingest/liquidation_bridge.py",
+        "ingest/liquidation_levels_engine.py",
+        "ingest/live_binance.py",
+        "ingest/live_binance_liquidations.py",
+        "ingest/live_coinank.py",
+        "ingest/live_coinank_global_aggregator.py",
+        "ingest/live_coinapi_v1.py",
+        "ingest/live_coinapi_wsds.py",
+        "ingest/live_kucoin.py",
+        "ingest/live_technical_analysis.py",
+        "ingest/realtime_price_provider.py",
+        "monitor_portfolio_asjad.py",
+        "monitor_portfolio_primary.py",
+        "monitor_system_memory.py",
+        "ohlcv_resampler_hotfix.py",
+        "scripts/health_probe.py",
+        "scripts/memory_monitor.py",
+        "scripts/monitor_trainer_predictions.py",
+        "scripts/paralysis_detectors.py",
+        "scripts/validate_symbol_universe_data.py",
+        "system_telegram_monitor.py",
+        "trading/trader-asjad.py",
+        "trading/trader.py",
+        "vpn_monitor.py"
+      ],
+      "external_imports": [],
+      "stdlib_imports": [],
+      "unknown_imports": [],
+      "redis_usage": false,
+      "exchange_api_usage": true,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": [
+        "> logs/vpn_monitor.log 2>&1 &",
+        "echo $VPN_MONITOR_PID > logs/vpn_monitor.pid",
+        "> logs/telegram_monitor.log 2>&1 &",
+        "> logs/memory_monitor_console.log 2>&1 &",
+        "echo $MEMORY_MONITOR_PID > logs/memory_monitor.pid",
+        "> logs/memory_leak_detector.log 2>&1 &",
+        "echo $MEM_LEAK_PID > logs/memory_leak_detector.pid",
+        "> logs/monitor_trainer_predictions.log 2>&1 &",
+        "echo $TRAINER_PRED_MONITOR_PID > logs/monitor_trainer_predictions.pid",
+        "> \"logs/ingest_${name}.log\" 2>&1 &",
+        "> logs/live_coinapi_wsds.log 2>&1 &",
+        "> logs/live_coinapi_v1.log 2>&1 &",
+        "> logs/ohlcv_resampler.log 2>&1 &",
+        "> logs/feature_pipeline.log 2>&1 &",
+        "> logs/live_technical_analysis.log 2>&1 &",
+        "echo \"   Check logs/live_technical_analysis.log for errors\"",
+        "> logs/hybrid_trainer.log 2>&1 &",
+        "echo \"   Check logs/hybrid_trainer.log for errors\"",
+        "> logs/orchestrator_worker.log 2>&1 &",
+        "> logs/orchestrator_worker.log 2>&1 &",
+        "echo \"   Check logs/orchestrator_worker.log for errors\"",
+        "> logs/trader.log 2>&1 &",
+        "> logs/trader-asjad.log 2>&1 &",
+        "> logs/monitor_portfolio_primary.log 2>&1 &",
+        "> logs/monitor_portfolio_asjad.log 2>&1 &",
+        "echo \"   View logs:           tail -f logs/<service>.log\"",
+        "echo \"   Primary Portfolio:   tail -f logs/monitor_portfolio_primary.log\"",
+        "echo \"   Asjad Portfolio:     tail -f logs/monitor_portfolio_asjad.log\"",
+        "echo \"   VPN status:          tail -f logs/vpn_monitor.log\"",
+        "\u2022 Primary Portfolio: tail -f logs/monitor_portfolio_primary.log",
+        "\u2022 Asjad Portfolio: tail -f logs/monitor_portfolio_asjad.log",
+        "\u2022 Logs: tail -f logs/<service>.log",
+        "\u2022 VPN Status: tail -f logs/vpn_monitor.log"
+      ]
+    },
+    "scripts/paralysis_detectors.py": {
+      "legacy_rel_path": "scripts/paralysis_detectors.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config"
+      ],
+      "external_imports": [
+        "redis"
+      ],
+      "stdlib_imports": [
+        "argparse",
+        "collections",
+        "dataclasses",
+        "json",
+        "os",
+        "pathlib",
+        "sys",
+        "time",
+        "typing"
+      ],
+      "unknown_imports": [
+        "__future__"
+      ],
+      "redis_usage": true,
+      "exchange_api_usage": false,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": []
+    },
+    "scripts/monitor_trainer_predictions.py": {
+      "legacy_rel_path": "scripts/monitor_trainer_predictions.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config"
+      ],
+      "external_imports": [
+        "redis"
+      ],
+      "stdlib_imports": [
+        "argparse",
+        "collections",
+        "datetime",
+        "json",
+        "logging",
+        "os",
+        "sys",
+        "time",
+        "typing"
+      ],
+      "unknown_imports": [
+        "pytz"
+      ],
+      "redis_usage": true,
+      "exchange_api_usage": false,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": []
+    },
+    "scripts/monitor_dashboard.sh": {
+      "legacy_rel_path": "scripts/monitor_dashboard.sh",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "feature_pipeline.py",
+        "hybrid_trainer.py",
+        "live_binance.py",
+        "live_binance_liquidations.py",
+        "live_ccxt.py",
+        "live_coinank.py",
+        "live_kucoin.py",
+        "live_tokenmetrics.py",
+        "ohlcv_resampler_hotfix.py",
+        "trading/trader-asjad.py",
+        "trading/trader.py"
+      ],
+      "external_imports": [],
+      "stdlib_imports": [],
+      "unknown_imports": [],
+      "redis_usage": false,
+      "exchange_api_usage": true,
+      "subprocess_usage": false,
+      "config_usage": false,
+      "log_file_writes": [
+        "echo -e \"${BLUE}Detailed logs: tail -f logs/<service>.log${NC}\""
+      ]
+    },
+    "scripts/memory_monitor.py": {
+      "legacy_rel_path": "scripts/memory_monitor.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [],
+      "external_imports": [
+        "psutil"
+      ],
+      "stdlib_imports": [
+        "collections",
+        "datetime",
+        "logging",
+        "os",
+        "pathlib",
+        "sys",
+        "time"
+      ],
+      "unknown_imports": [],
+      "redis_usage": false,
+      "exchange_api_usage": false,
+      "subprocess_usage": false,
+      "config_usage": false,
+      "log_file_writes": []
+    },
+    "scripts/health_probe.py": {
+      "legacy_rel_path": "scripts/health_probe.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config"
+      ],
+      "external_imports": [
+        "redis"
+      ],
+      "stdlib_imports": [
+        "datetime",
+        "json",
+        "pathlib",
+        "subprocess",
+        "sys",
+        "time",
+        "typing"
+      ],
+      "unknown_imports": [],
+      "redis_usage": true,
+      "exchange_api_usage": false,
+      "subprocess_usage": true,
+      "config_usage": true,
+      "log_file_writes": []
+    },
+    "rl/orchestrator_worker.py": {
+      "legacy_rel_path": "rl/orchestrator_worker.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config",
+        "rl"
+      ],
+      "external_imports": [
+        "redis"
+      ],
+      "stdlib_imports": [
+        "argparse",
+        "asyncio",
+        "collections",
+        "dataclasses",
+        "datetime",
+        "hashlib",
+        "json",
+        "logging",
+        "os",
+        "signal",
+        "sys",
+        "threading",
+        "time",
+        "typing",
+        "uuid"
+      ],
+      "unknown_imports": [
+        "__future__",
+        "risk",
+        "telegram_alerts",
+        "utils"
+      ],
+      "redis_usage": true,
+      "exchange_api_usage": true,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": []
+    },
+    "rl/hybrid_trainer.py": {
+      "legacy_rel_path": "rl/hybrid_trainer.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config",
+        "ingest",
+        "rl",
+        "trading"
+      ],
+      "external_imports": [
+        "binance",
+        "numpy",
+        "psutil",
+        "pynvml",
+        "redis",
+        "requests",
+        "stable_baselines3",
+        "torch"
+      ],
+      "stdlib_imports": [
+        "argparse",
+        "asyncio",
+        "collections",
+        "concurrent",
+        "contextlib",
+        "copy",
+        "datetime",
+        "fcntl",
+        "functools",
+        "gc",
+        "glob",
+        "hashlib",
+        "json",
+        "logging",
+        "math",
+        "multiprocessing",
+        "os",
+        "pathlib",
+        "pickle",
+        "queue",
+        "re",
+        "shutil",
+        "signal",
+        "socket",
+        "subprocess",
+        "sys",
+        "threading",
+        "time",
+        "traceback",
+        "typing",
+        "uuid",
+        "warnings"
+      ],
+      "unknown_imports": [
+        "atexit",
+        "binance_websocket",
+        "cloudpickle",
+        "faulthandler",
+        "gymnasium",
+        "hybrid_rule_based_signals",
+        "risk",
+        "services",
+        "statistics",
+        "telegram_alerts",
+        "utils"
+      ],
+      "redis_usage": true,
+      "exchange_api_usage": true,
+      "subprocess_usage": true,
+      "config_usage": true,
+      "log_file_writes": []
+    },
+    "ohlcv_resampler_hotfix.py": {
+      "legacy_rel_path": "ohlcv_resampler_hotfix.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config"
+      ],
+      "external_imports": [
+        "redis"
+      ],
+      "stdlib_imports": [
+        "datetime",
+        "json",
+        "logging",
+        "time",
+        "typing"
+      ],
+      "unknown_imports": [],
+      "redis_usage": true,
+      "exchange_api_usage": false,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": [
+        "logging.FileHandler(f'logs/ohlcv_resampler_{datetime.now().strftime(\"%Y%m%d_%H%M%S\")}.log')"
+      ]
+    },
+    "monitor_system_memory.py": {
+      "legacy_rel_path": "monitor_system_memory.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [],
+      "external_imports": [
+        "psutil"
+      ],
+      "stdlib_imports": [
+        "datetime",
+        "json",
+        "logging",
+        "os",
+        "pathlib",
+        "signal",
+        "subprocess",
+        "sys",
+        "time",
+        "typing"
+      ],
+      "unknown_imports": [],
+      "redis_usage": false,
+      "exchange_api_usage": false,
+      "subprocess_usage": true,
+      "config_usage": false,
+      "log_file_writes": []
+    },
+    "monitor_portfolio_primary.py": {
+      "legacy_rel_path": "monitor_portfolio_primary.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config"
+      ],
+      "external_imports": [
+        "binance",
+        "redis"
+      ],
+      "stdlib_imports": [
+        "datetime",
+        "json",
+        "os",
+        "pathlib",
+        "sys",
+        "time",
+        "traceback",
+        "typing"
+      ],
+      "unknown_imports": [
+        "dotenv"
+      ],
+      "redis_usage": true,
+      "exchange_api_usage": true,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": []
+    },
+    "monitor_portfolio_asjad.py": {
+      "legacy_rel_path": "monitor_portfolio_asjad.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [],
+      "external_imports": [
+        "binance",
+        "redis"
+      ],
+      "stdlib_imports": [
+        "datetime",
+        "json",
+        "os",
+        "pathlib",
+        "sys",
+        "time",
+        "traceback",
+        "typing"
+      ],
+      "unknown_imports": [
+        "dotenv"
+      ],
+      "redis_usage": true,
+      "exchange_api_usage": true,
+      "subprocess_usage": false,
+      "config_usage": false,
+      "log_file_writes": []
+    },
+    "ingest/realtime_price_provider.py": {
+      "legacy_rel_path": "ingest/realtime_price_provider.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config"
+      ],
+      "external_imports": [
+        "aiohttp",
+        "ccxt",
+        "redis",
+        "websockets"
+      ],
+      "stdlib_imports": [
+        "argparse",
+        "asyncio",
+        "collections",
+        "dataclasses",
+        "datetime",
+        "enum",
+        "json",
+        "logging",
+        "os",
+        "sys",
+        "threading",
+        "time",
+        "typing"
+      ],
+      "unknown_imports": [
+        "utils"
+      ],
+      "redis_usage": true,
+      "exchange_api_usage": true,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": []
+    },
+    "ingest/live_technical_analysis.py": {
+      "legacy_rel_path": "ingest/live_technical_analysis.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config",
+        "ingest"
+      ],
+      "external_imports": [],
+      "stdlib_imports": [
+        "datetime",
+        "logging",
+        "os",
+        "sys",
+        "time"
+      ],
+      "unknown_imports": [
+        "utils"
+      ],
+      "redis_usage": false,
+      "exchange_api_usage": false,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": []
+    },
+    "ingest/live_kucoin.py": {
+      "legacy_rel_path": "ingest/live_kucoin.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config"
+      ],
+      "external_imports": [
+        "aiohttp",
+        "redis",
+        "requests",
+        "websockets"
+      ],
+      "stdlib_imports": [
+        "argparse",
+        "asyncio",
+        "datetime",
+        "json",
+        "logging",
+        "math",
+        "os",
+        "pathlib",
+        "socket",
+        "sys",
+        "threading",
+        "time",
+        "typing"
+      ],
+      "unknown_imports": [
+        "utils"
+      ],
+      "redis_usage": true,
+      "exchange_api_usage": true,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": []
+    },
+    "ingest/live_coinapi_wsds.py": {
+      "legacy_rel_path": "ingest/live_coinapi_wsds.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config"
+      ],
+      "external_imports": [
+        "redis",
+        "websockets"
+      ],
+      "stdlib_imports": [
+        "asyncio",
+        "calendar",
+        "collections",
+        "dataclasses",
+        "datetime",
+        "json",
+        "logging",
+        "os",
+        "random",
+        "sys",
+        "time",
+        "typing"
+      ],
+      "unknown_imports": [
+        "pytz",
+        "utils"
+      ],
+      "redis_usage": true,
+      "exchange_api_usage": false,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": []
+    },
+    "ingest/live_coinapi_v1.py": {
+      "legacy_rel_path": "ingest/live_coinapi_v1.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config"
+      ],
+      "external_imports": [
+        "redis",
+        "websockets"
+      ],
+      "stdlib_imports": [
+        "asyncio",
+        "collections",
+        "dataclasses",
+        "datetime",
+        "json",
+        "logging",
+        "os",
+        "sys",
+        "time",
+        "typing"
+      ],
+      "unknown_imports": [
+        "dateutil",
+        "utils"
+      ],
+      "redis_usage": true,
+      "exchange_api_usage": false,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": []
+    },
+    "ingest/live_coinank_global_aggregator.py": {
+      "legacy_rel_path": "ingest/live_coinank_global_aggregator.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config"
+      ],
+      "external_imports": [
+        "redis"
+      ],
+      "stdlib_imports": [
+        "json",
+        "logging",
+        "os",
+        "pathlib",
+        "sys",
+        "time",
+        "typing"
+      ],
+      "unknown_imports": [
+        "__future__",
+        "utils"
+      ],
+      "redis_usage": true,
+      "exchange_api_usage": true,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": []
+    },
+    "ingest/live_coinank.py": {
+      "legacy_rel_path": "ingest/live_coinank.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config"
+      ],
+      "external_imports": [
+        "requests"
+      ],
+      "stdlib_imports": [
+        "asyncio",
+        "datetime",
+        "hashlib",
+        "json",
+        "math",
+        "os",
+        "pathlib",
+        "random",
+        "socket",
+        "sys",
+        "threading",
+        "time",
+        "traceback"
+      ],
+      "unknown_imports": [
+        "tools",
+        "urllib3",
+        "utils"
+      ],
+      "redis_usage": false,
+      "exchange_api_usage": true,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": []
+    },
+    "ingest/live_binance_liquidations.py": {
+      "legacy_rel_path": "ingest/live_binance_liquidations.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config"
+      ],
+      "external_imports": [
+        "aiohttp"
+      ],
+      "stdlib_imports": [
+        "asyncio",
+        "collections",
+        "datetime",
+        "json",
+        "math",
+        "os",
+        "pathlib",
+        "socket",
+        "sys",
+        "time",
+        "traceback"
+      ],
+      "unknown_imports": [
+        "telegram_alerts",
+        "tools",
+        "utils"
+      ],
+      "redis_usage": false,
+      "exchange_api_usage": false,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": []
+    },
+    "ingest/live_binance.py": {
+      "legacy_rel_path": "ingest/live_binance.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config",
+        "trading"
+      ],
+      "external_imports": [
+        "aiohttp",
+        "ccxt",
+        "psutil",
+        "requests",
+        "websockets"
+      ],
+      "stdlib_imports": [
+        "asyncio",
+        "collections",
+        "datetime",
+        "gc",
+        "json",
+        "logging",
+        "os",
+        "pathlib",
+        "socket",
+        "sys",
+        "threading",
+        "time",
+        "traceback"
+      ],
+      "unknown_imports": [
+        "telegram_alerts",
+        "tools",
+        "utils"
+      ],
+      "redis_usage": false,
+      "exchange_api_usage": true,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": []
+    },
+    "ingest/liquidation_levels_engine.py": {
+      "legacy_rel_path": "ingest/liquidation_levels_engine.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config"
+      ],
+      "external_imports": [
+        "redis"
+      ],
+      "stdlib_imports": [
+        "collections",
+        "json",
+        "math",
+        "pathlib",
+        "socket",
+        "sys",
+        "time",
+        "typing"
+      ],
+      "unknown_imports": [],
+      "redis_usage": true,
+      "exchange_api_usage": false,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": []
+    },
+    "ingest/liquidation_bridge.py": {
+      "legacy_rel_path": "ingest/liquidation_bridge.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config"
+      ],
+      "external_imports": [
+        "redis"
+      ],
+      "stdlib_imports": [
+        "json",
+        "pathlib",
+        "sys",
+        "time",
+        "typing"
+      ],
+      "unknown_imports": [],
+      "redis_usage": true,
+      "exchange_api_usage": false,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": []
+    },
+    "feature_pipeline.py": {
+      "legacy_rel_path": "feature_pipeline.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "config",
+        "rl"
+      ],
+      "external_imports": [
+        "redis"
+      ],
+      "stdlib_imports": [
+        "concurrent",
+        "datetime",
+        "json",
+        "logging",
+        "sys",
+        "threading",
+        "time",
+        "typing"
+      ],
+      "unknown_imports": [
+        "utils"
+      ],
+      "redis_usage": true,
+      "exchange_api_usage": true,
+      "subprocess_usage": false,
+      "config_usage": true,
+      "log_file_writes": [
+        "log_filename = f'logs/feature_pipeline_dual_{log_timestamp}.log'"
+      ]
+    },
+    "config.py": {
+      "legacy_rel_path": "config.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [],
+      "external_imports": [
+        "torch"
+      ],
+      "stdlib_imports": [
+        "dataclasses",
+        "logging",
+        "multiprocessing",
+        "os",
+        "pathlib",
+        "re",
+        "sys",
+        "typing"
+      ],
+      "unknown_imports": [
+        "dotenv"
+      ],
+      "redis_usage": false,
+      "exchange_api_usage": true,
+      "subprocess_usage": true,
+      "config_usage": true,
+      "log_file_writes": []
+    }
+  },
+  "totals": {
+    "files_analyzed": 32,
+    "files_with_parse_error": 0,
+    "files_with_redis_usage": 20,
+    "files_with_exchange_api_usage": 16,
+    "files_with_subprocess_usage": 5,
+    "files_with_config_usage": 25,
+    "files_with_unresolved_imports": 21
+  }
+}

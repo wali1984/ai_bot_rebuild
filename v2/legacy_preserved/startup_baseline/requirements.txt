@@ -1,0 +1,50 @@
+# Core packages
+redis>=5.0.0
+aioredis>=2.0.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# HTTP and async utilities
+aiohttp>=3.9.0
+urllib3>=2.0.0
+websockets>=12.0
+asyncio-throttle>=1.0.0
+websocket-client>=1.7.0
+
+# Trading and crypto APIs
+ccxt>=4.4.0
+binance-futures-connector
+python-binance
+
+# Data processing
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+python-dateutil>=2.8.0
+
+# AI/ML packages (PyTorch with CUDA installed separately in Dockerfile)
+# torch==2.4.1+cu124 --index-url https://download.pytorch.org/whl/cu124  # RTX 5080 SM 120 support
+# torchvision==0.19.1+cu124
+# torchaudio==2.4.1+cu124
+transformers>=4.30.0
+
+# Web framework
+fastapi>=0.104.0
+uvicorn>=0.24.0
+
+# Technical indicators - skip ta library due to setup complexity
+# ta
+# Note: TA-Lib requires binary installation - skip for now
+
+# Logging and monitoring  
+wandb>=0.16.0
+
+# Data formats
+pyarrow>=14.0.0
+
+# System monitoring
+psutil>=5.9.0
+
+# Additional data processing
+beautifulsoup4>=4.12.0
+lxml>=4.9.0

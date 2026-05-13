@@ -1,0 +1,345 @@
+{
+  "phase": "C_copy_legacy_startup_baseline",
+  "legacy_root_existed": true,
+  "dry_run": false,
+  "totals": {
+    "required": 39,
+    "copied": 33,
+    "unchanged": 0,
+    "missing": 6,
+    "refused_secret_path": 0,
+    "not_a_file": 0,
+    "would_copy_dry_run": 0,
+    "flagged_secret_content": 0,
+    "safe_to_commit": 33
+  },
+  "records": [
+    {
+      "legacy_rel_path": "scripts/start_all_services_production.sh",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/scripts/start_all_services_production.sh",
+      "sha256": "2b5a9a63fc76487b3a6f46cdbb8060044aeab69c5f8117bbf30e7efdb8a10ca9",
+      "size_bytes": 43325,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/stop_all_services_production.sh",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/scripts/stop_all_services_production.sh",
+      "sha256": "7db37564a3677d5e9e8b2f4f4ad8171fda99d3fcf163ccf23dd0c7e45dbc06d8",
+      "size_bytes": 14835,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/stop_ingestors.sh",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/scripts/stop_ingestors.sh",
+      "sha256": "83d6eb161b23b3bd748870be4440b8c6d1dfd0ae339b41a087eac2e0575fc50b",
+      "size_bytes": 7350,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "ingest/live_binance.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/ingest/live_binance.py",
+      "sha256": "6c1eb771a3842e2d94b797eedd55aa624075c51c6d50aec701397f81dbace798",
+      "size_bytes": 125730,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "ingest/live_kucoin.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/ingest/live_kucoin.py",
+      "sha256": "73b852db1bf69062d4028091cf17c126f5cb666e94bf784cdb2bb9b47328a976",
+      "size_bytes": 36382,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "ingest/live_coinank.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/ingest/live_coinank.py",
+      "sha256": "cd13dab55c0906c379e4116102c05f960908dd28d6b6e883ca76347cd1f144c8",
+      "size_bytes": 127414,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "ingest/live_coinank_global_aggregator.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/ingest/live_coinank_global_aggregator.py",
+      "sha256": "1f85c4532e4829aa99ddadbd6a5cd2325ef9e5c4012208eb05876c1b0187eeae",
+      "size_bytes": 14475,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "ingest/live_binance_liquidations.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/ingest/live_binance_liquidations.py",
+      "sha256": "19711590a3d194fd05ae3be85ef7bd6dec397f6394d02f7e91008c44c310131b",
+      "size_bytes": 46088,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "ingest/liquidation_bridge.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/ingest/liquidation_bridge.py",
+      "sha256": "5d70e395938228b61162b531310cd751403ddfeebb8920429e73cdcdbe35d48a",
+      "size_bytes": 6327,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "ingest/liquidation_levels_engine.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/ingest/liquidation_levels_engine.py",
+      "sha256": "fed3c90b5193c27d24dc183089730bda49ff69a1758b597e23a154397f839df7",
+      "size_bytes": 18539,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "ingest/realtime_price_provider.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/ingest/realtime_price_provider.py",
+      "sha256": "dfdc2568368c134b9afcc4fa0faff312cc93a6ecc501ecaac747e7c20d7344ba",
+      "size_bytes": 45009,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "ingest/live_coinapi_wsds.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/ingest/live_coinapi_wsds.py",
+      "sha256": "a6973d887d1c52a4bb48f3b6f222b04e97d92e500ab889e94d6026cf504471b6",
+      "size_bytes": 77253,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "ingest/live_coinapi_v1.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/ingest/live_coinapi_v1.py",
+      "sha256": "c8ca17d21b972510b92c4e84c477cd3440b3cfd1e2ec8e7411624a7454cee280",
+      "size_bytes": 28497,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "ohlcv_resampler_hotfix.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/ohlcv_resampler_hotfix.py",
+      "sha256": "b83edf60a7d0db51556752cdcf9d713ee9d7175d05b26a6ce6c2235d214f4239",
+      "size_bytes": 8795,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "feature_pipeline.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/feature_pipeline.py",
+      "sha256": "143938e735342179105155a12c50d7c495bdd1c16d570586cb369d03d7d4b2e8",
+      "size_bytes": 69156,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "ingest/live_technical_analysis.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/ingest/live_technical_analysis.py",
+      "sha256": "5cdd4ea1d43271d0199e1ca92ecad3a8b76308838898a611df6ef4602f7388ac",
+      "size_bytes": 6103,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/validate_symbol_universe_data.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/scripts/validate_symbol_universe_data.py",
+      "sha256": "151720d7e9b1c3f9608df6404e20a912da4572dc66078d7cef001bc4ddd5ec07",
+      "size_bytes": 10111,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/paralysis_detectors.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/scripts/paralysis_detectors.py",
+      "sha256": "8fd4c4f55ac43e5af07c84cddea04328f7b4e5811a5230442f276caf33fc7c27",
+      "size_bytes": 8801,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "vpn_monitor.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/vpn_monitor.py",
+      "sha256": "87e48f03e78ec64fab12d5ee5a184b615d43152cf607aee0694043ae0de701e8",
+      "size_bytes": 13704,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "system_telegram_monitor.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/system_telegram_monitor.py",
+      "sha256": "1580409eb5b8aa4e716f6a3f940f5b39812114653424d4139d4226cd8b00e666",
+      "size_bytes": 32603,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "monitor_system_memory.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/monitor_system_memory.py",
+      "sha256": "6c55131bf44dcbe6088578f6a6caeb6c810ca74548b12a7ea8002a11cf550930",
+      "size_bytes": 18921,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/memory_monitor.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/scripts/memory_monitor.py",
+      "sha256": "5aa73b3d7b335a7fb6c21e18c6490e1f0e347d5812f877b92b828ec8630635d6",
+      "size_bytes": 9274,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/monitor_trainer_predictions.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/scripts/monitor_trainer_predictions.py",
+      "sha256": "38068905908317415f91f76ed19797c393ee01f20135d59030289e2d697a495a",
+      "size_bytes": 13543,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/check_services_detailed.sh",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/scripts/check_services_detailed.sh",
+      "status": "MISSING_IN_LEGACY_BASELINE"
+    },
+    {
+      "legacy_rel_path": "scripts/monitor_dashboard.sh",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/scripts/monitor_dashboard.sh",
+      "sha256": "38dd65709716e734018d2082536006e67658e0660441b81e61c69abebd60211a",
+      "size_bytes": 7488,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/health_probe.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/scripts/health_probe.py",
+      "sha256": "529532182c86209bf4504937adac55a079cacda334357e3529263653bf049e04",
+      "size_bytes": 16862,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/hybrid_trainer.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/rl/hybrid_trainer.py",
+      "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+      "size_bytes": 3165342,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/__init__.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/rl/__init__.py",
+      "status": "MISSING_IN_LEGACY_BASELINE"
+    },
+    {
+      "legacy_rel_path": "rl/orchestrator_worker.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/rl/orchestrator_worker.py",
+      "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+      "size_bytes": 522512,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/trader.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/trading/trader.py",
+      "sha256": "8c56fb44a770d5016f2d5b07a74d527d8fca36d77cdd1ba37ea490bc72748583",
+      "size_bytes": 1456456,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/trader-asjad.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/trading/trader-asjad.py",
+      "sha256": "0a6c4e4e7e00612f2987f25c9b6e84bdca6a4408ded818c8eed3ff255293bd4d",
+      "size_bytes": 1552,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/__init__.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/trading/__init__.py",
+      "status": "MISSING_IN_LEGACY_BASELINE"
+    },
+    {
+      "legacy_rel_path": "monitor_portfolio_primary.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/monitor_portfolio_primary.py",
+      "sha256": "ba51097c8229eb489e94c9af058b24680b41f8bcd6a8c4912bd18f73a31908cf",
+      "size_bytes": 17590,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "monitor_portfolio_asjad.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/monitor_portfolio_asjad.py",
+      "sha256": "e957f2d2f80ee2ad3f9676e4c7d9f330015a9dbebe3645f71b77c7f4089d3b1e",
+      "size_bytes": 17392,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "config.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/config.py",
+      "sha256": "98cfaa1c9650f013f8603c451f6f37491b8fa65e36ed1445a037c34d5f27f522",
+      "size_bytes": 406920,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "requirements.txt",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/requirements.txt",
+      "sha256": "95c92ed225b38a3f2de51a01650b9d8f7bb43e614fad251783102a6935412470",
+      "size_bytes": 1027,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "requirements-dev.txt",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/requirements-dev.txt",
+      "status": "MISSING_IN_LEGACY_BASELINE"
+    },
+    {
+      "legacy_rel_path": "pyproject.toml",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/pyproject.toml",
+      "status": "MISSING_IN_LEGACY_BASELINE"
+    },
+    {
+      "legacy_rel_path": "setup.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/setup.py",
+      "status": "MISSING_IN_LEGACY_BASELINE"
+    }
+  ]
+}

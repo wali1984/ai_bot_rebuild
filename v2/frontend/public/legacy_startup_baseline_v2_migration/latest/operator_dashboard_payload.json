@@ -1,0 +1,21 @@
+{
+  "task_id": "legacy_startup_baseline_v2_migration",
+  "as_of_utc": "2026-05-13T23:10:00Z",
+  "go_no_go": "LEGACY_STARTUP_BASELINE_TO_V2_WORKER_MIGRATION_READY",
+  "live_gate": "blocked_human_only",
+  "final_approval_token": "absent",
+  "operator_declaration_vs_observed": {
+    "operator_said": "legacy_started_without_trader",
+    "observed": "legacy_trader_alive_pid_14912",
+    "classification": "LEGACY_TRADER_PROCESS_OBSERVED_READONLY"
+  },
+  "phase_summary": {
+    "C_copy": {"copied": 33, "missing": 6, "secret_flagged": 0},
+    "D_dependency_closure": {"files_analyzed": 32, "tests_pass": "7/7"},
+    "F_orchestrator_descriptor_patch": "complete",
+    "G_porting_sequence_ingestor_first": "encoded",
+    "L_validation": {"py_compile": "OK", "tests": "7/7", "json_valid": "16/16"}
+  },
+  "next_worker": "v2_market_ingestor_from_legacy_baseline",
+  "next_action_kind": "dispatch_legacy_baseline_analysis"
+}

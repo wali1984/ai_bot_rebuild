@@ -1,0 +1,48 @@
+{
+  "phase": "F_baseline_first_worker_porting_enforcement",
+  "extends": "cf22a10_legacy_baseline_enforcement",
+  "orchestrator_changes": {
+    "worker_sequence_updated": true,
+    "new_workers_inserted_at_front_of_p0": [
+      "v2_market_ingestor_from_legacy_baseline",
+      "v2_coinank_and_liquidation_bridge_from_legacy_baseline",
+      "v2_feature_pipeline_and_ta_worker_from_legacy_baseline"
+    ],
+    "existing_LEGACY_BASELINE_REQUIRED_gate_still_active": true,
+    "verified_next_action": {
+      "kind": "dispatch_legacy_baseline_analysis",
+      "worker": "v2_market_ingestor_from_legacy_baseline"
+    }
+  },
+  "new_task_descriptors_created": [
+    "claude_port_v2_market_ingestor_from_legacy_baseline.json",
+    "claude_port_v2_coinank_and_liquidation_bridge_from_legacy_baseline.json",
+    "claude_port_v2_feature_pipeline_and_ta_worker_from_legacy_baseline.json",
+    "codex_review_v2_market_ingestor_from_legacy_baseline.json",
+    "codex_review_v2_coinank_and_liquidation_bridge_from_legacy_baseline.json",
+    "codex_review_v2_feature_pipeline_and_ta_worker_from_legacy_baseline.json",
+    "codex_review_legacy_startup_baseline_v2_migration.json"
+  ],
+  "additional_forbidden_items_in_claude_port_descriptors": [
+    "skipping_sha256_citation_from_copied_baseline_manifest"
+  ],
+  "additional_fail_conditions_in_codex_review_descriptors": [
+    "sha256_not_cited_or_does_not_match_copied_baseline_manifest",
+    "data_source_priority_does_not_match_startup_script_table",
+    "v2_worker_writes_to_legacy_namespace_instead_of_v2_namespace"
+  ],
+  "worker_must_produce_pre_implementation": [
+    "<worker_id>_LEGACY_BASELINE_ANALYSIS.md citing copied_baseline_manifest.json SHAs",
+    "<worker_id>_legacy_behavior_mapping.json with baseline_sha256 list"
+  ],
+  "hard_constraints_upheld": [
+    "no_legacy_mutation",
+    "no_old_redis_writes_from_v2",
+    "no_exchange_action",
+    "no_leverage_change",
+    "no_margin_mode_change",
+    "no_final_approval_token",
+    "no_legacy_venv_installs",
+    "live_gate_blocked_human_only"
+  ]
+}

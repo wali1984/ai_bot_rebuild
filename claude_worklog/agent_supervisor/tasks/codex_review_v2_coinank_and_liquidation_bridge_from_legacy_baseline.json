@@ -1,0 +1,32 @@
+{
+  "task_id": "codex_review_v2_coinank_and_liquidation_bridge_from_legacy_baseline",
+  "agent": "codex",
+  "lane": "runtime_migration_audit",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "live_gate": "blocked_human_only",
+  "emit_files": true,
+  "required_input_files": [
+    "v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_coinank_and_liquidation_bridge_from_legacy_baseline_LEGACY_BASELINE_ANALYSIS.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_coinank_and_liquidation_bridge_from_legacy_baseline_legacy_behavior_mapping.json",
+    "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/copied_baseline_manifest.json"
+  ],
+  "required_output_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_coinank_and_liquidation_bridge_from_legacy_baseline_review.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_coinank_and_liquidation_bridge_from_legacy_baseline_go_no_go.md"
+  ],
+  "fail_conditions": [
+    "legacy_baseline_analysis_md_missing",
+    "legacy_behavior_mapping_json_missing",
+    "sha256_not_cited_or_does_not_match_copied_baseline_manifest",
+    "patched_legacy_coinank_plan3_contracts_dropped_without_reason",
+    "data_synthesized_when_endpoint_unavailable",
+    "writes_old_redis_namespace_from_v2",
+    "exchange_mutating_endpoint_reachable_from_worker",
+    "tests_do_not_cover_legacy_equivalent_behavior"
+  ],
+  "go_no_go_file_contents": ["V2_COINANK_AND_LIQUIDATION_BRIDGE_FROM_LEGACY_BASELINE_CODEX_PASS", "V2_COINANK_AND_LIQUIDATION_BRIDGE_FROM_LEGACY_BASELINE_CODEX_FAIL"],
+  "prompt": "Audit the V2 CoinAnk + liquidation bridge baseline port. Verify the patched legacy CoinAnk Plan-3 contracts are preserved, sha256 citations match copied_baseline_manifest.json, missing_api_blockers are surfaced rather than synthesized data, and no old Redis namespace is written. Emit review markdown and a single-line GO/NO-GO."
+}

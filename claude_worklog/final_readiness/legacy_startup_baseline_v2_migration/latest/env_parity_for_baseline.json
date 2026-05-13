@@ -1,0 +1,55 @@
+{
+  "phase": "E_env_parity_for_baseline",
+  "as_of_utc": "2026-05-13T22:50:00Z",
+  "audit_mode": "inventory_only_no_installs",
+  "pythons": {
+    "v2_venv_python3": {"binary": ".venv/bin/python3", "version": "3.12.3"},
+    "system_python3": {"binary": "/usr/bin/python3", "version": "3.12.3"},
+    "legacy_venv_python3": {"binary_if_present": "BASE_DIR/venv/bin/python3", "read_only_inspect": true}
+  },
+  "v2_pyproject_requires_python": ">=3.11",
+  "v2_pyproject_listed_dependencies": [
+    "fastapi==0.115.0",
+    "pydantic==2.9.2",
+    "pydantic-settings==2.5.2",
+    "uvicorn==0.30.6",
+    "SQLAlchemy==2.0.35",
+    "alembic==1.13.3",
+    "redis==5.0.8",
+    "httpx==0.27.2",
+    "structlog==24.4.0",
+    "python-multipart==0.0.10"
+  ],
+  "external_dependencies_required_by_baseline_per_closure": {
+    "redis": {"files_using": 19, "install_target": "v2_venv", "status": "already_in_v2_pyproject"},
+    "requests": {"files_using": 6, "install_target": "v2_venv", "status": "install_if_missing_deferred"},
+    "psutil": {"files_using": 5, "install_target": "v2_venv", "status": "install_if_missing_deferred"},
+    "websockets": {"files_using": 5, "install_target": "v2_venv", "status": "install_if_missing_deferred"},
+    "binance": {"files_using": 4, "install_target": "v2_venv", "status": "install_with_audit_readonly_only"},
+    "aiohttp": {"files_using": 4, "install_target": "v2_venv", "status": "install_if_missing_deferred"},
+    "numpy": {"files_using": 2, "install_target": "v2_venv", "status": "install_if_missing_deferred"},
+    "torch": {"files_using": 2, "install_target": "v2_venv", "status": "DO_NOT_INSTALL_UNTIL_TRAINER_BRIDGE_TASK"},
+    "ccxt": {"files_using": 2, "install_target": "v2_venv", "status": "install_with_audit_readonly_only"},
+    "pynvml": {"files_using": 1, "install_target": "v2_venv", "status": "optional_monitoring"},
+    "stable_baselines3": {"files_using": 1, "install_target": "v2_venv", "status": "DO_NOT_INSTALL_UNTIL_TRAINER_BRIDGE_TASK"},
+    "python-dotenv": {"files_using_indirect": 1, "install_target": "skip", "reason": "V2 reads env from venv/system, not .env files"},
+    "urllib3": {"files_using_indirect": 1, "install_target": "skip", "reason": "transitive via requests"}
+  },
+  "rules": [
+    "v2 uses .venv/bin/python3 and .venv/bin/pytest only",
+    "no installs in this phase",
+    "no edits to legacy venv",
+    "each port records its own installs in its worker report",
+    "torch / stable_baselines3 deferred to trainer bridge task",
+    "ports that cannot install required packages classify themselves V2_ENV_BLOCKED_MISSING_DEPENDENCY"
+  ],
+  "frontend": {
+    "node_npm": "in_use_via_pid_14711_npm_run_dev",
+    "phase_e_changes": "none"
+  },
+  "forbidden_during_phase_e": [
+    "no_pip_install_into_legacy_venv",
+    "no_pip_install_into_v2_venv_in_this_phase",
+    "no_edits_to_requirements_in_v2_root"
+  ]
+}

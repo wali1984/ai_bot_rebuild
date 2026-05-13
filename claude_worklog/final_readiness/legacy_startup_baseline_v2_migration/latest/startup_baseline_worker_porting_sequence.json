@@ -1,0 +1,28 @@
+{
+  "phase": "G_startup_baseline_worker_porting_sequence",
+  "anchor": "scripts/start_all_services_production.sh",
+  "ingestor_first": true,
+  "sequence": [
+    {"index": 1, "worker": "v2_feature_snapshot_builder", "priority": "P0", "state": "CODEX_PASS_BUT_LEGACY_BACKFILL_REQUIRED"},
+    {"index": 2, "worker": "v2_market_ingestor_from_legacy_baseline", "priority": "P0_baseline", "state": "LEGACY_BASELINE_REQUIRED"},
+    {"index": 3, "worker": "v2_coinank_and_liquidation_bridge_from_legacy_baseline", "priority": "P0_baseline", "state": "LEGACY_BASELINE_REQUIRED"},
+    {"index": 4, "worker": "v2_feature_pipeline_and_ta_worker_from_legacy_baseline", "priority": "P0_baseline", "state": "LEGACY_BASELINE_REQUIRED"},
+    {"index": 5, "worker": "v2_risk_gateway_runtime_worker", "priority": "P0", "state": "LEGACY_BASELINE_REQUIRED"},
+    {"index": 6, "worker": "v2_paper_execution_worker", "priority": "P0", "state": "LEGACY_BASELINE_REQUIRED"},
+    {"index": 7, "worker": "v2_execution_ledger_worker", "priority": "P0", "state": "LEGACY_BASELINE_REQUIRED"},
+    {"index": 8, "worker": "v2_signal_lineage_worker", "priority": "P0", "state": "LEGACY_BASELINE_REQUIRED"},
+    {"index": 9, "worker": "v2_account_position_monitor", "priority": "P0", "state": "LEGACY_BASELINE_REQUIRED"},
+    {"index": 10, "worker": "v2_trainer_bridge", "priority": "P1"},
+    {"index": 11, "worker": "v2_orchestrator_adapter", "priority": "P1"},
+    {"index": 12, "worker": "v2_signal_publisher", "priority": "P1"},
+    {"index": 13, "worker": "v2_replay_worker", "priority": "P1"},
+    {"index": 14, "worker": "v2_script_monitor", "priority": "P1"},
+    {"index": 15, "worker": "v2_config_admin_manager", "priority": "P1"},
+    {"index": 16, "worker": "v2_p2_default_blocked_execution_adapter_stub", "priority": "P2"},
+    {"index": 17, "worker": "v2_p2_binance_usdm_adapter_stub", "priority": "P2"},
+    {"index": 18, "worker": "v2_p2_deployment_helpers", "priority": "P2"}
+  ],
+  "next_worker": "v2_market_ingestor_from_legacy_baseline",
+  "next_action_kind": "dispatch_legacy_baseline_analysis",
+  "rationale": "Legacy startup script proves the data plane begins with monitoring -> ingestors -> feature pipeline / TA -> trainer -> orchestrator -> trader. V2 ports follow the same dependency order. Trader files are never started by V2; the P2 fail-closed stub is the only legacy-trader-derived V2 artifact."
+}

@@ -1,0 +1,22 @@
+{
+  "phase": "H_autonomous_baseline_worker_dispatch_status",
+  "next_worker": "v2_market_ingestor_from_legacy_baseline",
+  "next_action_kind": "dispatch_legacy_baseline_analysis",
+  "task_descriptor": "claude_worklog/agent_supervisor/tasks/claude_port_v2_market_ingestor_from_legacy_baseline.json",
+  "paired_codex_review": "claude_worklog/agent_supervisor/tasks/codex_review_v2_market_ingestor_from_legacy_baseline.json",
+  "selector_pointer_refreshed": true,
+  "selector_pointer_path": "claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/next_selected_task.json",
+  "website_task_is_primary": false,
+  "website_task_status": "support_only_subordinate_to_baseline_worker_dispatch",
+  "backfill_for_feature_snapshot_in_parallel": {
+    "claude_task": "claude_worklog/agent_supervisor/tasks/claude_backfill_v2_feature_snapshot_builder_legacy_analysis.json",
+    "paired_codex_review": "claude_worklog/agent_supervisor/tasks/codex_review_v2_feature_snapshot_builder_legacy_backfill.json"
+  },
+  "operator_action_required_to_start_dispatch": [
+    "bash claude_worklog/tools/start_v2_worker_porting_control_plane.sh",
+    "bash claude_worklog/tools/status_v2_worker_porting_control_plane.sh"
+  ],
+  "live_gate": "blocked_human_only",
+  "final_approval_token": "absent",
+  "redis_trim_approval": "absent"
+}

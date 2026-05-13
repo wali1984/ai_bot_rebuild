@@ -1,0 +1,160 @@
+{
+  "phase": "B_legacy_startup_baseline_matrix",
+  "source_script": "scripts/start_all_services_production.sh",
+  "source_script_size_bytes": 43325,
+  "source_script_line_count": 932,
+  "phases": [
+    {
+      "phase_id": "0_preflight_safety",
+      "purpose": "duplicate process guard, VRAM/RAM/disk/Redis checks, NVIDIA persistence mode",
+      "scripts": [],
+      "checks": [
+        {"name": "FORCE_KILL_ALL_BOT_PY guard", "behavior": "aborts unless env=1; then pkill + stop_all_services + clear Redis locks"},
+        {"name": "redis-cli D[E]L lock:* keys (legacy uses bracket form in matrix only)", "behavior": "clears single-instance ingestor locks (legacy side only)"},
+        {"name": "VRAM free >= 3000 MB", "behavior": "kills hybrid_trainer + feature_pipeline if low; then re-checks"},
+        {"name": "Memory free >= 10 GB", "behavior": "interactive y/N prompt if low"},
+        {"name": "disk usage < 85%", "behavior": "warning only"},
+        {"name": "redis-server pgrep alive", "behavior": "sudo systemctl start redis-server if absent"},
+        {"name": "nvidia-smi -pm 1", "behavior": "persistence mode to prevent GPU pm_runtime hangs"}
+      ],
+      "env_flags_exported": [
+        "ENABLE_SIGNAL_DECONFLICTION (--section7)",
+        "ENABLE_GPU_BATCH_INFERENCE (--section7)",
+        "ENABLE_EXECUTION_FEEDBACK (--section7)",
+        "GPU_BATCH_SIZE (--section7)",
+        "ADAPTIVE_HEDGE_V2_ENABLED=true",
+        "LEG_INDEPENDENT_ENABLED=true",
+        "MARGIN_85_ENABLED=true",
+        "BINANCE_LIQ_PRIMARY=true",
+        "DEPTH_EXECUTION_GATE_ENABLED=true",
+        "DISABLE_BINANCE_OHLCV=0",
+        "COINAPI_SUBSCRIBE_DATA_TYPES=quote,trade,book5",
+        "COINAPI_ALLOW_TRADE=true",
+        "COINAPI_ALLOW_FULL_BOOK=false",
+        "PYTHONPATH=$BASE_DIR:$PYTHONPATH"
+      ],
+      "v2_target": "v2/backend/app/cli/v2_preflight_check.py (P2 — fail-closed when token present)"
+    },
+    {
+      "phase_id": "0p5_monitoring",
+      "purpose": "alerting + system-health monitors started before any data plane",
+      "scripts": [
+        {"legacy_path": "vpn_monitor.py", "logs": "logs/vpn_monitor.log", "pid_file": "logs/vpn_monitor.pid", "v2_target": "v2/legacy_preserved/startup_baseline/vpn_monitor.py (preserved as-is); V2 port deferred", "v2_priority": "P1_or_later", "live_risk": "L0_monitoring"},
+        {"legacy_path": "system_telegram_monitor.py", "logs": "logs/telegram_monitor.log", "v2_target": "v2/legacy_preserved/startup_baseline/system_telegram_monitor.py (preserved)", "v2_priority": "P1_or_later", "live_risk": "L0_monitoring_only_telegram"},
+        {"legacy_path": "monitor_system_memory.py", "logs": "logs/memory_monitor_console.log", "pid_file": "logs/memory_monitor.pid", "v2_target": "v2/legacy_preserved/startup_baseline/monitor_system_memory.py (preserved)", "v2_priority": "P1_or_later", "live_risk": "L0"},
+        {"legacy_path": "scripts/memory_monitor.py", "logs": "logs/memory_leak_detector.log", "pid_file": "logs/memory_leak_detector.pid", "v2_target": "v2/legacy_preserved/startup_baseline/scripts/memory_monitor.py (preserved)", "v2_priority": "P1_or_later", "live_risk": "L0"},
+        {"legacy_path": "scripts/monitor_trainer_predictions.py", "logs": "logs/monitor_trainer_predictions.log", "pid_file": "logs/monitor_trainer_predictions.pid", "v2_target": "v2/legacy_preserved/startup_baseline/scripts/monitor_trainer_predictions.py (preserved); maps to v2_signal_lineage_worker", "v2_priority": "P0", "live_risk": "L0_observability"},
+        {"legacy_path": "scripts/check_services_detailed.sh", "v2_target": "v2/legacy_preserved/startup_baseline/scripts/check_services_detailed.sh", "v2_priority": "P1", "live_risk": "L0"},
+        {"legacy_path": "scripts/monitor_dashboard.sh", "v2_target": "v2/legacy_preserved/startup_baseline/scripts/monitor_dashboard.sh", "v2_priority": "P1", "live_risk": "L0"},
+        {"legacy_path": "scripts/health_probe.py", "v2_target": "v2/legacy_preserved/startup_baseline/scripts/health_probe.py", "v2_priority": "P1", "live_risk": "L0"}
+      ]
+    },
+    {
+      "phase_id": "1_ingestors",
+      "purpose": "data plane ingestors (lightweight, no GPU)",
+      "scripts": [
+        {"legacy_path": "ingest/live_binance.py", "command": "nohup nice -n 10 taskset -c 0-7 python3 ingest/live_binance.py", "logs": "logs/ingest_binance.log", "redis_keys_inferable": ["market:*:1m", "lock:live_binance"], "v2_target": "v2/legacy_preserved/startup_baseline/ingest/live_binance.py + v2_market_ingestor wrapper", "v2_priority": "P0_market_ingestor", "live_risk": "L1_read_only_market_feed"},
+        {"legacy_path": "ingest/live_kucoin.py", "v2_target": "v2/legacy_preserved/startup_baseline/ingest/live_kucoin.py + v2_market_ingestor wrapper", "v2_priority": "P0_market_ingestor", "live_risk": "L1_read_only_market_feed"},
+        {"legacy_path": "ingest/live_coinank.py", "v2_target": "v2/legacy_preserved/startup_baseline/ingest/live_coinank.py + v2_coinank_liquidation_bridge", "v2_priority": "P0_coinank_bridge", "live_risk": "L1_read_only_market_feed"},
+        {"legacy_path": "ingest/live_coinank_global_aggregator.py", "v2_target": "v2/legacy_preserved/startup_baseline/ingest/live_coinank_global_aggregator.py + v2_coinank_liquidation_bridge", "v2_priority": "P0_coinank_bridge", "live_risk": "L1"},
+        {"legacy_path": "ingest/live_binance_liquidations.py", "v2_target": "v2/legacy_preserved/startup_baseline/ingest/live_binance_liquidations.py + v2_coinank_liquidation_bridge or sibling worker", "v2_priority": "P0_liquidation_bridge", "live_risk": "L1"},
+        {"legacy_path": "ingest/liquidation_bridge.py", "v2_target": "v2/legacy_preserved/startup_baseline/ingest/liquidation_bridge.py + v2_coinank_liquidation_bridge", "v2_priority": "P0_liquidation_bridge", "live_risk": "L1"},
+        {"legacy_path": "ingest/liquidation_levels_engine.py", "v2_target": "v2/legacy_preserved/startup_baseline/ingest/liquidation_levels_engine.py + v2_coinank_liquidation_bridge", "v2_priority": "P0_liquidation_bridge", "live_risk": "L1"},
+        {"legacy_path": "ingest/realtime_price_provider.py", "v2_target": "v2/legacy_preserved/startup_baseline/ingest/realtime_price_provider.py + v2_market_ingestor", "v2_priority": "P0_market_ingestor", "live_risk": "L1"},
+        {"legacy_path": "ingest/live_coinapi_wsds.py", "command_form": "nohup nice -n 10 python3 -m ingest.live_coinapi_wsds", "logs": "logs/live_coinapi_wsds.log", "v2_target": "v2/legacy_preserved/startup_baseline/ingest/live_coinapi_wsds.py + v2_market_ingestor", "v2_priority": "P0_market_ingestor", "live_risk": "L1"},
+        {"legacy_path": "ingest/live_coinapi_v1.py", "command_form": "nohup nice -n 10 taskset -c 0-7 python3 -m ingest.live_coinapi_v1", "logs": "logs/live_coinapi_v1.log", "v2_target": "v2/legacy_preserved/startup_baseline/ingest/live_coinapi_v1.py + v2_market_ingestor", "v2_priority": "P0_market_ingestor", "live_risk": "L1"}
+      ],
+      "data_source_table": {
+        "ohlcv": {"primary": "CoinAPI V1", "fallback": "Binance REST"},
+        "quote_bbo": {"primary": "CoinAPI DS", "fallback": "Binance bookTicker"},
+        "microstructure": {"primary": "CoinAPI DS", "fallback": "N/A"},
+        "funding_rate": {"primary": "Binance WS", "fallback": "N/A_exclusive"},
+        "mark_price": {"primary": "Binance WS", "fallback": "N/A_exclusive"},
+        "premium_index": {"primary": "Binance REST", "fallback": "N/A_exclusive"},
+        "open_interest": {"primary": "Binance REST", "fallback": "CoinAnk"},
+        "liquidations": {"primary": "Binance WS", "fallback": "N/A"},
+        "orderbook_depth": {"primary": "Binance REST+WS", "fallback": "N/A"}
+      },
+      "data_population_wait_seconds": 15,
+      "paralysis_detector": {
+        "legacy_path": "scripts/paralysis_detectors.py",
+        "command": "python3 scripts/paralysis_detectors.py --minutes 5",
+        "strict_env": "STARTUP_PARALYSIS_DETECTORS_STRICT",
+        "v2_target": "v2/legacy_preserved/startup_baseline/scripts/paralysis_detectors.py + v2_script_monitor",
+        "v2_priority": "P1"
+      }
+    },
+    {
+      "phase_id": "2_feature_pipeline_and_resampler",
+      "scripts": [
+        {"legacy_path": "ohlcv_resampler_hotfix.py", "command": "nohup nice -n 5 python3 ohlcv_resampler_hotfix.py", "logs": "logs/ohlcv_resampler.log", "v2_target": "v2/legacy_preserved/startup_baseline/ohlcv_resampler_hotfix.py + v2_feature_pipeline_and_ta_worker", "v2_priority": "P0_feature_pipeline", "live_risk": "L1"},
+        {"legacy_path": "feature_pipeline.py", "command": "nohup python3 feature_pipeline.py", "logs": "logs/feature_pipeline.log", "v2_target": "v2/legacy_preserved/startup_baseline/feature_pipeline.py + v2_feature_pipeline_and_ta_worker", "v2_priority": "P0_feature_pipeline", "live_risk": "L1"}
+      ],
+      "wait_seconds_after_pipeline": 20
+    },
+    {
+      "phase_id": "2p5_technical_analysis",
+      "scripts": [
+        {"legacy_path": "ingest/live_technical_analysis.py", "command": "nohup nice -n 5 python3 ingest/live_technical_analysis.py", "logs": "logs/live_technical_analysis.log", "pid_file": "run/live_technical_analysis.pid", "redis_keys_inferable": ["ta:{symbol}:{tf}"], "v2_target": "v2/legacy_preserved/startup_baseline/ingest/live_technical_analysis.py + v2_feature_pipeline_and_ta_worker", "v2_priority": "P0_feature_pipeline_ta", "live_risk": "L1"}
+      ],
+      "preflight_checks": ["redis-cli PING", "market:ETHUSDT:1m presence (warning only)"],
+      "warmup_wait_seconds": 10
+    },
+    {
+      "phase_id": "2p9_validation_gate",
+      "scripts": [
+        {"legacy_path": "scripts/validate_symbol_universe_data.py", "command": "python3 scripts/validate_symbol_universe_data.py", "retry_count_env": "STARTUP_VALIDATE_RETRIES (default 10)", "retry_sleep_env": "STARTUP_VALIDATE_SLEEP_SEC (default 15)", "v2_target": "v2/legacy_preserved/startup_baseline/scripts/validate_symbol_universe_data.py + v2_feature_pipeline_and_ta_worker validation hook", "v2_priority": "P0_feature_pipeline", "live_risk": "L0_validation_only"}
+      ]
+    },
+    {
+      "phase_id": "3_trainer",
+      "scripts": [
+        {"legacy_path": "rl/hybrid_trainer.py (invoked as -m rl.hybrid_trainer)", "command": "source venv/bin/activate && nohup python3 -m rl.hybrid_trainer --mode hybrid --training-mode live --enhanced-features", "logs": "logs/hybrid_trainer.log", "redis_keys_inferable": ["trainer:predictions", "wma:proposals", "signals:trading", "signals:trading:primary", "signals:trading:asjad"], "vram_required_mb": 3000, "ram_oom_score_adj": 200, "monitoring_interval_seconds": 5, "monitoring_cycles": 9, "v2_target": "v2/legacy_preserved/startup_baseline/rl/hybrid_trainer.py + v2_trainer_bridge_from_legacy_hybrid_trainer", "v2_priority": "P1_trainer_bridge", "live_risk": "L2_predictions_can_influence_trader"}
+      ]
+    },
+    {
+      "phase_id": "3b_orchestrator_worker",
+      "scripts": [
+        {"legacy_path": "rl/orchestrator_worker.py", "command_default": "python3 -m rl.orchestrator_worker", "command_shadow": "python3 -m rl.orchestrator_worker --shadow", "config_keys": ["ORCHESTRATOR_WORKER_ENABLED", "ORCHESTRATOR_WORKER_MODE"], "consumer_group": "orchestrator_workers", "proposal_stream": "wma:proposals", "signal_streams": ["signals:trading", "signals:trading:primary", "signals:trading:asjad"], "v2_target": "v2/legacy_preserved/startup_baseline/rl/orchestrator_worker.py + v2_orchestrator_adapter_from_legacy_worker", "v2_priority": "P1_orchestrator_adapter", "live_risk": "L2_publishes_signals"}
+      ]
+    },
+    {
+      "phase_id": "4b_traders",
+      "do_not_start_in_v2_until_final_approval": true,
+      "scripts": [
+        {"legacy_path": "trading/trader.py", "command": "nohup python3 trading/trader.py", "logs": "logs/trader.log", "v2_target": "v2/legacy_preserved/startup_baseline/trading/trader.py + v2_trader_fail_closed_stub_from_legacy_trader (P2)", "v2_priority": "P2_fail_closed_stub_only", "live_risk": "L3_places_real_orders"},
+        {"legacy_path": "trading/trader-asjad.py", "command": "nohup python3 trading/trader-asjad.py", "logs": "logs/trader-asjad.log", "v2_target": "v2/legacy_preserved/startup_baseline/trading/trader-asjad.py + v2_trader_fail_closed_stub_from_legacy_trader (P2)", "v2_priority": "P2_fail_closed_stub_only", "live_risk": "L3_places_real_orders"}
+      ]
+    },
+    {
+      "phase_id": "4c_portfolio_monitors",
+      "scripts": [
+        {"legacy_path": "monitor_portfolio_primary.py", "command": "nohup python3 monitor_portfolio_primary.py", "logs": "logs/monitor_portfolio_primary.log", "v2_target": "v2/legacy_preserved/startup_baseline/monitor_portfolio_primary.py + v2_account_position_readonly_monitor", "v2_priority": "P0_account_position_monitor", "live_risk": "L1_read_only_account"},
+        {"legacy_path": "monitor_portfolio_asjad.py", "command": "nohup python3 monitor_portfolio_asjad.py", "logs": "logs/monitor_portfolio_asjad.log", "v2_target": "v2/legacy_preserved/startup_baseline/monitor_portfolio_asjad.py + v2_account_position_readonly_monitor", "v2_priority": "P0_account_position_monitor", "live_risk": "L1_read_only_account"}
+      ]
+    },
+    {
+      "phase_id": "5_health_validation",
+      "scripts": [
+        {"legacy_path": "scripts/health_probe.py", "command": "python3 scripts/health_probe.py > /tmp/health_check.log", "go_for_launch_condition": "grep 'GO FOR LAUNCH' /tmp/health_check.log", "v2_target": "v2/legacy_preserved/startup_baseline/scripts/health_probe.py + v2_script_monitor health-probe handler", "v2_priority": "P1_script_monitor", "live_risk": "L0"}
+      ]
+    }
+  ],
+  "config_modules_inferred": ["config.py (top-level)"],
+  "redis_streams_observed_in_script": [
+    "trainer:predictions",
+    "wma:proposals",
+    "signals:trading",
+    "signals:trading:primary",
+    "signals:trading:asjad",
+    "market:{symbol}:{tf}",
+    "ta:{symbol}:{tf}",
+    "lock:live_binance",
+    "lock:live_binance_liq",
+    "lock:live_coinank",
+    "lock:live_coinapi_v1",
+    "lock:live_coinapi_wsds"
+  ],
+  "redis_writers_legacy_only_v2_must_not_replicate": true,
+  "v2_stance": "read these legacy keys as historical reference only; never write them from V2"
+}
