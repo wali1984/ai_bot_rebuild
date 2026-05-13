@@ -1,0 +1,18 @@
+{
+  "task_id": "PERSIST_6H_24H_PAPER_SHADOW_SUMMARY_AND_CONTINUE_P0_P1_SCRIPT_PORTS",
+  "agent": "claude",
+  "risk_level": "L2",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "lane": "primary_claude_lane",
+  "priority": 9900,
+  "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/go_live_tonight_primary_focus/primary_tasks/PERSIST_6H_24H_PAPER_SHADOW_SUMMARY_AND_CONTINUE_P0_P1_SCRIPT_PORTS/"
+  ],
+  "required_output_files": [
+    "claude_worklog/final_readiness/go_live_tonight_primary_focus/primary_tasks/PERSIST_6H_24H_PAPER_SHADOW_SUMMARY_AND_CONTINUE_P0_P1_SCRIPT_PORTS/PERSIST_6H_24H_PAPER_SHADOW_SUMMARY_AND_CONTINUE_P0_P1_SCRIPT_PORTS.md",
+    "claude_worklog/final_readiness/go_live_tonight_primary_focus/primary_tasks/PERSIST_6H_24H_PAPER_SHADOW_SUMMARY_AND_CONTINUE_P0_P1_SCRIPT_PORTS/persist_6h_24h_paper_shadow_summary_and_continue_p0_p1_script_ports.json"
+  ],
+  "description": "Primary non-live paper/shadow proof and P0/P1 migration continuation task for go-live blocker burn-down.",
+  "prompt": "Primary non-live task: persist paper/shadow 1h, 6h, and 24h status and continue P0/P1 script migration proof. Work only in AI BOT REBUILD. Read legacy evidence read-only. Do not mutate legacy, write old Redis, touch exchange state, change leverage or margin, create a live approval token, or enable live. Produce honest proof; if no paper trades or windows exist, mark proof pending. Emit exactly two BEGIN_FILE blocks under claude_worklog/final_readiness/go_live_tonight_primary_focus/primary_tasks/PERSIST_6H_24H_PAPER_SHADOW_SUMMARY_AND_CONTINUE_P0_P1_SCRIPT_PORTS/."
+}

@@ -1,0 +1,19 @@
+{
+  "generated_at": "2026-05-13T06:31:39.173Z",
+  "task_id": "PERSIST_6H_24H_PAPER_SHADOW_SUMMARY_AND_CONTINUE_P0_P1_SCRIPT_PORTS",
+  "classification": "CLAUDE_DISPATCHED_PRIMARY_TASK",
+  "observed_supervisor_status": "retry_scheduled_due_required_output_filename_mismatch",
+  "materialized_files": [
+    "claude_worklog/final_readiness/go_live_tonight_primary_focus/primary_tasks/PERSIST_6H_24H_PAPER_SHADOW_SUMMARY_AND_CONTINUE_P0_P1_SCRIPT_PORTS/PERSIST_6H_24H_PAPER_SHADOW_SUMMARY_AND_CONTINUE_P0_P1_SCRIPT_PORTS.md",
+    "claude_worklog/final_readiness/go_live_tonight_primary_focus/primary_tasks/PERSIST_6H_24H_PAPER_SHADOW_SUMMARY_AND_CONTINUE_P0_P1_SCRIPT_PORTS/persist_6h_24h_paper_shadow_summary_and_continue_p0_p1_script_ports.json"
+  ],
+  "reconciled_required_output_files": [
+    "claude_worklog/final_readiness/go_live_tonight_primary_focus/primary_tasks/PERSIST_6H_24H_PAPER_SHADOW_SUMMARY_AND_CONTINUE_P0_P1_SCRIPT_PORTS/PERSIST_6H_24H_PAPER_SHADOW_SUMMARY_AND_CONTINUE_P0_P1_SCRIPT_PORTS.md",
+    "claude_worklog/final_readiness/go_live_tonight_primary_focus/primary_tasks/PERSIST_6H_24H_PAPER_SHADOW_SUMMARY_AND_CONTINUE_P0_P1_SCRIPT_PORTS/persist_6h_24h_paper_shadow_summary_and_continue_p0_p1_script_ports.json"
+  ],
+  "action": "Updated task definition required_output_files to match materialized Claude output; marked state completed when evidence files exist.",
+  "live_gate_status": "blocked_human_only",
+  "json_artifact_sanitized": true,
+  "json_artifact_sanitized_at": "2026-05-13T06:32:18.841Z",
+  "json_artifact_path": "claude_worklog/final_readiness/go_live_tonight_primary_focus/primary_tasks/PERSIST_6H_24H_PAPER_SHADOW_SUMMARY_AND_CONTINUE_P0_P1_SCRIPT_PORTS/persist_6h_24h_paper_shadow_summary_and_continue_p0_p1_script_ports.json"
+}

@@ -67,6 +67,7 @@ const artifactSets = [
   'current_data_migration_sprint',
   'live_blocker_burndown_trading_platform_ui',
   'public_trading_platform_visual_parity',
+  'go_live_tonight_primary_focus',
   'legacy_coinank_plan3_bridge',
   'coinank_plan3_runtime_remediation',
   'v2_live_observer_shadow_twin',

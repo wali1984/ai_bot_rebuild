@@ -1,0 +1,45 @@
+{
+  "generated_at": "2026-05-13T06:35:06.322Z",
+  "milestone": "GO_LIVE_TONIGHT_PRIMARY_FOCUS_AND_CANARY_BURNDOWN",
+  "ui_lane": {
+    "frozen": true,
+    "allowed_only_if_blocks_live_evidence": true
+  },
+  "selected_primary_task": "RISK_GATEWAY_CANARY_HARD_GATES_RUNTIME_PROOF",
+  "claude_dispatch_status": "CLAUDE_DISPATCHED_PRIMARY_TASK",
+  "codex_lane_status": "SCHEDULED_PARALLEL_NON_LIVE_AUDITS",
+  "paper_shadow_proof_status": "PAPER_RUNTIME_CURRENT_PROFITABILITY_PROOF_PENDING",
+  "paper_runtime_age_seconds": 0,
+  "latest_runtime_ids": {
+    "prediction_id": null,
+    "signal_id": null,
+    "risk_decision_id": null,
+    "execution_intent_id": null,
+    "feature_snapshot_id": null,
+    "paper_ledger_event_id": null
+  },
+  "top_live_blocker_counts": {
+    "BLOCKED": 4,
+    "MISSING_EVIDENCE": 4,
+    "PASS": 9
+  },
+  "p0_p1_migration_progress": "SELECTED_AND_QUEUED_FOR_SUPERVISOR",
+  "trainer_trader_monitor_status": {
+    "legacy_trainer_observed": true,
+    "legacy_trader_observed": true,
+    "legacy_orchestrator_observed": true,
+    "v2_paper_runtime_observed": true
+  },
+  "canary_readiness": "no",
+  "live_gate_status": "blocked_human_only",
+  "approval_token_absent": true,
+  "next_action": "RISK_GATEWAY_CANARY_HARD_GATES_RUNTIME_PROOF",
+  "codex_result": "PASS",
+  "dirty_state_counts": {
+    "active_daemon_owned": 76,
+    "durable_artifact_to_commit": 69,
+    "runtime_churn_to_restore": 113
+  },
+  "primary_task_output_contract_reconciled": true,
+  "completed_primary_task": "PERSIST_6H_24H_PAPER_SHADOW_SUMMARY_AND_CONTINUE_P0_P1_SCRIPT_PORTS"
+}

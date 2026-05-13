@@ -1,0 +1,150 @@
+{
+  "generated_at": "2026-05-13T06:30:00Z",
+  "branch": "master",
+  "repo": "AI BOT REBUILD",
+  "mode": "paper_only_non_live",
+  "live_gate_status": "blocked_human_only",
+  "live_approval_token_created": false,
+  "classification": "PAPER_SHADOW_WINDOW_PROFITABILITY_PROOF_PENDING_AND_P0_P1_MIGRATION_CONTINUING",
+  "sources": {
+    "public_runtime_status": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+    "local_runtime_status": "v2/runtime/paper_online/latest/paper_runtime_status.json",
+    "paper_ledger_tail": "v2/runtime/paper_online/latest/paper_ledger_tail.json",
+    "current_risk_decisions": "v2/runtime/paper_online/latest/current_risk_decisions.json",
+    "current_signal_lineage": "v2/runtime/paper_online/latest/current_signal_lineage.json",
+    "paper_online_runtime_pid": "v2/runtime/paper_online/latest/paper_online_runtime.pid",
+    "script_migration_backlog": "claude_worklog/final_readiness/script_migration_backlog/latest/script_migration_backlog.json"
+  },
+  "paper_runtime_liveness": {
+    "runtime_state": "PAPER_RUNTIME_ONLINE_ACTIVE",
+    "runtime_module": "v2.backend.app.cli.paper_online_runtime",
+    "loop_interval_seconds": 30,
+    "last_tick_at": "2026-05-13T06:28:49Z",
+    "last_tick_id": "paper_tick_1778653729881",
+    "paper_event_count": 2962,
+    "paper_fills": 0,
+    "open_position_count": 0,
+    "last_paper_event": {
+      "paper_action": "PAPER_INTENT_BLOCKED",
+      "paper_reason": "deny_orchestrator_held",
+      "risk_gateway_result": "BLOCKED",
+      "symbol": "BTCUSDT",
+      "exchange_order_id": null,
+      "legacy_redis_write": false,
+      "live_order": false
+    }
+  },
+  "paper_account": {
+    "currency": "USDT",
+    "starting_equity": 10000,
+    "equity": 9974.35,
+    "realized_pnl": -25.65,
+    "unrealized_pnl": 0,
+    "position_source": "V2_PAPER_RUNTIME_EMPTY_RISK_BLOCKED"
+  },
+  "fee_slippage_funding_assumptions": {
+    "fee_rate": 0.0004,
+    "slippage_bps": 2,
+    "funding": "zero_until_funding_feed_adapter_current"
+  },
+  "windows": {
+    "last_1h": {
+      "persisted_proof_exists": false,
+      "fills": 0,
+      "realized_pnl_usdt": null,
+      "blocked_intents": null,
+      "reason": "No materialized rolling 1h aggregator; no fills under risk-gateway-allow",
+      "classification": "PAPER_SHADOW_1H_PROOF_PENDING"
+    },
+    "last_6h": {
+      "persisted_proof_exists": false,
+      "fills": 0,
+      "realized_pnl_usdt": null,
+      "blocked_intents": null,
+      "reason": "No persisted 6h paper proof artifact; all 2962 events are PAPER_INTENT_BLOCKED",
+      "classification": "PAPER_SHADOW_6H_PROOF_PENDING"
+    },
+    "last_24h": {
+      "persisted_proof_exists": false,
+      "fills": 0,
+      "realized_pnl_usdt": null,
+      "blocked_intents": null,
+      "reason": "Runtime has not produced 24h of fill-based PnL; only blocked intents",
+      "classification": "PAPER_SHADOW_24H_PROOF_PENDING"
+    }
+  },
+  "p0_p1_script_migration": {
+    "canonical_registry_decision": "Phase 3A SCRIPT_REGISTRY.json plus Phase 3B remediation overlays",
+    "total_scripts_inventoried": 4194,
+    "active_runtime_scripts": 7,
+    "unsafe_unknown_total": 2093,
+    "exchange_action_scripts_mapped": 344,
+    "redis_writer_scripts_mapped": 445,
+    "p0_verification_checklist": {
+      "execution_intent_ledger_proof": "CURRENT",
+      "risk_decision_ledger_proof": "CURRENT",
+      "stale_signal_blocker_verification": "CURRENT",
+      "missing_attribution_blocker_verification": "CURRENT",
+      "duplicate_execution_dedupe_verification": "CURRENT"
+    },
+    "p1_verification_checklist": {
+      "trainer_prediction_bridge_status": "CURRENT",
+      "feature_snapshot_bridge_status": "CURRENT",
+      "current_signal_lineage_adapter_followup": "CURRENT",
+      "coinank_feature_availability_bridge": "READONLY_CURRENT_WRAP_PORT_PENDING"
+    },
+    "p0_active_runtime_scripts": [
+      {
+        "path": "v2/backend/app/cli/paper_online_runtime.py",
+        "classification": "active_runtime",
+        "v2_action": "preserve_exact",
+        "status": "RUNNING",
+        "migration_state": "V2_OWNED_NO_PORT_REQUIRED"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT/trading/trader.py",
+        "classification": "active_runtime_legacy",
+        "v2_action": "monitor_only",
+        "status": "LEGACY_RUNNING_OBSERVED_READONLY",
+        "migration_state": "V2_OWNED_EXECUTION_ENGINE_NOT_YET_BUILT"
+      }
+    ],
+    "p1_active_runtime_scripts": [
+      {
+        "path": "legacy_module:rl.hybrid_trainer",
+        "classification": "active_runtime_legacy",
+        "v2_action": "wrap_readonly",
+        "status": "WRAPPED",
+        "wrapper_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
+        "migration_state": "WRAPPED_READONLY_PORT_DEFERRED"
+      },
+      {
+        "path": "legacy_module:rl.orchestrator_worker",
+        "classification": "active_runtime_legacy",
+        "v2_action": "wrap_readonly",
+        "status": "WRAPPED",
+        "migration_state": "WRAPPED_READONLY_PORT_DEFERRED"
+      }
+    ]
+  },
+  "outstanding_live_cutover_blockers": [
+    "No persisted 1h/6h/24h paper proof window",
+    "V2 has no V2-owned live execution engine; current state BLOCKED_NO_EXCHANGE_MUTATION",
+    "Unsafe_unknown total 2093 must continue to burn down with raw evidence",
+    "Legacy CoinAnk plan-3 bridge remains read-only; V2 port queued",
+    "Legacy /home/wali/Desktop/AI BOT/trading/trader.py remains monitor_only from V2"
+  ],
+  "safety": {
+    "exchange_orders": false,
+    "leverage_changes": false,
+    "margin_mode_changes": false,
+    "legacy_redis_writes": false,
+    "legacy_bot_mutation": false,
+    "live_trading": "blocked_human_only",
+    "live_approval_token_created": false,
+    "writes_only_local_v2_artifacts": true
+  },
+  "next_step": "Run rolling 1h/6h/24h aggregator job over V2 paper_ledger when at least one risk-gateway-allow fill is observed; continue P0/P1 migration burn-down using script_migration_backlog.json plus Phase 3B remediation overlays.",
+  "output_sanitized_at": "2026-05-13T06:32:18.841Z",
+  "output_sanitation_note": "Removed trailing plaintext supervisor summary from emitted JSON artifact; report markdown retains narrative evidence."
+}

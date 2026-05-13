@@ -1,0 +1,48 @@
+{
+  "generated_at": "2026-05-13T06:26:43.149Z",
+  "source": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+  "live_gate_status": "blocked_human_only",
+  "paper_runtime_state": "PAPER_RUNTIME_ONLINE_ACTIVE",
+  "latest_ids": {
+    "prediction_id": null,
+    "signal_id": null,
+    "risk_decision_id": null,
+    "execution_intent_id": null,
+    "feature_snapshot_id": null,
+    "paper_ledger_event_id": null
+  },
+  "runtime_age_seconds": 0,
+  "paper_signals": {
+    "last_1h": null,
+    "last_6h": null,
+    "last_24h": null
+  },
+  "intents": {
+    "allowed": null,
+    "blocked": null
+  },
+  "paper_fills": 1,
+  "paper_event_count": 1,
+  "paper_pnl": {
+    "realized_usdt": -25.65,
+    "unrealized_usdt": 0,
+    "equity_usdt": 9974.35,
+    "starting_equity_usdt": 10000
+  },
+  "fee_slippage_funding_assumptions": {
+    "fee_rate": 0.0004,
+    "slippage_bps": 2,
+    "funding": "zero_until_funding_feed_adapter_current"
+  },
+  "paper_vs_legacy_comparison": "available only where bridge imports recent legacy execution/signal evidence",
+  "six_hour_proof_exists": false,
+  "twenty_four_hour_proof_exists": false,
+  "classification": "PAPER_RUNTIME_CURRENT_PROFITABILITY_PROOF_PENDING",
+  "warning": "Current paper runtime is alive; 6h/24h profitability proof is not yet complete and is not being claimed.",
+  "safety": {
+    "old_redis_writes": false,
+    "exchange_orders": false,
+    "leverage_changes": false,
+    "margin_mode_changes": false
+  }
+}

@@ -134,6 +134,13 @@ RECURRING_MONITORS = [
 ]
 
 CODEX_LANES = [
+    "codex_audit_go_live_no_live_side_effects",
+    "codex_audit_paper_shadow_6h_24h_truth",
+    "codex_audit_risk_gateway_canary_gates",
+    "codex_audit_p0_p1_script_migration_progress",
+    "codex_audit_trainer_trader_runtime_truth",
+    "codex_audit_legacy_vs_v2_recent_execution_comparison",
+    "codex_audit_final_live_approval_absent",
     "codex_audit_no_live_side_effects",
     "codex_audit_current_runtime_truth",
     "codex_audit_risk_gateway_fail_closed",

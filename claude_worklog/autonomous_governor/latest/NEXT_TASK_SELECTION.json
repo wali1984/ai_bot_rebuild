@@ -1,12 +1,19 @@
 {
   "current_primary_blockers": [],
   "exchange_mutation": "none",
-  "generated_at": "2026-05-13T03:07:45.204833+00:00",
+  "generated_at": "2026-05-13T06:36:09.026105+00:00",
   "human_input_required": "false_unless_final_live_capital_gate",
   "legacy_mutation": "none",
   "live_gate_status": "blocked_human_only",
   "non_drift_lock_path": "claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json",
   "parallel_codex_tasks": [
+    "codex_audit_go_live_no_live_side_effects",
+    "codex_audit_paper_shadow_6h_24h_truth",
+    "codex_audit_risk_gateway_canary_gates",
+    "codex_audit_p0_p1_script_migration_progress",
+    "codex_audit_trainer_trader_runtime_truth",
+    "codex_audit_legacy_vs_v2_recent_execution_comparison",
+    "codex_audit_final_live_approval_absent",
     "codex_audit_no_live_side_effects",
     "codex_audit_current_runtime_truth",
     "codex_audit_risk_gateway_fail_closed",
@@ -23,8 +30,8 @@
   "primary_lane": "v2_live_like_paper_shadow_canary_preflight",
   "redis_mutation": "none",
   "redis_trim": "deferred_non_blocking",
-  "selected_primary_task": "RISK_GATEWAY_RUNTIME_EXPANSION_TESTS",
-  "selected_task_id": "RISK_GATEWAY_RUNTIME_EXPANSION_TESTS",
+  "selected_primary_task": "RISK_GATEWAY_CANARY_HARD_GATES_RUNTIME_PROOF",
+  "selected_task_id": "RISK_GATEWAY_CANARY_HARD_GATES_RUNTIME_PROOF",
   "selection_source": "always_on_objective_runner",
   "why_selected": "Always-on runner advanced from completed/stale primary task to the next V2 primary-chain task."
 }

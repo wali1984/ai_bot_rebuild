@@ -1,0 +1,50 @@
+{
+  "generated_at": "2026-05-13T06:26:43.149Z",
+  "source": "process snapshot plus current V2 runtime payloads; legacy reads remain observe-only",
+  "processes": {
+    "legacy_trainer_observed": true,
+    "legacy_trader_observed": true,
+    "legacy_orchestrator_observed": true,
+    "v2_paper_runtime_observed": true
+  },
+  "monitoring_items": [
+    {
+      "item": "legacy trainer process",
+      "status": "OBSERVED_READONLY"
+    },
+    {
+      "item": "trainer GPU state",
+      "status": "PROCESS_OBSERVED_METRICS_PENDING"
+    },
+    {
+      "item": "orchestrator process",
+      "status": "OBSERVED_READONLY"
+    },
+    {
+      "item": "trader process",
+      "status": "OBSERVED_READONLY"
+    },
+    {
+      "item": "latest V2 paper signal",
+      "status": "MISSING_EVIDENCE"
+    },
+    {
+      "item": "missing signal_id/confidence blocker",
+      "status": "RISK_GATEWAY_POLICY_REQUIRED_CONTINUES"
+    },
+    {
+      "item": "duplicate exchange order identifier audit",
+      "status": "DEDUPE_POLICY_REQUIRED_CONTINUES"
+    },
+    {
+      "item": "leverage-risk action audit",
+      "status": "NO_CHANGE_BY_THIS_TASK"
+    }
+  ],
+  "forbidden_mutation": {
+    "legacy_modified": false,
+    "services_restarted": false,
+    "exchange_actions": false,
+    "leverage_margin_changes": false
+  }
+}
