@@ -7,7 +7,7 @@
   "systemd_services_enabled": true,
   "systemd_services_active": true,
   "liveness_watchdog_active": true,
-  "login_linger_enabled": false,
+  "login_linger_enabled": true,
   "tmux_primary": false,
   "tmux_fallback_available": true,
   "current_worker": "v2_market_ingestor_from_legacy_baseline",

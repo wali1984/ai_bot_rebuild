@@ -23,7 +23,7 @@ Generated: 2026-05-13T23:38:09Z
 - services enabled: yes
 - services active: yes
 - watchdog timer active: yes
-- login linger: no
+- login linger: yes
 
 ## Current Worker
 

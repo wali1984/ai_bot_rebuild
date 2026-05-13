@@ -15,7 +15,7 @@
   "codex_non_live_watchdog_alive_after_install": true,
   "tmux_sessions_required": false,
   "systemd_user_available": true,
-  "login_linger_enabled": false,
+  "login_linger_enabled": true,
   "why_worker_was_not_in_flight": "control-plane daemons were not persistent and dispatcher did not admit the selected legacy-baseline analysis task",
   "fixes_applied": [
     "systemd user units installed and enabled",
