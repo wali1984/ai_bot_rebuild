@@ -52,8 +52,10 @@ PACKAGE_DIRS: List[str] = [
 
 # Top-level individual files.
 TOP_LEVEL_FILES: List[str] = [
+    "binance_websocket.py",
     "config.py",
     "config_accounts.py",
+    "hybrid_rule_based_signals.py",
     "telegram_alerts.py",
 ]
 

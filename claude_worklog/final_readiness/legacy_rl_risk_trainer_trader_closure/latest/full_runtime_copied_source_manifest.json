@@ -2,10 +2,11 @@
   "phase": "B_full_runtime_closure_copy",
   "legacy_root_existed": true,
   "dry_run": false,
-  "targets_enumerated": 387,
+  "targets_enumerated": 389,
   "totals_by_status": {
-    "COPIED": 248,
-    "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION": 139
+    "UNCHANGED": 248,
+    "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION": 139,
+    "COPIED": 2
   },
   "records": [
     {
@@ -15,7 +16,7 @@
       "size_bytes": 23769,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/AUDIT_RUNBOOK_TRAINER.md",
@@ -24,7 +25,7 @@
       "size_bytes": 16192,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/Audit enhacements.md",
@@ -33,7 +34,7 @@
       "size_bytes": 138770,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/CRITICAL_HEDGE_AND_PORTFOLIO_FIX.py",
@@ -42,7 +43,7 @@
       "size_bytes": 58166,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/Dynamic Multi-Timeframe Multi-Asset Trading Trainer Architecture.docx",
@@ -58,7 +59,7 @@
       "size_bytes": 41246,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/IssuesImplementationplan.md",
@@ -67,7 +68,7 @@
       "size_bytes": 42666,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/PATCH_README.md",
@@ -76,7 +77,7 @@
       "size_bytes": 780,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/POSITION_MANAGER.py",
@@ -85,7 +86,7 @@
       "size_bytes": 10982,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/ROLLOUT_HANG_AUDIT.md",
@@ -94,7 +95,7 @@
       "size_bytes": 19388,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/ROLLOUT_HANG_FIXES_APPLIED.md",
@@ -103,7 +104,7 @@
       "size_bytes": 7751,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/TRAINING_LOOP_FIX.md",
@@ -112,7 +113,7 @@
       "size_bytes": 6443,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/WIN_RATE_OPTIMIZER.py",
@@ -121,7 +122,7 @@
       "size_bytes": 17072,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/__pycache__/ADDITIONAL_CRITICAL_FIXES.cpython-312.pyc",
@@ -620,7 +621,7 @@
       "size_bytes": 18533,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/advanced_risk_management.py",
@@ -629,7 +630,7 @@
       "size_bytes": 20633,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/agents/__init__.py",
@@ -638,7 +639,7 @@
       "size_bytes": 270,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/agents/__pycache__/__init__.cpython-312.pyc",
@@ -661,7 +662,7 @@
       "size_bytes": 21109,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/anti_churn_manager.py",
@@ -670,7 +671,7 @@
       "size_bytes": 13565,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/auto_contraction.py",
@@ -679,7 +680,7 @@
       "size_bytes": 22053,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/batch_utils.py",
@@ -688,7 +689,7 @@
       "size_bytes": 19496,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/btc_correlation.py",
@@ -697,7 +698,7 @@
       "size_bytes": 9608,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/calibrated_confidence.py",
@@ -706,7 +707,7 @@
       "size_bytes": 9767,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/checkpoint_manager.py",
@@ -715,7 +716,7 @@
       "size_bytes": 12300,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/churn_veto.py",
@@ -724,7 +725,7 @@
       "size_bytes": 5684,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/churn_veto_bootstrap.json",
@@ -733,7 +734,7 @@
       "size_bytes": 555,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/coinapi_symbol_map.py",
@@ -742,7 +743,7 @@
       "size_bytes": 14322,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/confidence_gates.py",
@@ -751,7 +752,7 @@
       "size_bytes": 21453,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/confidence_logger.py",
@@ -760,7 +761,7 @@
       "size_bytes": 7577,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/constrained_reward.py",
@@ -769,7 +770,7 @@
       "size_bytes": 10861,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/continuous_learner.py",
@@ -778,7 +779,7 @@
       "size_bytes": 23036,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/contract_enrichment.py",
@@ -787,7 +788,7 @@
       "size_bytes": 7037,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/cpu_env.py",
@@ -796,7 +797,7 @@
       "size_bytes": 47421,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/decision_trace.py",
@@ -805,7 +806,7 @@
       "size_bytes": 1890,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/drift_monitor.py",
@@ -814,7 +815,7 @@
       "size_bytes": 17578,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/dynamic_position_sizing.py",
@@ -823,7 +824,7 @@
       "size_bytes": 8922,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/dynamic_runner_hedge.py",
@@ -832,7 +833,7 @@
       "size_bytes": 33342,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/enhanced_architectures.py",
@@ -841,7 +842,7 @@
       "size_bytes": 23252,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/env_factory.py",
@@ -850,7 +851,7 @@
       "size_bytes": 858,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/environment.py",
@@ -859,7 +860,7 @@
       "size_bytes": 66775,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/execution_overlay.py",
@@ -868,7 +869,7 @@
       "size_bytes": 2952,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/fastlane_detector.py",
@@ -877,7 +878,7 @@
       "size_bytes": 17975,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/feature_health.py",
@@ -886,7 +887,7 @@
       "size_bytes": 14055,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/fee_ratio_reward_shaping.py",
@@ -895,7 +896,7 @@
       "size_bytes": 19427,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/global_safety_checks.py",
@@ -904,7 +905,7 @@
       "size_bytes": 20908,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/gpu_batch_env.py",
@@ -913,7 +914,7 @@
       "size_bytes": 9954,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/gpu_cnn_policy.py",
@@ -922,7 +923,7 @@
       "size_bytes": 7843,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/gpu_env_wrapper.py",
@@ -931,7 +932,7 @@
       "size_bytes": 4829,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/gpu_environment.py",
@@ -940,7 +941,7 @@
       "size_bytes": 55463,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/gpu_environment.py.bak.pre_obs512",
@@ -956,7 +957,7 @@
       "size_bytes": 14212,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/gpu_optimized_trainer.py",
@@ -965,7 +966,7 @@
       "size_bytes": 13386,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/gpu_optimizer.py",
@@ -974,7 +975,7 @@
       "size_bytes": 10030,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/gpu_saturation.py",
@@ -983,7 +984,7 @@
       "size_bytes": 18118,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/gymnasium_wrapper.py",
@@ -992,7 +993,7 @@
       "size_bytes": 14062,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/hedge_action_space.py",
@@ -1001,7 +1002,7 @@
       "size_bytes": 13995,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/hedge_budget_governor.py",
@@ -1010,7 +1011,7 @@
       "size_bytes": 3178,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/hedge_harvest_engine.py",
@@ -1019,7 +1020,7 @@
       "size_bytes": 14679,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/hedge_manager_v3.py",
@@ -1028,7 +1029,7 @@
       "size_bytes": 119769,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/hedge_position_manager.py",
@@ -1037,7 +1038,7 @@
       "size_bytes": 22805,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/hedge_reward_functions.py",
@@ -1046,7 +1047,7 @@
       "size_bytes": 16526,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/hedge_rule_engine.py",
@@ -1055,7 +1056,7 @@
       "size_bytes": 19916,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/historical_csv_loader.py",
@@ -1064,7 +1065,7 @@
       "size_bytes": 13197,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/historical_data_loader.py",
@@ -1073,7 +1074,7 @@
       "size_bytes": 12283,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/historical_data_manager.py",
@@ -1082,7 +1083,7 @@
       "size_bytes": 29727,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/hybrid_action_space.py",
@@ -1091,7 +1092,7 @@
       "size_bytes": 16553,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/hybrid_trainer.md",
@@ -1100,7 +1101,7 @@
       "size_bytes": 12943,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/hybrid_trainer.py",
@@ -1109,7 +1110,7 @@
       "size_bytes": 3165342,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/hybrid_trainer.py.backup_indent_fix",
@@ -1125,7 +1126,7 @@
       "size_bytes": 13971,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/ingestor_quality_router.py",
@@ -1134,7 +1135,7 @@
       "size_bytes": 20836,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/intent_engine.py",
@@ -1143,7 +1144,7 @@
       "size_bytes": 6648,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/light_vec_env.py",
@@ -1152,7 +1153,7 @@
       "size_bytes": 9587,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/light_worker.py",
@@ -1161,7 +1162,7 @@
       "size_bytes": 3970,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/liquidation_prevention.py",
@@ -1170,7 +1171,7 @@
       "size_bytes": 32510,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/market_context.py",
@@ -1179,7 +1180,7 @@
       "size_bytes": 28082,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/masa_supervised_pretrainer.py",
@@ -1188,7 +1189,7 @@
       "size_bytes": 11500,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/metrics_tracker.py",
@@ -1197,7 +1198,7 @@
       "size_bytes": 7625,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/microstructure_aggregator.py",
@@ -1206,7 +1207,7 @@
       "size_bytes": 17421,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/microstructure_features.py",
@@ -1215,7 +1216,7 @@
       "size_bytes": 20745,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/microstructure_overlay.py",
@@ -1224,7 +1225,7 @@
       "size_bytes": 50596,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/microstructure_proactive.py",
@@ -1233,7 +1234,7 @@
       "size_bytes": 65862,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/microstructure_source_router.py",
@@ -1242,7 +1243,7 @@
       "size_bytes": 20858,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/microstructure_tf_modifier.py",
@@ -1251,7 +1252,7 @@
       "size_bytes": 13329,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/minimum_hold_time.py",
@@ -1260,7 +1261,7 @@
       "size_bytes": 17687,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/moe_router.py",
@@ -1269,7 +1270,7 @@
       "size_bytes": 15031,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/move_shock_engine.py",
@@ -1278,7 +1279,7 @@
       "size_bytes": 7506,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/mtf_position_builder.py",
@@ -1287,7 +1288,7 @@
       "size_bytes": 14003,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/mtf_scenario_tags.py",
@@ -1296,7 +1297,7 @@
       "size_bytes": 2727,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/obs_schema.py",
@@ -1305,7 +1306,7 @@
       "size_bytes": 17346,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/old-trainer.md",
@@ -1314,7 +1315,7 @@
       "size_bytes": 19489,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/orchestrator_worker.py",
@@ -1323,7 +1324,7 @@
       "size_bytes": 522512,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/portfolio_aware_features.py",
@@ -1332,7 +1333,7 @@
       "size_bytes": 18352,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/portfolio_policy_manager.py",
@@ -1341,7 +1342,7 @@
       "size_bytes": 61622,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/portfolio_recovery_allocator.py",
@@ -1350,7 +1351,7 @@
       "size_bytes": 20131,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/portfolio_risk_features.py",
@@ -1359,7 +1360,7 @@
       "size_bytes": 15814,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/position_context.py",
@@ -1368,7 +1369,7 @@
       "size_bytes": 5757,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/position_monitor.py",
@@ -1377,7 +1378,7 @@
       "size_bytes": 25650,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/production TA for trainer.md",
@@ -1386,7 +1387,7 @@
       "size_bytes": 74391,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/profit_bank.py",
@@ -1395,7 +1396,7 @@
       "size_bytes": 8791,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/profit_freespace_rebalancer.py",
@@ -1404,7 +1405,7 @@
       "size_bytes": 7362,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/promotion_controller.py",
@@ -1413,7 +1414,7 @@
       "size_bytes": 38124,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/proposal_bus.py",
@@ -1422,7 +1423,7 @@
       "size_bytes": 2012,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/proposal_hedge_preflight.py",
@@ -1431,7 +1432,7 @@
       "size_bytes": 2293,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/proposal_schema.py",
@@ -1440,7 +1441,7 @@
       "size_bytes": 20810,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/replay_store.py",
@@ -1449,7 +1450,7 @@
       "size_bytes": 14588,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/reward_functions.py",
@@ -1458,7 +1459,7 @@
       "size_bytes": 31805,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/scenario_engine.py",
@@ -1467,7 +1468,7 @@
       "size_bytes": 2456,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/scripts/backfill_predictions_stub.py",
@@ -1476,7 +1477,7 @@
       "size_bytes": 1455,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/scripts/export_audit_pack.py",
@@ -1485,7 +1486,7 @@
       "size_bytes": 2698,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/scripts/healthcheck_trainer_runtime.py",
@@ -1494,7 +1495,7 @@
       "size_bytes": 5209,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/scripts/replay_decision.py",
@@ -1503,7 +1504,7 @@
       "size_bytes": 1011,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/scripts/train_churn_veto.py",
@@ -1512,7 +1513,7 @@
       "size_bytes": 7326,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/signal_state_manager.py",
@@ -1521,7 +1522,7 @@
       "size_bytes": 22330,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/stable_gpu_trainer.py",
@@ -1530,7 +1531,7 @@
       "size_bytes": 0,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/supervised_pretrainer.py",
@@ -1539,7 +1540,7 @@
       "size_bytes": 13742,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/supervised_trainer.py",
@@ -1548,7 +1549,7 @@
       "size_bytes": 42515,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/ta_direction_oracle.py",
@@ -1557,7 +1558,7 @@
       "size_bytes": 23754,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/target_exposure_controller.py",
@@ -1566,7 +1567,7 @@
       "size_bytes": 52977,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/temperature_calibration.py",
@@ -1575,7 +1576,7 @@
       "size_bytes": 4993,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/tests/test_move_shock_engine.py",
@@ -1584,7 +1585,7 @@
       "size_bytes": 3634,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/tests/test_scenario_engine_clamp.py",
@@ -1593,7 +1594,7 @@
       "size_bytes": 1059,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/tests/test_signal_pipeline.py",
@@ -1602,7 +1603,7 @@
       "size_bytes": 2469,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/tests/test_tf_aggregator.py",
@@ -1611,7 +1612,7 @@
       "size_bytes": 1108,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/tf_aggregator.py",
@@ -1620,7 +1621,7 @@
       "size_bytes": 6496,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/threshold_ramper.py",
@@ -1629,7 +1630,7 @@
       "size_bytes": 11633,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/toxicity_shield.py",
@@ -1638,7 +1639,7 @@
       "size_bytes": 6227,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/trade_feedback.py",
@@ -1647,7 +1648,7 @@
       "size_bytes": 41564,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/trade_proposal.py",
@@ -1656,7 +1657,7 @@
       "size_bytes": 9122,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/tradeplan_orchestrator.py",
@@ -1665,7 +1666,7 @@
       "size_bytes": 64956,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/trainer_call_scripts.zip",
@@ -1681,7 +1682,7 @@
       "size_bytes": 21186,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/trainer_incomplete.md",
@@ -1690,7 +1691,7 @@
       "size_bytes": 83367,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/trainer_realtime_mixin.py",
@@ -1699,7 +1700,7 @@
       "size_bytes": 12633,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/uncertainty.py",
@@ -1708,7 +1709,7 @@
       "size_bytes": 11968,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/underwater_recovery_controller.py",
@@ -1717,7 +1718,7 @@
       "size_bytes": 62545,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/unified_feature_builder.py",
@@ -1726,7 +1727,7 @@
       "size_bytes": 29925,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/updatedplan.md",
@@ -1735,7 +1736,7 @@
       "size_bytes": 13850,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/walk_forward_validation.py",
@@ -1744,7 +1745,7 @@
       "size_bytes": 8261,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "rl/warm_start.py",
@@ -1753,7 +1754,7 @@
       "size_bytes": 14053,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/__init__.py",
@@ -1762,7 +1763,7 @@
       "size_bytes": 26,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/__pycache__/__init__.cpython-312.pyc",
@@ -1925,7 +1926,7 @@
       "size_bytes": 35074,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/assertions.py",
@@ -1934,7 +1935,7 @@
       "size_bytes": 20177,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/auto_deleverager.py",
@@ -1943,7 +1944,7 @@
       "size_bytes": 85148,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/global_breadth.py",
@@ -1952,7 +1953,7 @@
       "size_bytes": 11578,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/halt_manager.py",
@@ -1961,7 +1962,7 @@
       "size_bytes": 22707,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/hedge_cage_manager.py",
@@ -1970,7 +1971,7 @@
       "size_bytes": 17936,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/intelligent_close_guard.py",
@@ -1979,7 +1980,7 @@
       "size_bytes": 47000,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/kill_switch.py",
@@ -1988,7 +1989,7 @@
       "size_bytes": 6143,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/ltf_reversal.py",
@@ -1997,7 +1998,7 @@
       "size_bytes": 22189,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/margin_governor.py",
@@ -2006,7 +2007,7 @@
       "size_bytes": 38468,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/market_regime.py",
@@ -2015,7 +2016,7 @@
       "size_bytes": 26986,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/market_state_contract.py",
@@ -2024,7 +2025,7 @@
       "size_bytes": 12360,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/microstructure_toxicity.py",
@@ -2033,7 +2034,7 @@
       "size_bytes": 10715,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/phase_controller.py",
@@ -2042,7 +2043,7 @@
       "size_bytes": 13441,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/reduce_only_latch.py",
@@ -2051,7 +2052,7 @@
       "size_bytes": 5935,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/reversal_detector.py",
@@ -2060,7 +2061,7 @@
       "size_bytes": 11521,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/risk_budget_allocator.py",
@@ -2069,7 +2070,7 @@
       "size_bytes": 22010,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/risk_state_machine.py",
@@ -2078,7 +2079,7 @@
       "size_bytes": 19619,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/shared_risk_gate.py",
@@ -2087,7 +2088,7 @@
       "size_bytes": 18022,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/trainer_alignment.py",
@@ -2096,7 +2097,7 @@
       "size_bytes": 17889,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "risk/trainer_intent.py",
@@ -2105,7 +2106,7 @@
       "size_bytes": 12741,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "services/__init__.py",
@@ -2114,7 +2115,7 @@
       "size_bytes": 667,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "services/__pycache__/__init__.cpython-312.pyc",
@@ -2158,7 +2159,7 @@
       "size_bytes": 15716,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "services/liquidation_intelligence.py",
@@ -2167,7 +2168,7 @@
       "size_bytes": 6421,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "services/live_decision_evaluator.py",
@@ -2176,7 +2177,7 @@
       "size_bytes": 18405,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "services/onchain_analyzer.py",
@@ -2185,7 +2186,7 @@
       "size_bytes": 19100,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "services/portfolio_publisher.py",
@@ -2194,7 +2195,7 @@
       "size_bytes": 3023,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "services/portfolio_state.py",
@@ -2203,7 +2204,7 @@
       "size_bytes": 17760,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "services/service_monitor.py",
@@ -2212,7 +2213,7 @@
       "size_bytes": 19474,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/__pycache__/binance_rate_limiter.cpython-312.pyc",
@@ -2340,7 +2341,7 @@
       "size_bytes": 10011,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/binance_rate_limiter.py",
@@ -2349,7 +2350,7 @@
       "size_bytes": 9712,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/data_manager.py",
@@ -2358,7 +2359,7 @@
       "size_bytes": 3662,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/data_normalizer.py",
@@ -2367,7 +2368,7 @@
       "size_bytes": 18452,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/decision_bus.py",
@@ -2376,7 +2377,7 @@
       "size_bytes": 2309,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/ensemble_diagnostics.py",
@@ -2385,7 +2386,7 @@
       "size_bytes": 1406,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/healthbeat.py",
@@ -2394,7 +2395,7 @@
       "size_bytes": 2360,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/interpreter_guard.py",
@@ -2403,7 +2404,7 @@
       "size_bytes": 843,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/interrupt_lock.py",
@@ -2412,7 +2413,7 @@
       "size_bytes": 3131,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/logger.py",
@@ -2421,7 +2422,7 @@
       "size_bytes": 1751,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/metrics.py",
@@ -2430,7 +2431,7 @@
       "size_bytes": 486,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/preflight.py",
@@ -2439,7 +2440,7 @@
       "size_bytes": 1654,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/redis_client.py",
@@ -2448,7 +2449,7 @@
       "size_bytes": 12565,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/redis_hardening.py",
@@ -2457,7 +2458,7 @@
       "size_bytes": 801,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/redis_key_audit.py",
@@ -2466,7 +2467,7 @@
       "size_bytes": 6325,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/runtime_flags.py",
@@ -2475,7 +2476,7 @@
       "size_bytes": 4009,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/signal_publish.py",
@@ -2484,7 +2485,7 @@
       "size_bytes": 4270,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/signal_schema.py",
@@ -2493,7 +2494,7 @@
       "size_bytes": 2312,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/symbol_manager.py",
@@ -2502,7 +2503,7 @@
       "size_bytes": 22661,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/unified_position_loader.py",
@@ -2511,7 +2512,7 @@
       "size_bytes": 10293,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "utils/websocket_limits.py",
@@ -2520,7 +2521,7 @@
       "size_bytes": 4612,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/__pycache__/action_constants.cpython-312.pyc",
@@ -2662,7 +2663,7 @@
       "size_bytes": 9053,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/adaptive_edge_gate.py",
@@ -2671,7 +2672,7 @@
       "size_bytes": 69019,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/adaptive_hedge_builder.py",
@@ -2680,7 +2681,7 @@
       "size_bytes": 25287,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/adaptive_threshold_engine.py",
@@ -2689,7 +2690,7 @@
       "size_bytes": 38109,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/assert_governor.py",
@@ -2698,7 +2699,7 @@
       "size_bytes": 1078,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/base_executor.py",
@@ -2707,7 +2708,7 @@
       "size_bytes": 94182,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/churn_prevention.py",
@@ -2716,7 +2717,7 @@
       "size_bytes": 22085,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/coinank_signal_adapter.py",
@@ -2725,7 +2726,7 @@
       "size_bytes": 8409,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/depth_execution_gate.py",
@@ -2734,7 +2735,7 @@
       "size_bytes": 16831,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/dynamic_adaptive_hedge.py",
@@ -2743,7 +2744,7 @@
       "size_bytes": 50990,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/dynamic_adaptive_stops.py",
@@ -2752,7 +2753,7 @@
       "size_bytes": 47578,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/dynamic_margin_manager.py",
@@ -2761,7 +2762,7 @@
       "size_bytes": 14595,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/dynamic_tp_engine.py",
@@ -2770,7 +2771,7 @@
       "size_bytes": 72213,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/execution_engine.py",
@@ -2779,7 +2780,7 @@
       "size_bytes": 13565,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/exit_coordinator.py",
@@ -2788,7 +2789,7 @@
       "size_bytes": 21471,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/fee_ratio_gate.py",
@@ -2797,7 +2798,7 @@
       "size_bytes": 14577,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/hedge_context.py",
@@ -2806,7 +2807,7 @@
       "size_bytes": 60519,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/hedge_intelligence_engine.py",
@@ -2815,7 +2816,7 @@
       "size_bytes": 41087,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/hedge_pair_coordinator.py",
@@ -2824,7 +2825,7 @@
       "size_bytes": 13527,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/leg_manager.py",
@@ -2833,7 +2834,7 @@
       "size_bytes": 22683,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/lifecycle_controller.py",
@@ -2842,7 +2843,7 @@
       "size_bytes": 4173,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/maker_execution.py",
@@ -2851,7 +2852,7 @@
       "size_bytes": 26095,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/market_intelligence.py",
@@ -2860,7 +2861,7 @@
       "size_bytes": 77710,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/market_regime_detector.py",
@@ -2869,7 +2870,7 @@
       "size_bytes": 36243,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/opportunity_tracker.py",
@@ -2878,7 +2879,7 @@
       "size_bytes": 7966,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/position_reporter.py",
@@ -2887,7 +2888,7 @@
       "size_bytes": 15390,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/redesign_v2_helpers.py",
@@ -2896,7 +2897,7 @@
       "size_bytes": 32625,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/redis_stream_reader.py",
@@ -2905,7 +2906,7 @@
       "size_bytes": 14476,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/signal_router.py",
@@ -2914,7 +2915,7 @@
       "size_bytes": 12454,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/smart_entry_gate.py",
@@ -2923,7 +2924,7 @@
       "size_bytes": 34958,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/stealth_dynamic_integration.py",
@@ -2932,7 +2933,7 @@
       "size_bytes": 7320,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/stealth_stops.py",
@@ -2941,7 +2942,7 @@
       "size_bytes": 389228,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/trader-asjad.py",
@@ -2950,7 +2951,7 @@
       "size_bytes": 1552,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/trader.py",
@@ -2959,13 +2960,22 @@
       "size_bytes": 1456456,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "trading/trader_websocket_helper.py",
       "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/trader_websocket_helper.py",
       "sha256": "79cca6583c5a55df03c724b6540602525aec3d2fec6e3ded94885b07f4b5c9a3",
       "size_bytes": 37620,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "UNCHANGED"
+    },
+    {
+      "legacy_rel_path": "binance_websocket.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/binance_websocket.py",
+      "sha256": "aef4e1d6ac7b994cb96f2521b8bcc9810cd9f75a19f11ba4ed85f690133deb26",
+      "size_bytes": 21698,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
       "status": "COPIED"
@@ -2977,13 +2987,22 @@
       "size_bytes": 406920,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "config_accounts.py",
       "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/config_accounts.py",
       "sha256": "3af98d8471e72729cfdd1c13e36b138cd80dda6710aa8aba8fa1d4c204726d6c",
       "size_bytes": 9904,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "UNCHANGED"
+    },
+    {
+      "legacy_rel_path": "hybrid_rule_based_signals.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/hybrid_rule_based_signals.py",
+      "sha256": "c2ad008a489ca633ffa198afbe106c45ce20dca70f15aa91922e0dca1c41971f",
+      "size_bytes": 18754,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
       "status": "COPIED"
@@ -2995,7 +3014,7 @@
       "size_bytes": 111221,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/check_trainer_signal_health.py",
@@ -3004,7 +3023,7 @@
       "size_bytes": 10724,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/integration_test_trainer.sh",
@@ -3013,7 +3032,7 @@
       "size_bytes": 2322,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/logrotate_hybrid_trainer.conf",
@@ -3022,7 +3041,7 @@
       "size_bytes": 203,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/monitor_trainer_predictions.py",
@@ -3031,7 +3050,7 @@
       "size_bytes": 13543,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/monitor_trainer_prices.py",
@@ -3040,7 +3059,7 @@
       "size_bytes": 11099,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/nightly_restart_trainer.sh",
@@ -3049,7 +3068,7 @@
       "size_bytes": 14268,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/soak_test_trainer.sh",
@@ -3058,7 +3077,7 @@
       "size_bytes": 625,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/start_trainer.ps1",
@@ -3067,7 +3086,7 @@
       "size_bytes": 4639,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/start_trainer.sh",
@@ -3076,7 +3095,7 @@
       "size_bytes": 7985,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/stop_trainer.sh",
@@ -3085,7 +3104,7 @@
       "size_bytes": 9364,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/audit_trade_attribution.py",
@@ -3094,7 +3113,7 @@
       "size_bytes": 3678,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/start_trader.ps1",
@@ -3103,7 +3122,7 @@
       "size_bytes": 5701,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/start_trader.sh",
@@ -3112,7 +3131,7 @@
       "size_bytes": 7649,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/stop_trader.sh",
@@ -3121,7 +3140,7 @@
       "size_bytes": 12328,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/stop_trader_asjad.sh",
@@ -3130,7 +3149,7 @@
       "size_bytes": 11855,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/trace_trade_lifecycle.py",
@@ -3139,7 +3158,7 @@
       "size_bytes": 36698,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/validate_trader_alignment.py",
@@ -3148,7 +3167,7 @@
       "size_bytes": 3986,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/verify_trader_consumption.py",
@@ -3157,7 +3176,7 @@
       "size_bytes": 2383,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/test_hedge_build.py",
@@ -3166,7 +3185,7 @@
       "size_bytes": 10355,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/validate_flash_hedge_system.sh",
@@ -3175,7 +3194,7 @@
       "size_bytes": 11961,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/why_hedged_timeline.py",
@@ -3184,7 +3203,7 @@
       "size_bytes": 17734,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/close_all_positions.py",
@@ -3193,7 +3212,7 @@
       "size_bytes": 17429,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/audit_orchestrator_last30m.py",
@@ -3202,7 +3221,7 @@
       "size_bytes": 11966,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     },
     {
       "legacy_rel_path": "scripts/monitor_orchestrator_shadow.py",
@@ -3211,7 +3230,7 @@
       "size_bytes": 4367,
       "secret_heuristic_hits": [],
       "safe_to_commit": true,
-      "status": "COPIED"
+      "status": "UNCHANGED"
     }
   ]
 }

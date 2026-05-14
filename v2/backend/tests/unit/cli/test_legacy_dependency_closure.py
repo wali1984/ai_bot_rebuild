@@ -59,6 +59,21 @@ def test_closure_walks_local_dependency_tree(tmp_path: Path) -> None:
     assert result["totals"]["files_with_redis_usage"] == 1
 
 
+def test_closure_resolves_local_imports_from_additional_roots(tmp_path: Path) -> None:
+    primary = tmp_path / "full_runtime"
+    startup = tmp_path / "startup_baseline"
+    write(primary, "a.py", "from ingest.feed import Feed\n")
+    write(startup, "ingest/__init__.py", "")
+    write(startup, "ingest/feed.py", "class Feed: pass\n")
+
+    result = closure(primary, ["a.py"], additional_roots=[startup])
+
+    assert result["additional_roots"] == [str(startup)]
+    assert result["analyses"]["a.py"]["unknown_imports"] == []
+    assert "ingest" in result["analyses"]["a.py"]["local_imports"]
+    assert f"{startup.name}/ingest/__init__.py" in result["analyses"]
+
+
 def test_shell_script_extracts_py_refs(tmp_path: Path) -> None:
     write(tmp_path, "start.sh", "#!/bin/bash\npython3 worker.py\npython3 module/sub.py\n")
     write(tmp_path, "worker.py", "")

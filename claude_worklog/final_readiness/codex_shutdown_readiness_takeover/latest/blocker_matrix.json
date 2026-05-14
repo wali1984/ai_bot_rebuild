@@ -1,12 +1,6 @@
 {
-  "as_of_utc": "2026-05-14T19:21:16Z",
+  "as_of_utc": "2026-05-14T19:35:43Z",
   "blockers": [
-    {
-      "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "remaining: ingest, binance_websocket, hybrid_rule_based_signals",
-      "id": "UNRESOLVED_LOCAL_IMPORTS",
-      "remediation_task_id": "claude_resolve_remaining_unresolved_local_imports"
-    },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
       "evidence": "worker_porting: legacy_baseline_backfill_required",
@@ -71,7 +65,7 @@
   "counts": {
     "INFO_ONLY": 0,
     "OPERATOR_DECISION_REQUIRED": 1,
-    "P0_SHUTDOWN_BLOCKER": 10,
+    "P0_SHUTDOWN_BLOCKER": 9,
     "P1_SHUTDOWN_SUPPORT": 0,
     "P2_LIVE_ONLY_BLOCKED": 0
   },

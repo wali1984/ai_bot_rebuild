@@ -1,12 +1,6 @@
 {
-  "as_of_utc": "2026-05-14T19:21:16Z",
+  "as_of_utc": "2026-05-14T19:35:43Z",
   "blockers": [
-    {
-      "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "remaining: ingest, binance_websocket, hybrid_rule_based_signals",
-      "id": "UNRESOLVED_LOCAL_IMPORTS",
-      "remediation_task_id": "claude_resolve_remaining_unresolved_local_imports"
-    },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
       "evidence": "worker_porting: legacy_baseline_backfill_required",
@@ -77,14 +71,14 @@
     "never_write_old_redis": true
   },
   "evidence": {
-    "as_of_utc": "2026-05-14T19:21:16Z",
+    "as_of_utc": "2026-05-14T19:35:43Z",
     "canonical_inputs": {
       "missing": [
         "v2/frontend/public/operator_runtime/v2_symbol_universe/latest/symbol_universe_status.json"
       ],
       "records": [
         {
-          "age_seconds": 67876,
+          "age_seconds": 68743,
           "exists": true,
           "generated_at": "2026-05-14T00:30:00Z",
           "path": "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/operator_dashboard_payload.json",
@@ -133,37 +127,37 @@
           "valid_json": true
         },
         {
-          "age_seconds": 84,
+          "age_seconds": 111,
           "exists": true,
-          "generated_at": "2026-05-14T19:19:52Z",
+          "generated_at": "2026-05-14T19:33:52Z",
           "path": "claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/worker_porting_state.json",
           "valid_json": true
         },
         {
-          "age_seconds": 84,
+          "age_seconds": 111,
           "exists": true,
-          "generated_at": "2026-05-14T19:19:52Z",
+          "generated_at": "2026-05-14T19:33:52Z",
           "path": "claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/operator_dashboard_payload.json",
           "valid_json": true
         },
         {
-          "age_seconds": 22,
+          "age_seconds": 32,
           "exists": true,
-          "generated_at": "2026-05-14T19:20:54Z",
+          "generated_at": "2026-05-14T19:35:11Z",
           "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
           "valid_json": true
         },
         {
-          "age_seconds": 28,
+          "age_seconds": 54,
           "exists": true,
-          "generated_at": "2026-05-14T19:20:48Z",
+          "generated_at": "2026-05-14T19:34:49Z",
           "path": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
           "valid_json": true
         },
         {
-          "age_seconds": 7,
+          "age_seconds": 34,
           "exists": true,
-          "generated_at": "2026-05-14T19:21:09Z",
+          "generated_at": "2026-05-14T19:35:09Z",
           "path": "v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json",
           "valid_json": true
         },
@@ -189,7 +183,7 @@
           "valid_json": true
         },
         {
-          "age_seconds": 150676,
+          "age_seconds": 151543,
           "exists": true,
           "generated_at": "2026-05-13T01:30:00Z",
           "path": "v2/frontend/public/operator_runtime/coinank_market_intelligence/latest/coinank_market_intelligence_status.json",
@@ -242,17 +236,13 @@
     "closure": {
       "binary_checkpoint_blobs_inventoried_only": 139,
       "config_importers": 100,
-      "copied_source_files_on_disk": 248,
-      "copied_tree_entries_on_disk": 257,
-      "dependency_closure_files_with_unresolved_imports": null,
+      "copied_source_files_on_disk": 250,
+      "copied_tree_entries_on_disk": 259,
+      "dependency_closure_files_with_unresolved_imports": 78,
       "exchange_api_users": 43,
       "files_with_unresolved_imports": 79,
       "full_runtime_manifest_valid": true,
-      "genuine_unresolved_items": [
-        "ingest",
-        "binance_websocket",
-        "hybrid_rule_based_signals"
-      ],
+      "genuine_unresolved_items": [],
       "inventoried_sources": 231,
       "latest_closure_commit": "0df8a9c4",
       "latest_closure_commit_verified": "0df8a9c4 Full rl/risk/trader/services/utils dependency closure audit",
@@ -351,9 +341,9 @@
     "git_dirty_summary": {
       "buckets": {
         "agent_supervisor_state": 0,
-        "runtime_or_dashboard_artifact": 234,
-        "source_or_tooling": 7,
-        "unknown": 29
+        "runtime_or_dashboard_artifact": 249,
+        "source_or_tooling": 6,
+        "unknown": 12
       },
       "preview": {
         "agent_supervisor_state": [],
@@ -374,9 +364,18 @@
           "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/git_dirty_state.json",
           "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json",
           "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json",
+          "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/CODEX_SHUTDOWN_TAKEOVER_STATUS.md",
+          "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/blocker_matrix.json",
+          "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/claude_delegation_log.jsonl",
+          "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/codex_shutdown_takeover_status.json",
+          "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/current_recommendation.json",
+          "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/operator_dashboard_payload.json",
+          "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/shutdown_readiness_state.json",
           "claude_worklog/final_readiness/documentation_governance/latest/doc_update_policy.json",
           "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_feature_snapshot_builder_status.json",
           "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_trainer_bridge_status.json",
+          "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/full_runtime_copied_source_manifest.json",
+          "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/full_trainer_trader_dependency_closure.json",
           "claude_worklog/final_readiness/non_drift_governor_lock/latest/CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md",
           "claude_worklog/final_readiness/non_drift_governor_lock/latest/GOVERNOR_PRIORITY_POLICY.md",
           "claude_worklog/final_readiness/non_drift_governor_lock/latest/NEXT_TASKS_BY_LANE.md",
@@ -388,25 +387,15 @@
           "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md",
           "claude_worklog/final_readiness/operator_truth_recovery/latest/MISSING_EVIDENCE_REGISTER.md",
           "claude_worklog/final_readiness/operator_truth_recovery/latest/OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_REPORT.md",
-          "claude_worklog/final_readiness/operator_truth_recovery/latest/REALTIME_TRAINER_MONITOR_REPORT.md",
-          "claude_worklog/final_readiness/operator_truth_recovery/latest/SUPERVISOR_STATE_TRUTH_REPORT.md",
-          "claude_worklog/final_readiness/operator_truth_recovery/latest/operator_dashboard_payload.json",
-          "claude_worklog/final_readiness/operator_truth_recovery/latest/operator_truth_payload.json",
-          "claude_worklog/final_readiness/operator_truth_recovery/latest/realtime_legacy_monitor_status.json",
-          "claude_worklog/final_readiness/operator_truth_recovery/latest/realtime_trainer_monitor_status.json",
-          "claude_worklog/final_readiness/operator_truth_recovery/latest/runtime_signal_lineage_status.json",
-          "claude_worklog/final_readiness/operator_truth_recovery/latest/trainer_prediction_stream_status.json",
-          "claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/CONTROL_PLANE_FRESHNESS_RECOVERY.md",
-          "claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/LEGACY_TRADER_CONTAINMENT.md"
+          "claude_worklog/final_readiness/operator_truth_recovery/latest/REALTIME_TRAINER_MONITOR_REPORT.md"
         ],
         "source_or_tooling": [
           "claude_worklog/tools/agent_supervisor.py",
           "claude_worklog/tools/build_active_autonomous_dispatch_packet.py",
-          "claude_worklog/tools/install_v2_persistent_automation_services.sh",
-          "claude_worklog/tools/start_v2_persistent_automation_services.sh",
-          "claude_worklog/tools/status_v2_persistent_automation_services.sh",
-          "claude_worklog/tools/v2_automation_liveness_watchdog.py",
-          "claude_worklog/tools/codex_legacy_shutdown_readiness_takeover.py"
+          "claude_worklog/tools/codex_legacy_shutdown_readiness_takeover.py",
+          "claude_worklog/tools/copy_legacy_full_runtime_closure.py",
+          "v2/backend/app/cli/legacy_dependency_closure.py",
+          "v2/backend/tests/unit/cli/test_legacy_dependency_closure.py"
         ],
         "unknown": [
           ".claude/settings.local.json",
@@ -416,34 +405,17 @@
           "claude_worklog/legacy_readonly_audit/03_LEGACY_CODE_FUNCTION_INVENTORY.md",
           "claude_worklog/legacy_readonly_audit/07_ORCHESTRATOR_TRADER_RUNTIME_EVIDENCE.md",
           "claude_worklog/agent_supervisor/tasks/POST_FINAL_GATE_NON_LIVE_MONITORING_AND_HARDENING.json",
-          "claude_worklog/agent_supervisor/tasks/claude_audit_stale_public_payloads_and_freshness_guard.json",
-          "claude_worklog/agent_supervisor/tasks/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis.json",
-          "claude_worklog/agent_supervisor/tasks/claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map.json",
-          "claude_worklog/agent_supervisor/tasks/claude_port_v2_signal_publisher_from_legacy_schema.json",
-          "claude_worklog/agent_supervisor/tasks/claude_port_v2_trainer_bridge_full_legacy_parity.json",
-          "claude_worklog/agent_supervisor/tasks/claude_remediate_account_position_monitor_shutdown_parity.json",
-          "claude_worklog/agent_supervisor/tasks/claude_replay_paper_edge_repair_from_legacy_trainer_output.json",
-          "claude_worklog/agent_supervisor/tasks/claude_resolve_remaining_unresolved_local_imports.json",
-          "claude_worklog/agent_supervisor/tasks/codex_review_claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis.json",
-          "claude_worklog/agent_supervisor/tasks/codex_review_claude_remediate_account_position_monitor_shutdown_parity.json",
-          "claude_worklog/agent_supervisor/tasks/codex_review_claude_replay_paper_edge_repair_from_legacy_trainer_output.json",
-          "claude_worklog/agent_supervisor/tasks/codex_review_public_payload_freshness_shutdown_readiness.json",
-          "claude_worklog/agent_supervisor/tasks/codex_review_resolved_local_imports.json",
-          "claude_worklog/agent_supervisor/tasks/codex_review_v2_risk_gateway_legacy_action_parity_tests.json",
-          "claude_worklog/agent_supervisor/tasks/codex_review_v2_signal_publisher_legacy_schema_parity.json",
-          "claude_worklog/agent_supervisor/tasks/codex_review_v2_trainer_full_legacy_parity.json",
           "claude_worklog/final_readiness/always_on_claude_codex_runtime/recurring/",
-          "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/",
           "claude_worklog/final_readiness/post_final_gate_non_live_monitoring_and_hardening/",
           "claude_worklog/final_readiness/tonight_v2_live_like_paper_shadow_and_canary_preflight/",
-          "claude_worklog/systemd/user/ai-bot-v2-codex-shutdown-readiness-takeover.service",
-          "claude_worklog/systemd/user/ai-bot-v2-codex-shutdown-readiness-takeover.timer"
+          "v2/legacy_preserved/full_runtime_closure/binance_websocket.py",
+          "v2/legacy_preserved/full_runtime_closure/hybrid_rule_based_signals.py"
         ]
       },
-      "total_dirty": 270
+      "total_dirty": 267
     },
     "paper_edge": {
-      "age_seconds": 85334,
+      "age_seconds": 86201,
       "blocked_intents": 124,
       "blockers": [
         "paper_shadow_profitability_proof_negative",
@@ -465,14 +437,14 @@
       "simulated_fills": 1192
     },
     "paper_runtime": {
-      "age_seconds": 22,
+      "age_seconds": 32,
       "blockers": [
         "paper_realized_pnl_negative",
         "current_paper_intent_blocked_or_unfilled"
       ],
       "fill_count": null,
       "fills_last_hour": null,
-      "generated_at": "2026-05-14T19:20:54Z",
+      "generated_at": "2026-05-14T19:35:11Z",
       "latest_fill_price": null,
       "latest_paper_action": null,
       "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
@@ -482,9 +454,9 @@
       "unrealized_pnl": 0.0
     },
     "paper_shadow": {
-      "age_seconds": 28,
+      "age_seconds": 54,
       "blockers": [],
-      "generated_at": "2026-05-14T19:20:48Z",
+      "generated_at": "2026-05-14T19:34:49Z",
       "path": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
       "status": "fresh"
     },
@@ -495,202 +467,202 @@
       "stale_count": 254,
       "stale_preview": [
         {
-          "age_seconds": 108118,
+          "age_seconds": 108985,
           "generated_at": "2026-05-13T13:19:18Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/CODEX_ACCOUNT_PERMISSION_AND_SOAK_REVIEW.json"
         },
         {
-          "age_seconds": 108118,
+          "age_seconds": 108985,
           "generated_at": "2026-05-13T13:19:18Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/canary_readiness_after_account_evidence.json"
         },
         {
-          "age_seconds": 108118,
+          "age_seconds": 108985,
           "generated_at": "2026-05-13T13:19:18Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/margin_leverage_evidence.json"
         },
         {
-          "age_seconds": 108118,
+          "age_seconds": 108985,
           "generated_at": "2026-05-13T13:19:18Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 108118,
+          "age_seconds": 108985,
           "generated_at": "2026-05-13T13:19:18Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/p0_p1_migration_account_evidence_progress.json"
         },
         {
-          "age_seconds": 108118,
+          "age_seconds": 108985,
           "generated_at": "2026-05-13T13:19:18Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/paper_shadow_monitor_continuation.json"
         },
         {
-          "age_seconds": 108118,
+          "age_seconds": 108985,
           "generated_at": "2026-05-13T13:19:18Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/paper_shadow_soak_reconciliation.json"
         },
         {
-          "age_seconds": 108118,
+          "age_seconds": 108985,
           "generated_at": "2026-05-13T13:19:18Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/readonly_account_evidence.json"
         },
         {
-          "age_seconds": 108118,
+          "age_seconds": 108985,
           "generated_at": "2026-05-13T13:19:18Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/trade_permission_evidence.json"
         },
         {
-          "age_seconds": 108118,
+          "age_seconds": 108985,
           "generated_at": "2026-05-13T13:19:18Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/trainer_trader_monitor_continuation_status.json"
         },
         {
-          "age_seconds": 108118,
+          "age_seconds": 108985,
           "generated_at": "2026-05-13T13:19:18Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/weekly_loss_gate_runtime_proof.json"
         },
         {
-          "age_seconds": 158361,
+          "age_seconds": 159228,
           "generated_at": "2026-05-12T23:21:55.367925+00:00",
           "path": "v2/frontend/public/active_autonomous_dispatch/latest/claude_idle_and_dispatch_diagnostic.json"
         },
         {
-          "age_seconds": 158361,
+          "age_seconds": 159228,
           "generated_at": "2026-05-12T23:21:55.367925+00:00",
           "path": "v2/frontend/public/active_autonomous_dispatch/latest/codex_parallel_dispatch_state.json"
         },
         {
-          "age_seconds": 158361,
+          "age_seconds": 159228,
           "generated_at": "2026-05-12T23:21:55.367925+00:00",
           "path": "v2/frontend/public/active_autonomous_dispatch/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 158361,
+          "age_seconds": 159228,
           "generated_at": "2026-05-12T23:21:55.367925+00:00",
           "path": "v2/frontend/public/active_autonomous_dispatch/latest/primary_dispatch_state.json"
         },
         {
-          "age_seconds": 82999,
+          "age_seconds": 83866,
           "generated_at": "2026-05-13T20:17:57.242012+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/always_on_runtime_state.json"
         },
         {
-          "age_seconds": 82998,
+          "age_seconds": 83865,
           "generated_at": "2026-05-13T20:17:57.782874+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/automation_utilization_status.json"
         },
         {
-          "age_seconds": 82999,
+          "age_seconds": 83866,
           "generated_at": "2026-05-13T20:17:57.187969+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/git_dirty_state.json"
         },
         {
-          "age_seconds": 82999,
+          "age_seconds": 83866,
           "generated_at": "2026-05-13T20:17:57.242012+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 82999,
+          "age_seconds": 83866,
           "generated_at": "2026-05-13T20:17:57.243377+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json"
         },
         {
-          "age_seconds": 433743,
+          "age_seconds": 434610,
           "generated_at": "2026-05-09T18:52:13.154032+00:00",
           "path": "v2/frontend/public/automation_liveness/latest/dashboard_069_liveness_payload.json"
         },
         {
-          "age_seconds": 433666,
+          "age_seconds": 434533,
           "generated_at": "2026-05-09T18:53:30.424067+00:00",
           "path": "v2/frontend/public/automation_liveness/latest/dashboard_liveness_payload.json"
         },
         {
-          "age_seconds": 164052,
+          "age_seconds": 164919,
           "generated_at": "2026-05-12T21:47:03.651686+00:00",
           "path": "v2/frontend/public/autonomous_governor/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 330822,
+          "age_seconds": 331689,
           "generated_at": "2026-05-10T23:27:34.157556+00:00",
           "path": "v2/frontend/public/autonomous_governor_manual_replacement/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 427993,
+          "age_seconds": 428860,
           "generated_at": "2026-05-09T20:28:03.005904+00:00",
           "path": "v2/frontend/public/autonomous_live_readiness_builder/latest/autonomous_builder_status.json"
         },
         {
-          "age_seconds": 164458,
+          "age_seconds": 165325,
           "generated_at": "2026-05-12T21:40:17.796346+00:00",
           "path": "v2/frontend/public/claude_automation_non_drift_governor_lock/latest/non_drift_governor_status.json"
         },
         {
-          "age_seconds": 164458,
+          "age_seconds": 165325,
           "generated_at": "2026-05-12T21:40:17.796346+00:00",
           "path": "v2/frontend/public/claude_automation_non_drift_governor_lock/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 164458,
+          "age_seconds": 165325,
           "generated_at": "2026-05-12T21:40:17.796346+00:00",
           "path": "v2/frontend/public/claude_automation_non_drift_governor_lock/latest/primary_objective_lock.json"
         },
         {
-          "age_seconds": 308046,
+          "age_seconds": 308913,
           "generated_at": "2026-05-11T05:47:10.135832+00:00",
           "path": "v2/frontend/public/claude_codex_rate_limit_handoff/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 245495,
+          "age_seconds": 246362,
           "generated_at": "2026-05-11T19:09:41-04:00",
           "path": "v2/frontend/public/claude_design_full_visual_implementation/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 300918,
+          "age_seconds": 301785,
           "generated_at": "2026-05-11T07:45:58.228145+00:00",
           "path": "v2/frontend/public/claude_primary_handoff/latest/WORKER_ROUTING_STATE.json"
         },
         {
-          "age_seconds": 300918,
+          "age_seconds": 301785,
           "generated_at": "2026-05-11T07:45:58.228145+00:00",
           "path": "v2/frontend/public/claude_primary_handoff/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 338700,
+          "age_seconds": 339567,
           "generated_at": "2026-05-10T21:16:16.250972+00:00",
           "path": "v2/frontend/public/claude_rate_limit_codex_takeover/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 251872,
+          "age_seconds": 252739,
           "generated_at": "2026-05-11T21:23:24Z",
           "path": "v2/frontend/public/codex_design_handoff_review_protocol/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 75226,
+          "age_seconds": 76093,
           "generated_at": "2026-05-13T22:27:30Z",
           "path": "v2/frontend/public/codex_env_repo_parity/latest/env_dependency_parity.json"
         },
         {
-          "age_seconds": 75086,
+          "age_seconds": 75953,
           "generated_at": "2026-05-13T22:29:50Z",
           "path": "v2/frontend/public/codex_env_repo_parity/latest/legacy_v2_function_gap.json"
         },
         {
-          "age_seconds": 75086,
+          "age_seconds": 75953,
           "generated_at": "2026-05-13T22:29:50Z",
           "path": "v2/frontend/public/codex_env_repo_parity/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 32009,
+          "age_seconds": 32876,
           "generated_at": "2026-05-14T10:27:47Z",
           "path": "v2/frontend/public/codex_independent_v2_support/latest/account_permission_contract_status.json"
         },
         {
-          "age_seconds": 32466,
+          "age_seconds": 33333,
           "generated_at": "2026-05-14T10:20:10Z",
           "path": "v2/frontend/public/codex_independent_v2_support/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 79377,
+          "age_seconds": 80244,
           "generated_at": "2026-05-13T21:18:19Z",
           "path": "v2/frontend/public/codex_independent_v2_support/latest/paper_shadow_metrics_analysis.json"
         }
@@ -700,11 +672,11 @@
       "blocked_quota": null,
       "current_status": "running",
       "current_status_path": "claude_worklog/agent_supervisor/status/current_status.json",
-      "current_task_id": "claude_resolve_remaining_unresolved_local_imports",
+      "current_task_id": "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map",
       "human_attention_required_count": 3,
       "next_pending_task": "recurring_monitor_legacy_trainer_runtime",
       "non_drift_selected_task": "recurring_monitor_legacy_trainer_runtime",
-      "queue_generated_at": "2026-05-14T19:17:25.383729+00:00",
+      "queue_generated_at": "2026-05-14T19:34:50.093851+00:00",
       "queue_status_path": "claude_worklog/agent_supervisor/status/queue_status.json"
     },
     "risk_gateway_tests": {
@@ -818,9 +790,9 @@
       ]
     },
     "symbol_universe": {
-      "age_seconds": 7,
+      "age_seconds": 34,
       "blockers": [],
-      "generated_at": "2026-05-14T19:21:09Z",
+      "generated_at": "2026-05-14T19:35:09Z",
       "live_gate": "blocked_human_only",
       "live_symbols": [],
       "paper_symbols": [
@@ -833,7 +805,7 @@
       ]
     },
     "trade_permission": {
-      "age_seconds": 85333,
+      "age_seconds": 86200,
       "blockers": [
         "trade_permission_readonly_unknown",
         "readonly_account_evidence_stale"
@@ -935,8 +907,8 @@
       }
     },
     "worker_porting": {
-      "age_seconds": 84,
-      "as_of_utc": "2026-05-14T19:19:52Z",
+      "age_seconds": 111,
+      "as_of_utc": "2026-05-14T19:33:52Z",
       "blocked_workers": [],
       "blockers": [
         "legacy_baseline_backfill_required"
@@ -970,10 +942,10 @@
   "live_symbols": [],
   "loop_marker": "CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP_READY",
   "next_action": {
-    "blocker_id": "UNRESOLVED_LOCAL_IMPORTS",
+    "blocker_id": "RISK_GATEWAY_LEGACY_PARITY_TESTS_MISSING",
     "kind": "wait_for_claude_remediation",
-    "task_descriptor": "claude_worklog/agent_supervisor/tasks/claude_resolve_remaining_unresolved_local_imports.json",
-    "task_id": "claude_resolve_remaining_unresolved_local_imports"
+    "task_descriptor": "claude_worklog/agent_supervisor/tasks/claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map.json",
+    "task_id": "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map"
   },
   "redis_trim_approval": "absent",
   "shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE"

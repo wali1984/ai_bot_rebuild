@@ -1,0 +1,69 @@
+{
+  "task_id": "claude_resolve_remaining_unresolved_local_imports",
+  "status": "REMEDIATED",
+  "remediation_kind": "copier_extension_and_closure_scanner_cross_link_specified",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "final_approval_token": "absent",
+  "redis_trim_approval_token": "absent",
+  "symbols_resolved": [
+    {
+      "symbol": "ingest",
+      "classification": "CLOSURE_TOOL_CROSS_LINK_REQUIRED",
+      "source_state": "already_preserved",
+      "preserved_root": "v2/legacy_preserved/startup_baseline/ingest/",
+      "preserved_record_count": 11,
+      "manifest_source": "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/copied_baseline_manifest.json"
+    },
+    {
+      "symbol": "binance_websocket",
+      "classification": "SOURCE_FOUND_COPIER_EXTENSION_REQUIRED",
+      "legacy_source_path": "legacy_reference/binance_websocket.py",
+      "sha256": "aef4e1d6ac7b994cb96f2521b8bcc9810cd9f75a19f11ba4ed85f690133deb26",
+      "size_bytes": 21698,
+      "line_count": 610,
+      "target_preserved_path": "v2/legacy_preserved/full_runtime_closure/binance_websocket.py"
+    },
+    {
+      "symbol": "hybrid_rule_based_signals",
+      "classification": "SOURCE_FOUND_COPIER_EXTENSION_REQUIRED",
+      "legacy_source_path": "legacy_reference/hybrid_rule_based_signals.py",
+      "sha256": "c2ad008a489ca633ffa198afbe106c45ce20dca70f15aa91922e0dca1c41971f",
+      "size_bytes": 18754,
+      "line_count": 435,
+      "target_preserved_path": "v2/legacy_preserved/full_runtime_closure/hybrid_rule_based_signals.py"
+    }
+  ],
+  "tests_executed": false,
+  "test_classification": "V2_ENV_BLOCKED",
+  "test_classification_reason": "Task changes only the legacy preserved-source tree and closure-scanner config. No V2 runtime path consumes these legacy helpers; V2 paper trainer is an independent momentum placeholder. No V2 import resolves through this change.",
+  "public_payload_impact": "none",
+  "runtime_facing_change": false,
+  "dependency_closure_status": {
+    "risk": "DEPENDENCY_CLOSURE_COMPLETE",
+    "services": "DEPENDENCY_CLOSURE_COMPLETE",
+    "utils": "DEPENDENCY_CLOSURE_COMPLETE",
+    "trading": "DEPENDENCY_CLOSURE_REMEDIATION_SPECIFIED",
+    "rl": "DEPENDENCY_CLOSURE_REMEDIATION_SPECIFIED"
+  },
+  "go_no_go": "GO_CONDITIONAL_ON_COPIER_RERUN_AND_CLOSURE_SCANNER_RERUN",
+  "forbidden_actions_taken": [],
+  "forbidden_actions_check": {
+    "legacy_mutation": false,
+    "old_redis_write": false,
+    "exchange_action": false,
+    "leverage_change": false,
+    "margin_mode_change": false,
+    "live_gate_unlock": false,
+    "approval_token_creation": false,
+    "redis_trim_approval_creation": false,
+    "greenfield_without_legacy_baseline": false,
+    "dropping_legacy_behavior_silently": false,
+    "missing_sha256_citation_from_full_runtime_manifest": false
+  },
+  "next_action_required": {
+    "owner": "codex_legacy_shutdown_readiness_takeover",
+    "action": "rerun_phase_B_full_runtime_closure_copy_with_extension_delta_then_rerun_closure_scanner",
+    "extension_delta_path": "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/full_runtime_closure_extension_delta.json"
+  }
+}

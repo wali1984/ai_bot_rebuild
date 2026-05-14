@@ -1,0 +1,93 @@
+{
+  "task_id": "claude_resolve_remaining_unresolved_local_imports",
+  "mapping_status": "REMEDIATED",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "final_approval_token": "absent",
+  "mappings": [
+    {
+      "symbol": "ingest",
+      "import_form_examples": [
+        "from ingest.live_binance import ...",
+        "from ingest.realtime_price_provider import ...",
+        "from ingest.liquidation_bridge import ..."
+      ],
+      "classification": "CLOSURE_TOOL_CROSS_LINK_REQUIRED",
+      "source_status": "already_preserved",
+      "preserved_search_root": "v2/legacy_preserved/startup_baseline/ingest/",
+      "preserved_record_manifest": "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/copied_baseline_manifest.json",
+      "preserved_record_count": 11,
+      "preserved_records": [
+        {"rel": "ingest/live_binance.py", "sha256": "6c1eb771a3842e2d94b797eedd55aa624075c51c6d50aec701397f81dbace798", "size_bytes": 125730},
+        {"rel": "ingest/live_kucoin.py", "sha256": "73b852db1bf69062d4028091cf17c126f5cb666e94bf784cdb2bb9b47328a976", "size_bytes": 36382},
+        {"rel": "ingest/live_coinank.py", "sha256": "cd13dab55c0906c379e4116102c05f960908dd28d6b6e883ca76347cd1f144c8", "size_bytes": 127414},
+        {"rel": "ingest/live_coinank_global_aggregator.py", "sha256": "1f85c4532e4829aa99ddadbd6a5cd2325ef9e5c4012208eb05876c1b0187eeae", "size_bytes": 14475},
+        {"rel": "ingest/live_binance_liquidations.py", "sha256": "19711590a3d194fd05ae3be85ef7bd6dec397f6394d02f7e91008c44c310131b", "size_bytes": 46088},
+        {"rel": "ingest/liquidation_bridge.py", "sha256": "5d70e395938228b61162b531310cd751403ddfeebb8920429e73cdcdbe35d48a", "size_bytes": 6327},
+        {"rel": "ingest/liquidation_levels_engine.py", "sha256": "fed3c90b5193c27d24dc183089730bda49ff69a1758b597e23a154397f839df7", "size_bytes": 18539},
+        {"rel": "ingest/realtime_price_provider.py", "sha256": "dfdc2568368c134b9afcc4fa0faff312cc93a6ecc501ecaac747e7c20d7344ba", "size_bytes": 45009},
+        {"rel": "ingest/live_coinapi_wsds.py", "sha256": "a6973d887d1c52a4bb48f3b6f222b04e97d92e500ab889e94d6026cf504471b6", "size_bytes": 77253},
+        {"rel": "ingest/live_coinapi_v1.py", "sha256": "c8ca17d21b972510b92c4e84c477cd3440b3cfd1e2ec8e7411624a7454cee280", "size_bytes": 28497},
+        {"rel": "ingest/live_technical_analysis.py", "sha256": "5cdd4ea1d43271d0199e1ca92ecad3a8b76308838898a611df6ef4602f7388ac", "size_bytes": 6103}
+      ],
+      "v2_replacement_status": "none_paper_uses_snapshots_live_blocked",
+      "remediation": "closure_scanner_must_include_additional_preserved_search_root",
+      "remediation_target_config": "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/full_runtime_closure_extension_delta.json",
+      "remediation_runtime_facing": false
+    },
+    {
+      "symbol": "binance_websocket",
+      "import_form_examples": [
+        "from binance_websocket import BinanceWebSocketHelper"
+      ],
+      "classification": "SOURCE_FOUND_COPIER_EXTENSION_REQUIRED",
+      "source_status": "found_in_legacy_reference_not_yet_in_preserved_full_runtime_tree",
+      "legacy_source_path": "legacy_reference/binance_websocket.py",
+      "sha256": "aef4e1d6ac7b994cb96f2521b8bcc9810cd9f75a19f11ba4ed85f690133deb26",
+      "size_bytes": 21698,
+      "line_count": 610,
+      "importers": [
+        {"path": "legacy_reference/rl/hybrid_trainer.py", "line": 538, "import_text": "from binance_websocket import BinanceWebSocketHelper"},
+        {"path": "legacy_reference/rl/CRITICAL_HEDGE_AND_PORTFOLIO_FIX.py", "line": 33, "import_text": "from binance_websocket import BinanceWebSocketHelper"}
+      ],
+      "manifest_presence": {
+        "full_runtime_copied_source_manifest_json": "absent",
+        "copied_baseline_manifest_json": "absent"
+      },
+      "v2_replacement_status": "none_legacy_only_helper_preserved_for_parity_reconstruction",
+      "remediation": "copier_phase_B_full_runtime_closure_copy_must_include_top_level_helper",
+      "remediation_target_preserved_path": "v2/legacy_preserved/full_runtime_closure/binance_websocket.py",
+      "remediation_target_extension_delta": "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/full_runtime_closure_extension_delta.json",
+      "remediation_runtime_facing": false
+    },
+    {
+      "symbol": "hybrid_rule_based_signals",
+      "import_form_examples": [
+        "from hybrid_rule_based_signals import HybridRuleBasedSignalGenerator"
+      ],
+      "classification": "SOURCE_FOUND_COPIER_EXTENSION_REQUIRED",
+      "source_status": "found_in_legacy_reference_not_yet_in_preserved_full_runtime_tree",
+      "legacy_source_path": "legacy_reference/hybrid_rule_based_signals.py",
+      "sha256": "c2ad008a489ca633ffa198afbe106c45ce20dca70f15aa91922e0dca1c41971f",
+      "size_bytes": 18754,
+      "line_count": 435,
+      "importers": [
+        {"path": "legacy_reference/rl/hybrid_trainer.py", "line": 56819, "import_text": "from hybrid_rule_based_signals import HybridRuleBasedSignalGenerator"}
+      ],
+      "manifest_presence": {
+        "full_runtime_copied_source_manifest_json": "absent",
+        "copied_baseline_manifest_json": "absent"
+      },
+      "v2_replacement_status": "none_paper_trainer_is_momentum_placeholder_trainer_bridge_blocked_by_parity",
+      "remediation": "copier_phase_B_full_runtime_closure_copy_must_include_top_level_helper",
+      "remediation_target_preserved_path": "v2/legacy_preserved/full_runtime_closure/hybrid_rule_based_signals.py",
+      "remediation_target_extension_delta": "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/full_runtime_closure_extension_delta.json",
+      "remediation_runtime_facing": false
+    }
+  ],
+  "public_payload_impact": "none",
+  "tests_executed": false,
+  "test_classification": "V2_ENV_BLOCKED",
+  "closure_revalidation_command": "rerun_copier_phase_B_with_extension_delta_then_rerun_full_trainer_trader_dependency_closure_scanner_with_additional_preserved_search_roots",
+  "go_no_go": "GO_CONDITIONAL_ON_COPIER_RERUN_AND_CLOSURE_SCANNER_RERUN"
+}

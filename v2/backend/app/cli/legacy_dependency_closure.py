@@ -183,52 +183,70 @@ def _resolve_local_module(root: Path, name: str) -> Optional[str]:
     return None
 
 
-def closure(root: Path, entries: List[str]) -> Dict[str, Any]:
-    visited: Set[str] = set()
-    pending: List[str] = list(entries)
+def _resolve_local_module_in_roots(roots: List[Path], name: str) -> Optional[Tuple[Path, str]]:
+    for candidate_root in roots:
+        rel = _resolve_local_module(candidate_root, name)
+        if rel:
+            return candidate_root, rel
+    return None
+
+
+def _analysis_key(primary_root: Path, source_root: Path, rel_path: str) -> str:
+    if source_root.resolve() == primary_root.resolve():
+        return rel_path
+    return f"{source_root.name}/{rel_path}"
+
+
+def closure(root: Path, entries: List[str], additional_roots: Optional[List[Path]] = None) -> Dict[str, Any]:
+    roots = [root] + [r for r in (additional_roots or []) if r.resolve() != root.resolve()]
+    visited: Set[Tuple[str, str]] = set()
+    pending: List[Tuple[Path, str]] = [(root, entry) for entry in entries]
     known_local: Set[str] = set()
     # First pass: enumerate the set of "obviously local" top-level module names
-    # by listing top-level .py files in the root.
-    for p in root.rglob("*.py"):
-        rel = p.relative_to(root).as_posix()
-        parts = rel.split("/")
-        known_local.add(parts[0].removesuffix(".py"))
-        if len(parts) > 1:
-            known_local.add(parts[0])  # package name
+    # by listing top-level .py files in the primary and additional roots.
+    for scan_root in roots:
+        for p in scan_root.rglob("*.py"):
+            rel = p.relative_to(scan_root).as_posix()
+            parts = rel.split("/")
+            known_local.add(parts[0].removesuffix(".py"))
+            if len(parts) > 1:
+                known_local.add(parts[0])  # package name
     analyses: Dict[str, FileAnalysis] = {}
     while pending:
-        cur = pending.pop()
-        if cur in visited:
+        cur_root, cur = pending.pop()
+        visit_key = (str(cur_root.resolve()), cur)
+        if visit_key in visited:
             continue
-        visited.add(cur)
-        fa = analyze(root, cur, known_local)
-        analyses[cur] = fa
+        visited.add(visit_key)
+        fa = analyze(cur_root, cur, known_local)
+        analyses[_analysis_key(root, cur_root, cur)] = fa
         # Walk every recognized local import (module name) to its file.
         for name in fa.local_imports:
             if name.startswith("."):
                 continue
             if name.endswith(".py"):
                 # Shell scripts emit explicit .py references; queue them as-is.
-                if (root / name).exists() and name not in visited and name not in pending:
-                    pending.append(name)
+                if (cur_root / name).exists() and (str(cur_root.resolve()), name) not in visited and (cur_root, name) not in pending:
+                    pending.append((cur_root, name))
                 continue
-            res = _resolve_local_module(root, name)
-            if res and res not in visited and res not in pending:
+            res = _resolve_local_module_in_roots(roots, name)
+            if res and (str(res[0].resolve()), res[1]) not in visited and res not in pending:
                 pending.append(res)
         # Resolve still-unknown imports against root layout (top-level module
         # names that weren't pre-populated in known_local for any reason).
         unresolved: List[str] = []
         for u in fa.unknown_imports:
-            res = _resolve_local_module(root, u)
+            res = _resolve_local_module_in_roots(roots, u)
             if res:
                 fa.local_imports.append(u)
-                if res not in visited and res not in pending:
+                if (str(res[0].resolve()), res[1]) not in visited and res not in pending:
                     pending.append(res)
             else:
                 unresolved.append(u)
         fa.unknown_imports = unresolved
     return {
         "root": str(root),
+        "additional_roots": [str(r) for r in roots[1:]],
         "entries": entries,
         "analyses": {k: vars(v) for k, v in analyses.items()},
         "totals": {
@@ -246,12 +264,18 @@ def closure(root: Path, entries: List[str]) -> Dict[str, Any]:
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", required=True, help="root directory of the preserved baseline")
+    parser.add_argument("--additional-root", action="append", default=[], help="additional preserved root for cross-tree local imports")
     parser.add_argument("--entry", action="append", default=[], help="entry script (repeatable)")
     parser.add_argument("--all", action="store_true", help="analyze every .py and .sh in --root")
     args = parser.parse_args(argv)
     root = Path(args.root).resolve()
     if not root.is_dir():
         print(json.dumps({"error": f"root not a directory: {root}"}))
+        return 2
+    additional_roots = [Path(p).resolve() for p in args.additional_root]
+    missing_additional = [str(p) for p in additional_roots if not p.is_dir()]
+    if missing_additional:
+        print(json.dumps({"error": f"additional root not a directory: {missing_additional[0]}"}))
         return 2
     if args.all:
         entries = [p.relative_to(root).as_posix() for p in sorted(root.rglob("*")) if p.is_file() and p.suffix in {".py", ".sh"}]
@@ -260,7 +284,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     else:
         print(json.dumps({"error": "must provide --entry or --all"}))
         return 2
-    result = closure(root, entries)
+    result = closure(root, entries, additional_roots=additional_roots)
     print(json.dumps(result, indent=2, sort_keys=False))
     return 0
 

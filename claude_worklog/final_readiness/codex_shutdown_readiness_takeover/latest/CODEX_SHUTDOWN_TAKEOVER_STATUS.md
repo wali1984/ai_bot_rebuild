@@ -1,6 +1,6 @@
 # CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP
 
-As of: 2026-05-14T19:21:16Z
+As of: 2026-05-14T19:35:43Z
 
 Loop marker: `CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP_READY`
 Shutdown recommendation: `BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE`
@@ -15,7 +15,6 @@ Legacy shutdown remains blocked because required parity, edge, dependency, or sa
 
 ## Blockers
 
-- `UNRESOLVED_LOCAL_IMPORTS` [P0_SHUTDOWN_BLOCKER]: remaining: ingest, binance_websocket, hybrid_rule_based_signals; remediation=`claude_resolve_remaining_unresolved_local_imports`
 - `LEGACY_BASELINE_BACKFILL_REQUIRED` [P0_SHUTDOWN_BLOCKER]: worker_porting: legacy_baseline_backfill_required; remediation=`claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis`
 - `RISK_GATEWAY_LEGACY_PARITY_TESTS_MISSING` [P0_SHUTDOWN_BLOCKER]: missing terms: halt_manager, reduce_only, intelligent_close_guard, auto_deleverager, shared_risk, margin_governor, phase_controller, adaptive_gate; remediation=`claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map`
 - `WRAPPER_NOT_LEGACY_HYBRID_PARITY` [P0_SHUTDOWN_BLOCKER]: trainer_bridge: trainer_bridge_not_legacy_hybrid_parity; remediation=`claude_port_v2_trainer_bridge_full_legacy_parity`
@@ -30,20 +29,20 @@ Legacy shutdown remains blocked because required parity, edge, dependency, or sa
 ## Next action
 
 - kind: `wait_for_claude_remediation`
-- task_id: `claude_resolve_remaining_unresolved_local_imports`
-- descriptor: `claude_worklog/agent_supervisor/tasks/claude_resolve_remaining_unresolved_local_imports.json`
-- blocker: `UNRESOLVED_LOCAL_IMPORTS`
+- task_id: `claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map`
+- descriptor: `claude_worklog/agent_supervisor/tasks/claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map.json`
+- blocker: `RISK_GATEWAY_LEGACY_PARITY_TESTS_MISSING`
 
 ## Evidence snapshot
 
 - closure commit: `0df8a9c4 Full rl/risk/trader/services/utils dependency closure audit`
-- copied full-closure files: `248`
+- copied full-closure files: `250`
 - binary blobs inventoried only: `139`
 - Redis users / exchange API users / config importers: `49` / `43` / `100`
 - paper runtime: `fresh`, PnL=`-49.12`, action=`None`
 - trainer bridge: `WRAPPER_NOT_LEGACY_HYBRID_PARITY`, accepted=`False`
 - trade permission: `TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY`
-- symbol universe age seconds: `7`, live_symbols=`[]`
+- symbol universe age seconds: `34`, live_symbols=`[]`
 
 ## Hard constraints held
 

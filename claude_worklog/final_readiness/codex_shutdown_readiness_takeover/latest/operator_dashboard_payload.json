@@ -1,27 +1,21 @@
 {
-  "active_claude_task": "claude_resolve_remaining_unresolved_local_imports",
+  "active_claude_task": "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map",
   "active_codex_task": null,
   "approval_token_status": {
     "final_approval_token": "absent",
     "redis_trim_approval": "absent"
   },
-  "as_of_utc": "2026-05-14T19:21:16Z",
+  "as_of_utc": "2026-05-14T19:35:43Z",
   "blocked_intent_count": 124,
-  "blocker_count": 11,
+  "blocker_count": 10,
   "blocker_counts": {
     "INFO_ONLY": 0,
     "OPERATOR_DECISION_REQUIRED": 1,
-    "P0_SHUTDOWN_BLOCKER": 10,
+    "P0_SHUTDOWN_BLOCKER": 9,
     "P1_SHUTDOWN_SUPPORT": 0,
     "P2_LIVE_ONLY_BLOCKED": 0
   },
   "blockers": [
-    {
-      "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "remaining: ingest, binance_websocket, hybrid_rule_based_signals",
-      "id": "UNRESOLVED_LOCAL_IMPORTS",
-      "remediation_task_id": "claude_resolve_remaining_unresolved_local_imports"
-    },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
       "evidence": "worker_porting: legacy_baseline_backfill_required",
@@ -90,9 +84,9 @@
   "git_dirty_classification": {
     "buckets": {
       "agent_supervisor_state": 0,
-      "runtime_or_dashboard_artifact": 234,
-      "source_or_tooling": 7,
-      "unknown": 29
+      "runtime_or_dashboard_artifact": 249,
+      "source_or_tooling": 6,
+      "unknown": 12
     },
     "preview": {
       "agent_supervisor_state": [],
@@ -113,9 +107,18 @@
         "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/git_dirty_state.json",
         "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json",
         "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json",
+        "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/CODEX_SHUTDOWN_TAKEOVER_STATUS.md",
+        "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/blocker_matrix.json",
+        "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/claude_delegation_log.jsonl",
+        "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/codex_shutdown_takeover_status.json",
+        "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/current_recommendation.json",
+        "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/operator_dashboard_payload.json",
+        "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/shutdown_readiness_state.json",
         "claude_worklog/final_readiness/documentation_governance/latest/doc_update_policy.json",
         "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_feature_snapshot_builder_status.json",
         "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_trainer_bridge_status.json",
+        "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/full_runtime_copied_source_manifest.json",
+        "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/full_trainer_trader_dependency_closure.json",
         "claude_worklog/final_readiness/non_drift_governor_lock/latest/CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md",
         "claude_worklog/final_readiness/non_drift_governor_lock/latest/GOVERNOR_PRIORITY_POLICY.md",
         "claude_worklog/final_readiness/non_drift_governor_lock/latest/NEXT_TASKS_BY_LANE.md",
@@ -127,25 +130,15 @@
         "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md",
         "claude_worklog/final_readiness/operator_truth_recovery/latest/MISSING_EVIDENCE_REGISTER.md",
         "claude_worklog/final_readiness/operator_truth_recovery/latest/OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_REPORT.md",
-        "claude_worklog/final_readiness/operator_truth_recovery/latest/REALTIME_TRAINER_MONITOR_REPORT.md",
-        "claude_worklog/final_readiness/operator_truth_recovery/latest/SUPERVISOR_STATE_TRUTH_REPORT.md",
-        "claude_worklog/final_readiness/operator_truth_recovery/latest/operator_dashboard_payload.json",
-        "claude_worklog/final_readiness/operator_truth_recovery/latest/operator_truth_payload.json",
-        "claude_worklog/final_readiness/operator_truth_recovery/latest/realtime_legacy_monitor_status.json",
-        "claude_worklog/final_readiness/operator_truth_recovery/latest/realtime_trainer_monitor_status.json",
-        "claude_worklog/final_readiness/operator_truth_recovery/latest/runtime_signal_lineage_status.json",
-        "claude_worklog/final_readiness/operator_truth_recovery/latest/trainer_prediction_stream_status.json",
-        "claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/CONTROL_PLANE_FRESHNESS_RECOVERY.md",
-        "claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/LEGACY_TRADER_CONTAINMENT.md"
+        "claude_worklog/final_readiness/operator_truth_recovery/latest/REALTIME_TRAINER_MONITOR_REPORT.md"
       ],
       "source_or_tooling": [
         "claude_worklog/tools/agent_supervisor.py",
         "claude_worklog/tools/build_active_autonomous_dispatch_packet.py",
-        "claude_worklog/tools/install_v2_persistent_automation_services.sh",
-        "claude_worklog/tools/start_v2_persistent_automation_services.sh",
-        "claude_worklog/tools/status_v2_persistent_automation_services.sh",
-        "claude_worklog/tools/v2_automation_liveness_watchdog.py",
-        "claude_worklog/tools/codex_legacy_shutdown_readiness_takeover.py"
+        "claude_worklog/tools/codex_legacy_shutdown_readiness_takeover.py",
+        "claude_worklog/tools/copy_legacy_full_runtime_closure.py",
+        "v2/backend/app/cli/legacy_dependency_closure.py",
+        "v2/backend/tests/unit/cli/test_legacy_dependency_closure.py"
       ],
       "unknown": [
         ".claude/settings.local.json",
@@ -155,31 +148,14 @@
         "claude_worklog/legacy_readonly_audit/03_LEGACY_CODE_FUNCTION_INVENTORY.md",
         "claude_worklog/legacy_readonly_audit/07_ORCHESTRATOR_TRADER_RUNTIME_EVIDENCE.md",
         "claude_worklog/agent_supervisor/tasks/POST_FINAL_GATE_NON_LIVE_MONITORING_AND_HARDENING.json",
-        "claude_worklog/agent_supervisor/tasks/claude_audit_stale_public_payloads_and_freshness_guard.json",
-        "claude_worklog/agent_supervisor/tasks/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis.json",
-        "claude_worklog/agent_supervisor/tasks/claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map.json",
-        "claude_worklog/agent_supervisor/tasks/claude_port_v2_signal_publisher_from_legacy_schema.json",
-        "claude_worklog/agent_supervisor/tasks/claude_port_v2_trainer_bridge_full_legacy_parity.json",
-        "claude_worklog/agent_supervisor/tasks/claude_remediate_account_position_monitor_shutdown_parity.json",
-        "claude_worklog/agent_supervisor/tasks/claude_replay_paper_edge_repair_from_legacy_trainer_output.json",
-        "claude_worklog/agent_supervisor/tasks/claude_resolve_remaining_unresolved_local_imports.json",
-        "claude_worklog/agent_supervisor/tasks/codex_review_claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis.json",
-        "claude_worklog/agent_supervisor/tasks/codex_review_claude_remediate_account_position_monitor_shutdown_parity.json",
-        "claude_worklog/agent_supervisor/tasks/codex_review_claude_replay_paper_edge_repair_from_legacy_trainer_output.json",
-        "claude_worklog/agent_supervisor/tasks/codex_review_public_payload_freshness_shutdown_readiness.json",
-        "claude_worklog/agent_supervisor/tasks/codex_review_resolved_local_imports.json",
-        "claude_worklog/agent_supervisor/tasks/codex_review_v2_risk_gateway_legacy_action_parity_tests.json",
-        "claude_worklog/agent_supervisor/tasks/codex_review_v2_signal_publisher_legacy_schema_parity.json",
-        "claude_worklog/agent_supervisor/tasks/codex_review_v2_trainer_full_legacy_parity.json",
         "claude_worklog/final_readiness/always_on_claude_codex_runtime/recurring/",
-        "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/",
         "claude_worklog/final_readiness/post_final_gate_non_live_monitoring_and_hardening/",
         "claude_worklog/final_readiness/tonight_v2_live_like_paper_shadow_and_canary_preflight/",
-        "claude_worklog/systemd/user/ai-bot-v2-codex-shutdown-readiness-takeover.service",
-        "claude_worklog/systemd/user/ai-bot-v2-codex-shutdown-readiness-takeover.timer"
+        "v2/legacy_preserved/full_runtime_closure/binance_websocket.py",
+        "v2/legacy_preserved/full_runtime_closure/hybrid_rule_based_signals.py"
       ]
     },
-    "total_dirty": 270
+    "total_dirty": 267
   },
   "go_no_go": "CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP_READY",
   "last_commit": "0df8a9c4 Full rl/risk/trader/services/utils dependency closure audit",
@@ -187,23 +163,23 @@
   "live_gate_status": "blocked_human_only",
   "live_symbols": [],
   "next_action": {
-    "blocker_id": "UNRESOLVED_LOCAL_IMPORTS",
+    "blocker_id": "RISK_GATEWAY_LEGACY_PARITY_TESTS_MISSING",
     "kind": "wait_for_claude_remediation",
-    "task_descriptor": "claude_worklog/agent_supervisor/tasks/claude_resolve_remaining_unresolved_local_imports.json",
-    "task_id": "claude_resolve_remaining_unresolved_local_imports"
+    "task_descriptor": "claude_worklog/agent_supervisor/tasks/claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map.json",
+    "task_id": "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map"
   },
   "next_automatic_action": {
-    "blocker_id": "UNRESOLVED_LOCAL_IMPORTS",
+    "blocker_id": "RISK_GATEWAY_LEGACY_PARITY_TESTS_MISSING",
     "kind": "wait_for_claude_remediation",
-    "task_descriptor": "claude_worklog/agent_supervisor/tasks/claude_resolve_remaining_unresolved_local_imports.json",
-    "task_id": "claude_resolve_remaining_unresolved_local_imports"
+    "task_descriptor": "claude_worklog/agent_supervisor/tasks/claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map.json",
+    "task_id": "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map"
   },
   "old_redis_write_status": "absent",
   "paper_pnl": -49.12,
   "paper_shadow_freshness": {
-    "age_seconds": 28,
+    "age_seconds": 54,
     "blockers": [],
-    "generated_at": "2026-05-14T19:20:48Z",
+    "generated_at": "2026-05-14T19:34:49Z",
     "path": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
     "status": "fresh"
   },
@@ -284,9 +260,9 @@
     "v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json"
   ],
   "symbol_universe": {
-    "age_seconds": 7,
+    "age_seconds": 34,
     "blockers": [],
-    "generated_at": "2026-05-14T19:21:09Z",
+    "generated_at": "2026-05-14T19:35:09Z",
     "live_gate": "blocked_human_only",
     "live_symbols": [],
     "paper_symbols": [
@@ -299,9 +275,9 @@
     ]
   },
   "symbol_universe_freshness": {
-    "age_seconds": 7,
+    "age_seconds": 34,
     "blockers": [],
-    "generated_at": "2026-05-14T19:21:09Z",
+    "generated_at": "2026-05-14T19:35:09Z",
     "live_gate": "blocked_human_only",
     "live_symbols": [],
     "paper_symbols": [

@@ -18,6 +18,7 @@ import argparse
 import datetime as dt
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import time
@@ -215,13 +216,36 @@ def task_effective_status(task_id: str) -> str:
     return "missing"
 
 
-def set_task_pending(task_id: str) -> None:
+def pid_alive(pid: Any) -> bool:
+    try:
+        value = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if value <= 0:
+        return False
+    try:
+        os.kill(value, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def task_running_stale(task_id: str) -> bool:
+    state = read_json(task_state_path(task_id))
+    if not isinstance(state, dict) or state.get("status") != "running":
+        return False
+    return not pid_alive(state.get("run_pid"))
+
+
+def set_task_pending(task_id: str, *, force: bool = False) -> None:
     path = task_state_path(task_id)
     data = read_json(path)
     if not isinstance(data, dict):
         data = {}
     current = str(data.get("status") or "")
-    if current in {"running", "completed", "superseded_by_evidence"}:
+    if current in {"running", "completed", "superseded_by_evidence"} and not force:
         return
     data.update(
         {
@@ -229,7 +253,7 @@ def set_task_pending(task_id: str) -> None:
             "status": "pending",
             "run_pid": None,
             "resume_after_utc": None,
-            "last_retry_reason": "selected_by_shutdown_readiness_takeover_loop",
+            "last_retry_reason": "selected_by_shutdown_readiness_takeover_loop" if not force else "stale_running_pid_recovered_by_shutdown_readiness_takeover_loop",
             "last_status_change_ts": iso_now(),
         }
     )
@@ -412,10 +436,20 @@ def closure_evidence() -> Dict[str, Any]:
     copied_files = len([p for p in (ROOT / "v2/legacy_preserved/full_runtime_closure").rglob("*") if p.is_file()]) if (ROOT / "v2/legacy_preserved/full_runtime_closure").exists() else 0
     tree_counts = inventory.get("tree_counts", {}) if isinstance(inventory, dict) else {}
     phase_c = inventory.get("phase_c_closure_totals", {}) if isinstance(inventory, dict) else {}
-    dependency_text = read_text(CLOSURE_DEPENDENCY)
-    genuine_unresolved_present = [
-        item for item in GENUINE_UNRESOLVED_IMPORTS if item in dependency_text
-    ]
+    genuine_unresolved_present: List[str] = []
+    if isinstance(dependency, dict):
+        for analysis in (dependency.get("analyses") or {}).values():
+            if not isinstance(analysis, dict):
+                continue
+            unknown_imports = set(str(item) for item in analysis.get("unknown_imports", []))
+            for item in GENUINE_UNRESOLVED_IMPORTS:
+                if item in unknown_imports and item not in genuine_unresolved_present:
+                    genuine_unresolved_present.append(item)
+    else:
+        dependency_text = read_text(CLOSURE_DEPENDENCY)
+        genuine_unresolved_present = [
+            item for item in GENUINE_UNRESOLVED_IMPORTS if item in dependency_text
+        ]
     return {
         "latest_closure_commit": "0df8a9c4",
         "latest_closure_commit_verified": run(["git", "show", "-s", "--format=%h %s", "0df8a9c4"], timeout=10).stdout.strip(),
@@ -431,7 +465,10 @@ def closure_evidence() -> Dict[str, Any]:
         "exchange_api_users": phase_c.get("files_with_exchange_api_usage"),
         "config_importers": phase_c.get("files_with_config_import"),
         "files_with_unresolved_imports": phase_c.get("files_with_unresolved_imports"),
-        "dependency_closure_files_with_unresolved_imports": dependency.get("summary", {}).get("files_with_unresolved_imports")
+        "dependency_closure_files_with_unresolved_imports": (
+            dependency.get("summary", {}).get("files_with_unresolved_imports")
+            or dependency.get("totals", {}).get("files_with_unresolved_imports")
+        )
         if isinstance(dependency, dict)
         else None,
         "genuine_unresolved_items": genuine_unresolved_present,
@@ -760,8 +797,8 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
         blockers.append(blocker("GIT_CORRUPTION_DETECTED", "P0_SHUTDOWN_BLOCKER", corruption_evidence))
 
     closure = evidence["closure"]
-    if closure.get("copied_source_files_on_disk") != 248:
-        blockers.append(blocker("FULL_RUNTIME_CLOSURE_FILE_COUNT_MISMATCH", "P0_SHUTDOWN_BLOCKER", f"copied={closure.get('copied_source_files_on_disk')} expected=248"))
+    if (closure.get("copied_source_files_on_disk") or 0) < 248:
+        blockers.append(blocker("FULL_RUNTIME_CLOSURE_FILE_COUNT_MISMATCH", "P0_SHUTDOWN_BLOCKER", f"copied={closure.get('copied_source_files_on_disk')} expected_at_least=248"))
     if closure.get("binary_checkpoint_blobs_inventoried_only") != 139:
         blockers.append(blocker("BINARY_CHECKPOINT_INVENTORY_MISMATCH", "P0_SHUTDOWN_BLOCKER", f"binary_count={closure.get('binary_checkpoint_blobs_inventoried_only')} expected=139"))
     if not closure.get("full_runtime_manifest_valid"):
@@ -1179,6 +1216,16 @@ def select_next_action(blockers: List[Dict[str, Any]], dry_run: bool) -> Dict[st
         codex_descriptor = codex_review_descriptor(task_id)
         if not required_outputs_exist(claude_descriptor):
             task_status = task_effective_status(task_id)
+            if task_status == "running" and task_running_stale(task_id):
+                if not dry_run:
+                    set_task_pending(task_id, force=True)
+                return {
+                    "kind": "dispatch_claude_remediation",
+                    "task_id": task_id,
+                    "task_descriptor": rel(TASKS_DIR / f"{task_id}.json"),
+                    "blocker_id": item["id"],
+                    "follow_up": "stale running pid recovered; rerun Claude remediation",
+                }
             if task_status not in {"running", "completed", "superseded_by_evidence"}:
                 if not dry_run:
                     set_task_pending(task_id)
@@ -1198,6 +1245,16 @@ def select_next_action(blockers: List[Dict[str, Any]], dry_run: bool) -> Dict[st
         if not codex_passed(task_id):
             review_id = review_task_id_for(task_id)
             review_status = task_effective_status(review_id)
+            if review_status == "running" and task_running_stale(review_id):
+                if not dry_run:
+                    set_task_pending(review_id, force=True)
+                return {
+                    "kind": "dispatch_codex_review",
+                    "task_id": review_id,
+                    "task_descriptor": rel(TASKS_DIR / f"{review_id}.json"),
+                    "blocker_id": item["id"],
+                    "follow_up": "stale running pid recovered; rerun Codex review",
+                }
             if review_status not in {"running", "completed", "superseded_by_evidence"}:
                 if not dry_run:
                     set_task_pending(review_id)

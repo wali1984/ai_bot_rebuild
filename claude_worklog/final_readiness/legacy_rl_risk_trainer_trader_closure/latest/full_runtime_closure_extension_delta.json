@@ -1,0 +1,54 @@
+{
+  "schema": "full_runtime_closure_extension_delta_v1",
+  "produced_by": "claude_resolve_remaining_unresolved_local_imports",
+  "produced_at_date": "2026-05-14",
+  "purpose": "Extend phase_B_full_runtime_closure_copy scope to cover top-level helper files imported by rl/ but not previously preserved, and instruct closure scanner to additionally search the startup-baseline preserved tree for the ingest namespace.",
+  "additional_copy_targets": [
+    {
+      "legacy_rel_path": "binance_websocket.py",
+      "legacy_source_path": "legacy_reference/binance_websocket.py",
+      "target_v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/binance_websocket.py",
+      "expected_sha256": "aef4e1d6ac7b994cb96f2521b8bcc9810cd9f75a19f11ba4ed85f690133deb26",
+      "expected_size_bytes": 21698,
+      "rationale_importers": [
+        "legacy_reference/rl/hybrid_trainer.py:538",
+        "legacy_reference/rl/CRITICAL_HEDGE_AND_PORTFOLIO_FIX.py:33"
+      ],
+      "classification": "SOURCE_FOUND_COPIER_EXTENSION_REQUIRED"
+    },
+    {
+      "legacy_rel_path": "hybrid_rule_based_signals.py",
+      "legacy_source_path": "legacy_reference/hybrid_rule_based_signals.py",
+      "target_v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/hybrid_rule_based_signals.py",
+      "expected_sha256": "c2ad008a489ca633ffa198afbe106c45ce20dca70f15aa91922e0dca1c41971f",
+      "expected_size_bytes": 18754,
+      "rationale_importers": [
+        "legacy_reference/rl/hybrid_trainer.py:56819"
+      ],
+      "classification": "SOURCE_FOUND_COPIER_EXTENSION_REQUIRED"
+    }
+  ],
+  "additional_preserved_search_roots": [
+    {
+      "root": "v2/legacy_preserved/startup_baseline/",
+      "purpose": "Resolve `from ingest.<x> import ...` references in rl/ and trading/ via the already-preserved startup-baseline ingest namespace.",
+      "namespace_resolved": "ingest",
+      "manifest_source": "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/copied_baseline_manifest.json"
+    }
+  ],
+  "expected_post_rerun_assertions": [
+    "full_runtime_copied_source_manifest.json contains a record for binance_websocket.py with sha256 aef4e1d6ac7b994cb96f2521b8bcc9810cd9f75a19f11ba4ed85f690133deb26 and status COPIED",
+    "full_runtime_copied_source_manifest.json contains a record for hybrid_rule_based_signals.py with sha256 c2ad008a489ca633ffa198afbe106c45ce20dca70f15aa91922e0dca1c41971f and status COPIED",
+    "full_trainer_trader_dependency_closure.json no longer lists `binance_websocket`, `hybrid_rule_based_signals`, or `ingest` in any file's unresolved_local_imports list"
+  ],
+  "safety": {
+    "legacy_mutation": false,
+    "old_redis_write": false,
+    "exchange_action": false,
+    "live_gate_change": false,
+    "approval_token_creation": false
+  },
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "final_approval_token": "absent"
+}

@@ -1,8 +1,13 @@
 {
   "root": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_preserved/full_runtime_closure",
+  "additional_roots": [
+    "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_preserved/startup_baseline"
+  ],
   "entries": [
+    "binance_websocket.py",
     "config.py",
     "config_accounts.py",
+    "hybrid_rule_based_signals.py",
     "risk/__init__.py",
     "risk/adaptive_gate.py",
     "risk/assertions.py",
@@ -716,6 +721,7 @@
       "local_imports": [
         "config",
         "config_accounts",
+        "ingest",
         "risk",
         "rl",
         "services",
@@ -753,7 +759,6 @@
       ],
       "unknown_imports": [
         "dotenv",
-        "ingest",
         "secrets",
         "urllib3"
       ],
@@ -3838,7 +3843,10 @@
       "exists": true,
       "parse_error": null,
       "local_imports": [
+        "binance_websocket",
         "config",
+        "hybrid_rule_based_signals",
+        "ingest",
         "risk",
         "rl",
         "services",
@@ -3892,12 +3900,9 @@
       ],
       "unknown_imports": [
         "atexit",
-        "binance_websocket",
         "cloudpickle",
         "faulthandler",
         "gymnasium",
-        "hybrid_rule_based_signals",
-        "ingest",
         "statistics"
       ],
       "redis_usage": true,
@@ -3931,7 +3936,8 @@
       "exists": true,
       "parse_error": null,
       "local_imports": [
-        "config"
+        "config",
+        "ingest"
       ],
       "external_imports": [
         "numpy",
@@ -3952,9 +3958,7 @@
         "traceback",
         "typing"
       ],
-      "unknown_imports": [
-        "ingest"
-      ],
+      "unknown_imports": [],
       "redis_usage": false,
       "exchange_api_usage": false,
       "subprocess_usage": false,
@@ -5135,6 +5139,7 @@
       "exists": true,
       "parse_error": null,
       "local_imports": [
+        "binance_websocket",
         "config",
         "utils"
       ],
@@ -5152,9 +5157,7 @@
         "traceback",
         "typing"
       ],
-      "unknown_imports": [
-        "binance_websocket"
-      ],
+      "unknown_imports": [],
       "redis_usage": false,
       "exchange_api_usage": true,
       "subprocess_usage": false,
@@ -5685,6 +5688,28 @@
       "config_usage": false,
       "log_file_writes": []
     },
+    "hybrid_rule_based_signals.py": {
+      "legacy_rel_path": "hybrid_rule_based_signals.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [],
+      "external_imports": [
+        "numpy",
+        "redis"
+      ],
+      "stdlib_imports": [
+        "datetime",
+        "json",
+        "time",
+        "typing"
+      ],
+      "unknown_imports": [],
+      "redis_usage": true,
+      "exchange_api_usage": false,
+      "subprocess_usage": false,
+      "config_usage": false,
+      "log_file_writes": []
+    },
     "config_accounts.py": {
       "legacy_rel_path": "config_accounts.py",
       "exists": true,
@@ -5729,15 +5754,43 @@
       "subprocess_usage": true,
       "config_usage": true,
       "log_file_writes": []
+    },
+    "binance_websocket.py": {
+      "legacy_rel_path": "binance_websocket.py",
+      "exists": true,
+      "parse_error": null,
+      "local_imports": [
+        "utils"
+      ],
+      "external_imports": [
+        "binance"
+      ],
+      "stdlib_imports": [
+        "asyncio",
+        "logging",
+        "math",
+        "os",
+        "threading",
+        "time",
+        "typing"
+      ],
+      "unknown_imports": [
+        "__future__"
+      ],
+      "redis_usage": false,
+      "exchange_api_usage": true,
+      "subprocess_usage": false,
+      "config_usage": false,
+      "log_file_writes": []
     }
   },
   "totals": {
-    "files_analyzed": 231,
+    "files_analyzed": 233,
     "files_with_parse_error": 2,
-    "files_with_redis_usage": 49,
-    "files_with_exchange_api_usage": 43,
+    "files_with_redis_usage": 50,
+    "files_with_exchange_api_usage": 44,
     "files_with_subprocess_usage": 6,
     "files_with_config_usage": 100,
-    "files_with_unresolved_imports": 79
+    "files_with_unresolved_imports": 78
   }
 }
