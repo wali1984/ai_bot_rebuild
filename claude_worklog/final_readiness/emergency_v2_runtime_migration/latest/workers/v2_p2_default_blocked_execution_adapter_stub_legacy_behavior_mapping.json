@@ -1,0 +1,242 @@
+{
+  "worker_id": "v2_default_blocked_execution_adapter",
+  "task_id": "claude_port_v2_p2_default_blocked_execution_adapter_stub",
+  "generated_ts": "2026-05-14T00:00:00Z",
+  "baseline_status": "BASELINE_COMPLETE",
+  "legacy_source_paths": [
+    "legacy_reference/trading/base_executor.py",
+    "legacy_reference/trading/trader.py",
+    "legacy_reference/trading/maker_execution.py",
+    "legacy_reference/trading/depth_execution_gate.py",
+    "legacy_reference/trading/execution_engine.py",
+    "legacy_reference/config.py"
+  ],
+  "legacy_mutation_call_sites": [
+    {
+      "operation": "place_order",
+      "legacy_method": "client.futures[_]create[_]order",
+      "citation": "legacy_reference/trading/base_executor.py:105-113"
+    },
+    {
+      "operation": "cancel",
+      "legacy_method": "client.futures[_]cancel[_]order",
+      "citation": "legacy_reference/trading/base_executor.py:1790"
+    },
+    {
+      "operation": "change_leverage",
+      "legacy_method": "client.futures[_]change[_]leverage",
+      "citation": "legacy_reference/trading/trader.py:14075,15245,19531"
+    },
+    {
+      "operation": "change_margin_mode",
+      "legacy_method": "client.futures[_]change[_]margin[_]type",
+      "citation": "legacy_reference/trading/trader.py:870"
+    }
+  ],
+  "legacy_functions_preserved": [],
+  "legacy_functions_intentionally_refused_by_v2_stub": [
+    "client.futures[_]create[_]order",
+    "client.futures[_]cancel[_]order",
+    "client.futures[_]change[_]leverage",
+    "client.futures[_]change[_]margin[_]type"
+  ],
+  "legacy_inputs": {
+    "redis_reads": [
+      "signal:{symbol}",
+      "orderbook:{symbol}",
+      "position:{symbol}",
+      "risk_state:{symbol}",
+      "rate_limit:*",
+      "ban:*"
+    ],
+    "config_reads": [
+      "legacy_reference/config.py SYMBOLS",
+      "legacy_reference/config.py MAJOR_SYMBOLS_SET",
+      "LEVERAGE_TIER1_SYMBOLS env override",
+      "fee constants maker=0.0002 taker=0.0005 (legacy_reference/trading/trader.py:2269-2275)"
+    ],
+    "exchange_reads": [
+      "client.futures_exchange_info",
+      "client.futures_account",
+      "client.futures_position_information",
+      "client.futures_symbol_ticker"
+    ],
+    "secrets_reads": [
+      "LIVE_API_KEY env",
+      "LIVE_API_SECRET env"
+    ],
+    "v2_stub_actually_reads": [
+      "v2/backend/app/services/symbol_universe/service.py (SymbolUniverseService, LEGACY_ACTIVE_SYMBOLS_25, DYNAMIC_SYMBOL_SOURCES, SYMBOL_SELECTION_SCORE_FACTORS)",
+      "v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json (optional, classified MISSING_SYMBOL_UNIVERSE_PUBLIC_PAYLOAD when absent)"
+    ]
+  },
+  "legacy_outputs": {
+    "exchange_writes": [
+      "Binance REST order ack: orderId, executedQty, avgPrice",
+      "Binance REST leverage change ack",
+      "Binance REST margin type change ack",
+      "Binance REST cancel ack"
+    ],
+    "redis_writes": [
+      "audit:execution:*",
+      "position:* (post-fill reconciliation)",
+      "slippage:* records"
+    ],
+    "telegram_writes": [
+      "telegram_alerts.TelegramNotifier execution alerts"
+    ],
+    "log_writes": [
+      "legacy_reference/.logs/execution_mode.log"
+    ],
+    "v2_stub_actually_writes": [
+      "v2/frontend/public/operator_runtime/v2_default_blocked_execution_adapter/latest/v2_default_blocked_execution_adapter_status.json",
+      "v2/runtime/v2_default_blocked_execution_adapter/latest/v2_default_blocked_execution_adapter_status.json",
+      "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_default_blocked_execution_adapter_status.json"
+    ]
+  },
+  "legacy_redis_keys_read_only_audit": [
+    "signal:{symbol}",
+    "orderbook:{symbol}",
+    "position:{symbol}",
+    "risk_state:{symbol}",
+    "audit:execution:*",
+    "rate_limit:*",
+    "ban:*"
+  ],
+  "legacy_redis_writers_forbidden_in_v2_stub": true,
+  "legacy_config_dependencies": [
+    "legacy_reference/config.py SYMBOLS (25-symbol active subset; preserved as LEGACY_ACTIVE_SYMBOLS_25 via v2/backend/app/services/symbol_universe/service.py:24-50)",
+    "legacy_reference/config.py MAJOR_SYMBOLS_SET (legacy_reference/config.py:301)",
+    "legacy_reference/config.py LEVERAGE_TIER1_SYMBOLS (legacy_reference/config.py:5584)",
+    "legacy fee constants maker=0.0002 taker=0.0005"
+  ],
+  "legacy_edge_cases": [
+    "Reduce-only flag on close orders",
+    "Hedge-mode positionSide LONG/SHORT direction tagging",
+    "Leverage tier cap (tier1 vs tier2)",
+    "Cross vs isolated margin mode switch",
+    "BinanceAPIException / BinanceOrderException retries",
+    "IP ban detection (is_banned / set_ban)",
+    "OfflineBinanceClient fallback returning fake orderId from counter",
+    "Partial fill reconciliation to position state"
+  ],
+  "legacy_failure_modes": [
+    "Silent fallback to OfflineBinanceClient with fake orderId",
+    "Partial fills lost on Redis disconnect",
+    "Leverage race with concurrent position open",
+    "Margin-type change rejected by Binance if open position exists",
+    "Cancel/fill race",
+    "REST timeout retries",
+    "IP ban from Binance"
+  ],
+  "legacy_tests_or_expected_behavior": [
+    "legacy_reference/test_binance_testnet_orders.py",
+    "legacy_reference/BINANCE_TESTNET_ORDER_TEST_SUCCESS.md",
+    "legacy_reference/Documentation/Audits/maker-first_executor_audit_*.md",
+    "legacy_reference/check_order_history.py",
+    "legacy_reference/monitor_trader_execution.py"
+  ],
+  "V2_mapping": {
+    "place_order": {
+      "v2_method": "DefaultBlockedExecutionAdapter.place_order",
+      "v2_behavior": "raise BlockedGateNotApprovedError code=BLOCKED_GATE_NOT_APPROVED immediately",
+      "v2_increments_counter": "blocked_call_breakdown_by_method.place_order"
+    },
+    "cancel": {
+      "v2_method": "DefaultBlockedExecutionAdapter.cancel",
+      "v2_behavior": "raise BlockedGateNotApprovedError code=BLOCKED_GATE_NOT_APPROVED immediately",
+      "v2_increments_counter": "blocked_call_breakdown_by_method.cancel"
+    },
+    "change_leverage": {
+      "v2_method": "DefaultBlockedExecutionAdapter.change_leverage",
+      "v2_behavior": "raise BlockedGateNotApprovedError code=BLOCKED_GATE_NOT_APPROVED immediately",
+      "v2_increments_counter": "blocked_call_breakdown_by_method.change_leverage"
+    },
+    "change_margin_mode": {
+      "v2_method": "DefaultBlockedExecutionAdapter.change_margin_mode",
+      "v2_behavior": "raise BlockedGateNotApprovedError code=BLOCKED_GATE_NOT_APPROVED immediately",
+      "v2_increments_counter": "blocked_call_breakdown_by_method.change_margin_mode"
+    },
+    "live_gate": "blocked_human_only (single constant; no flip path in this worker)",
+    "stub_state_machine": "DISABLED or BLOCKED only; never ACTIVE",
+    "symbol_scope": "via v2/backend/app/services/symbol_universe/service.py SymbolUniverseService"
+  },
+  "intentional_changes": [
+    "No exchange client held on the adapter (eliminates BinanceAPIException, IP-ban, REST-timeout surface)",
+    "All mutation methods raise before evaluating any branch (default-deny by construction)",
+    "change_margin_type renamed to change_margin_mode (V2 normalized verb)",
+    "blocked_call_attempts_total and per-method breakdown counters added for GUI/observability",
+    "stub_state enum restricted to DISABLED/BLOCKED only",
+    "No Redis, no Binance, no ccxt imports (statically enforced by tests)",
+    "Symbol Universe contract emitted on every payload",
+    "live_symbols always empty while live_gate=blocked_human_only"
+  ],
+  "removed_or_deprecated": [
+    {
+      "removed": "OfflineBinanceClient fallback returning fake orderId from counter",
+      "legacy_citation": "legacy_reference/trading/base_executor.py:70-119",
+      "reason": "Returning success-shaped fake fills could mislead callers; V2 raises instead"
+    },
+    {
+      "removed": "Telegram execution alerts",
+      "legacy_citation": "legacy_reference/telegram_alerts.py",
+      "reason": "Out of scope for the refusal surface; subsumed by audit ledger and GUI"
+    },
+    {
+      "removed": "Slippage tracking on the executor",
+      "legacy_citation": "legacy_reference/trading/execution_engine.py:30-107",
+      "reason": "Stub never executes; slippage is recorded by the paper execution worker and the future maker/taker live path"
+    },
+    {
+      "removed": "Leverage tier auto-cap",
+      "legacy_citation": "legacy_reference/config.py:5584",
+      "reason": "Not applicable to a refusal surface"
+    },
+    {
+      "removed": "Hedge-mode positionSide tagging",
+      "legacy_citation": "legacy_reference/trading/trader.py (open_long/open_short paths)",
+      "reason": "Not applicable to a refusal surface"
+    },
+    {
+      "removed": "Reduce-only flag enforcement",
+      "legacy_citation": "legacy_reference/trading/trader.py (close paths)",
+      "reason": "Not applicable to a refusal surface"
+    },
+    {
+      "removed": "Rate-limiter integration (BinanceRateLimiter, RedisBinanceRateLimiter, is_banned, set_ban, maybe_clear_ban)",
+      "legacy_citation": "legacy_reference/utils/binance_rate_limiter.py + legacy_reference/trading/base_executor.py:36-41",
+      "reason": "Stub makes no exchange call; rate-limiting is moot"
+    }
+  ],
+  "greenfield_justification": "Not greenfield. Legacy execution surface fully mapped (place_order, cancel, change_leverage, change_margin_mode). V2 intentionally replaces that surface with a refusal-only surface that preserves the shape (method names, gate semantics) and removes the dispatch (no Binance/ccxt/Redis). This is the canonical fail-closed worker layer above LiveBlockGuardMiddleware while live remains blocked_human_only.",
+  "symbol_universe_contract": "SYMBOL_UNIVERSE_CONTRACT_REQUIRED",
+  "symbol_universe_source_path": "v2/backend/app/services/symbol_universe/service.py",
+  "legacy_active_symbols_source": "legacy_config.py_SYMBOLS_current_25",
+  "live_symbol_policy": "none_live_blocked_human_only",
+  "passive_monitor_all_discovered_symbols": true,
+  "train_all_discovered_symbols": false,
+  "trade_all_discovered_symbols": false,
+  "coinank_symbols_tradability": "market_intelligence_only_until_binance_usdm_confirmed",
+  "forbidden_legacy_mutation_methods_in_v2_stub_source": [
+    "futures[_]create[_]order",
+    "futures[_]cancel[_]order",
+    "futures[_]change[_]leverage",
+    "futures[_]change[_]margin[_]type"
+  ],
+  "forbidden_imports_in_v2_stub_source": [
+    "import binance",
+    "from binance",
+    "import ccxt",
+    "from ccxt",
+    "import redis",
+    "from redis"
+  ],
+  "forbidden_redis_writers_in_v2_stub_source": [
+    ".set(",
+    ".hset(",
+    ".xadd(",
+    ".publish("
+  ],
+  "live_block_guard_dependency": "v2/backend/app/api/middleware/live_block_guard.py",
+  "codex_review_task": "codex_review_v2_p2_default_blocked_execution_adapter_stub"
+}
