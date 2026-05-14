@@ -1,0 +1,557 @@
+{
+  "alerts_generated": [
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "worker_id": "v2_account_position_monitor"
+    },
+    {
+      "alerts": [
+        "no_task_descriptor_or_public_payload"
+      ],
+      "worker_id": "v2_coinank_and_liquidation_bridge"
+    },
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "worker_id": "v2_execution_ledger_worker"
+    },
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "worker_id": "v2_paper_execution_worker"
+    },
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "worker_id": "v2_replay_worker"
+    },
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "worker_id": "v2_risk_gateway_runtime_worker"
+    },
+    {
+      "alerts": [
+        "task_descriptor_present_payload_missing"
+      ],
+      "worker_id": "v2_script_monitor"
+    },
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "worker_id": "v2_signal_publisher"
+    },
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "worker_id": "v2_trainer_bridge"
+    },
+    {
+      "alerts": [
+        "no_task_descriptor_or_public_payload"
+      ],
+      "worker_id": "v2_worker_inventory"
+    }
+  ],
+  "binance_usdm_confirmed_symbols": [],
+  "codex_review_trigger": "codex_review_v2_script_monitor",
+  "coinank_symbols_tradability": "market_intelligence_only_until_binance_usdm_confirmed",
+  "current_gate_state": "blocked_human_only",
+  "discovered_symbols": [],
+  "dynamic_discovered_symbols": [],
+  "dynamic_symbol_sources": [
+    "binance_futures",
+    "coinank",
+    "coinapi",
+    "kucoin",
+    "future_ingestors"
+  ],
+  "exchange_action_taken": false,
+  "freshness_seconds": 53,
+  "last_run_ts": "2026-05-14T08:23:54Z",
+  "legacy_active_symbol_source": "v2_symbol_universe_service:legacy_config.py_SYMBOLS_current_25",
+  "legacy_active_symbols": [
+    "1000BONKUSDT",
+    "1000FLOKIUSDT",
+    "1000PEPEUSDT",
+    "1000SHIBUSDT",
+    "ALICEUSDT",
+    "ASTERUSDT",
+    "AUCTIONUSDT",
+    "AVNTUSDT",
+    "BANKUSDT",
+    "BARDUSDT",
+    "BTCUSDT",
+    "DOGEUSDT",
+    "ETHUSDT",
+    "FARTCOINUSDT",
+    "HIGHUSDT",
+    "LINKUSDT",
+    "LTCUSDT",
+    "PENGUUSDT",
+    "PIPPINUSDT",
+    "RAVEUSDT",
+    "RIVERUSDT",
+    "SOLUSDT",
+    "UNIUSDT",
+    "WIFUSDT",
+    "XRPUSDT"
+  ],
+  "legacy_active_symbols_public_payload_status": "NOT_PROVIDED",
+  "legacy_script_execution_policy": "forbidden_static_v2_inspection_only",
+  "legacy_scripts_executed": false,
+  "leverage_or_margin_change": false,
+  "live_blocked": true,
+  "live_blocked_symbols": [
+    "1000BONKUSDT",
+    "1000FLOKIUSDT",
+    "1000PEPEUSDT",
+    "1000SHIBUSDT",
+    "ALICEUSDT",
+    "ASTERUSDT",
+    "AUCTIONUSDT",
+    "AVNTUSDT",
+    "BANKUSDT",
+    "BARDUSDT",
+    "BTCUSDT",
+    "DOGEUSDT",
+    "ETHUSDT",
+    "FARTCOINUSDT",
+    "HIGHUSDT",
+    "LINKUSDT",
+    "LTCUSDT",
+    "PENGUUSDT",
+    "PIPPINUSDT",
+    "RAVEUSDT",
+    "RIVERUSDT",
+    "SOLUSDT",
+    "UNIUSDT",
+    "WIFUSDT",
+    "XRPUSDT"
+  ],
+  "live_gate": "blocked_human_only",
+  "live_symbol_policy": "none_live_blocked_human_only",
+  "live_symbols": [],
+  "observed_symbols": [],
+  "old_redis_write": false,
+  "paper_symbols": [],
+  "passive_monitor_all_discovered_symbols": true,
+  "scripts": [
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": "2026-05-14T06:28:51Z",
+      "last_run": "2026-05-14T06:28:51Z",
+      "last_success": null,
+      "metrics_emitted": true,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_account_position_monitor/latest/v2_account_position_monitor_status.json",
+      "script_path": "v2/backend/app/cli/v2_account_position_monitor.py",
+      "status": "broken",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_account_position_monitor.json",
+      "worker_id": "v2_account_position_monitor"
+    },
+    {
+      "alerts": [
+        "no_task_descriptor_or_public_payload"
+      ],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": null,
+      "last_run": null,
+      "last_success": null,
+      "metrics_emitted": false,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_coinank_and_liquidation_bridge/latest/v2_coinank_and_liquidation_bridge_status.json",
+      "script_path": "v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py",
+      "status": "unused",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_coinank_and_liquidation_bridge.json",
+      "worker_id": "v2_coinank_and_liquidation_bridge"
+    },
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": "2026-05-14T05:00:59Z",
+      "last_run": "2026-05-14T05:00:59Z",
+      "last_success": null,
+      "metrics_emitted": true,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_execution_ledger_worker/latest/v2_execution_ledger_worker_status.json",
+      "script_path": "v2/backend/app/cli/v2_execution_ledger_worker.py",
+      "status": "broken",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_execution_ledger_worker.json",
+      "worker_id": "v2_execution_ledger_worker"
+    },
+    {
+      "alerts": [],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": null,
+      "last_run": "2026-05-14T03:17:44Z",
+      "last_success": "2026-05-14T03:17:44Z",
+      "metrics_emitted": true,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_feature_pipeline_and_ta_worker/latest/v2_feature_pipeline_and_ta_worker_status.json",
+      "script_path": "v2/backend/app/cli/v2_feature_pipeline_and_ta_worker.py",
+      "status": "active",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_feature_pipeline_and_ta_worker.json",
+      "worker_id": "v2_feature_pipeline_and_ta_worker"
+    },
+    {
+      "alerts": [],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": null,
+      "last_run": "2026-05-14T08:23:01Z",
+      "last_success": "2026-05-14T08:23:01Z",
+      "metrics_emitted": true,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_feature_snapshot_builder/latest/v2_feature_snapshot_builder_status.json",
+      "script_path": "v2/backend/app/cli/v2_feature_snapshot_builder.py",
+      "status": "active",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_feature_snapshot_builder.json",
+      "worker_id": "v2_feature_snapshot_builder"
+    },
+    {
+      "alerts": [],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": null,
+      "last_run": "2026-05-13T00:00:00Z",
+      "last_success": "2026-05-13T00:00:00Z",
+      "metrics_emitted": true,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_market_ingestor/latest/v2_market_ingestor_status.json",
+      "script_path": "v2/backend/app/cli/v2_market_ingestor.py",
+      "status": "active",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_market_ingestor.json",
+      "worker_id": "v2_market_ingestor"
+    },
+    {
+      "alerts": [],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": null,
+      "last_run": "2026-05-14T07:31:59Z",
+      "last_success": "2026-05-14T07:31:59Z",
+      "metrics_emitted": true,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_orchestrator_adapter/latest/v2_orchestrator_adapter_status.json",
+      "script_path": "v2/backend/app/cli/v2_orchestrator_adapter.py",
+      "status": "active",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_orchestrator_adapter.json",
+      "worker_id": "v2_orchestrator_adapter"
+    },
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": "2026-05-14T04:40:48Z",
+      "last_run": "2026-05-14T04:40:48Z",
+      "last_success": null,
+      "metrics_emitted": true,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_paper_execution_worker/latest/v2_paper_execution_worker_status.json",
+      "script_path": "v2/backend/app/cli/v2_paper_execution_worker.py",
+      "status": "broken",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_paper_execution_worker.json",
+      "worker_id": "v2_paper_execution_worker"
+    },
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": "2026-05-14T08:05:58Z",
+      "last_run": "2026-05-14T08:05:58Z",
+      "last_success": null,
+      "metrics_emitted": true,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_replay_worker/latest/v2_replay_worker_status.json",
+      "script_path": "v2/backend/app/cli/v2_replay_worker.py",
+      "status": "broken",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_replay_worker.json",
+      "worker_id": "v2_replay_worker"
+    },
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": "2026-05-14T03:39:08Z",
+      "last_run": "2026-05-14T03:39:08Z",
+      "last_success": null,
+      "metrics_emitted": true,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_risk_gateway_runtime_worker/latest/v2_risk_gateway_runtime_worker_status.json",
+      "script_path": "v2/backend/app/cli/v2_risk_gateway_runtime_worker.py",
+      "status": "broken",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_risk_gateway_runtime_worker.json",
+      "worker_id": "v2_risk_gateway_runtime_worker"
+    },
+    {
+      "alerts": [
+        "task_descriptor_present_payload_missing"
+      ],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": null,
+      "last_run": null,
+      "last_success": null,
+      "metrics_emitted": false,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_script_monitor/latest/v2_script_monitor_status.json",
+      "script_path": "v2/backend/app/cli/v2_script_monitor.py",
+      "status": "unknown",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_script_monitor.json",
+      "worker_id": "v2_script_monitor"
+    },
+    {
+      "alerts": [],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": null,
+      "last_run": "2026-05-14T05:44:19Z",
+      "last_success": "2026-05-14T05:44:19Z",
+      "metrics_emitted": true,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_signal_lineage_worker/latest/v2_signal_lineage_worker_status.json",
+      "script_path": "v2/backend/app/cli/v2_signal_lineage_worker.py",
+      "status": "active",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_signal_lineage_worker.json",
+      "worker_id": "v2_signal_lineage_worker"
+    },
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": "2026-05-14T07:47:40Z",
+      "last_run": "2026-05-14T07:47:40Z",
+      "last_success": null,
+      "metrics_emitted": true,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_signal_publisher/latest/v2_signal_publisher_status.json",
+      "script_path": "v2/backend/app/cli/v2_signal_publisher.py",
+      "status": "broken",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_signal_publisher.json",
+      "worker_id": "v2_signal_publisher"
+    },
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": "2026-05-14T07:11:38Z",
+      "last_run": "2026-05-14T07:11:38Z",
+      "last_success": null,
+      "metrics_emitted": true,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json",
+      "script_path": "v2/backend/app/cli/v2_trainer_bridge.py",
+      "status": "broken",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_trainer_bridge.json",
+      "worker_id": "v2_trainer_bridge"
+    },
+    {
+      "alerts": [
+        "no_task_descriptor_or_public_payload"
+      ],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": null,
+      "last_run": null,
+      "last_success": null,
+      "metrics_emitted": false,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_worker_inventory/latest/v2_worker_inventory_status.json",
+      "script_path": "v2/backend/app/cli/v2_worker_inventory.py",
+      "status": "unused",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_worker_inventory.json",
+      "worker_id": "v2_worker_inventory"
+    }
+  ],
+  "scripts_broken": [
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": "2026-05-14T06:28:51Z",
+      "last_run": "2026-05-14T06:28:51Z",
+      "last_success": null,
+      "metrics_emitted": true,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_account_position_monitor/latest/v2_account_position_monitor_status.json",
+      "script_path": "v2/backend/app/cli/v2_account_position_monitor.py",
+      "status": "broken",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_account_position_monitor.json",
+      "worker_id": "v2_account_position_monitor"
+    },
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": "2026-05-14T05:00:59Z",
+      "last_run": "2026-05-14T05:00:59Z",
+      "last_success": null,
+      "metrics_emitted": true,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_execution_ledger_worker/latest/v2_execution_ledger_worker_status.json",
+      "script_path": "v2/backend/app/cli/v2_execution_ledger_worker.py",
+      "status": "broken",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_execution_ledger_worker.json",
+      "worker_id": "v2_execution_ledger_worker"
+    },
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": "2026-05-14T04:40:48Z",
+      "last_run": "2026-05-14T04:40:48Z",
+      "last_success": null,
+      "metrics_emitted": true,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_paper_execution_worker/latest/v2_paper_execution_worker_status.json",
+      "script_path": "v2/backend/app/cli/v2_paper_execution_worker.py",
+      "status": "broken",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_paper_execution_worker.json",
+      "worker_id": "v2_paper_execution_worker"
+    },
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": "2026-05-14T08:05:58Z",
+      "last_run": "2026-05-14T08:05:58Z",
+      "last_success": null,
+      "metrics_emitted": true,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_replay_worker/latest/v2_replay_worker_status.json",
+      "script_path": "v2/backend/app/cli/v2_replay_worker.py",
+      "status": "broken",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_replay_worker.json",
+      "worker_id": "v2_replay_worker"
+    },
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": "2026-05-14T03:39:08Z",
+      "last_run": "2026-05-14T03:39:08Z",
+      "last_success": null,
+      "metrics_emitted": true,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_risk_gateway_runtime_worker/latest/v2_risk_gateway_runtime_worker_status.json",
+      "script_path": "v2/backend/app/cli/v2_risk_gateway_runtime_worker.py",
+      "status": "broken",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_risk_gateway_runtime_worker.json",
+      "worker_id": "v2_risk_gateway_runtime_worker"
+    },
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": "2026-05-14T07:47:40Z",
+      "last_run": "2026-05-14T07:47:40Z",
+      "last_success": null,
+      "metrics_emitted": true,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_signal_publisher/latest/v2_signal_publisher_status.json",
+      "script_path": "v2/backend/app/cli/v2_signal_publisher.py",
+      "status": "broken",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_signal_publisher.json",
+      "worker_id": "v2_signal_publisher"
+    },
+    {
+      "alerts": [
+        "public_payload_fail_closed_or_missing_evidence"
+      ],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": "2026-05-14T07:11:38Z",
+      "last_run": "2026-05-14T07:11:38Z",
+      "last_success": null,
+      "metrics_emitted": true,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json",
+      "script_path": "v2/backend/app/cli/v2_trainer_bridge.py",
+      "status": "broken",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_trainer_bridge.json",
+      "worker_id": "v2_trainer_bridge"
+    }
+  ],
+  "scripts_by_status": {
+    "active": 5,
+    "broken": 7,
+    "duplicate": 0,
+    "unknown": 1,
+    "unused": 2
+  },
+  "scripts_enumerated_total": 15,
+  "scripts_unused": [
+    {
+      "alerts": [
+        "no_task_descriptor_or_public_payload"
+      ],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": null,
+      "last_run": null,
+      "last_success": null,
+      "metrics_emitted": false,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_coinank_and_liquidation_bridge/latest/v2_coinank_and_liquidation_bridge_status.json",
+      "script_path": "v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py",
+      "status": "unused",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_coinank_and_liquidation_bridge.json",
+      "worker_id": "v2_coinank_and_liquidation_bridge"
+    },
+    {
+      "alerts": [
+        "no_task_descriptor_or_public_payload"
+      ],
+      "has_argparse": true,
+      "has_main_guard": true,
+      "last_failure": null,
+      "last_run": null,
+      "last_success": null,
+      "metrics_emitted": false,
+      "public_payload_path": "v2/frontend/public/operator_runtime/v2_worker_inventory/latest/v2_worker_inventory_status.json",
+      "script_path": "v2/backend/app/cli/v2_worker_inventory.py",
+      "status": "unused",
+      "task_descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_port_v2_worker_inventory.json",
+      "worker_id": "v2_worker_inventory"
+    }
+  ],
+  "symbol_selection_score_factors": [
+    "liquidity",
+    "volume",
+    "volatility",
+    "funding",
+    "open_interest",
+    "spread",
+    "freshness",
+    "feature_completeness",
+    "exchange_availability",
+    "risk_profile",
+    "model_confidence",
+    "replay_performance",
+    "operator_overrides"
+  ],
+  "symbol_universe_contract": "SYMBOL_UNIVERSE_CONTRACT_REQUIRED",
+  "symbol_universe_public_payload_status": "MISSING_SYMBOL_UNIVERSE_PUBLIC_PAYLOAD",
+  "symbol_universe_source_path": "v2/backend/app/services/symbol_universe/service.py",
+  "trade_all_discovered_symbols": false,
+  "train_all_discovered_symbols": false,
+  "training_symbols": [],
+  "worker_id": "v2_script_monitor"
+}
