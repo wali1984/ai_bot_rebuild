@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[5]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from v2.backend.app.cli.public_payload_freshness_guard import build_guard
 
@@ -60,3 +65,26 @@ def test_guard_can_pass_fresh_sourced_payload(tmp_path) -> None:
 
     assert result["result"] == "PASS"
     assert result["payloads_checked"] == 1
+
+
+def test_guard_accepts_worker_status_last_run_ts_and_worker_id(tmp_path) -> None:
+    _write(
+        tmp_path / "v2/frontend/public/operator_runtime/v2_worker/latest/v2_worker_status.json",
+        """
+        {
+          "worker_id": "v2_worker",
+          "last_run_ts": "2026-05-13T00:00:00Z",
+          "live_gate": "blocked_human_only",
+          "runtime_evidence_status": "EVIDENCE_PRESENT"
+        }
+        """,
+    )
+
+    result = build_guard(
+        tmp_path,
+        now=datetime(2026, 5, 13, 0, 1, tzinfo=timezone.utc),
+        stale_after_seconds=120,
+    )
+
+    assert result["result"] == "PASS"
+    assert result["payload_results"][0]["generated_at"] == "2026-05-13T00:00:00Z"

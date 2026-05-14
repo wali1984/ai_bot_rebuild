@@ -95,7 +95,16 @@ def _string_values(payload: Any) -> list[str]:
 def _has_source(payload: dict[str, Any]) -> bool:
     for path, value in _walk(payload):
         key = path.rsplit(".", 1)[-1].lower()
-        if key in {"source", "sources", "source_path", "source_paths", "evidence_source"} and value:
+        if key in {
+            "source",
+            "sources",
+            "source_path",
+            "source_paths",
+            "source_payload_path",
+            "source_files",
+            "evidence_source",
+            "worker_id",
+        } and value:
             return True
     return False
 
@@ -111,7 +120,13 @@ def _approval_token_exists(root: Path) -> bool:
 
 
 def inspect_payload(path: Path, payload: dict[str, Any], *, root: Path, now: datetime, stale_after_seconds: int) -> dict[str, Any]:
-    generated_at = payload.get("generated_at") or payload.get("updated_at") or payload.get("timestamp")
+    generated_at = (
+        payload.get("generated_at")
+        or payload.get("last_run_ts")
+        or payload.get("updated_at")
+        or payload.get("timestamp")
+        or payload.get("last_tick_at")
+    )
     age = _age_seconds(now, generated_at)
     findings: list[str] = []
     if age is None:
