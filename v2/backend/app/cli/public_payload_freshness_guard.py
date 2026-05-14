@@ -100,6 +100,7 @@ def _has_source(payload: dict[str, Any]) -> bool:
             "sources",
             "source_path",
             "source_paths",
+            "source_type",
             "source_payload_path",
             "source_files",
             "evidence_source",

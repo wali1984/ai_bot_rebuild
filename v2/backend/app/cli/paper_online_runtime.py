@@ -647,7 +647,14 @@ def write_runtime_payload(symbol: str, interval: int, write_evidence: bool) -> d
         _write_json(root / "current_signal_lineage.json", payload["current_signal_lineage"])
         _write_json(root / "current_risk_decisions.json", {"generated_at": payload["generated_at"], "decisions": [payload["current_risk_decision"]]})
         _write_json(root / "risk_runtime_payload.json", payload["risk_runtime_payload"])
-        _write_json(root / "paper_ledger_tail.json", {"generated_at": payload["generated_at"], "entries": payload["paper_ledger_tail"]})
+        _write_json(
+            root / "paper_ledger_tail.json",
+            {
+                "generated_at": payload["generated_at"],
+                "source": "v2.backend.app.cli.paper_online_runtime",
+                "entries": payload["paper_ledger_tail"],
+            },
+        )
         append_paper_event(root, payload, payload["risk_runtime_payload"])
     if write_evidence:
         write_evidence_packet(payload, positions)
@@ -678,6 +685,7 @@ def write_evidence_packet(payload: dict[str, Any], positions: dict[str, Any]) ->
     _write_json(FINAL_DIR / "risk_runtime_payload.json", payload["risk_runtime_payload"])
     _write_json(FINAL_DIR / "paper_ledger_tail.json", {
         "generated_at": payload["generated_at"],
+        "source": "v2.backend.app.cli.paper_online_runtime",
         "entries": payload["paper_ledger_tail"],
     })
     _write_json(FINAL_DIR / "market_feed_status.json", {

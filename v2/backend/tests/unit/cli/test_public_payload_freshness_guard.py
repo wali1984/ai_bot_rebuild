@@ -114,6 +114,27 @@ def test_guard_accepts_dashboard_as_of_utc_freshness(tmp_path) -> None:
     assert result["payload_results"][0]["generated_at"] == "2026-05-13T00:00:00Z"
 
 
+def test_guard_accepts_source_type_as_source_evidence(tmp_path) -> None:
+    _write(
+        tmp_path / "v2/frontend/public/operator_runtime/example/latest/payload.json",
+        """
+        {
+          "generated_at": "2026-05-13T00:00:00Z",
+          "source_type": "V2_PAPER_RUNTIME",
+          "live_gate": "blocked_human_only"
+        }
+        """,
+    )
+
+    result = build_guard(
+        tmp_path,
+        now=datetime(2026, 5, 13, 0, 1, tzinfo=timezone.utc),
+        stale_after_seconds=120,
+    )
+
+    assert result["result"] == "PASS"
+
+
 def test_guard_accepts_ready_worker_payload_with_snapshot_source_evidence(tmp_path) -> None:
     _write(
         tmp_path / "v2/frontend/public/operator_runtime/v2_worker/latest/v2_worker_status.json",
