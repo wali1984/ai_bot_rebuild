@@ -1,0 +1,51 @@
+{
+  "task_id": "claude_replay_paper_edge_repair_from_legacy_trainer_output",
+  "status": "BLOCKED_OR_REMEDIATED",
+  "remediation_scope": "paper_shadow_only",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "final_approval_token": "absent",
+  "redis_trim_approval_token": "absent",
+  "legacy_mutation": "none",
+  "exchange_action": "none",
+  "public_payload_impact": "v2_paper_surfaces_only_no_live_change",
+  "dependency_closure": "OK",
+  "tests_classification": "V2_ENV_BLOCKED_FOR_FRESH_SOAK_RUN_SPEC_VERIFIED",
+  "evidence_pointers": [
+    "claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/negative_paper_pnl_diagnosis.json",
+    "claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/paper_fill_quality_and_overtrading_audit.json",
+    "v2/backend/app/composition/canary_profile_tightening/runtime.py",
+    "v2/frontend/public/paper_strategy_edge_tightening/latest/canary_profile_tightening_proposal.json"
+  ],
+  "sha256_citations": {
+    "rl/hybrid_trainer.py": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+    "rl/signal_state_manager.py": "62c7d46ade7d03cd378e46cba2d06d2ee63bd218b27d9a853ee221a9899e6459",
+    "rl/increase_signal_validator.py": "6b1dbcb61bac934038d7be3ca16721453e4eda7263c6f7527c5583f23c7d12a0",
+    "rl/advanced_risk_management.py": "db2fc5c91f270f69790c4d3e25e9b6007384b6c788a2c6dc00cf3305cf829697",
+    "rl/trainer_enhancements.py": "b8159091cf1f15b536b5e4221c3952a58c6501d84248b14d23a5831c13efca23",
+    "rl/gpu_optimized_trainer.py": "3203fbd34b6976a676d261f3bb2ac16ddc2bef1c80a4befc247e6cdf50bfe822",
+    "scripts/monitor_trainer_predictions.py": "38068905908317415f91f76ed19797c393ee01f20135d59030289e2d697a495a"
+  },
+  "manifest_sources": [
+    "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/full_runtime_copied_source_manifest.json",
+    "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/copied_baseline_manifest.json"
+  ],
+  "proposed_profile": {
+    "name": "paper_canary_aligned_filter_v1",
+    "live_effect": "none",
+    "min_confidence": 0.75,
+    "max_fills_per_hour": 12,
+    "cooldown_seconds": 300,
+    "loss_cooldown_seconds": 600,
+    "max_signal_age_seconds": 10,
+    "max_feature_age_seconds": 60,
+    "symbol_whitelist": ["BTCUSDT"],
+    "edge_predicate": "expected_move_bps > fee_bps + slippage_bps + funding_bps",
+    "flip_requires_reduce_only": true
+  },
+  "follow_up_required": [
+    "wire_paper_canary_aligned_filter_v1_in_v2_paper_execution_worker",
+    "add_position_lifecycle_paper_engine_with_entry_and_exit_slippage_and_funding"
+  ],
+  "generated_at": "2026-05-14T00:00:00Z"
+}

@@ -1,0 +1,36 @@
+{
+  "accepted_as_legacy_hybrid_prediction": false,
+  "blocked_reason": "V2_ENV_BLOCKED_MISSING_DEPENDENCY",
+  "checkpoint_evidence_status": "MISSING_OR_REJECTED",
+  "dependency_closure": "blocked_missing_v2_trainer_packages",
+  "exchange_mutation": false,
+  "final_approval_token": "absent",
+  "go_no_go": "NO_GO_FOR_TRAINER_PARITY_CLEARANCE",
+  "heavy_dependency_install_operator_decision_required": true,
+  "legacy_mutation": false,
+  "legacy_source_sha256": {
+    "rl/hybrid_trainer.py": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+    "rl/obs_schema.py": "9ec040fa1306ac28f4395aac103b104eb02644866ca8acec5577b155fd925f5f",
+    "rl/orchestrator_worker.py": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+    "rl/unified_feature_builder.py": "2af5c68d812c0a0a5db2e037204f0b2165d9084dea983d1737e09034e8c739a5"
+  },
+  "leverage_change": false,
+  "live_enablement": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "margin_mode_change": false,
+  "missing_packages": [
+    "torch",
+    "stable_baselines3",
+    "cloudpickle",
+    "gymnasium"
+  ],
+  "old_redis_writes": false,
+  "operator_decision_required": true,
+  "redis_trim_approval_token": "absent",
+  "runtime_evidence_status": "WRAPPER_NOT_LEGACY_HYBRID_PARITY",
+  "status": "BLOCKED_OR_REMEDIATED",
+  "task_id": "claude_port_v2_trainer_bridge_full_legacy_parity",
+  "trainer_bridge_parity": "BLOCKED",
+  "v2_env_blocked_missing_dependency": true
+}

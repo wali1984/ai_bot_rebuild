@@ -1,0 +1,33 @@
+{
+  "account_state": "MISSING",
+  "blocked_reason": "MISSING_CREDENTIALS_AND_TRADE_PERMISSION_UNKNOWN",
+  "dependency_closure": "no_new_dependencies",
+  "exchange_action_taken": false,
+  "exchange_mutation_performed": false,
+  "final_approval_token": "absent",
+  "go_no_go": "NO_GO_FOR_ACCOUNT_TRADE_PERMISSION_CLEARANCE",
+  "legacy_source_sha256": {
+    "config.py": "98cfaa1c9650f013f8603c451f6f37491b8fa65e36ed1445a037c34d5f27f522",
+    "monitor_portfolio.py": "06eb2afe4d15bc91d10048f8c92404356f1c7fc6e58e2584081b43fbd6e57a9b",
+    "monitor_portfolio_asjad.py": "e957f2d2f80ee2ad3f9676e4c7d9f330015a9dbebe3645f71b77c7f4089d3b1e",
+    "monitor_portfolio_primary.py": "ba51097c8229eb489e94c9af058b24680b41f8bcd6a8c4912bd18f73a31908cf",
+    "trading/position_reporter.py": "da0958cb11f8106593049bdfb7c48d2603bb009ed9b3f2b76ce5043b0e6aabd2",
+    "utils/unified_position_loader.py": "5e8b5e5dfb736a1808f3e638ea51c25cab7c33c50d34abf210cc863854c21abe"
+  },
+  "legacy_source_sha256_coverage": "all_v2_declared_sources_sha_cited; monitor_portfolio.py has direct legacy_reference SHA and no copied-baseline manifest record",
+  "leverage_change": false,
+  "leverage_evidence": "MISSING_EVIDENCE",
+  "live_enablement": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "margin_mode_change": false,
+  "margin_mode_evidence": "MISSING_EVIDENCE",
+  "old_redis_writes": false,
+  "operator_decision_required": true,
+  "redis_trim_approval_token": "absent",
+  "recovery_status": "CODEX_RECOVERED_AFTER_CLAUDE_NO_OUTPUT",
+  "runtime_evidence_status": "MISSING_CREDENTIALS",
+  "status": "BLOCKED_OR_REMEDIATED",
+  "task_id": "claude_remediate_account_position_monitor_shutdown_parity",
+  "trade_permission_status": "TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY"
+}

@@ -1,17 +1,11 @@
 {
-  "as_of_utc": "2026-05-14T21:05:05Z",
+  "as_of_utc": "2026-05-14T22:53:14Z",
   "blockers": [
     {
       "category": "P0_SHUTDOWN_BLOCKER",
       "evidence": "worker_porting: legacy_baseline_backfill_required",
       "id": "LEGACY_BASELINE_BACKFILL_REQUIRED",
       "remediation_task_id": "claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis"
-    },
-    {
-      "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "missing terms: halt_manager, reduce_only, intelligent_close_guard, auto_deleverager, shared_risk, margin_governor, phase_controller, adaptive_gate",
-      "id": "RISK_GATEWAY_LEGACY_PARITY_TESTS_MISSING",
-      "remediation_task_id": "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map"
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
@@ -57,7 +51,7 @@
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "stale public latest JSON count=271",
+      "evidence": "stale public latest JSON count=220",
       "id": "FRESHNESS_GUARD_BLOCKED_ON_STALE_PUBLIC_ARTIFACTS",
       "remediation_task_id": "claude_audit_stale_public_payloads_and_freshness_guard"
     }
@@ -65,7 +59,7 @@
   "counts": {
     "INFO_ONLY": 0,
     "OPERATOR_DECISION_REQUIRED": 1,
-    "P0_SHUTDOWN_BLOCKER": 9,
+    "P0_SHUTDOWN_BLOCKER": 8,
     "P1_SHUTDOWN_SUPPORT": 0,
     "P2_LIVE_ONLY_BLOCKED": 0
   },

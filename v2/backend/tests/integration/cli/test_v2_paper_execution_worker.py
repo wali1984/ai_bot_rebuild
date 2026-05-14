@@ -43,6 +43,10 @@ from v2.backend.app.cli.v2_paper_execution_worker import (
     FEE_RATE_TAKER_DEFAULT,
     LEGACY_PAPER_SOURCE_PATHS,
     LIVE_GATE_STATUS,
+    PAPER_CANARY_FILTER_ALLOWED_CLASSIFICATION,
+    PAPER_CANARY_FILTER_DENY_ACTION,
+    PAPER_CANARY_FILTER_DENY_BUCKET,
+    PAPER_CANARY_FILTER_PROFILE,
     PAPER_EQUITY_START_USDT,
     REQUIRED_PUBLIC_PAYLOAD_FIELDS,
     SYMBOL_UNIVERSE_CONTRACT,
@@ -54,6 +58,9 @@ from v2.backend.app.cli.v2_paper_execution_worker import (
     run_once,
 )
 from v2.backend.app.services.symbol_universe.service import LEGACY_ACTIVE_SYMBOLS_25
+
+
+PAPER_FILTER_TEST_NOW_MS = 1_778_700_000_000
 
 
 # ----------------------------------------------------------------------
@@ -82,6 +89,7 @@ def _route_writes_to(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[st
         "RISK_DECISION_PUBLIC_PAYLOAD_CANDIDATES",
         [tmp_path / "no_such_risk_decision_payload.json"],
     )
+    monkeypatch.setattr(worker, "now_ms", lambda: PAPER_FILTER_TEST_NOW_MS)
     return {"public": public_dir, "local": local_dir, "worker": worker_dir}
 
 
@@ -96,7 +104,7 @@ def _risk_decision_dict(
     decision_id: str = "decision_1",
     prediction_id: str = "prediction_1",
     feature_snapshot_id: str = "feature_1",
-    risk_decision_ts_ms: int = 1_715_500_000_000,
+    risk_decision_ts_ms: int = PAPER_FILTER_TEST_NOW_MS - 1_000,
 ) -> Dict[str, Any]:
     return {
         "risk_decision_id": risk_decision_id,
@@ -110,6 +118,14 @@ def _risk_decision_dict(
         "input_decision_action": input_decision_action,
         "input_decision_reason_code": input_decision_reason_code,
         "live_blocked": True,
+        "confidence_calibrated": 0.82,
+        "signal_generated_at_ms": risk_decision_ts_ms,
+        "feature_snapshot_generated_at_ms": risk_decision_ts_ms,
+        "expected_move_bps": 14.0,
+        "fee_bps": 4.0,
+        "slippage_bps": 2.0,
+        "funding_bps": 0.0,
+        "recent_paper_events": [],
     }
 
 
@@ -156,6 +172,13 @@ def test_happy_fill_long(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     assert status["runtime_evidence_status"] == "PRESENT"
     assert status["last_paper_trade_id"].startswith("pt_")
     assert status["last_fill_ts"] == status["last_paper_trade_ts"]
+    assert status["paper_filter_profile"] == PAPER_CANARY_FILTER_PROFILE
+    assert status["paper_filter_applied"] is True
+    assert status["paper_filter_denied"] is False
+    assert status["paper_filter_classification"] == PAPER_CANARY_FILTER_ALLOWED_CLASSIFICATION
+    assert status["paper_filter_blockers"] == []
+    assert status["paper_filter_live_gate_status"] == "blocked_human_only"
+    assert status["paper_filter_safe_for_live"] is False
 
     fill = status["simulated_fill"]
     assert fill["side"] == "long"
@@ -209,6 +232,122 @@ def test_happy_fill_short(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
         BASE_NOTIONAL_USDT_DEFAULT
     )
     assert status["current_gate_state"] == "blocked_human_only"
+    assert status["paper_filter_applied"] is True
+    assert status["paper_filter_denied"] is False
+
+
+# ----------------------------------------------------------------------
+# 2b) paper canary filter denies weak or churn-heavy allow decisions
+# ----------------------------------------------------------------------
+
+
+def _assert_paper_filter_denial(status: Dict[str, Any], reason: str) -> None:
+    assert status["ledger_action"] == PAPER_CANARY_FILTER_DENY_ACTION
+    assert status["ledger_reason_code"] == reason
+    assert status["paper_filter_profile"] == PAPER_CANARY_FILTER_PROFILE
+    assert status["paper_filter_applied"] is True
+    assert status["paper_filter_denied"] is True
+    assert reason in status["paper_filter_blockers"]
+    assert status["fills_recorded_total"] == 0
+    assert status["fills_processed_total"] == 0
+    assert status["simulated_fill"]["fill_recorded"] is False
+    assert status["denials_recorded_total"] == 1
+    assert status["denials_breakdown"][PAPER_CANARY_FILTER_DENY_BUCKET] == 1
+    assert status["denials_breakdown"][reason] == 1
+    assert status["live_gate"] == "blocked_human_only"
+    assert status["current_gate_state"] == "blocked_human_only"
+    assert status["paper_filter_safe_for_live"] is False
+
+
+def test_paper_filter_denies_low_confidence_allow(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _route_writes_to(tmp_path, monkeypatch)
+    decision = _risk_decision_dict(
+        risk_action="allow",
+        risk_reason_code="allow_proceed_long",
+        input_decision_action="open_long",
+        input_decision_reason_code="proceed_long",
+    )
+    decision["confidence_calibrated"] = 0.62
+    decision_path = _write_decision_file(tmp_path, decision)
+
+    status = run_once(parse_args(["--once", "--decision-file", str(decision_path)]))
+
+    _assert_paper_filter_denial(status, "confidence_below_canary_threshold")
+
+
+def test_paper_filter_denies_same_symbol_cooldown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _route_writes_to(tmp_path, monkeypatch)
+    decision = _risk_decision_dict(
+        risk_action="allow",
+        risk_reason_code="allow_proceed_long",
+        input_decision_action="open_long",
+        input_decision_reason_code="proceed_long",
+    )
+    decision["recent_paper_events"] = [
+        {
+            "generated_at_ms": PAPER_FILTER_TEST_NOW_MS - 60_000,
+            "symbol": "BTCUSDT",
+            "action": "OPEN_LONG",
+            "paper_result": "FILLED_PAPER_ONLY",
+            "ledger_action": "PAPER_FILL_SIMULATED",
+            "paper_pnl_delta": 0.05,
+        }
+    ]
+    decision_path = _write_decision_file(tmp_path, decision)
+
+    status = run_once(parse_args(["--once", "--decision-file", str(decision_path)]))
+
+    _assert_paper_filter_denial(status, "same_symbol_same_direction_cooldown")
+
+
+def test_paper_filter_denies_flip_churn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _route_writes_to(tmp_path, monkeypatch)
+    decision = _risk_decision_dict(
+        risk_action="allow",
+        risk_reason_code="allow_proceed_short",
+        input_decision_action="open_short",
+        input_decision_reason_code="proceed_short",
+    )
+    decision["recent_paper_events"] = [
+        {
+            "generated_at_ms": PAPER_FILTER_TEST_NOW_MS - 60_000,
+            "symbol": "BTCUSDT",
+            "action": "OPEN_LONG",
+            "paper_result": "FILLED_PAPER_ONLY",
+            "ledger_action": "PAPER_FILL_SIMULATED",
+            "paper_pnl_delta": 0.05,
+        }
+    ]
+    decision_path = _write_decision_file(tmp_path, decision)
+
+    status = run_once(parse_args(["--once", "--decision-file", str(decision_path)]))
+
+    _assert_paper_filter_denial(status, "flip_churn_cooldown")
+
+
+def test_paper_filter_denies_expected_edge_below_costs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _route_writes_to(tmp_path, monkeypatch)
+    decision = _risk_decision_dict(
+        risk_action="allow",
+        risk_reason_code="allow_proceed_long",
+        input_decision_action="open_long",
+        input_decision_reason_code="proceed_long",
+    )
+    decision["expected_move_bps"] = 5.0
+    decision_path = _write_decision_file(tmp_path, decision)
+
+    status = run_once(parse_args(["--once", "--decision-file", str(decision_path)]))
+
+    _assert_paper_filter_denial(status, "expected_edge_below_costs")
+    assert status["paper_filter_estimated_cost_bps"] == pytest.approx(6.0)
 
 
 # ----------------------------------------------------------------------
@@ -562,13 +701,20 @@ def test_bridge_format_from_risk_gateway_status_accepted(
         "last_decision_id": "decision_bridge_1",
         "prediction_id": "prediction_bridge_1",
         "feature_snapshot_id": "feature_bridge_1",
-        "symbol": "ETHUSDT",
-        "last_risk_decision_ts_ms": 1_715_500_001_000,
+        "symbol": "BTCUSDT",
+        "last_risk_decision_ts_ms": PAPER_FILTER_TEST_NOW_MS - 1_000,
         "risk_action": "allow",
         "risk_reason_code": "allow_proceed_short",
         "input_decision_action": "open_short",
         "input_decision_reason_code": "proceed_short",
         "live_blocked": True,
+        "confidence_calibrated": 0.82,
+        "signal_generated_at_ms": PAPER_FILTER_TEST_NOW_MS - 1_000,
+        "feature_snapshot_generated_at_ms": PAPER_FILTER_TEST_NOW_MS - 1_000,
+        "expected_move_bps": 14.0,
+        "fee_bps": 4.0,
+        "slippage_bps": 2.0,
+        "funding_bps": 0.0,
     }
     decision_path = _write_decision_file(tmp_path, bridge, name="bridge.json")
     args = parse_args(["--once", "--decision-file", str(decision_path)])
@@ -577,9 +723,10 @@ def test_bridge_format_from_risk_gateway_status_accepted(
     assert status["ledger_reason_code"] == "mirror_allow_proceed_short"
     assert status["last_paper_trade_id"] == "pt_rd_bridge_1"
     assert status["last_risk_decision_id"] == "rd_bridge_1"
-    assert status["symbol"] == "ETHUSDT"
+    assert status["symbol"] == "BTCUSDT"
     assert status["simulated_fill"]["side"] == "short"
     assert status["current_gate_state"] == "blocked_human_only"
+    assert status["paper_filter_denied"] is False
 
 
 # ----------------------------------------------------------------------

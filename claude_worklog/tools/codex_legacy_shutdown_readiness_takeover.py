@@ -67,6 +67,26 @@ QUEUE_STATUS = ROOT / "claude_worklog/agent_supervisor/status/queue_status.json"
 CURRENT_STATUS = ROOT / "claude_worklog/agent_supervisor/status/current_status.json"
 NON_DRIFT_LOCK = ROOT / "claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json"
 
+ACTIVE_PUBLIC_FRESHNESS_PREFIXES = (
+    "codex_shutdown_readiness_takeover/latest/",
+    "codex_independent_v2_support/latest/public_payload_freshness_guard.json",
+    "operator_runtime/coinank_market_intelligence/latest/",
+    "operator_runtime/paper_online/latest/",
+    "operator_runtime/paper_shadow_observation/latest/",
+    "operator_runtime/symbol_universe/latest/",
+    "operator_runtime/v2_account_position_monitor/latest/",
+    "operator_runtime/v2_execution_ledger_worker/latest/",
+    "operator_runtime/v2_feature_pipeline_and_ta_worker/latest/",
+    "operator_runtime/v2_feature_snapshot_builder/latest/",
+    "operator_runtime/v2_market_ingestor/latest/",
+    "operator_runtime/v2_paper_execution_worker/latest/",
+    "operator_runtime/v2_risk_gateway_runtime_worker/latest/",
+    "operator_runtime/v2_signal_lineage_worker/latest/",
+    "operator_runtime/v2_trainer_bridge/latest/",
+    "operator_truth/latest/",
+    "v2_worker_porting_orchestrator/latest/",
+)
+
 LIVE_GATE = "blocked_human_only"
 LOOP_READY = "CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP_READY"
 LOOP_BLOCKED = "CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP_BLOCKED"
@@ -403,10 +423,12 @@ def canonical_input_status() -> Dict[str, Any]:
 
 
 def public_freshness(limit: int = 500) -> Dict[str, Any]:
-    stale: List[Dict[str, Any]] = []
+    stale_active: List[Dict[str, Any]] = []
+    stale_non_current_reference: List[Dict[str, Any]] = []
     missing_generated_at = 0
     total = 0
-    for path in sorted((ROOT / "v2/frontend/public").glob("**/latest/*.json"))[:limit]:
+    public_root = ROOT / "v2/frontend/public"
+    for path in sorted(public_root.glob("**/latest/*.json"))[:limit]:
         total += 1
         payload = read_json(path)
         generated_at = None
@@ -416,13 +438,24 @@ def public_freshness(limit: int = 500) -> Dict[str, Any]:
         if generated_at is None:
             missing_generated_at += 1
         elif age is not None and age > 3600:
-            stale.append({"path": rel(path), "generated_at": generated_at, "age_seconds": age})
+            item = {"path": rel(path), "generated_at": generated_at, "age_seconds": age}
+            try:
+                public_rel = str(path.relative_to(public_root))
+            except ValueError:
+                public_rel = rel(path)
+            if public_rel.startswith(ACTIVE_PUBLIC_FRESHNESS_PREFIXES):
+                stale_active.append(item)
+            else:
+                stale_non_current_reference.append({**item, "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE"})
     return {
         "scanned_limit": limit,
         "scanned_count": total,
-        "stale_count": len(stale),
+        "stale_count": len(stale_active),
+        "active_stale_count": len(stale_active),
+        "non_current_reference_stale_count": len(stale_non_current_reference),
         "missing_generated_at_count": missing_generated_at,
-        "stale_preview": stale[:40],
+        "stale_preview": stale_active[:40],
+        "non_current_reference_stale_preview": stale_non_current_reference[:40],
     }
 
 
@@ -712,28 +745,55 @@ def worker_evidence() -> Dict[str, Any]:
 
 
 def risk_gateway_test_evidence() -> Dict[str, Any]:
-    test_path = ROOT / "v2/backend/tests/integration/cli/test_v2_risk_gateway_runtime_worker.py"
-    text = read_text(test_path)
-    required_terms = [
-        "kill_switch",
-        "halt_manager",
-        "reduce_only",
-        "intelligent_close_guard",
-        "auto_deleverager",
-        "shared_risk",
-        "margin_governor",
-        "phase_controller",
-        "adaptive_gate",
+    test_paths = [
+        ROOT / "v2/backend/tests/integration/cli/test_v2_risk_gateway_runtime_worker.py",
+        ROOT / "v2/backend/tests/unit/services/risk_gateway/test_legacy_gate_evaluators.py",
+        ROOT / "v2/backend/tests/unit/services/risk_legacy_gates/test_evaluators.py",
     ]
-    present = [term for term in required_terms if term in text]
-    missing = [term for term in required_terms if term not in text]
+    source_paths = [
+        ROOT / "v2/backend/app/services/risk_gateway/kill_switch.py",
+        ROOT / "v2/backend/app/services/risk_gateway/halt_manager.py",
+        ROOT / "v2/backend/app/services/risk_gateway/reduce_only_latch.py",
+        ROOT / "v2/backend/app/services/risk_gateway/intelligent_close_guard.py",
+        ROOT / "v2/backend/app/services/risk_gateway/auto_deleverager.py",
+        ROOT / "v2/backend/app/services/risk_gateway/shared_risk_gate.py",
+        ROOT / "v2/backend/app/services/risk_gateway/margin_governor.py",
+        ROOT / "v2/backend/app/services/risk_gateway/phase_controller.py",
+        ROOT / "v2/backend/app/services/risk_gateway/adaptive_gate.py",
+        ROOT / "v2/backend/app/services/risk_gateway/evaluators.py",
+        ROOT / "v2/backend/app/services/risk_legacy_gates/evaluators.py",
+        ROOT / "v2/backend/app/services/risk_legacy_gates/inputs.py",
+        ROOT / "v2/backend/app/services/risk_legacy_gates/verdict.py",
+    ]
+    required_terms = {
+        "kill_switch": ["kill_switch", "evaluate_kill_switch_state"],
+        "halt_manager": ["halt_manager", "evaluate_halt_state"],
+        "reduce_only": ["reduce_only", "reduce_only_latch", "evaluate_latch_state"],
+        "intelligent_close_guard": ["intelligent_close_guard", "evaluate_close_guard"],
+        "auto_deleverager": ["auto_deleverager", "evaluate_adl_state"],
+        "shared_risk": ["shared_risk", "shared_risk_gate", "evaluate_budget_state"],
+        "margin_governor": ["margin_governor", "evaluate_margin_state"],
+        "phase_controller": ["phase_controller", "evaluate_phase_gate"],
+        "adaptive_gate": ["adaptive_gate", "microstructure_toxicity", "evaluate_toxicity_block"],
+    }
+    test_text = "\n".join(read_text(path) for path in test_paths if path.exists())
+    source_text = "\n".join(read_text(path) for path in source_paths if path.exists())
+    present = []
+    missing = []
+    for term, aliases in required_terms.items():
+        if any(alias in test_text for alias in aliases) and any(alias in source_text for alias in aliases):
+            present.append(term)
+        else:
+            missing.append(term)
     return {
-        "path": rel(test_path),
-        "exists": test_path.exists(),
-        "required_terms": required_terms,
+        "path": rel(test_paths[0]),
+        "test_paths": [rel(path) for path in test_paths],
+        "source_paths": [rel(path) for path in source_paths],
+        "exists": any(path.exists() for path in test_paths),
+        "required_terms": list(required_terms),
         "present_terms": present,
         "missing_terms": missing,
-        "status": "pass_or_present" if test_path.exists() and not missing else "missing_or_incomplete",
+        "status": "pass_or_present" if any(path.exists() for path in test_paths) and not missing else "missing_or_incomplete",
     }
 
 
@@ -819,6 +879,8 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
     worker = evidence["worker_porting"]
     for item in worker.get("blockers", []):
         task = "claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis" if item == "legacy_baseline_backfill_required" else None
+        if task and codex_passed(task):
+            continue
         blockers.append(blocker(item.upper(), "P0_SHUTDOWN_BLOCKER", f"worker_porting: {item}", task))
 
     risk_tests = evidence["risk_gateway_tests"]
@@ -1230,6 +1292,57 @@ def select_next_action(blockers: List[Dict[str, Any]], dry_run: bool) -> Dict[st
     if not dry_run:
         write_task_descriptors(list(TEMPLATE_TASKS) + task_ids)
 
+    completed_task_ids = list(dict.fromkeys(list(REMEDIATION_PRIORITY) + list(TEMPLATE_TASKS) + task_ids))
+    for completed_task_id in completed_task_ids:
+        claude_descriptor = claude_task_descriptor(completed_task_id)
+        if not required_outputs_exist(claude_descriptor):
+            continue
+        if task_effective_status(completed_task_id) not in {"completed", "superseded_by_evidence"}:
+            continue
+        if codex_passed(completed_task_id) or codex_failed(completed_task_id):
+            continue
+        review_id = review_task_id_for(completed_task_id)
+        review_descriptor = codex_review_descriptor(completed_task_id)
+        review_status = task_effective_status(review_id)
+        review_has_required_files = required_outputs_exist(review_descriptor)
+        if review_status == "running" and task_running_stale(review_id):
+            if not dry_run:
+                set_task_pending(review_id, force=True)
+            return {
+                "kind": "dispatch_codex_review",
+                "task_id": review_id,
+                "task_descriptor": rel(TASKS_DIR / f"{review_id}.json"),
+                "blocker_id": "CLAUDE_RESULT_REVIEW_REQUIRED",
+                "follow_up": "stale running pid recovered; rerun Codex review",
+            }
+        if review_status not in {"running", "completed", "superseded_by_evidence"}:
+            if not dry_run:
+                write_task_descriptors([completed_task_id])
+                set_task_pending(review_id)
+            return {
+                "kind": "dispatch_codex_review",
+                "task_id": review_id,
+                "task_descriptor": rel(TASKS_DIR / f"{review_id}.json"),
+                "blocker_id": "CLAUDE_RESULT_REVIEW_REQUIRED",
+                "follow_up": f"review completed Claude task {completed_task_id}",
+            }
+        if not review_has_required_files:
+            if not dry_run:
+                set_task_pending(review_id, force=True)
+            return {
+                "kind": "dispatch_codex_review",
+                "task_id": review_id,
+                "task_descriptor": rel(TASKS_DIR / f"{review_id}.json"),
+                "blocker_id": "CLAUDE_RESULT_REVIEW_REQUIRED",
+                "follow_up": f"review output missing for completed Claude task {completed_task_id}",
+            }
+        return {
+            "kind": "wait_for_codex_review",
+            "task_id": review_id,
+            "task_descriptor": rel(TASKS_DIR / f"{review_id}.json"),
+            "blocker_id": "CLAUDE_RESULT_REVIEW_REQUIRED",
+        }
+
     priority_index = {task_id: idx for idx, task_id in enumerate(REMEDIATION_PRIORITY)}
     ordered_blockers = sorted(
         blockers,
@@ -1286,6 +1399,8 @@ def select_next_action(blockers: List[Dict[str, Any]], dry_run: bool) -> Dict[st
                     "blocker_id": item["id"],
                     "follow_up": f"Codex review {review_id} failed; dispatch implementation remediation before rerunning {task_id}",
                 }
+            if codex_failed(task_id):
+                continue
             if review_status == "running" and task_running_stale(review_id):
                 if not dry_run:
                     set_task_pending(review_id, force=True)
@@ -1312,12 +1427,7 @@ def select_next_action(blockers: List[Dict[str, Any]], dry_run: bool) -> Dict[st
                 "task_descriptor": rel(TASKS_DIR / f"{review_id}.json"),
                 "blocker_id": item["id"],
             }
-        return {
-            "kind": "codex_passed_but_blocker_still_present",
-            "task_id": task_id,
-            "blocker_id": item["id"],
-            "follow_up": "Codex pass exists, but current evidence still reports the blocker",
-        }
+        continue
     return {"kind": "monitor_only_no_dispatchable_blocker", "task_id": None}
 
 

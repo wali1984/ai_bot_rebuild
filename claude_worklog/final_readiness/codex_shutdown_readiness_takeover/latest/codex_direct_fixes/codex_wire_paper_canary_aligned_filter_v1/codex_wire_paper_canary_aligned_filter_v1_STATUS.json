@@ -1,0 +1,41 @@
+{
+  "as_of_utc": "2026-05-14T22:40:46Z",
+  "direct_fix_id": "codex_wire_paper_canary_aligned_filter_v1",
+  "status": "CODEX_DIRECT_FIX_COMPLETE",
+  "scope": "v2_paper_only",
+  "shutdown_recommendation_after_fix": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
+  "fixed_defect": "paper_execution_worker_missing_canary_profile_tightening_before_fill",
+  "remaining_blockers": [
+    "PAPER_PNL_NEGATIVE_BLOCKS_CANARY",
+    "PAPER_EDGE_UNPROVEN",
+    "WRAPPER_NOT_LEGACY_HYBRID_PARITY",
+    "TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY",
+    "FRESHNESS_GUARD_BLOCKED_ON_STALE_PUBLIC_ARTIFACTS"
+  ],
+  "changed_files": [
+    "v2/backend/app/cli/v2_paper_execution_worker.py",
+    "v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py"
+  ],
+  "validation": {
+    "py_compile": "PASS",
+    "paper_worker_and_canary_tests": "44 passed",
+    "risk_paper_subset": "172 passed",
+    "account_freshness_subset": "32 passed",
+    "operator_truth_build": "PASS",
+    "proof_sync": "PASS",
+    "frontend_typecheck": "PASS",
+    "frontend_build": "PASS",
+    "git_diff_check_scoped": "PASS",
+    "git_fsck_connectivity": "PASS",
+    "high_confidence_secret_scan": "PASS",
+    "high_confidence_forbidden_action_scan": "PASS"
+  },
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "final_approval_token": "absent",
+  "redis_trim_approval": "absent",
+  "old_redis_writes_absent": true,
+  "exchange_actions_absent": true,
+  "leverage_changes_absent": true,
+  "margin_mode_changes_absent": true
+}

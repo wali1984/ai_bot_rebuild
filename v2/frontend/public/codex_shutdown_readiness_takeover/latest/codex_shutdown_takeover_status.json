@@ -1,17 +1,11 @@
 {
-  "as_of_utc": "2026-05-14T21:05:05Z",
+  "as_of_utc": "2026-05-14T22:53:14Z",
   "blockers": [
     {
       "category": "P0_SHUTDOWN_BLOCKER",
       "evidence": "worker_porting: legacy_baseline_backfill_required",
       "id": "LEGACY_BASELINE_BACKFILL_REQUIRED",
       "remediation_task_id": "claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis"
-    },
-    {
-      "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "missing terms: halt_manager, reduce_only, intelligent_close_guard, auto_deleverager, shared_risk, margin_governor, phase_controller, adaptive_gate",
-      "id": "RISK_GATEWAY_LEGACY_PARITY_TESTS_MISSING",
-      "remediation_task_id": "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map"
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
@@ -57,7 +51,7 @@
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "stale public latest JSON count=271",
+      "evidence": "stale public latest JSON count=220",
       "id": "FRESHNESS_GUARD_BLOCKED_ON_STALE_PUBLIC_ARTIFACTS",
       "remediation_task_id": "claude_audit_stale_public_payloads_and_freshness_guard"
     }
@@ -71,14 +65,14 @@
     "never_write_old_redis": true
   },
   "evidence": {
-    "as_of_utc": "2026-05-14T21:05:05Z",
+    "as_of_utc": "2026-05-14T22:53:14Z",
     "canonical_inputs": {
       "missing": [
         "v2/frontend/public/operator_runtime/v2_symbol_universe/latest/symbol_universe_status.json"
       ],
       "records": [
         {
-          "age_seconds": 74105,
+          "age_seconds": 80594,
           "exists": true,
           "generated_at": "2026-05-14T00:30:00Z",
           "path": "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/operator_dashboard_payload.json",
@@ -127,37 +121,37 @@
           "valid_json": true
         },
         {
-          "age_seconds": 70,
+          "age_seconds": 75,
           "exists": true,
-          "generated_at": "2026-05-14T21:03:55Z",
+          "generated_at": "2026-05-14T22:51:59Z",
           "path": "claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/worker_porting_state.json",
           "valid_json": true
         },
         {
-          "age_seconds": 70,
+          "age_seconds": 75,
           "exists": true,
-          "generated_at": "2026-05-14T21:03:55Z",
+          "generated_at": "2026-05-14T22:51:59Z",
           "path": "claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/operator_dashboard_payload.json",
           "valid_json": true
         },
         {
-          "age_seconds": 17,
+          "age_seconds": 6,
           "exists": true,
-          "generated_at": "2026-05-14T21:04:48Z",
+          "generated_at": "2026-05-14T22:53:08Z",
           "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
           "valid_json": true
         },
         {
-          "age_seconds": 11,
+          "age_seconds": 14,
           "exists": true,
-          "generated_at": "2026-05-14T21:04:54Z",
+          "generated_at": "2026-05-14T22:53:00Z",
           "path": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
           "valid_json": true
         },
         {
-          "age_seconds": 52,
+          "age_seconds": 57,
           "exists": true,
-          "generated_at": "2026-05-14T21:04:13Z",
+          "generated_at": "2026-05-14T22:52:17Z",
           "path": "v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json",
           "valid_json": true
         },
@@ -183,9 +177,9 @@
           "valid_json": true
         },
         {
-          "age_seconds": 156905,
+          "age_seconds": 665,
           "exists": true,
-          "generated_at": "2026-05-13T01:30:00Z",
+          "generated_at": "2026-05-14T22:42:09Z",
           "path": "v2/frontend/public/operator_runtime/coinank_market_intelligence/latest/coinank_market_intelligence_status.json",
           "valid_json": true
         },
@@ -341,9 +335,9 @@
     "git_dirty_summary": {
       "buckets": {
         "agent_supervisor_state": 0,
-        "runtime_or_dashboard_artifact": 246,
-        "source_or_tooling": 2,
-        "unknown": 12
+        "runtime_or_dashboard_artifact": 404,
+        "source_or_tooling": 21,
+        "unknown": 10
       },
       "preview": {
         "agent_supervisor_state": [],
@@ -351,6 +345,28 @@
           "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json",
           "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.md",
           "claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/CANARY_READINESS_AFTER_ACCOUNT_EVIDENCE.md",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/CODEX_ACCOUNT_PERMISSION_AND_SOAK_REVIEW.json",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/CODEX_ACCOUNT_PERMISSION_AND_SOAK_REVIEW.md",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/MARGIN_LEVERAGE_EVIDENCE_REPORT.md",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/P0_P1_MIGRATION_ACCOUNT_EVIDENCE_PROGRESS.md",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/PAPER_SHADOW_MONITOR_CONTINUATION.md",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/PAPER_SHADOW_SOAK_RECONCILIATION.md",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/READONLY_ACCOUNT_EVIDENCE_REPORT.md",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/READONLY_ACCOUNT_TRADE_PERMISSION_AND_6H_PAPER_SHADOW_SOAK_REPORT.md",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/TRADE_PERMISSION_EVIDENCE_REPORT.md",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/TRAINER_TRADER_MONITOR_CONTINUATION_REPORT.md",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/WEEKLY_LOSS_GATE_RUNTIME_PROOF.md",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/canary_readiness_after_account_evidence.json",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/margin_leverage_evidence.json",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/operator_dashboard_payload.json",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/p0_p1_migration_account_evidence_progress.json",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/paper_shadow_monitor_continuation.json",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/paper_shadow_soak_reconciliation.json",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/readonly_account_evidence.json",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/trade_permission_evidence.json",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/trainer_trader_monitor_continuation_status.json",
+          "claude_worklog/final_readiness/account_permission_and_soak/latest/weekly_loss_gate_runtime_proof.json",
           "claude_worklog/final_readiness/active_autonomous_dispatch/latest/ACTIVE_AUTONOMOUS_PRIMARY_DISPATCH_AND_SCRIPT_MIGRATION_PROOF_REPORT.md",
           "claude_worklog/final_readiness/active_autonomous_dispatch/latest/CLAUDE_IDLE_AND_DISPATCH_DIAGNOSTIC.md",
           "claude_worklog/final_readiness/active_autonomous_dispatch/latest/CODEX_PARALLEL_DISPATCH_PROOF.md",
@@ -364,34 +380,31 @@
           "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/git_dirty_state.json",
           "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json",
           "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json",
-          "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/CODEX_SHUTDOWN_TAKEOVER_STATUS.md",
-          "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/blocker_matrix.json",
-          "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/claude_delegation_log.jsonl",
-          "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/codex_shutdown_takeover_status.json",
-          "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/current_recommendation.json",
-          "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/operator_dashboard_payload.json",
-          "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/shutdown_readiness_state.json",
-          "claude_worklog/final_readiness/documentation_governance/latest/doc_update_policy.json",
-          "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_feature_snapshot_builder_status.json",
-          "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_trainer_bridge_status.json",
-          "claude_worklog/final_readiness/non_drift_governor_lock/latest/CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md",
-          "claude_worklog/final_readiness/non_drift_governor_lock/latest/GOVERNOR_PRIORITY_POLICY.md",
-          "claude_worklog/final_readiness/non_drift_governor_lock/latest/NEXT_TASKS_BY_LANE.md",
-          "claude_worklog/final_readiness/non_drift_governor_lock/latest/PRIMARY_OBJECTIVE_LOCK.md",
-          "claude_worklog/final_readiness/non_drift_governor_lock/latest/next_tasks_by_lane.json",
-          "claude_worklog/final_readiness/non_drift_governor_lock/latest/objective_drift_status.json",
-          "claude_worklog/final_readiness/non_drift_governor_lock/latest/operator_dashboard_payload.json",
-          "claude_worklog/final_readiness/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md",
-          "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md",
-          "claude_worklog/final_readiness/operator_truth_recovery/latest/MISSING_EVIDENCE_REGISTER.md",
-          "claude_worklog/final_readiness/operator_truth_recovery/latest/OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_REPORT.md",
-          "claude_worklog/final_readiness/operator_truth_recovery/latest/REALTIME_TRAINER_MONITOR_REPORT.md",
-          "claude_worklog/final_readiness/operator_truth_recovery/latest/SUPERVISOR_STATE_TRUTH_REPORT.md",
-          "claude_worklog/final_readiness/operator_truth_recovery/latest/operator_dashboard_payload.json"
+          "claude_worklog/final_readiness/codex_independent_v2_support/latest/PUBLIC_PAYLOAD_FRESHNESS_GUARD_REPORT.md",
+          "claude_worklog/final_readiness/codex_independent_v2_support/latest/public_payload_freshness_guard.json"
         ],
         "source_or_tooling": [
           "claude_worklog/tools/build_active_autonomous_dispatch_packet.py",
-          "claude_worklog/tools/codex_legacy_shutdown_readiness_takeover.py"
+          "claude_worklog/tools/codex_legacy_shutdown_readiness_takeover.py",
+          "v2/backend/app/cli/v2_paper_execution_worker.py",
+          "v2/backend/app/domain/risk_gateway/__init__.py",
+          "v2/backend/app/domain/risk_gateway/record.py",
+          "v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py",
+          "v2/backend/tests/unit/domain/risk_gateway/test_public_surface.py",
+          "v2/backend/tests/unit/domain/risk_gateway/test_risk_decision_reason_constants.py",
+          "v2/backend/app/services/risk_gateway/adaptive_gate.py",
+          "v2/backend/app/services/risk_gateway/auto_deleverager.py",
+          "v2/backend/app/services/risk_gateway/evaluators.py",
+          "v2/backend/app/services/risk_gateway/halt_manager.py",
+          "v2/backend/app/services/risk_gateway/intelligent_close_guard.py",
+          "v2/backend/app/services/risk_gateway/kill_switch.py",
+          "v2/backend/app/services/risk_gateway/margin_governor.py",
+          "v2/backend/app/services/risk_gateway/phase_controller.py",
+          "v2/backend/app/services/risk_gateway/reduce_only_latch.py",
+          "v2/backend/app/services/risk_gateway/shared_risk_gate.py",
+          "v2/backend/app/services/risk_legacy_gates/",
+          "v2/backend/tests/unit/services/risk_gateway/test_legacy_gate_evaluators.py",
+          "v2/backend/tests/unit/services/risk_legacy_gates/"
         ],
         "unknown": [
           ".claude/settings.local.json",
@@ -401,46 +414,42 @@
           "claude_worklog/legacy_readonly_audit/03_LEGACY_CODE_FUNCTION_INVENTORY.md",
           "claude_worklog/legacy_readonly_audit/07_ORCHESTRATOR_TRADER_RUNTIME_EVIDENCE.md",
           "claude_worklog/agent_supervisor/tasks/POST_FINAL_GATE_NON_LIVE_MONITORING_AND_HARDENING.json",
-          "claude_worklog/agent_supervisor/tasks/claude_port_v2_risk_gateway_legacy_gate_implementations_from_legacy_action_map.json",
-          "claude_worklog/agent_supervisor/tasks/codex_review_v2_risk_gateway_legacy_gate_implementations.json",
           "claude_worklog/final_readiness/always_on_claude_codex_runtime/recurring/",
           "claude_worklog/final_readiness/post_final_gate_non_live_monitoring_and_hardening/",
           "claude_worklog/final_readiness/tonight_v2_live_like_paper_shadow_and_canary_preflight/"
         ]
       },
-      "total_dirty": 260
+      "total_dirty": 435
     },
     "paper_edge": {
-      "age_seconds": 91563,
-      "blocked_intents": 124,
+      "age_seconds": 2214,
+      "blocked_intents": 1596,
       "blockers": [
-        "paper_shadow_profitability_proof_negative",
-        "paper_shadow_24h_not_complete",
         "blocked_intents_present"
       ],
       "classifications": [
         "PAPER_SHADOW_6H_COMPLETE",
-        "PAPER_SHADOW_24H_PENDING",
+        "PAPER_SHADOW_24H_COMPLETE",
         "PAPER_SHADOW_MONITOR_RUNNING",
-        "PAPER_SHADOW_PROFITABILITY_PROOF_NEGATIVE_6H",
-        "PAPER_SHADOW_PROFITABILITY_PROOF_PENDING_24H"
+        "PAPER_SHADOW_PROFITABILITY_PROOF_PENDING_6H",
+        "PAPER_SHADOW_24H_COMPLETE"
       ],
-      "generated_at": "2026-05-13T19:39:02Z",
-      "paper_pnl_24h_delta_usdt": -11.96,
-      "paper_pnl_6h_delta_usdt": -6.1,
-      "paper_pnl_current_usdt": -38.33,
+      "generated_at": "2026-05-14T22:16:20Z",
+      "paper_pnl_24h_delta_usdt": -10.11,
+      "paper_pnl_6h_delta_usdt": 0.0,
+      "paper_pnl_current_usdt": -49.12,
       "path": "claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/paper_shadow_24h_continuation.json",
-      "simulated_fills": 1192
+      "simulated_fills": 2269
     },
     "paper_runtime": {
-      "age_seconds": 17,
+      "age_seconds": 6,
       "blockers": [
         "paper_realized_pnl_negative",
         "current_paper_intent_blocked_or_unfilled"
       ],
       "fill_count": null,
       "fills_last_hour": null,
-      "generated_at": "2026-05-14T21:04:48Z",
+      "generated_at": "2026-05-14T22:53:08Z",
       "latest_fill_price": null,
       "latest_paper_action": null,
       "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
@@ -450,9 +459,9 @@
       "unrealized_pnl": 0.0
     },
     "paper_shadow": {
-      "age_seconds": 11,
+      "age_seconds": 14,
       "blockers": [],
-      "generated_at": "2026-05-14T21:04:54Z",
+      "generated_at": "2026-05-14T22:53:00Z",
       "path": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
       "status": "fresh"
     },
@@ -460,207 +469,207 @@
       "missing_generated_at_count": 33,
       "scanned_count": 318,
       "scanned_limit": 500,
-      "stale_count": 271,
+      "stale_count": 220,
       "stale_preview": [
         {
-          "age_seconds": 114347,
-          "generated_at": "2026-05-13T13:19:18Z",
-          "path": "v2/frontend/public/account_permission_and_soak/latest/CODEX_ACCOUNT_PERMISSION_AND_SOAK_REVIEW.json"
-        },
-        {
-          "age_seconds": 114347,
-          "generated_at": "2026-05-13T13:19:18Z",
-          "path": "v2/frontend/public/account_permission_and_soak/latest/canary_readiness_after_account_evidence.json"
-        },
-        {
-          "age_seconds": 114347,
-          "generated_at": "2026-05-13T13:19:18Z",
-          "path": "v2/frontend/public/account_permission_and_soak/latest/margin_leverage_evidence.json"
-        },
-        {
-          "age_seconds": 114347,
-          "generated_at": "2026-05-13T13:19:18Z",
-          "path": "v2/frontend/public/account_permission_and_soak/latest/operator_dashboard_payload.json"
-        },
-        {
-          "age_seconds": 114347,
-          "generated_at": "2026-05-13T13:19:18Z",
-          "path": "v2/frontend/public/account_permission_and_soak/latest/p0_p1_migration_account_evidence_progress.json"
-        },
-        {
-          "age_seconds": 114347,
-          "generated_at": "2026-05-13T13:19:18Z",
-          "path": "v2/frontend/public/account_permission_and_soak/latest/paper_shadow_monitor_continuation.json"
-        },
-        {
-          "age_seconds": 114347,
-          "generated_at": "2026-05-13T13:19:18Z",
-          "path": "v2/frontend/public/account_permission_and_soak/latest/paper_shadow_soak_reconciliation.json"
-        },
-        {
-          "age_seconds": 114347,
-          "generated_at": "2026-05-13T13:19:18Z",
-          "path": "v2/frontend/public/account_permission_and_soak/latest/readonly_account_evidence.json"
-        },
-        {
-          "age_seconds": 114347,
-          "generated_at": "2026-05-13T13:19:18Z",
-          "path": "v2/frontend/public/account_permission_and_soak/latest/trade_permission_evidence.json"
-        },
-        {
-          "age_seconds": 114347,
-          "generated_at": "2026-05-13T13:19:18Z",
-          "path": "v2/frontend/public/account_permission_and_soak/latest/trainer_trader_monitor_continuation_status.json"
-        },
-        {
-          "age_seconds": 114347,
-          "generated_at": "2026-05-13T13:19:18Z",
-          "path": "v2/frontend/public/account_permission_and_soak/latest/weekly_loss_gate_runtime_proof.json"
-        },
-        {
-          "age_seconds": 164589,
+          "age_seconds": 171079,
           "generated_at": "2026-05-12T23:21:55.367925+00:00",
           "path": "v2/frontend/public/active_autonomous_dispatch/latest/claude_idle_and_dispatch_diagnostic.json"
         },
         {
-          "age_seconds": 164589,
+          "age_seconds": 171079,
           "generated_at": "2026-05-12T23:21:55.367925+00:00",
           "path": "v2/frontend/public/active_autonomous_dispatch/latest/codex_parallel_dispatch_state.json"
         },
         {
-          "age_seconds": 164589,
+          "age_seconds": 171079,
           "generated_at": "2026-05-12T23:21:55.367925+00:00",
           "path": "v2/frontend/public/active_autonomous_dispatch/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 164589,
+          "age_seconds": 171079,
           "generated_at": "2026-05-12T23:21:55.367925+00:00",
           "path": "v2/frontend/public/active_autonomous_dispatch/latest/primary_dispatch_state.json"
         },
         {
-          "age_seconds": 89228,
+          "age_seconds": 95717,
           "generated_at": "2026-05-13T20:17:57.242012+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/always_on_runtime_state.json"
         },
         {
-          "age_seconds": 89227,
+          "age_seconds": 95716,
           "generated_at": "2026-05-13T20:17:57.782874+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/automation_utilization_status.json"
         },
         {
-          "age_seconds": 89228,
+          "age_seconds": 95717,
           "generated_at": "2026-05-13T20:17:57.187969+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/git_dirty_state.json"
         },
         {
-          "age_seconds": 89228,
+          "age_seconds": 95717,
           "generated_at": "2026-05-13T20:17:57.242012+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 89228,
+          "age_seconds": 95717,
           "generated_at": "2026-05-13T20:17:57.243377+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json"
         },
         {
-          "age_seconds": 439972,
+          "age_seconds": 446461,
           "generated_at": "2026-05-09T18:52:13.154032+00:00",
           "path": "v2/frontend/public/automation_liveness/latest/dashboard_069_liveness_payload.json"
         },
         {
-          "age_seconds": 439894,
+          "age_seconds": 446383,
           "generated_at": "2026-05-09T18:53:30.424067+00:00",
           "path": "v2/frontend/public/automation_liveness/latest/dashboard_liveness_payload.json"
         },
         {
-          "age_seconds": 170281,
+          "age_seconds": 176770,
           "generated_at": "2026-05-12T21:47:03.651686+00:00",
           "path": "v2/frontend/public/autonomous_governor/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 337051,
+          "age_seconds": 343540,
           "generated_at": "2026-05-10T23:27:34.157556+00:00",
           "path": "v2/frontend/public/autonomous_governor_manual_replacement/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 434222,
+          "age_seconds": 440711,
           "generated_at": "2026-05-09T20:28:03.005904+00:00",
           "path": "v2/frontend/public/autonomous_live_readiness_builder/latest/autonomous_builder_status.json"
         },
         {
-          "age_seconds": 170687,
+          "age_seconds": 177176,
           "generated_at": "2026-05-12T21:40:17.796346+00:00",
           "path": "v2/frontend/public/claude_automation_non_drift_governor_lock/latest/non_drift_governor_status.json"
         },
         {
-          "age_seconds": 170687,
+          "age_seconds": 177176,
           "generated_at": "2026-05-12T21:40:17.796346+00:00",
           "path": "v2/frontend/public/claude_automation_non_drift_governor_lock/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 170687,
+          "age_seconds": 177176,
           "generated_at": "2026-05-12T21:40:17.796346+00:00",
           "path": "v2/frontend/public/claude_automation_non_drift_governor_lock/latest/primary_objective_lock.json"
         },
         {
-          "age_seconds": 314275,
+          "age_seconds": 320764,
           "generated_at": "2026-05-11T05:47:10.135832+00:00",
           "path": "v2/frontend/public/claude_codex_rate_limit_handoff/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 251724,
+          "age_seconds": 258213,
           "generated_at": "2026-05-11T19:09:41-04:00",
           "path": "v2/frontend/public/claude_design_full_visual_implementation/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 307147,
+          "age_seconds": 313636,
           "generated_at": "2026-05-11T07:45:58.228145+00:00",
           "path": "v2/frontend/public/claude_primary_handoff/latest/WORKER_ROUTING_STATE.json"
         },
         {
-          "age_seconds": 307147,
+          "age_seconds": 313636,
           "generated_at": "2026-05-11T07:45:58.228145+00:00",
           "path": "v2/frontend/public/claude_primary_handoff/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 344929,
+          "age_seconds": 351418,
           "generated_at": "2026-05-10T21:16:16.250972+00:00",
           "path": "v2/frontend/public/claude_rate_limit_codex_takeover/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 258101,
+          "age_seconds": 264590,
           "generated_at": "2026-05-11T21:23:24Z",
           "path": "v2/frontend/public/codex_design_handoff_review_protocol/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 81455,
+          "age_seconds": 87944,
           "generated_at": "2026-05-13T22:27:30Z",
           "path": "v2/frontend/public/codex_env_repo_parity/latest/env_dependency_parity.json"
         },
         {
-          "age_seconds": 81315,
+          "age_seconds": 87804,
           "generated_at": "2026-05-13T22:29:50Z",
           "path": "v2/frontend/public/codex_env_repo_parity/latest/legacy_v2_function_gap.json"
         },
         {
-          "age_seconds": 81315,
+          "age_seconds": 87804,
           "generated_at": "2026-05-13T22:29:50Z",
           "path": "v2/frontend/public/codex_env_repo_parity/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 38238,
+          "age_seconds": 44727,
           "generated_at": "2026-05-14T10:27:47Z",
           "path": "v2/frontend/public/codex_independent_v2_support/latest/account_permission_contract_status.json"
         },
         {
-          "age_seconds": 38695,
+          "age_seconds": 45184,
           "generated_at": "2026-05-14T10:20:10Z",
           "path": "v2/frontend/public/codex_independent_v2_support/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 85606,
+          "age_seconds": 92095,
           "generated_at": "2026-05-13T21:18:19Z",
           "path": "v2/frontend/public/codex_independent_v2_support/latest/paper_shadow_metrics_analysis.json"
+        },
+        {
+          "age_seconds": 92095,
+          "generated_at": "2026-05-13T21:18:19Z",
+          "path": "v2/frontend/public/codex_independent_v2_support/latest/v2_worker_inventory.json"
+        },
+        {
+          "age_seconds": 313636,
+          "generated_at": "2026-05-11T07:45:58.228145+00:00",
+          "path": "v2/frontend/public/codex_parallel_audit_plan/latest/codex_parallel_task_queue.json"
+        },
+        {
+          "age_seconds": 313636,
+          "generated_at": "2026-05-11T07:45:58.228145+00:00",
+          "path": "v2/frontend/public/codex_parallel_audit_plan/latest/operator_dashboard_payload.json"
+        },
+        {
+          "age_seconds": 164591,
+          "generated_at": "2026-05-13T01:10:03Z",
+          "path": "v2/frontend/public/coinank_plan3_runtime_remediation/latest/coinank_market_intelligence_status.json"
+        },
+        {
+          "age_seconds": 164591,
+          "generated_at": "2026-05-13T01:10:03Z",
+          "path": "v2/frontend/public/coinank_plan3_runtime_remediation/latest/coinank_reference_hashes.json"
+        },
+        {
+          "age_seconds": 164590,
+          "generated_at": "2026-05-13T01:10:04Z",
+          "path": "v2/frontend/public/coinank_plan3_runtime_remediation/latest/coinank_runtime_cycle_validation.json"
+        },
+        {
+          "age_seconds": 164591,
+          "generated_at": "2026-05-13T01:10:03Z",
+          "path": "v2/frontend/public/coinank_plan3_runtime_remediation/latest/lastprice_forensics.json"
+        },
+        {
+          "age_seconds": 164590,
+          "generated_at": "2026-05-13T01:10:04Z",
+          "path": "v2/frontend/public/coinank_plan3_runtime_remediation/latest/operator_dashboard_payload.json"
+        },
+        {
+          "age_seconds": 440711,
+          "generated_at": "2026-05-09T20:28:03.010382+00:00",
+          "path": "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_positions.json"
+        },
+        {
+          "age_seconds": 440711,
+          "generated_at": "2026-05-09T20:28:03.010389+00:00",
+          "path": "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json"
+        },
+        {
+          "age_seconds": 234408,
+          "generated_at": "2026-05-12T05:46:26.271038+00:00",
+          "path": "v2/frontend/public/control_plane_supervisor_persistence/latest/control_plane_status_after_180s.json"
         }
       ]
     },
@@ -672,12 +681,15 @@
       "human_attention_required_count": 3,
       "next_pending_task": "recurring_monitor_legacy_trainer_runtime",
       "non_drift_selected_task": "recurring_monitor_legacy_trainer_runtime",
-      "queue_generated_at": "2026-05-14T21:04:53.518137+00:00",
+      "queue_generated_at": "2026-05-14T22:52:59.870434+00:00",
       "queue_status_path": "claude_worklog/agent_supervisor/status/queue_status.json"
     },
     "risk_gateway_tests": {
       "exists": true,
-      "missing_terms": [
+      "missing_terms": [],
+      "path": "v2/backend/tests/integration/cli/test_v2_risk_gateway_runtime_worker.py",
+      "present_terms": [
+        "kill_switch",
         "halt_manager",
         "reduce_only",
         "intelligent_close_guard",
@@ -686,10 +698,6 @@
         "margin_governor",
         "phase_controller",
         "adaptive_gate"
-      ],
-      "path": "v2/backend/tests/integration/cli/test_v2_risk_gateway_runtime_worker.py",
-      "present_terms": [
-        "kill_switch"
       ],
       "required_terms": [
         "kill_switch",
@@ -702,7 +710,27 @@
         "phase_controller",
         "adaptive_gate"
       ],
-      "status": "missing_or_incomplete"
+      "source_paths": [
+        "v2/backend/app/services/risk_gateway/kill_switch.py",
+        "v2/backend/app/services/risk_gateway/halt_manager.py",
+        "v2/backend/app/services/risk_gateway/reduce_only_latch.py",
+        "v2/backend/app/services/risk_gateway/intelligent_close_guard.py",
+        "v2/backend/app/services/risk_gateway/auto_deleverager.py",
+        "v2/backend/app/services/risk_gateway/shared_risk_gate.py",
+        "v2/backend/app/services/risk_gateway/margin_governor.py",
+        "v2/backend/app/services/risk_gateway/phase_controller.py",
+        "v2/backend/app/services/risk_gateway/adaptive_gate.py",
+        "v2/backend/app/services/risk_gateway/evaluators.py",
+        "v2/backend/app/services/risk_legacy_gates/evaluators.py",
+        "v2/backend/app/services/risk_legacy_gates/inputs.py",
+        "v2/backend/app/services/risk_legacy_gates/verdict.py"
+      ],
+      "status": "pass_or_present",
+      "test_paths": [
+        "v2/backend/tests/integration/cli/test_v2_risk_gateway_runtime_worker.py",
+        "v2/backend/tests/unit/services/risk_gateway/test_legacy_gate_evaluators.py",
+        "v2/backend/tests/unit/services/risk_legacy_gates/test_evaluators.py"
+      ]
     },
     "runtime_safety": {
       "exchange_actions_absent": true,
@@ -786,9 +814,9 @@
       ]
     },
     "symbol_universe": {
-      "age_seconds": 52,
+      "age_seconds": 57,
       "blockers": [],
-      "generated_at": "2026-05-14T21:04:13Z",
+      "generated_at": "2026-05-14T22:52:17Z",
       "live_gate": "blocked_human_only",
       "live_symbols": [],
       "paper_symbols": [
@@ -801,7 +829,7 @@
       ]
     },
     "trade_permission": {
-      "age_seconds": 91562,
+      "age_seconds": 2212,
       "blockers": [
         "trade_permission_readonly_unknown",
         "readonly_account_evidence_stale"
@@ -812,7 +840,7 @@
         "READONLY_ACCOUNT_EVIDENCE_STALE",
         "TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY"
       ],
-      "generated_at": "2026-05-13T19:39:03Z",
+      "generated_at": "2026-05-14T22:16:22Z",
       "margin_leverage_classifications": [
         "ISOLATED_MARGIN_EVIDENCE_MISSING",
         "LEGACY_CROSS_MARGIN_OBSERVED_READONLY",
@@ -903,8 +931,8 @@
       }
     },
     "worker_porting": {
-      "age_seconds": 70,
-      "as_of_utc": "2026-05-14T21:03:55Z",
+      "age_seconds": 75,
+      "as_of_utc": "2026-05-14T22:51:59Z",
       "blocked_workers": [],
       "blockers": [
         "legacy_baseline_backfill_required"
@@ -938,11 +966,8 @@
   "live_symbols": [],
   "loop_marker": "CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP_READY",
   "next_action": {
-    "blocker_id": "RISK_GATEWAY_LEGACY_PARITY_TESTS_MISSING",
-    "follow_up": "Codex review codex_review_v2_risk_gateway_legacy_action_parity_tests failed; dispatch implementation remediation before rerunning claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map",
-    "kind": "dispatch_claude_remediation",
-    "task_descriptor": "claude_worklog/agent_supervisor/tasks/claude_port_v2_risk_gateway_legacy_gate_implementations_from_legacy_action_map.json",
-    "task_id": "claude_port_v2_risk_gateway_legacy_gate_implementations_from_legacy_action_map"
+    "kind": "monitor_only_no_dispatchable_blocker",
+    "task_id": null
   },
   "redis_trim_approval": "absent",
   "shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE"

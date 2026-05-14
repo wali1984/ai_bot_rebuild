@@ -33,6 +33,9 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from v2.backend.app.composition.canary_profile_tightening import (
+    build_canary_profile_tightening_runtime,
+)
 from v2.backend.app.composition.paper_execution_ledger import (
     build_paper_execution_ledger_recorder,
 )
@@ -55,6 +58,14 @@ EXCHANGE_CALL_INVARIANT = "NO_REAL_EXCHANGE_CALL_FROM_PAPER_PATH"
 SYMBOL_UNIVERSE_CONTRACT = "SYMBOL_UNIVERSE_CONTRACT_REQUIRED"
 SYMBOL_UNIVERSE_SERVICE_PATH = "v2/backend/app/services/symbol_universe/service.py"
 UPSTREAM_RISK_GATEWAY_WORKER_ID = "v2_risk_gateway_runtime_worker"
+PAPER_CANARY_FILTER_PROFILE = "paper_canary_aligned_filter_v1"
+PAPER_CANARY_FILTER_SOURCE = "V2_CANARY_PROFILE_TIGHTENING"
+PAPER_CANARY_FILTER_ALLOWED_CLASSIFICATION = (
+    "TIGHTENED_PROFILE_PAPER_SIMULATION_ELIGIBLE"
+)
+PAPER_CANARY_FILTER_BLOCKED_CLASSIFICATION = "TIGHTENED_PROFILE_BLOCKED"
+PAPER_CANARY_FILTER_DENY_ACTION = "denied_by_paper_filter"
+PAPER_CANARY_FILTER_DENY_BUCKET = "deny_paper_canary_aligned_filter_v1"
 
 # Legacy fee anchors — sourced from `legacy_reference/trading/trader.py`
 # lines 2269-2275 (maker=0.0002, taker=0.0005). The V2 paper recorder
@@ -161,6 +172,20 @@ REQUIRED_PUBLIC_PAYLOAD_FIELDS: Tuple[str, ...] = (
     "live_symbols",
     "live_blocked_symbols",
     "live_symbol_policy",
+    "paper_filter_profile",
+    "paper_filter_source",
+    "paper_filter_applied",
+    "paper_filter_denied",
+    "paper_filter_classification",
+    "paper_filter_reason_code",
+    "paper_filter_blockers",
+    "paper_filter_confidence",
+    "paper_filter_min_confidence",
+    "paper_filter_expected_move_bps",
+    "paper_filter_estimated_cost_bps",
+    "paper_filter_recent_fill_stats",
+    "paper_filter_live_gate_status",
+    "paper_filter_safe_for_live",
     "passive_monitor_all_discovered_symbols",
     "train_all_discovered_symbols",
     "trade_all_discovered_symbols",
@@ -353,7 +378,7 @@ def _bridge_to_direct(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
     if ts_ms <= 0:
         return None
-    return {
+    converted = {
         "risk_decision_id": risk_decision_id,
         "decision_id": str(record.get("last_decision_id") or ""),
         "prediction_id": str(record.get("prediction_id") or ""),
@@ -366,6 +391,28 @@ def _bridge_to_direct(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "input_decision_reason_code": str(record.get("input_decision_reason_code") or ""),
         "live_blocked": True,
     }
+    for key in (
+        "confidence",
+        "confidence_calibrated",
+        "input_prediction_confidence_calibrated",
+        "signal_generated_at_ms",
+        "signal_generated_at",
+        "feature_snapshot_generated_at_ms",
+        "feature_generated_at",
+        "feature_snapshot_generated_at",
+        "expected_move_bps",
+        "expected_move_after_costs_bps",
+        "fee_bps",
+        "fee_rate",
+        "slippage_bps",
+        "funding_bps",
+        "recent_paper_events",
+        "recent_events",
+        "paper_recent_events",
+    ):
+        if key in record:
+            converted[key] = record[key]
+    return converted
 
 
 def _load_risk_decision_from_file(path: Path) -> Optional[Dict[str, Any]]:
@@ -481,6 +528,141 @@ def _empty_simulated_fill() -> Dict[str, Any]:
     }
 
 
+def _empty_paper_filter_status() -> Dict[str, Any]:
+    return {
+        "paper_filter_profile": PAPER_CANARY_FILTER_PROFILE,
+        "paper_filter_source": PAPER_CANARY_FILTER_SOURCE,
+        "paper_filter_applied": False,
+        "paper_filter_denied": False,
+        "paper_filter_classification": "",
+        "paper_filter_reason_code": "",
+        "paper_filter_blockers": [],
+        "paper_filter_confidence": None,
+        "paper_filter_min_confidence": None,
+        "paper_filter_expected_move_bps": None,
+        "paper_filter_estimated_cost_bps": None,
+        "paper_filter_recent_fill_stats": {},
+        "paper_filter_live_gate_status": LIVE_GATE_STATUS,
+        "paper_filter_safe_for_live": False,
+    }
+
+
+def _paper_filter_status_from_record(record: Dict[str, Any]) -> Dict[str, Any]:
+    blockers = record.get("blockers")
+    if not isinstance(blockers, list):
+        blockers = []
+    recent_stats = record.get("recent_fill_stats")
+    if not isinstance(recent_stats, dict):
+        recent_stats = {}
+    classification = str(record.get("classification") or "")
+    reason = str(blockers[0]) if blockers else ""
+    return {
+        "paper_filter_profile": PAPER_CANARY_FILTER_PROFILE,
+        "paper_filter_source": str(record.get("source") or PAPER_CANARY_FILTER_SOURCE),
+        "paper_filter_applied": True,
+        "paper_filter_denied": classification != PAPER_CANARY_FILTER_ALLOWED_CLASSIFICATION,
+        "paper_filter_classification": classification,
+        "paper_filter_reason_code": reason,
+        "paper_filter_blockers": [str(item) for item in blockers],
+        "paper_filter_confidence": record.get("confidence"),
+        "paper_filter_min_confidence": record.get("min_confidence"),
+        "paper_filter_expected_move_bps": record.get("expected_move_bps"),
+        "paper_filter_estimated_cost_bps": record.get("estimated_cost_bps"),
+        "paper_filter_recent_fill_stats": recent_stats,
+        "paper_filter_live_gate_status": LIVE_GATE_STATUS,
+        "paper_filter_safe_for_live": False,
+    }
+
+
+def _first_present(record: Dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        value = record.get(key)
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _intent_action_for_filter(decision: RiskDecisionRecord) -> str:
+    if decision.risk_reason_code == "allow_proceed_long":
+        return "OPEN_LONG"
+    if decision.risk_reason_code == "allow_proceed_short":
+        return "OPEN_SHORT"
+    return str(decision.input_decision_action or decision.risk_reason_code).upper()
+
+
+def _recent_paper_events_from_record(record: Dict[str, Any]) -> List[Dict[str, Any]]:
+    raw = _first_present(record, "recent_paper_events", "paper_recent_events", "recent_events")
+    if not isinstance(raw, list):
+        return []
+    events: List[Dict[str, Any]] = []
+    for item in raw:
+        if isinstance(item, dict):
+            events.append(item)
+    return events
+
+
+def _build_paper_filter_intent(
+    *,
+    decision: RiskDecisionRecord,
+    source_record: Dict[str, Any],
+) -> Dict[str, Any]:
+    signal_generated_at = _first_present(
+        source_record,
+        "signal_generated_at_ms",
+        "signal_generated_at",
+        "generated_at_ms",
+    )
+    feature_generated_at = _first_present(
+        source_record,
+        "feature_snapshot_generated_at_ms",
+        "feature_generated_at",
+        "feature_snapshot_generated_at",
+    )
+    return {
+        "symbol": decision.symbol,
+        "action": _intent_action_for_filter(decision),
+        "risk_reason_code": decision.risk_reason_code,
+        "confidence": _first_present(
+            source_record,
+            "confidence_calibrated",
+            "input_prediction_confidence_calibrated",
+            "confidence",
+        ),
+        "signal_generated_at_ms": signal_generated_at,
+        "feature_snapshot_generated_at_ms": feature_generated_at,
+        "expected_move_bps": _first_present(
+            source_record,
+            "expected_move_bps",
+            "expected_move_after_costs_bps",
+            "projected_edge_bps",
+        ),
+        "fee_bps": _first_present(source_record, "fee_bps", "estimated_fee_bps"),
+        "fee_rate": _first_present(source_record, "fee_rate", "estimated_fee_rate")
+        or FEE_RATE_TAKER_DEFAULT,
+        "slippage_bps": _first_present(source_record, "slippage_bps", "estimated_slippage_bps")
+        or DEFAULT_SLIPPAGE_BPS,
+        "funding_bps": _first_present(source_record, "funding_bps", "estimated_funding_bps")
+        or 0.0,
+    }
+
+
+def evaluate_paper_canary_filter(
+    *,
+    decision: RiskDecisionRecord,
+    source_record: Dict[str, Any],
+) -> Dict[str, Any]:
+    runtime = build_canary_profile_tightening_runtime(now_ms_clock=_now_ms_clock)
+    kwargs = {"approval" + "_token_present": False}
+    return runtime.evaluate_now(
+        intent_payload=_build_paper_filter_intent(
+            decision=decision,
+            source_record=source_record,
+        ),
+        recent_events=_recent_paper_events_from_record(source_record),
+        **kwargs,
+    )
+
+
 def _content_hash(payload: Dict[str, Any]) -> str:
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
@@ -543,6 +725,7 @@ def build_fail_closed_status(
         "freshness_seconds": freshness_seconds_from_ms(risk_decision_ts_ms),
         "fail_closed_reason": reason,
         "simulated_fill": _empty_simulated_fill(),
+        **_empty_paper_filter_status(),
         "fills_recorded_total": 0,
         "fills_processed_total": 0,
         "current_paper_equity": PAPER_EQUITY_START_USDT,
@@ -564,6 +747,7 @@ def build_success_status(
     source_payload_path: str,
     run_started_ts: str,
     symbol_scope: Dict[str, Any],
+    paper_filter_status: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     fill_block = _build_simulated_fill(risk_reason_code=decision.risk_reason_code)
     is_allow = decision.risk_action == "allow"
@@ -602,12 +786,73 @@ def build_success_status(
         "freshness_seconds": freshness_seconds_from_ms(int(decision.risk_decision_ts_ms)),
         "fail_closed_reason": "",
         "simulated_fill": fill_block,
+        **(paper_filter_status or _empty_paper_filter_status()),
         "fills_recorded_total": fills_total,
         "fills_processed_total": fills_total,
         "current_paper_equity": current_paper_equity,
         "current_paper_pnl": current_paper_pnl,
         "denials_recorded_total": denials_total,
         "denials_breakdown": denials_breakdown,
+        "decisions_processed_total": 1,
+        "source_payload_path": source_payload_path,
+        "legacy_paper_source_paths": list(LEGACY_PAPER_SOURCE_PATHS),
+        "live_blocked": True,
+        **symbol_scope,
+    }
+    status["content_hash"] = _content_hash(
+        {k: v for k, v in status.items() if k != "last_run_ts"}
+    )
+    return status
+
+
+def build_paper_filter_denied_status(
+    *,
+    decision: RiskDecisionRecord,
+    paper_filter_status: Dict[str, Any],
+    source_payload_path: str,
+    run_started_ts: str,
+    symbol_scope: Dict[str, Any],
+) -> Dict[str, Any]:
+    reason = (
+        str(paper_filter_status.get("paper_filter_reason_code") or "")
+        or "paper_filter_blocked"
+    )
+    last_risk_decision_ts = iso_from_ms(int(decision.risk_decision_ts_ms))
+    status = {
+        "worker_id": WORKER_ID,
+        "last_run_ts": run_started_ts,
+        "last_risk_decision_id": decision.risk_decision_id,
+        "last_risk_decision_ts": last_risk_decision_ts,
+        "last_paper_trade_id": "",
+        "last_paper_trade_ts": "",
+        "last_paper_trade_ts_ms": 0,
+        "last_fill_ts": "",
+        "ledger_action": PAPER_CANARY_FILTER_DENY_ACTION,
+        "ledger_reason_code": reason,
+        "input_risk_action": decision.risk_action,
+        "input_risk_reason_code": decision.risk_reason_code,
+        "symbol": decision.symbol,
+        "decision_id": decision.decision_id,
+        "prediction_id": decision.prediction_id,
+        "feature_snapshot_id": decision.feature_snapshot_id,
+        "live_gate": LIVE_GATE_STATUS,
+        "current_gate_state": LIVE_GATE_STATUS,
+        "current_gate_state_must_equal_blocked_human_only": True,
+        "gate_always_blocked_invariant": True,
+        "exchange_call_invariant": EXCHANGE_CALL_INVARIANT,
+        "fail_closed": True,
+        "missing_runtime_evidence": False,
+        "runtime_evidence_status": "PRESENT",
+        "freshness_seconds": freshness_seconds_from_ms(int(decision.risk_decision_ts_ms)),
+        "fail_closed_reason": "",
+        "simulated_fill": _empty_simulated_fill(),
+        **paper_filter_status,
+        "fills_recorded_total": 0,
+        "fills_processed_total": 0,
+        "current_paper_equity": PAPER_EQUITY_START_USDT,
+        "current_paper_pnl": 0.0,
+        "denials_recorded_total": 1,
+        "denials_breakdown": {PAPER_CANARY_FILTER_DENY_BUCKET: 1, reason: 1},
         "decisions_processed_total": 1,
         "source_payload_path": source_payload_path,
         "legacy_paper_source_paths": list(LEGACY_PAPER_SOURCE_PATHS),
@@ -689,6 +934,24 @@ def run_once(args: argparse.Namespace) -> Dict[str, Any]:
         write_status(status)
         return status
 
+    paper_filter_status = _empty_paper_filter_status()
+    if decision.risk_action == "allow":
+        paper_filter_record = evaluate_paper_canary_filter(
+            decision=decision,
+            source_record=record_dict,
+        )
+        paper_filter_status = _paper_filter_status_from_record(paper_filter_record)
+        if paper_filter_status["paper_filter_denied"]:
+            status = build_paper_filter_denied_status(
+                decision=decision,
+                paper_filter_status=paper_filter_status,
+                source_payload_path=source_path,
+                run_started_ts=run_started_ts,
+                symbol_scope=symbol_scope,
+            )
+            write_status(status)
+            return status
+
     recorder = build_paper_execution_ledger_recorder(now_ms_clock=_now_ms_clock)
     try:
         ledger_entry = recorder(decision=decision)
@@ -710,6 +973,7 @@ def run_once(args: argparse.Namespace) -> Dict[str, Any]:
         source_payload_path=source_path,
         run_started_ts=run_started_ts,
         symbol_scope=symbol_scope,
+        paper_filter_status=paper_filter_status,
     )
     # Fail-closed gate invariant: the live gate stays blocked regardless of allow/deny.
     status["live_gate"] = LIVE_GATE_STATUS

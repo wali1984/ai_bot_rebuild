@@ -1,0 +1,43 @@
+{
+  "task_id": "claude_port_v2_risk_gateway_legacy_gate_implementations_from_legacy_action_map",
+  "status": "BLOCKED_OR_REMEDIATED",
+  "remediation_kind": "minimal_fail_closed_parity_surface",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "final_approval_token": "absent",
+  "redis_trim_approval_token": "absent",
+  "v2_callables_added": [
+    "evaluate_kill_switch_state",
+    "evaluate_halt_state",
+    "evaluate_latch_state",
+    "evaluate_close_guard",
+    "evaluate_adl_state",
+    "evaluate_budget_state",
+    "evaluate_margin_state",
+    "evaluate_phase_gate",
+    "evaluate_toxicity_block"
+  ],
+  "legacy_source_sha256": {
+    "risk/kill_switch.py": "bf730c6fa425097aa0c246dfbab88e4f8d158afdd606a905c8f9e3c7695df59e",
+    "risk/halt_manager.py": "49504d73a9fef319eb0ac6282d571492714a62526bc1c9849148685ad7eac314",
+    "risk/reduce_only_latch.py": "e0dc68486a5cc2fa0fc0ea1d1197f66373f8c090deb889a403257e187c7ac611",
+    "risk/intelligent_close_guard.py": "7edf6d5eca3e8654bc17f0fad22831e4daedb411138d576904a29ab0a352c3ee",
+    "risk/auto_deleverager.py": "76652e99ec0b0717a3bfea887c25f78746df7765ba3f5e4eff6a21d0e820a377",
+    "risk/shared_risk_gate.py": "62c2403f2cf2ce5dec71522b919f1db6a2f6908e338903e359e021c75c59dd7f",
+    "risk/margin_governor.py": "e8448d2ee70697a97fbb4af27555adabe2af590d8185ebfc644b965070376eee",
+    "risk/phase_controller.py": "ecd566ca7537551a9e6e267da4880a41764d346a1d43137d4088003951211ee1",
+    "risk/microstructure_toxicity.py": "5103e3078e15734eaca310e9ae58dd8e89725ebf4317a98313f078c8bd74beef",
+    "risk/adaptive_gate.py": "a5057ea4ad4542881a6ebf14b9d789cbeed7873fc763c9d74d06c7c781674bce"
+  },
+  "tests_added": true,
+  "tests_skipped": false,
+  "test_execution_classification": "V2_ENV_REQUIRED",
+  "dependency_closure": "stdlib_only_no_third_party",
+  "public_payload_impact": "none_this_cycle",
+  "exchange_mutation": false,
+  "leverage_change": false,
+  "margin_mode_change": false,
+  "old_redis_writes": false,
+  "live_enablement": false,
+  "go_no_go": "NO_GO_FOR_RUNTIME_WIRING_BY_DESIGN"
+}
