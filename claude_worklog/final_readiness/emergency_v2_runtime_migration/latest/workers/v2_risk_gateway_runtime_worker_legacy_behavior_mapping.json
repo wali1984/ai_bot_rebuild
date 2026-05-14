@@ -1,0 +1,222 @@
+{
+  "worker_id": "v2_risk_gateway_runtime_worker",
+  "legacy_first_mandate_compliant": true,
+  "legacy_source_paths": [
+    "legacy_reference/risk/shared_risk_gate.py",
+    "legacy_reference/risk/adaptive_gate.py",
+    "legacy_reference/risk/risk_state_machine.py",
+    "legacy_reference/risk/halt_manager.py",
+    "legacy_reference/risk/kill_switch.py",
+    "legacy_reference/risk/margin_governor.py",
+    "legacy_reference/risk/auto_deleverager.py",
+    "legacy_reference/risk/global_breadth.py",
+    "legacy_reference/risk/microstructure_toxicity.py",
+    "legacy_reference/risk/market_state_contract.py",
+    "legacy_reference/risk/reversal_detector.py",
+    "legacy_reference/risk/intelligent_close_guard.py",
+    "legacy_reference/risk/reduce_only_latch.py",
+    "legacy_reference/risk/phase_controller.py",
+    "legacy_reference/risk/risk_budget_allocator.py",
+    "legacy_reference/risk/trainer_alignment.py",
+    "legacy_reference/risk/trainer_intent.py",
+    "legacy_reference/risk/hedge_cage_manager.py",
+    "legacy_reference/risk/ltf_reversal.py",
+    "legacy_reference/risk/market_regime.py"
+  ],
+  "v2_library_paths_consumed": [
+    "v2/backend/app/services/risk_gateway/service.py",
+    "v2/backend/app/composition/risk_gateway/runtime.py",
+    "v2/backend/app/domain/risk_gateway/record.py",
+    "v2/backend/app/domain/orchestrator_decision/record.py",
+    "v2/backend/app/services/symbol_universe/service.py"
+  ],
+  "legacy_functions_preserved": [
+    {
+      "legacy_function": "risk.shared_risk_gate.check_risk_gate",
+      "legacy_return": "RiskGateResult(passed, block_code, block_reason, meta)",
+      "v2_equivalent": "v2.backend.app.services.risk_gateway.assemble_risk_decision_record(decision, now_ms_clock) -> RiskDecisionRecord",
+      "preserved": true,
+      "notes": "block_code is collapsed to the V2 reason-code set: allow_proceed_long, allow_proceed_short, deny_orchestrator_held, deny_orchestrator_abstained, deny_default."
+    },
+    {
+      "legacy_function": "risk.adaptive_gate.AdaptiveGate.evaluate",
+      "legacy_return": "GateVerdict(allow, code, reason, sizing_mult, delay_seconds, meta)",
+      "v2_equivalent": "consumed upstream by the V2 orchestrator decision; the gate stamps the resulting abstain as deny_orchestrator_abstained",
+      "preserved": true,
+      "notes": "Not invoked by the worker; the worker is the terminal allow/deny stamp."
+    },
+    {
+      "legacy_function": "risk.risk_state_machine.RiskStateMachine.evaluate",
+      "v2_equivalent": "consumed upstream; not invoked by this worker",
+      "preserved": true,
+      "notes": "Breach persistence remains an orchestrator concern."
+    },
+    {
+      "legacy_function": "risk.kill_switch.set_kill_switch / read_kill_switch",
+      "v2_equivalent": "not invoked; legacy key names listed under legacy_kill_switch_key_references for audit only",
+      "preserved": false,
+      "removed_reason": "CLAUDE.md forbids writing old Redis keys."
+    }
+  ],
+  "legacy_inputs": {
+    "redis_client": "removed",
+    "account_id": "subsumed into orchestrator decision identifiers",
+    "symbol": "preserved as OrchestratorDecisionRecord.symbol",
+    "action": "preserved as OrchestratorDecisionRecord.decision_action",
+    "is_risk_add": "implicit: open_long / open_short are risk-adds; hold / abstain are not",
+    "is_reduce": "out of scope for the gate (reduces are not orchestrator decisions)",
+    "hedge_intent": "subsumed into orchestrator reason codes",
+    "source": "subsumed; orchestrator emits the canonical decision_reason_code",
+    "last_open_ts": "out of scope (RBA cadence is upstream)",
+    "margin_ratio_pct": "out of scope (margin governor is upstream)",
+    "margin_used_pct": "out of scope (margin governor is upstream)"
+  },
+  "legacy_outputs": {
+    "RiskGateResult.passed": "RiskDecisionRecord.risk_action in {allow, deny}",
+    "RiskGateResult.block_code": "RiskDecisionRecord.risk_reason_code",
+    "RiskGateResult.block_reason": "derived from input_decision_action + input_decision_reason_code in the public payload",
+    "RiskGateResult.meta": "not propagated by the V2 record"
+  },
+  "legacy_redis_keys_referenced_for_audit_only": [
+    "wma:kill_switch",
+    "wma:kill_switch:{account}",
+    "wma:kill_switch:{symbol}",
+    "risk_budget:state:{account_id}",
+    "reversal:global",
+    "toxicity:{symbol}",
+    "market:state:contract",
+    "regime:{symbol}"
+  ],
+  "legacy_redis_keys_written_by_v2_worker": [],
+  "legacy_config_dependencies": [
+    "config.SHARED_RISK_GATE_ENABLED",
+    "config.RISK_STATE_MACHINE_ENABLED",
+    "env: KILL_SWITCH_GLOBAL_ALLOWLIST",
+    "env: KILL_SWITCH_TTL_SECONDS",
+    "env: ADAPTIVE_GATE_SPREAD_ENABLED",
+    "env: ADAPTIVE_GATE_LIQUIDITY_ENABLED",
+    "env: ADAPTIVE_GATE_VOLATILITY_ENABLED",
+    "env: ADAPTIVE_GATE_FAST_MOVE_ENABLED",
+    "env: ADAPTIVE_GATE_TREND_ENABLED",
+    "env: ADAPTIVE_GATE_IMBALANCE_ENABLED",
+    "env: ADAPTIVE_GATE_FUNDING_ENABLED",
+    "env: ADAPTIVE_GATE_MANIPULATION_ENABLED",
+    "env: ADAPTIVE_GATE_EDGE_FEES_ENABLED"
+  ],
+  "legacy_config_dependencies_consumed_by_v2_worker": [],
+  "legacy_edge_cases": [
+    {
+      "case": "missing_redis_client",
+      "legacy": "fail_open passed=True",
+      "v2": "fail_closed deny_default + missing_runtime_evidence=true",
+      "intentional_divergence": true,
+      "rationale": "CLAUDE.md mandates LIVE TRADING BLOCKED default; fail-closed on missing fields is explicit."
+    },
+    {
+      "case": "is_reduce True",
+      "legacy": "short-circuit pass",
+      "v2": "out of scope; gate sees only orchestrator decisions (not reduces)"
+    },
+    {
+      "case": "stale feature",
+      "legacy": "adaptive gate delay or block",
+      "v2": "orchestrator emits abstain_freshness_stale; gate stamps deny_orchestrator_abstained"
+    },
+    {
+      "case": "low confidence",
+      "legacy": "trainer-side filter",
+      "v2": "orchestrator emits abstain_low_confidence; gate stamps deny_orchestrator_abstained"
+    },
+    {
+      "case": "missing freshness",
+      "legacy": "implicit block via market_state_contract",
+      "v2": "orchestrator emits abstain_freshness_missing; gate stamps deny_orchestrator_abstained"
+    },
+    {
+      "case": "decision_id longer than 125 chars",
+      "v2": "service raises RiskGatewayServiceError; worker fail-closes with missing_runtime_evidence=true and risk_reason_code=deny_default"
+    },
+    {
+      "case": "now_ms non-int or negative",
+      "v2": "service raises RiskGatewayServiceError; worker fail-closes with clock_unavailable=true"
+    },
+    {
+      "case": "live trading enable request",
+      "legacy": "supported via LIVE_TRADING_ENABLED env flag",
+      "v2": "no codepath unblocks the gate; LIVE_GATE_STATUS constant is the only gate state."
+    }
+  ],
+  "legacy_failure_modes": [
+    "redis unreachable: legacy fail-open; v2 fail-closed",
+    "kill_switch set: legacy short-circuit block; v2 worker doesn't read the key (orchestrator handles upstream)"
+  ],
+  "v2_mapping": {
+    "RiskGateResult.passed": "RiskDecisionRecord.risk_action",
+    "RiskGateResult.block_code": "RiskDecisionRecord.risk_reason_code",
+    "RiskGateResult.block_reason": "public_payload.input_decision_action + .input_decision_reason_code",
+    "RiskGateResult.meta": "not_propagated"
+  },
+  "intentional_changes": [
+    {
+      "change": "fail_closed_on_missing_input",
+      "rationale": "CLAUDE.md absolute: LIVE TRADING BLOCKED default; fail-closed on missing fields is explicit."
+    },
+    {
+      "change": "no_redis_writes",
+      "rationale": "CLAUDE.md forbids writing old Redis keys; worker has no redis import."
+    },
+    {
+      "change": "no_approval_token_creation",
+      "rationale": "Worker must not unblock the gate under any circumstance."
+    },
+    {
+      "change": "no_exchange_mutation_codepath",
+      "rationale": "Worker must not place/cancel orders or change leverage/margin."
+    },
+    {
+      "change": "symbol_universe_contract_enforced",
+      "rationale": "SYMBOL_UNIVERSE_CONTRACT_REQUIRED: no hardcoded 25-symbol scope; SymbolUniverseService is the contract."
+    },
+    {
+      "change": "missing_runtime_evidence_classification_when_legacy_bot_shut_down",
+      "rationale": "Synthesizing decision data would violate the Evidence Integrity Rule."
+    }
+  ],
+  "removed_or_deprecated_behavior": [
+    {
+      "removed": "wma:kill_switch* Redis writers",
+      "reason": "CLAUDE.md forbids writing old Redis keys"
+    },
+    {
+      "removed": "fail_open_on_missing_redis_client",
+      "reason": "Replaced by fail_closed deny + missing_runtime_evidence flag"
+    },
+    {
+      "removed": "RiskGateResult.meta propagation",
+      "reason": "Not part of the V2 RiskDecisionRecord contract"
+    },
+    {
+      "removed": "In-worker adaptive_gate / risk_state_machine / kill_switch invocation",
+      "reason": "Those are upstream of the orchestrator decision; the V2 gate is the terminal stamp."
+    },
+    {
+      "removed": "LIVE_TRADING_ENABLED env flag handling",
+      "reason": "Default status LIVE TRADING: BLOCKED is enforced unconditionally."
+    }
+  ],
+  "tests_added_at_v2_seam": [
+    "test_happy_path_open_long_stamps_allow_proceed_long_but_gate_stays_blocked_human_only",
+    "test_low_confidence_abstain_stamps_deny_orchestrator_abstained",
+    "test_stale_feature_abstain_stamps_deny_orchestrator_abstained",
+    "test_missing_input_payload_fails_closed_with_missing_runtime_evidence",
+    "test_gate_always_blocked_invariant_holds_for_every_decision_action",
+    "test_worker_has_no_old_redis_writer_codepath",
+    "test_worker_has_no_real_exchange_codepath",
+    "test_symbol_universe_contract_required_in_public_payload",
+    "test_legacy_kill_switch_key_references_listed_for_audit_only",
+    "test_required_public_payload_fields_present",
+    "test_legacy_bot_shutdown_classifies_missing_runtime_evidence"
+  ],
+  "confidence": "HIGH",
+  "missing_evidence": []
+}
