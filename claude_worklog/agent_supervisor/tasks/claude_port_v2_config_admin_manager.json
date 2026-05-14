@@ -29,7 +29,8 @@
     "train_or_trade_all_discovered_symbols_automatically",
     "coinank_symbols_treated_as_tradable_without_binance_usdm_confirmation"
   ],
-  "depends_on": "replaces OPTIONS skeletons in v2/backend/app/api/v1/accounts.py, governance.py, claude_admin.py",
+  "depends_on": [],
+  "implementation_note": "replaces OPTIONS skeletons in v2/backend/app/api/v1/accounts.py, governance.py, claude_admin.py",
   "required_output_files": [
     "v2/backend/app/cli/v2_config_admin_manager.py",
     "v2/backend/app/services/config_admin/service.py",
