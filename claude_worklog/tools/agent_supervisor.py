@@ -1925,6 +1925,78 @@ def has_active_process_for_task(task_id: str) -> bool:
         return False
 
 
+def terminate_task_process(task_id: str, state: Dict[str, Any], reason: str) -> List[int]:
+    """Best-effort termination for stale task children before retrying."""
+    pids: List[int] = []
+    raw_pid = state.get("run_pid")
+    try:
+        pid = int(raw_pid)
+        if pid > 0:
+            pids.append(pid)
+    except Exception:
+        pass
+
+    try:
+        proc = subprocess.run(
+            ["pgrep", "-af", task_id],
+            cwd=str(WORKSPACE_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=5,
+        )
+        if proc.returncode == 0:
+            for ln in (proc.stdout or "").splitlines():
+                ln = ln.strip()
+                if not ln or "pgrep -af" in ln:
+                    continue
+                first = ln.split(maxsplit=1)[0]
+                try:
+                    pid = int(first)
+                except Exception:
+                    continue
+                if pid > 0 and pid not in pids:
+                    pids.append(pid)
+    except Exception:
+        pass
+
+    terminated: List[int] = []
+    for pid in pids:
+        if not process_alive(pid):
+            continue
+        try:
+            os.killpg(pid, signal.SIGTERM)
+            terminated.append(pid)
+            continue
+        except Exception:
+            pass
+        try:
+            os.kill(pid, signal.SIGTERM)
+            terminated.append(pid)
+        except Exception:
+            pass
+
+    if terminated:
+        append_event({
+            "event": "stale_task_process_terminated",
+            "task_id": task_id,
+            "reason": reason,
+            "pids": terminated,
+        })
+        time.sleep(2)
+        for pid in terminated:
+            if not process_alive(pid):
+                continue
+            try:
+                os.killpg(pid, signal.SIGKILL)
+            except Exception:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except Exception:
+                    pass
+    return terminated
+
+
 def task_last_output_growth_ts(summary_path: pathlib.Path, stdout_path: pathlib.Path, stderr_path: pathlib.Path) -> Optional[float]:
     ts: List[float] = []
     for p in [summary_path, stdout_path, stderr_path]:
@@ -2058,6 +2130,7 @@ def reconcile_stale_running_tasks() -> int:
         retry_count_increment = 0
         materialized: List[str] = []
         attention_reason: Optional[str] = None
+        terminated_pids: List[int] = []
 
         if not required_missing and not active:
             status = "completed"
@@ -2096,6 +2169,13 @@ def reconcile_stale_running_tasks() -> int:
         if not status:
             continue
 
+        if active and (
+            "no_output_growth" in alerts
+            or "no_event" in alerts
+            or "stale_running_no_process" in alerts
+        ):
+            terminated_pids = terminate_task_process(task_id, state, reason or "; ".join(alerts))
+
         start_time = None
         last_run = state.get("last_run") or {}
         if isinstance(last_run, dict):
@@ -2129,6 +2209,7 @@ def reconcile_stale_running_tasks() -> int:
             "next_recommended_action": "continue queue if completed; Codex takeover while Claude is rate-limited; retry later if blocked_quota/retry_scheduled; human review only if final live gate",
             "materialized_files": materialized,
             "run_pid": None,
+            "terminated_pids": terminated_pids,
         }
         write_json(summary_path, run_summary)
         write_json(CURRENT_STATUS_FILE, run_summary)
