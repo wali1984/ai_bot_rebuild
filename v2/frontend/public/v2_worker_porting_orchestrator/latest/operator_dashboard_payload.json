@@ -1,81 +1,16 @@
 {
-  "as_of_utc": "2026-05-13T22:11:28Z",
+  "as_of_utc": "2026-05-14T10:30:55Z",
   "blocked_workers": [],
   "completed_workers": [
-    "v2_feature_snapshot_builder"
-  ],
-  "current_claude_task": null,
-  "current_codex_task": null,
-  "current_worker": "v2_risk_gateway_runtime_worker",
-  "final_approval_token": "absent",
-  "git_classification": {
-    "available": true,
-    "buckets": {
-      "active_daemon_owned": 20,
-      "active_task_owned": 106,
-      "durable_artifact_to_commit": 0,
-      "runtime_churn_to_ignore": 0,
-      "unsafe_unknown": 151
-    },
-    "preview_unsafe_unknown": [
-      ".claude/settings.local.json",
-      "claude_worklog/agent_supervisor/CLAUDE_QUOTA_CHECK_OUTPUT.txt",
-      "claude_worklog/agent_supervisor/tasks/claude_port_v2_account_position_monitor.json",
-      "claude_worklog/agent_supervisor/tasks/claude_port_v2_coinank_liquidation_bridge.json",
-      "claude_worklog/agent_supervisor/tasks/claude_port_v2_config_admin_manager.json",
-      "claude_worklog/agent_supervisor/tasks/claude_port_v2_execution_ledger_worker.json",
-      "claude_worklog/agent_supervisor/tasks/claude_port_v2_feature_snapshot_builder.json",
-      "claude_worklog/agent_supervisor/tasks/claude_port_v2_market_ingestor.json",
-      "claude_worklog/agent_supervisor/tasks/claude_port_v2_orchestrator_adapter.json",
-      "claude_worklog/agent_supervisor/tasks/claude_port_v2_p2_binance_usdm_adapter_stub.json",
-      "claude_worklog/agent_supervisor/tasks/claude_port_v2_p2_default_blocked_execution_adapter_stub.json",
-      "claude_worklog/agent_supervisor/tasks/claude_port_v2_p2_deployment_helpers.json",
-      "claude_worklog/agent_supervisor/tasks/claude_port_v2_paper_execution_worker.json",
-      "claude_worklog/agent_supervisor/tasks/claude_port_v2_replay_worker.json",
-      "claude_worklog/agent_supervisor/tasks/claude_port_v2_risk_gateway_runtime_worker.json",
-      "claude_worklog/agent_supervisor/tasks/claude_port_v2_script_monitor.json",
-      "claude_worklog/agent_supervisor/tasks/claude_port_v2_signal_lineage_worker.json",
-      "claude_worklog/agent_supervisor/tasks/claude_port_v2_signal_publisher.json",
-      "claude_worklog/agent_supervisor/tasks/claude_port_v2_trainer_bridge.json",
-      "claude_worklog/agent_supervisor/tasks/codex_review_v2_account_position_monitor.json",
-      "claude_worklog/agent_supervisor/tasks/codex_review_v2_coinank_liquidation_bridge.json",
-      "claude_worklog/agent_supervisor/tasks/codex_review_v2_config_admin_manager.json",
-      "claude_worklog/agent_supervisor/tasks/codex_review_v2_execution_ledger_worker.json",
-      "claude_worklog/agent_supervisor/tasks/codex_review_v2_feature_snapshot_builder.json",
-      "claude_worklog/agent_supervisor/tasks/codex_review_v2_market_ingestor.json",
-      "claude_worklog/agent_supervisor/tasks/codex_review_v2_orchestrator_adapter.json",
-      "claude_worklog/agent_supervisor/tasks/codex_review_v2_p2_binance_usdm_adapter_stub.json",
-      "claude_worklog/agent_supervisor/tasks/codex_review_v2_p2_default_blocked_execution_adapter_stub.json",
-      "claude_worklog/agent_supervisor/tasks/codex_review_v2_p2_deployment_helpers.json",
-      "claude_worklog/agent_supervisor/tasks/codex_review_v2_paper_execution_worker.json",
-      "claude_worklog/agent_supervisor/tasks/codex_review_v2_replay_worker.json",
-      "claude_worklog/agent_supervisor/tasks/codex_review_v2_risk_gateway_runtime_worker.json",
-      "claude_worklog/agent_supervisor/tasks/codex_review_v2_script_monitor.json",
-      "claude_worklog/agent_supervisor/tasks/codex_review_v2_signal_lineage_worker.json",
-      "claude_worklog/agent_supervisor/tasks/codex_review_v2_signal_publisher.json",
-      "claude_worklog/agent_supervisor/tasks/codex_review_v2_trainer_bridge.json",
-      "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json",
-      "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.md",
-      "claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json",
-      "claude_worklog/historical_pnl_audit/01_DATA_SOURCE_STATUS.md"
-    ],
-    "total_dirty": 277
-  },
-  "git_corruption_detected": false,
-  "go_no_go": "V2_AUTONOMOUS_WORKER_PORTING_ORCHESTRATOR_READY",
-  "in_flight_workers": [],
-  "last_completed_worker": "v2_feature_snapshot_builder",
-  "legacy_backfill_required_workers": [
-    "v2_feature_snapshot_builder"
-  ],
-  "legacy_baseline_required_workers": [
+    "v2_feature_snapshot_builder",
+    "v2_market_ingestor_from_legacy_baseline",
+    "v2_coinank_and_liquidation_bridge_from_legacy_baseline",
+    "v2_feature_pipeline_and_ta_worker_from_legacy_baseline",
     "v2_risk_gateway_runtime_worker",
     "v2_paper_execution_worker",
     "v2_execution_ledger_worker",
     "v2_signal_lineage_worker",
     "v2_account_position_monitor",
-    "v2_market_ingestor",
-    "v2_coinank_liquidation_bridge",
     "v2_trainer_bridge",
     "v2_orchestrator_adapter",
     "v2_signal_publisher",
@@ -86,19 +21,76 @@
     "v2_p2_binance_usdm_adapter_stub",
     "v2_p2_deployment_helpers"
   ],
+  "current_claude_task": null,
+  "current_codex_task": null,
+  "current_worker": null,
+  "final_approval_token": "absent",
+  "git_classification": {
+    "available": true,
+    "buckets": {
+      "active_daemon_owned": 24,
+      "active_task_owned": 108,
+      "durable_artifact_to_commit": 2,
+      "runtime_churn_to_ignore": 1,
+      "unsafe_unknown": 113
+    },
+    "preview_unsafe_unknown": [
+      ".claude/settings.local.json",
+      "claude_worklog/agent_supervisor/CLAUDE_QUOTA_CHECK_OUTPUT.txt",
+      "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json",
+      "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.md",
+      "claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json",
+      "claude_worklog/historical_pnl_audit/01_DATA_SOURCE_STATUS.md",
+      "claude_worklog/legacy_readonly_audit/01_PROCESS_SNAPSHOT.md",
+      "claude_worklog/legacy_readonly_audit/03_LEGACY_CODE_FUNCTION_INVENTORY.md",
+      "claude_worklog/legacy_readonly_audit/07_ORCHESTRATOR_TRADER_RUNTIME_EVIDENCE.md",
+      "claude_worklog/tools/build_active_autonomous_dispatch_packet.py",
+      "claude_worklog/tools/v2_worker_porting_orchestrator.py",
+      "v2/frontend/public/active_autonomous_dispatch/latest/ACTIVE_AUTONOMOUS_PRIMARY_DISPATCH_AND_SCRIPT_MIGRATION_PROOF_REPORT.md",
+      "v2/frontend/public/active_autonomous_dispatch/latest/CLAUDE_IDLE_AND_DISPATCH_DIAGNOSTIC.md",
+      "v2/frontend/public/active_autonomous_dispatch/latest/CODEX_PARALLEL_DISPATCH_PROOF.md",
+      "v2/frontend/public/active_autonomous_dispatch/latest/PRIMARY_DISPATCH_PROOF.md",
+      "v2/frontend/public/active_autonomous_dispatch/latest/claude_idle_and_dispatch_diagnostic.json",
+      "v2/frontend/public/active_autonomous_dispatch/latest/codex_parallel_dispatch_state.json",
+      "v2/frontend/public/active_autonomous_dispatch/latest/primary_dispatch_state.json",
+      "v2/frontend/public/always_on_claude_codex_runtime/latest/always_on_runtime_state.json",
+      "v2/frontend/public/always_on_claude_codex_runtime/latest/automation_utilization_status.json",
+      "v2/frontend/public/always_on_claude_codex_runtime/latest/git_dirty_state.json",
+      "v2/frontend/public/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json",
+      "v2/frontend/public/documentation_governance/latest/doc_update_policy.json",
+      "v2/frontend/public/non_drift_governor_lock/latest/CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md",
+      "v2/frontend/public/non_drift_governor_lock/latest/GOVERNOR_PRIORITY_POLICY.md",
+      "v2/frontend/public/non_drift_governor_lock/latest/NEXT_TASKS_BY_LANE.md",
+      "v2/frontend/public/non_drift_governor_lock/latest/PRIMARY_OBJECTIVE_LOCK.md",
+      "v2/frontend/public/non_drift_governor_lock/latest/next_tasks_by_lane.json",
+      "v2/frontend/public/non_drift_governor_lock/latest/objective_drift_status.json",
+      "v2/frontend/public/operator_truth/latest/operator_truth_bridge_payload.json",
+      "v2/frontend/public/operator_truth/latest/operator_truth_payload.json",
+      "v2/frontend/public/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md",
+      "v2/frontend/public/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md",
+      "v2/frontend/public/operator_truth_recovery/latest/MISSING_EVIDENCE_REGISTER.md",
+      "v2/frontend/public/operator_truth_recovery/latest/OPERATOR_TRUTH_DASHBOARD_AND_REALTIME_TRAINER_MONITOR_REPORT.md",
+      "v2/frontend/public/operator_truth_recovery/latest/REALTIME_TRAINER_MONITOR_REPORT.md",
+      "v2/frontend/public/operator_truth_recovery/latest/SUPERVISOR_STATE_TRUTH_REPORT.md",
+      "v2/frontend/public/operator_truth_recovery/latest/operator_truth_payload.json",
+      "v2/frontend/public/operator_truth_recovery/latest/realtime_legacy_monitor_status.json",
+      "v2/frontend/public/operator_truth_recovery/latest/realtime_trainer_monitor_status.json"
+    ],
+    "total_dirty": 248
+  },
+  "git_corruption_detected": false,
+  "go_no_go": "V2_AUTONOMOUS_WORKER_PORTING_ORCHESTRATOR_READY",
+  "in_flight_workers": [],
+  "last_completed_worker": "v2_p2_deployment_helpers",
+  "legacy_backfill_required_workers": [
+    "v2_feature_snapshot_builder"
+  ],
+  "legacy_baseline_required_workers": [],
   "live_gate": "blocked_human_only",
   "next_action": {
-    "backfill_required_workers": [
-      "v2_feature_snapshot_builder"
-    ],
-    "follow_up": "claude_must_read_legacy_reference_and_emit_baseline_analysis_before_implementation",
-    "kind": "dispatch_legacy_baseline_analysis",
-    "next_worker": "v2_risk_gateway_runtime_worker",
-    "required_files": [
-      "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_risk_gateway_runtime_worker_LEGACY_BASELINE_ANALYSIS.md",
-      "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_risk_gateway_runtime_worker_legacy_behavior_mapping.json"
-    ],
-    "task_descriptor": "claude_worklog/agent_supervisor/tasks/claude_port_v2_risk_gateway_runtime_worker.json"
+    "follow_up": "proceed_to_v2_local_online_bootstrap_paper_shadow_only",
+    "kind": "all_workers_complete",
+    "next_worker": null
   },
   "primary_objective_lock": [
     "v2_independent_paper_shadow_runtime",
@@ -108,21 +100,25 @@
     "no_exchange_actions"
   ],
   "progress_p0": {
-    "complete": 1,
-    "total": 6
+    "complete": 9,
+    "total": 9
   },
   "progress_p1": {
-    "complete": 0,
-    "total": 8
+    "complete": 6,
+    "total": 6
   },
   "progress_p2": {
-    "complete": 0,
+    "complete": 3,
     "total": 3
   },
   "queued_workers": [],
   "redis_trim_approval": "absent",
   "remediation_required_workers": [],
+  "source_paths": [
+    "claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/worker_porting_state.json",
+    "claude_worklog/tools/v2_worker_porting_orchestrator.py"
+  ],
   "supersedes": "manual_worker_by_worker_prompting",
   "task_id": "v2_worker_porting_orchestrator",
-  "v2_local_online_state": "V2_LOCAL_ONLINE_DEGRADED_P0_INCOMPLETE"
+  "v2_local_online_state": "V2_LOCAL_ONLINE_P0_READY_PAPER_SHADOW_ONLY"
 }

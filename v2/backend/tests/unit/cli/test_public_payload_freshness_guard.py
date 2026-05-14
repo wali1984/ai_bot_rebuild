@@ -90,6 +90,30 @@ def test_guard_accepts_worker_status_last_run_ts_and_worker_id(tmp_path) -> None
     assert result["payload_results"][0]["generated_at"] == "2026-05-13T00:00:00Z"
 
 
+def test_guard_accepts_dashboard_as_of_utc_freshness(tmp_path) -> None:
+    _write(
+        tmp_path / "v2/frontend/public/example/latest/operator_dashboard_payload.json",
+        """
+        {
+          "task_id": "example",
+          "as_of_utc": "2026-05-13T00:00:00Z",
+          "source_paths": ["claude_worklog/final_readiness/example/latest/operator_dashboard_payload.json"],
+          "live_gate": "blocked_human_only",
+          "go_no_go": "EXAMPLE_READY"
+        }
+        """,
+    )
+
+    result = build_guard(
+        tmp_path,
+        now=datetime(2026, 5, 13, 0, 1, tzinfo=timezone.utc),
+        stale_after_seconds=120,
+    )
+
+    assert result["result"] == "PASS"
+    assert result["payload_results"][0]["generated_at"] == "2026-05-13T00:00:00Z"
+
+
 def test_guard_accepts_ready_worker_payload_with_snapshot_source_evidence(tmp_path) -> None:
     _write(
         tmp_path / "v2/frontend/public/operator_runtime/v2_worker/latest/v2_worker_status.json",

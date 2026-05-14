@@ -1,6 +1,10 @@
 {
   "task_id": "legacy_based_worker_porting_enforcement",
   "as_of_utc": "2026-05-13T22:10:00Z",
+  "source_paths": [
+    "claude_worklog/final_readiness/legacy_based_worker_porting_enforcement/latest/operator_dashboard_payload.json",
+    "claude_worklog/tools/v2_worker_porting_orchestrator.py"
+  ],
   "go_no_go": "LEGACY_BASED_WORKER_PORTING_ENFORCEMENT_PATCH_READY",
   "live_gate": "blocked_human_only",
   "patch_summary": {

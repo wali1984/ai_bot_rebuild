@@ -1,6 +1,11 @@
 {
   "task_id": "legacy_startup_baseline_v2_migration",
   "as_of_utc": "2026-05-13T23:10:00Z",
+  "source_paths": [
+    "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/operator_dashboard_payload.json",
+    "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/copied_baseline_manifest.json",
+    "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/ENV_PARITY_FOR_BASELINE_REPORT.md"
+  ],
   "go_no_go": "LEGACY_STARTUP_BASELINE_TO_V2_WORKER_MIGRATION_READY",
   "live_gate": "blocked_human_only",
   "final_approval_token": "absent",

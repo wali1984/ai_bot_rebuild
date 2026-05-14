@@ -134,6 +134,7 @@ def _approval_token_exists(root: Path) -> bool:
 def inspect_payload(path: Path, payload: dict[str, Any], *, root: Path, now: datetime, stale_after_seconds: int) -> dict[str, Any]:
     generated_at = (
         payload.get("generated_at")
+        or payload.get("as_of_utc")
         or payload.get("last_run_ts")
         or payload.get("updated_at")
         or payload.get("timestamp")

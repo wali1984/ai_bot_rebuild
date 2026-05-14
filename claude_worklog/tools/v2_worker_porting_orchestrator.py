@@ -678,6 +678,10 @@ def render_dashboard_payload(state: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "task_id": "v2_worker_porting_orchestrator",
         "as_of_utc": state["as_of_utc"],
+        "source_paths": [
+            "claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/worker_porting_state.json",
+            "claude_worklog/tools/v2_worker_porting_orchestrator.py",
+        ],
         "go_no_go": "V2_AUTONOMOUS_WORKER_PORTING_ORCHESTRATOR_READY",
         "live_gate": state["live_gate"],
         "final_approval_token": state["final_approval_token"],
