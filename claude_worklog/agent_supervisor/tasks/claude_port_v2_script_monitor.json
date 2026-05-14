@@ -28,7 +28,8 @@
     "train_or_trade_all_discovered_symbols_automatically",
     "coinank_symbols_treated_as_tradable_without_binance_usdm_confirmation"
   ],
-  "depends_on": "replaces placeholder v2/backend/app/services/monitor_runner.py",
+  "depends_on": [],
+  "implementation_note": "replaces placeholder v2/backend/app/services/monitor_runner.py",
   "required_output_files": [
     "v2/backend/app/cli/v2_script_monitor.py",
     "v2/backend/app/services/monitor_runner.py",
