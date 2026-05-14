@@ -99,5 +99,7 @@
   "symbol_universe_contract": "SYMBOL_UNIVERSE_CONTRACT_REQUIRED",
   "required_input_files": [
     "v2/backend/app/services/symbol_universe/service.py"
-  ]
+  ],
+  "no_output_growth_timeout_seconds": 600,
+  "no_event_timeout_seconds": 900
 }
