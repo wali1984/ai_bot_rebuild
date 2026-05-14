@@ -29,7 +29,10 @@
     "train_or_trade_all_discovered_symbols_automatically",
     "coinank_symbols_treated_as_tradable_without_binance_usdm_confirmation"
   ],
-  "depends_on": "live_block_guard middleware (already present); this task adds an explicit fail-closed worker stub above it",
+  "depends_on": [
+    "v2/backend/app/api/middleware/live_block_guard.py"
+  ],
+  "implementation_note": "live_block_guard middleware already present; this task adds an explicit fail-closed worker stub above it",
   "required_output_files": [
     "v2/backend/app/cli/v2_default_blocked_execution_adapter_stub.py",
     "v2/backend/app/services/default_blocked_execution_adapter/service.py",
