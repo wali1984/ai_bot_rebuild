@@ -1,0 +1,26 @@
+{
+  "phase": "D_trainer_source_function_config_atlas",
+  "classifications": {
+    "TRAINER_SOURCE_MAPPED": true,
+    "TRAINER_CONFIG_MAPPED": true,
+    "TRAINER_DEPENDENCIES_COMPLETE": "partial",
+    "TRAINER_DEPENDENCIES_INCOMPLETE": ["ingest_namespace_cross_link", "binance_websocket_unresolved", "hybrid_rule_based_signals_unresolved", "torch_not_installed", "stable_baselines3_not_installed", "cloudpickle_not_installed", "gymnasium_not_installed"],
+    "TRAINER_GPU_RUNTIME_MAPPED": true,
+    "TRAINER_CHECKPOINT_MAPPED": "partial_text_only",
+    "TRAINER_CHECKPOINT_MISSING": "binary_blobs_inventoried_only_not_committed",
+    "TRAINER_CONFIDENCE_MAPPED": true,
+    "TRAINER_CONFIDENCE_INCOMPLETE": false,
+    "WRAPPER_NOT_LEGACY_HYBRID_PARITY": true
+  },
+  "trainer_entry": "rl/hybrid_trainer.py",
+  "preserved_at": "v2/legacy_preserved/full_runtime_closure/rl/",
+  "v2_target_port": "claude_port_v2_trainer_bridge",
+  "v2_port_state": "BLOCKED_BY_TRAINER_PARITY_WRAPPER_NOT_LEGACY_HYBRID_PARITY",
+  "next_step": "trainer-bridge port must enumerate each rl/ helper module in its LEGACY_BASELINE_ANALYSIS.md before any V2 trainer code is written",
+  "binary_checkpoint_blobs": {
+    "in_legacy": "present (not enumerated by this phase)",
+    "preserved_in_v2": false,
+    "inventoried": "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/binary_artifacts_skipped.json (139 entries)",
+    "operator_decision_required": "whether to commit checkpoints (large) or store separately"
+  }
+}

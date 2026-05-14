@@ -1,0 +1,35 @@
+{
+  "phase": "G_v2_parity_gap_matrix",
+  "summary_counts": {
+    "FULLY_MIGRATED": 0,
+    "PARTIALLY_MIGRATED": 5,
+    "READONLY_BRIDGED_PAPER_ONLY": 1,
+    "FAIL_CLOSED_STUB": 2,
+    "MISSING_IN_V2": 4,
+    "BLOCKED_BY_TRAINER_PARITY": 1,
+    "NEEDS_TEST": 1,
+    "NEEDS_CODE_PORT": 3,
+    "CODEX_PASS_BUT_LEGACY_BACKFILL_REQUIRED": 1
+  },
+  "per_worker": [
+    {"worker": "v2_trainer_bridge", "classification": "BLOCKED_BY_TRAINER_PARITY", "legacy_files": ["rl/hybrid_trainer.py", "rl/*.py (120+)"]},
+    {"worker": "v2_orchestrator_adapter", "classification": "PARTIALLY_MIGRATED", "legacy_files": ["rl/orchestrator_worker.py", "rl/tradeplan_orchestrator.py", "rl/proposal_hedge_preflight.py", "rl/decision_trace.py"]},
+    {"worker": "v2_signal_publisher", "classification": "MISSING_IN_V2", "legacy_files": ["utils/signal_publish.py", "utils/signal_schema.py", "trading/signal_router.py", "trading/coinank_signal_adapter.py"]},
+    {"worker": "v2_signal_lineage_worker", "classification": "PARTIALLY_MIGRATED", "legacy_files": ["rl/decision_trace.py", "utils/signal_publish.py"]},
+    {"worker": "v2_risk_gateway_runtime_worker", "classification": "PARTIALLY_MIGRATED_NEEDS_TEST", "legacy_files": ["risk/*.py (22)", "trading/depth_execution_gate.py", "trading/fee_ratio_gate.py", "trading/adaptive_edge_gate.py"]},
+    {"worker": "v2_paper_execution_worker", "classification": "READONLY_BRIDGED_PAPER_ONLY", "legacy_files": ["trading/execution_engine.py", "trading/maker_execution.py", "trading/base_executor.py"]},
+    {"worker": "v2_execution_ledger_worker", "classification": "PARTIALLY_MIGRATED", "legacy_files": ["trading/position_reporter.py", "utils/decision_bus.py"]},
+    {"worker": "v2_account_position_monitor", "classification": "MISSING_IN_V2", "legacy_files": ["services/portfolio_state.py", "services/portfolio_publisher.py", "monitor_portfolio_primary.py", "monitor_portfolio_asjad.py", "utils/unified_position_loader.py"]},
+    {"worker": "v2_market_ingestor_from_legacy_baseline", "classification": "NEEDS_CODE_PORT", "legacy_files": ["ingest/live_binance.py", "ingest/live_kucoin.py", "ingest/realtime_price_provider.py", "ingest/live_coinapi_v1.py", "ingest/live_coinapi_wsds.py"]},
+    {"worker": "v2_coinank_and_liquidation_bridge_from_legacy_baseline", "classification": "NEEDS_CODE_PORT", "legacy_files": ["ingest/live_coinank.py", "ingest/live_coinank_global_aggregator.py", "ingest/live_binance_liquidations.py", "ingest/liquidation_bridge.py", "ingest/liquidation_levels_engine.py"]},
+    {"worker": "v2_feature_pipeline_and_ta_worker_from_legacy_baseline", "classification": "NEEDS_CODE_PORT", "legacy_files": ["feature_pipeline.py", "ohlcv_resampler_hotfix.py", "ingest/live_technical_analysis.py", "scripts/validate_symbol_universe_data.py", "scripts/paralysis_detectors.py", "rl/unified_feature_builder.py", "rl/obs_schema.py"]},
+    {"worker": "v2_feature_snapshot_builder", "classification": "CODEX_PASS_BUT_LEGACY_BACKFILL_REQUIRED", "legacy_files": ["rl/unified_feature_builder.py", "rl/obs_schema.py"]},
+    {"worker": "v2_replay_worker", "classification": "PARTIALLY_MIGRATED", "legacy_files": ["rl/replay_store.py", "rl/walk_forward_validation.py"]},
+    {"worker": "v2_script_monitor", "classification": "MISSING_IN_V2", "legacy_files": ["scripts/health_probe.py", "scripts/paralysis_detectors.py", "scripts/*"]},
+    {"worker": "v2_config_admin_manager", "classification": "MISSING_IN_V2", "legacy_files": ["config.py", "config_accounts.py", "utils/runtime_flags.py", "utils/preflight.py"]},
+    {"worker": "v2_p2_default_blocked_execution_adapter_stub", "classification": "FAIL_CLOSED_STUB", "legacy_files": ["trading/base_executor.py (signature reference)", "risk/assertions.py (gate reference)"]},
+    {"worker": "v2_p2_binance_usdm_adapter_stub", "classification": "FAIL_CLOSED_STUB", "legacy_files": ["utils/binance_rate_limiter.py", "trading/dynamic_margin_manager.py"]}
+  ],
+  "fully_migrated_count_is_zero_reason": "no V2 worker carries a LEGACY_BASELINE_ANALYSIS.md that cites SHA256 from the just-produced full_runtime_copied_source_manifest.json AND enumerates every legacy responsibility from Phases D/E/F",
+  "live_gate_implication": "must_remain_blocked_human_only"
+}

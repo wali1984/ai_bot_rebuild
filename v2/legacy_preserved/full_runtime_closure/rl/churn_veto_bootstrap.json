@@ -1,0 +1,27 @@
+{
+  "weights": {
+    "confidence": -2.0,
+    "toxicity": 3.0,
+    "spread_norm": 2.0,
+    "fast_move": 0.7,
+    "churn": 1.2,
+    "snapback": 1.2,
+    "entropy": 0.8
+  },
+  "bias": 0.0,
+  "meta": {
+    "trained": false,
+    "reason": "bootstrap_heuristic",
+    "features": [
+      "confidence",
+      "toxicity",
+      "spread_norm",
+      "fast_move",
+      "churn",
+      "snapback",
+      "entropy"
+    ],
+    "notes": "Bootstrap weights used until labeled churn telemetry accumulates; run rl/scripts/train_churn_veto.py to train from history."
+  }
+}
+

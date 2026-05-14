@@ -1,0 +1,3217 @@
+{
+  "phase": "B_full_runtime_closure_copy",
+  "legacy_root_existed": true,
+  "dry_run": false,
+  "targets_enumerated": 387,
+  "totals_by_status": {
+    "COPIED": 248,
+    "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION": 139
+  },
+  "records": [
+    {
+      "legacy_rel_path": "rl/ADDITIONAL_CRITICAL_FIXES.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/ADDITIONAL_CRITICAL_FIXES.py",
+      "sha256": "8683bf84248d1b661e7d8e4b1959e649222aac9d9a816aab3217d7abea2b78ce",
+      "size_bytes": 23769,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/AUDIT_RUNBOOK_TRAINER.md",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/AUDIT_RUNBOOK_TRAINER.md",
+      "sha256": "2e73f9c680797f35896a7738e407d1a1adf3ee58f67c1b77b83361e02996f18f",
+      "size_bytes": 16192,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/Audit enhacements.md",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/Audit enhacements.md",
+      "sha256": "439deca06230ce1f22adfae7e9b081595e391283e5f3c2af3020ff0c3a2b6b84",
+      "size_bytes": 138770,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/CRITICAL_HEDGE_AND_PORTFOLIO_FIX.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/CRITICAL_HEDGE_AND_PORTFOLIO_FIX.py",
+      "sha256": "ac80e827e9d24057f3926cf16e07797fa4a7e2c7f86d15b792cac44b6c7362a6",
+      "size_bytes": 58166,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/Dynamic Multi-Timeframe Multi-Asset Trading Trainer Architecture.docx",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/Dynamic Multi-Timeframe Multi-Asset Trading Trainer Architecture.docx",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.docx",
+      "size_bytes": 43562
+    },
+    {
+      "legacy_rel_path": "rl/ISSUES TO FIX.md",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/ISSUES TO FIX.md",
+      "sha256": "dc2e7906f3ac86f16f7ff6d3a632badaaf5e577fcfba7df4ab355ee6fac75b96",
+      "size_bytes": 41246,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/IssuesImplementationplan.md",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/IssuesImplementationplan.md",
+      "sha256": "58c27d37ea8aa80e59cbdfd13fba70dce4e5cc809440ac16cbaea994fefbe213",
+      "size_bytes": 42666,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/PATCH_README.md",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/PATCH_README.md",
+      "sha256": "a9c58d2ef42a2913aca46b05acf0b8a92dabb767a06df905b3abe2cc60261ced",
+      "size_bytes": 780,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/POSITION_MANAGER.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/POSITION_MANAGER.py",
+      "sha256": "ed0bbff0fdc7c6a3aa536f52b75a7674fb0f98b4b07613444233dab5f0aece9a",
+      "size_bytes": 10982,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/ROLLOUT_HANG_AUDIT.md",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/ROLLOUT_HANG_AUDIT.md",
+      "sha256": "d5e8060e6ba696358bb7d0e77edcc9169252e45fc71eca276413bc1779cb6e32",
+      "size_bytes": 19388,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/ROLLOUT_HANG_FIXES_APPLIED.md",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/ROLLOUT_HANG_FIXES_APPLIED.md",
+      "sha256": "40a9a0c4f29f7333052a4485a069a3d6de12ebef03b111f2aaadb982eba62c50",
+      "size_bytes": 7751,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/TRAINING_LOOP_FIX.md",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/TRAINING_LOOP_FIX.md",
+      "sha256": "ec936467d0f5e2f8f6f70f643ad60108f5a24fc2da64fbcfdb23e333d2af77bb",
+      "size_bytes": 6443,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/WIN_RATE_OPTIMIZER.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/WIN_RATE_OPTIMIZER.py",
+      "sha256": "8a1263cf44f1d886b6d98384962b898861e29f80946eaf7e06f30611abd6f4a6",
+      "size_bytes": 17072,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/ADDITIONAL_CRITICAL_FIXES.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/ADDITIONAL_CRITICAL_FIXES.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 22150
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/CRITICAL_HEDGE_AND_PORTFOLIO_FIX.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/CRITICAL_HEDGE_AND_PORTFOLIO_FIX.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 55912
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/WIN_RATE_OPTIMIZER.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/WIN_RATE_OPTIMIZER.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 20403
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/action_ontology.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/action_ontology.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 14588
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/advanced_risk_management.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/advanced_risk_management.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 19681
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/anti_churn_manager.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/anti_churn_manager.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 16709
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/btc_correlation.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/btc_correlation.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 12315
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/calibrated_confidence.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/calibrated_confidence.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 10463
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/churn_veto.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/churn_veto.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 7919
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/confidence_logger.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/confidence_logger.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 9235
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/constrained_reward.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/constrained_reward.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 12247
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/continuous_learner.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/continuous_learner.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 30162
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/cpu_env.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/cpu_env.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 48161
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/decision_trace.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/decision_trace.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 2999
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/drift_monitor.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/drift_monitor.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 24462
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/dynamic_runner_hedge.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/dynamic_runner_hedge.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 35169
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/enhanced_architectures.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/enhanced_architectures.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 23317
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/environment.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/environment.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 58632
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/execution_overlay.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/execution_overlay.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 4263
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/fastlane_detector.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/fastlane_detector.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 16517
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/feature_health.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/feature_health.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 16248
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/fee_ratio_reward_shaping.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/fee_ratio_reward_shaping.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 18368
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/gymnasium_wrapper.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/gymnasium_wrapper.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 15387
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/hedge_action_space.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/hedge_action_space.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 17355
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/hedge_budget_governor.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/hedge_budget_governor.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 4288
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/hedge_harvest_engine.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/hedge_harvest_engine.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 15396
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/hedge_manager_v3.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/hedge_manager_v3.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 104317
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/hedge_position_manager.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/hedge_position_manager.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 26341
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/hedge_reward_functions.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/hedge_reward_functions.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 16269
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/hybrid_action_space.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/hybrid_action_space.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 18045
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/hybrid_trainer.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/hybrid_trainer.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 2526627
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/increase_signal_validator.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/increase_signal_validator.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 11795
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/ingestor_quality_router.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/ingestor_quality_router.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 24260
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/intent_engine.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/intent_engine.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 7932
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/light_vec_env.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/light_vec_env.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 11604
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/light_worker.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/light_worker.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 4782
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/liquidation_prevention.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/liquidation_prevention.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 36180
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/market_context.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/market_context.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 33834
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/microstructure_overlay.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/microstructure_overlay.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 51490
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/microstructure_proactive.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/microstructure_proactive.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 50381
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/microstructure_source_router.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/microstructure_source_router.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 24740
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/moe_router.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/moe_router.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 21446
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/move_shock_engine.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/move_shock_engine.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 10928
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/mtf_position_builder.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/mtf_position_builder.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 16367
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/mtf_scenario_tags.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/mtf_scenario_tags.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 3644
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/obs_schema.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/obs_schema.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 20317
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/orchestrator_worker.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/orchestrator_worker.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 462804
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/portfolio_policy_manager.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/portfolio_policy_manager.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 52198
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/portfolio_recovery_allocator.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/portfolio_recovery_allocator.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 23891
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/position_context.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/position_context.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 8902
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/profit_bank.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/profit_bank.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 13007
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/promotion_controller.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/promotion_controller.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 42600
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/proposal_bus.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/proposal_bus.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 2883
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/proposal_hedge_preflight.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/proposal_hedge_preflight.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 3333
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/proposal_schema.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/proposal_schema.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 23487
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/replay_store.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/replay_store.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 22096
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/reward_functions.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/reward_functions.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 30893
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/scenario_engine.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/scenario_engine.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 3510
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/signal_state_manager.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/signal_state_manager.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 21546
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/ta_direction_oracle.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/ta_direction_oracle.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 19479
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/tf_aggregator.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/tf_aggregator.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 7088
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/threshold_ramper.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/threshold_ramper.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 13355
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/toxicity_shield.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/toxicity_shield.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 7169
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/trade_feedback.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/trade_feedback.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 44054
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/trade_proposal.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/trade_proposal.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 11707
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/tradeplan_orchestrator.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/tradeplan_orchestrator.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 62648
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/trainer_enhancements.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/trainer_enhancements.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 25149
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/uncertainty.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/uncertainty.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 16557
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/underwater_recovery_controller.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/underwater_recovery_controller.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 53007
+    },
+    {
+      "legacy_rel_path": "rl/__pycache__/warm_start.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/__pycache__/warm_start.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 15922
+    },
+    {
+      "legacy_rel_path": "rl/action_ontology.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/action_ontology.py",
+      "sha256": "961a0e418a723d790d4cc692fe337cdd2e383b0b53963efbdc051c12d6a7b9ce",
+      "size_bytes": 18533,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/advanced_risk_management.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/advanced_risk_management.py",
+      "sha256": "db2fc5c91f270f69790c4d3e25e9b6007384b6c788a2c6dc00cf3305cf829697",
+      "size_bytes": 20633,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/agents/__init__.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/agents/__init__.py",
+      "sha256": "54ae4759817cdf0acc7cc79d8ffb7dc6a1a1a6eb6ed12aa039c8a003d01b4547",
+      "size_bytes": 270,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/agents/__pycache__/__init__.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/agents/__pycache__/__init__.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 405
+    },
+    {
+      "legacy_rel_path": "rl/agents/__pycache__/masa_agent.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/agents/__pycache__/masa_agent.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 30926
+    },
+    {
+      "legacy_rel_path": "rl/agents/masa_agent.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/agents/masa_agent.py",
+      "sha256": "0c7496336ca00c0f006d9a294ea67e736e2c3f2a3e4202b98cd6925dff891080",
+      "size_bytes": 21109,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/anti_churn_manager.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/anti_churn_manager.py",
+      "sha256": "eed529a0a4c8748022615bb89dacbe4d44a84dc15f4ef42fe3356d499b475ea8",
+      "size_bytes": 13565,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/auto_contraction.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/auto_contraction.py",
+      "sha256": "7b17f435c80b5b1667169c00bfd700bed176a7a5cc81c400797e8c61a2213b7c",
+      "size_bytes": 22053,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/batch_utils.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/batch_utils.py",
+      "sha256": "deb232f07445c61cc9c68d4ec0df0fa16219aae6f44805901b6d00c314ce4ab3",
+      "size_bytes": 19496,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/btc_correlation.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/btc_correlation.py",
+      "sha256": "9f78638c7982ef21696c7bc8c29e0bde45f92d93c0b94971b8cba48a8f9857cf",
+      "size_bytes": 9608,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/calibrated_confidence.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/calibrated_confidence.py",
+      "sha256": "03c56d7e3345444e9f285de3bee596573b3ca8d05ee4f3a26aef56e032806d90",
+      "size_bytes": 9767,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/checkpoint_manager.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/checkpoint_manager.py",
+      "sha256": "151d8808d53b7ba00edc4411569ba2f86519154d52da1997b300cec14c3e1ba8",
+      "size_bytes": 12300,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/churn_veto.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/churn_veto.py",
+      "sha256": "2c81e961b69c557dd684293cdcc6540fb7980ad42a404c5c8d08c24f9b241c74",
+      "size_bytes": 5684,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/churn_veto_bootstrap.json",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/churn_veto_bootstrap.json",
+      "sha256": "893be52f0a43dee81ee215d69f6df7c9d8e0b33c0ce3f8ee3e8978b62fec035a",
+      "size_bytes": 555,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/coinapi_symbol_map.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/coinapi_symbol_map.py",
+      "sha256": "12d7e247e20f63c8b9c963ea965b3fa4c7419ed697fd3ecf86e30c2c4d25e99d",
+      "size_bytes": 14322,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/confidence_gates.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/confidence_gates.py",
+      "sha256": "0f51194d182f58c1c2b885d4682c8b698ecd5fbfc53537d7af8c5621b373ab7c",
+      "size_bytes": 21453,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/confidence_logger.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/confidence_logger.py",
+      "sha256": "4c2ff023e56ac9c39700deb47316f36fa944923d0b3c8d63ac4c5aa070eb79e0",
+      "size_bytes": 7577,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/constrained_reward.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/constrained_reward.py",
+      "sha256": "69ff3c75b53d8d3d7844894954cf9d16f334e79e0c1bd39e9624a4482a459b2e",
+      "size_bytes": 10861,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/continuous_learner.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/continuous_learner.py",
+      "sha256": "0ec6067f907cc6758b111af2b60bc0e1007561759f191feb10a3d04bf5557e73",
+      "size_bytes": 23036,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/contract_enrichment.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/contract_enrichment.py",
+      "sha256": "889b9348b9a490bb2cefafa9965712614d45babcf642a7fedefe28a682b4fed5",
+      "size_bytes": 7037,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/cpu_env.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/cpu_env.py",
+      "sha256": "dd4c79311cf636456bab8dc5955aaaf42adbd44212319333e45ef98a7bdef0c3",
+      "size_bytes": 47421,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/decision_trace.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/decision_trace.py",
+      "sha256": "98a53dbc046c8c9e83b183061503326df865bf113e1a3b5d11434f5d5c5bde28",
+      "size_bytes": 1890,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/drift_monitor.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/drift_monitor.py",
+      "sha256": "cf08caeb312943104fbe7e3a0a159d31921b25bd5ef93992d4bcb8c791bedaaa",
+      "size_bytes": 17578,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/dynamic_position_sizing.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/dynamic_position_sizing.py",
+      "sha256": "a8f8dcb5391892d13f3e8f66a84911a971cde7e7792202d90108df91bf71c4a9",
+      "size_bytes": 8922,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/dynamic_runner_hedge.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/dynamic_runner_hedge.py",
+      "sha256": "24494ad59c88c0badc57fe2ece460ced6fbabc1beae38018f81a34d9f2b53df2",
+      "size_bytes": 33342,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/enhanced_architectures.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/enhanced_architectures.py",
+      "sha256": "d7b2071a6c83edee5eb940d50e5578fb0b4dd14d54f9e577c65d2533409b8236",
+      "size_bytes": 23252,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/env_factory.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/env_factory.py",
+      "sha256": "a5c19466edc6c6f7a73b4f7fe43840c6c56d8660e828f0f7bfa5648f1a33a326",
+      "size_bytes": 858,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/environment.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/environment.py",
+      "sha256": "39866005417554c7f9552a64eddc14ec1024db7e22b432c844cfd1a8e7800b1d",
+      "size_bytes": 66775,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/execution_overlay.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/execution_overlay.py",
+      "sha256": "9e43d68a2d2203965e2258ba77064f22ad11353fe11c49c75200df59266f9dc2",
+      "size_bytes": 2952,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/fastlane_detector.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/fastlane_detector.py",
+      "sha256": "a43a66af4ae5156f8fa1b8d51604cb360b235b9255a09cc08ae3e572a5a3999e",
+      "size_bytes": 17975,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/feature_health.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/feature_health.py",
+      "sha256": "24da08060fcf34ecbf3553ff7f113ee91c249fb9a8c11946877dcac604fc9a77",
+      "size_bytes": 14055,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/fee_ratio_reward_shaping.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/fee_ratio_reward_shaping.py",
+      "sha256": "e7edce3e29a6bf7236329245ba4a14436dc6f6b0a249ad0ad3d05760570bfc06",
+      "size_bytes": 19427,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/global_safety_checks.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/global_safety_checks.py",
+      "sha256": "894e276acbd88edf57a6d0f19d6ab0e94752f0dff46eb6ca7424466c1b1eb2ab",
+      "size_bytes": 20908,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/gpu_batch_env.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/gpu_batch_env.py",
+      "sha256": "67a5021d57a3c16658c029da9a4d48cabb983a7d2fbc308ead25acd69743ce9e",
+      "size_bytes": 9954,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/gpu_cnn_policy.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/gpu_cnn_policy.py",
+      "sha256": "881cfdad7650e9114e14c24a8d3d7bc2cbb5a4c1ce2a5fa8cb3fe2d50d3b4062",
+      "size_bytes": 7843,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/gpu_env_wrapper.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/gpu_env_wrapper.py",
+      "sha256": "c92e87e422578c5e60d14156ae31e0d222d20f582e37e07b203ae382bb0344e9",
+      "size_bytes": 4829,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/gpu_environment.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/gpu_environment.py",
+      "sha256": "ac161654fde76b1e7f941a7cd8a772c08cb70a6bd5823051802dc43ab41465b2",
+      "size_bytes": 55463,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/gpu_environment.py.bak.pre_obs512",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/gpu_environment.py.bak.pre_obs512",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pre_obs512",
+      "size_bytes": 41418
+    },
+    {
+      "legacy_rel_path": "rl/gpu_forced_ppo.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/gpu_forced_ppo.py",
+      "sha256": "131c7b65a56a2908d6b6c167c1a888a2841bb14e38a489cbea153fe6e1b9bab8",
+      "size_bytes": 14212,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/gpu_optimized_trainer.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/gpu_optimized_trainer.py",
+      "sha256": "3203fbd34b6976a676d261f3bb2ac16ddc2bef1c80a4befc247e6cdf50bfe822",
+      "size_bytes": 13386,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/gpu_optimizer.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/gpu_optimizer.py",
+      "sha256": "77ae441ce01b2939d63cb4bd38c91901ed1257a44cec923ccc4a0f0eacf53407",
+      "size_bytes": 10030,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/gpu_saturation.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/gpu_saturation.py",
+      "sha256": "f6a3efab0f2382a0399569e28e4fa23ba9bba8d3eaee20e4fa3aff0d2bc96ddb",
+      "size_bytes": 18118,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/gymnasium_wrapper.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/gymnasium_wrapper.py",
+      "sha256": "61a086cb4a0a406ca67fe2035cf776b0c991bb9d7391572ce86e77aea0a16574",
+      "size_bytes": 14062,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/hedge_action_space.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/hedge_action_space.py",
+      "sha256": "bf7869acba78d469a53ca101425284477c66a6e011e9ae6613e8d4bee79b3b70",
+      "size_bytes": 13995,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/hedge_budget_governor.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/hedge_budget_governor.py",
+      "sha256": "9d9d40f0a62d850fe3bd2a6b23e61746a4c973e1cc1ee963cfa95a838255722b",
+      "size_bytes": 3178,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/hedge_harvest_engine.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/hedge_harvest_engine.py",
+      "sha256": "1368cf021fe6c707bd99bcffc4bbd6fe4785760073a2e7702df3a319732e8cb8",
+      "size_bytes": 14679,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/hedge_manager_v3.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/hedge_manager_v3.py",
+      "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+      "size_bytes": 119769,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/hedge_position_manager.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/hedge_position_manager.py",
+      "sha256": "e30064a51e2fc7ffa1f1d7beb1a23396b8799e0455b9c8eaf031d1c3ec1e5913",
+      "size_bytes": 22805,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/hedge_reward_functions.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/hedge_reward_functions.py",
+      "sha256": "54c1a5748ca61da84d3e697cf5260251f15cc802281c951f18b902bf522b41c9",
+      "size_bytes": 16526,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/hedge_rule_engine.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/hedge_rule_engine.py",
+      "sha256": "b0de9aaddad3cc89789406090aa2e4bfd2343b3ca7a220f4e6c83a3ef85684e3",
+      "size_bytes": 19916,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/historical_csv_loader.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/historical_csv_loader.py",
+      "sha256": "9e8bb701e6ab280b2e1c5635ad25b3646b82f02130ba4a583f25588058651670",
+      "size_bytes": 13197,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/historical_data_loader.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/historical_data_loader.py",
+      "sha256": "8529f4dc557394586fe487db22064c92d84e9910a01bcb1846c80d330ff0b2c7",
+      "size_bytes": 12283,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/historical_data_manager.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/historical_data_manager.py",
+      "sha256": "ac621e687b37b21548d315f82abecaf911b4d8fd1d43f9e872c7a079b690e778",
+      "size_bytes": 29727,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/hybrid_action_space.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/hybrid_action_space.py",
+      "sha256": "abc7ecf1e655e4a018eeedcb4ad675c7bb35e101d4b5a42d432132243aed6c23",
+      "size_bytes": 16553,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/hybrid_trainer.md",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/hybrid_trainer.md",
+      "sha256": "ac8c655e92cf1b1277f6668cc85ad125f9d151340c4beca60b4a623a9758b985",
+      "size_bytes": 12943,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/hybrid_trainer.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/hybrid_trainer.py",
+      "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+      "size_bytes": 3165342,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/hybrid_trainer.py.backup_indent_fix",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/hybrid_trainer.py.backup_indent_fix",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.backup_indent_fix",
+      "size_bytes": 2463990
+    },
+    {
+      "legacy_rel_path": "rl/increase_signal_validator.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/increase_signal_validator.py",
+      "sha256": "6b1dbcb61bac934038d7be3ca16721453e4eda7263c6f7527c5583f23c7d12a0",
+      "size_bytes": 13971,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/ingestor_quality_router.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/ingestor_quality_router.py",
+      "sha256": "05b98e8f6c01ca7a62ad1500935bb11f299842ca6fa79b5a198219aebc1222a1",
+      "size_bytes": 20836,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/intent_engine.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/intent_engine.py",
+      "sha256": "7d8d474237f08f3ab1f2775044f6e535c0a3934eb336c757b2cf4443f18b0975",
+      "size_bytes": 6648,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/light_vec_env.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/light_vec_env.py",
+      "sha256": "3abce4e72fcbee644659fb5be04bb201b8ec258548c4d4949d4f41f26bde3b0f",
+      "size_bytes": 9587,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/light_worker.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/light_worker.py",
+      "sha256": "406f3d1cc21757d24bb5136459ec8b67ec6ef9aa22dc6dbff8d46699fbbdc3a7",
+      "size_bytes": 3970,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/liquidation_prevention.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/liquidation_prevention.py",
+      "sha256": "d1ec2a58101bd640c5af1907cd7c3de5c4c2e713be57d765a4ee702da95b0f1e",
+      "size_bytes": 32510,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/market_context.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/market_context.py",
+      "sha256": "c7ae964771e6d5c4419b01b9ce1a88410e97bf70753644fd3f645e6bb3ef5254",
+      "size_bytes": 28082,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/masa_supervised_pretrainer.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/masa_supervised_pretrainer.py",
+      "sha256": "ad601984ff88cb303e05d75ffdf7323f1e9b47a31f86971b35aba3b750fa1256",
+      "size_bytes": 11500,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/metrics_tracker.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/metrics_tracker.py",
+      "sha256": "2bbc55abfd4590b0f0857d44187882be4c8db3ba88c80abb29f26c61801cb308",
+      "size_bytes": 7625,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/microstructure_aggregator.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/microstructure_aggregator.py",
+      "sha256": "92a927e3232b0a58971e471991daee51ebdf16d0565590cfe7f21293cfc9d7f4",
+      "size_bytes": 17421,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/microstructure_features.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/microstructure_features.py",
+      "sha256": "5cf76c803beabfa1a139f11790bbe6837cfaa94147bea0796e192a618d236fea",
+      "size_bytes": 20745,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/microstructure_overlay.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/microstructure_overlay.py",
+      "sha256": "eff2a1e69f5b839e46e8cad2f7dd77eb2697723e1ed945acc643471550d34f3b",
+      "size_bytes": 50596,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/microstructure_proactive.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/microstructure_proactive.py",
+      "sha256": "92946a87ebf60c6f6ae271da67b5ca9ab2d867ddd860df52b45c7d1bb9dfe43d",
+      "size_bytes": 65862,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/microstructure_source_router.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/microstructure_source_router.py",
+      "sha256": "71d58cb4d46e89eb9ff824dbe5d7c0559039df36a524625c740eb57a84762d7b",
+      "size_bytes": 20858,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/microstructure_tf_modifier.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/microstructure_tf_modifier.py",
+      "sha256": "c53746426954bfc1915ef1aa5ef8b0be8164e5b7b2fe7d11b6b102d5e1609039",
+      "size_bytes": 13329,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/minimum_hold_time.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/minimum_hold_time.py",
+      "sha256": "6ab470cf50b756134ccb420f42831481d4edc5951f14f8fa2ae7bebcf68fc1ae",
+      "size_bytes": 17687,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/moe_router.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/moe_router.py",
+      "sha256": "390c66f303fcff6d43ebc7ddd2149470faac8a97bf3af468083e6871973ecb62",
+      "size_bytes": 15031,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/move_shock_engine.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/move_shock_engine.py",
+      "sha256": "6fed058a3372fb816229d83737bac2aecf35cbfa25624ad7f48b02589dd4e13e",
+      "size_bytes": 7506,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/mtf_position_builder.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/mtf_position_builder.py",
+      "sha256": "802799ba7e89f088dc24af94605e7d46f89ce178c879d3dee4c7294f36fd207b",
+      "size_bytes": 14003,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/mtf_scenario_tags.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/mtf_scenario_tags.py",
+      "sha256": "c6e669fc072d976e61e85829ca2f28cb17b687290a6205bb6a547b3dddf8a93d",
+      "size_bytes": 2727,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/obs_schema.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/obs_schema.py",
+      "sha256": "9ec040fa1306ac28f4395aac103b104eb02644866ca8acec5577b155fd925f5f",
+      "size_bytes": 17346,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/old-trainer.md",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/old-trainer.md",
+      "sha256": "5875e4edb98cbc7625c747e10b58d1a35dee3f82fd71d22ddcba6c3f78f4400d",
+      "size_bytes": 19489,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/orchestrator_worker.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/orchestrator_worker.py",
+      "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+      "size_bytes": 522512,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/portfolio_aware_features.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/portfolio_aware_features.py",
+      "sha256": "4224832092df169348a34cfc7b53b23f429a730868e3b58d0517e5deb9d33d53",
+      "size_bytes": 18352,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/portfolio_policy_manager.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/portfolio_policy_manager.py",
+      "sha256": "01b9c54dd88734b0b916f3e7ad6108d1ef57feee5dc0e2ca1fad7c685df89c24",
+      "size_bytes": 61622,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/portfolio_recovery_allocator.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/portfolio_recovery_allocator.py",
+      "sha256": "d98f7d1b47cbe24c17d69df519b4b77126227ee9041d8e738468c7b25049adea",
+      "size_bytes": 20131,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/portfolio_risk_features.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/portfolio_risk_features.py",
+      "sha256": "9ba168b9e870486b6e1a19d022b445c1daad88d2f077a65b3861a8689f05c30f",
+      "size_bytes": 15814,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/position_context.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/position_context.py",
+      "sha256": "6eea0b34b555455e72504592ab37e77b1e85dee108d3ad7ae1daf27bca0b9ba9",
+      "size_bytes": 5757,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/position_monitor.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/position_monitor.py",
+      "sha256": "43bd067e2f0dbd5c654b6f7f403017d9ec5d73eb46e7a5efcc91869c9287cb16",
+      "size_bytes": 25650,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/production TA for trainer.md",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/production TA for trainer.md",
+      "sha256": "d1a163633f23533e9b33ece525383f83b6b68ca1f05130961555768da3086ebd",
+      "size_bytes": 74391,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/profit_bank.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/profit_bank.py",
+      "sha256": "dcfb004acf7e0f3254270229215244f5f4bb4f045dacfae6d59be6440996cdee",
+      "size_bytes": 8791,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/profit_freespace_rebalancer.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/profit_freespace_rebalancer.py",
+      "sha256": "7568aa44cd1c42348d550aa80ca9d2000192f07ef65f97c3ec58a8dbb89f0925",
+      "size_bytes": 7362,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/promotion_controller.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/promotion_controller.py",
+      "sha256": "ea8b42e030faf6592418e108b04e3bbb196952c6c1b70c8497bb67c2d56504a5",
+      "size_bytes": 38124,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/proposal_bus.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/proposal_bus.py",
+      "sha256": "e6c7657b7b70d32773792005274d9d1bb08df8bce45c95c86e67e1fc61f0934d",
+      "size_bytes": 2012,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/proposal_hedge_preflight.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/proposal_hedge_preflight.py",
+      "sha256": "5dfc002f6ff227c8198a35f0d6177192303d28198851ef28ea7e10a96bde0285",
+      "size_bytes": 2293,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/proposal_schema.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/proposal_schema.py",
+      "sha256": "fe56d0396f1b9aebfa231904e17a0ff8aa1c6ba74f49fc2b5bf81fe5fc22e593",
+      "size_bytes": 20810,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/replay_store.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/replay_store.py",
+      "sha256": "9a19bb30285b4bb44219853141315499d2de896d232eb10ad59dd21879556158",
+      "size_bytes": 14588,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/reward_functions.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/reward_functions.py",
+      "sha256": "87ef4602012cbbd944bdf506fb8f1646375e7732c3a93e87b0946db7a1cca853",
+      "size_bytes": 31805,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/scenario_engine.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/scenario_engine.py",
+      "sha256": "d9bc0f20c0c88fe709082bdb80c4338ee84bb8c2ea208730caf51944505627ad",
+      "size_bytes": 2456,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/scripts/backfill_predictions_stub.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/scripts/backfill_predictions_stub.py",
+      "sha256": "dd1e2226d29803b8c983a723158058d3c123fc24fe7bff4ca6f41d71f3f01df8",
+      "size_bytes": 1455,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/scripts/export_audit_pack.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/scripts/export_audit_pack.py",
+      "sha256": "c47a6c1222715d71aa1f388a39f2f003d39ca3d0cdd17b6e02f78ac405389931",
+      "size_bytes": 2698,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/scripts/healthcheck_trainer_runtime.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/scripts/healthcheck_trainer_runtime.py",
+      "sha256": "a99649e25da96c59538f8601721e664f406d7a12d2504e22d5e33085abe8f756",
+      "size_bytes": 5209,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/scripts/replay_decision.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/scripts/replay_decision.py",
+      "sha256": "c06f1dcb4cbe686fad00d040ceb69d1da56813699ae9cd4165a1833eb4268ae3",
+      "size_bytes": 1011,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/scripts/train_churn_veto.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/scripts/train_churn_veto.py",
+      "sha256": "3cc5498a27fb24f3689ed664a8a2c1ffd9d29f6ba34f35b8c7279aaca5e9fa24",
+      "size_bytes": 7326,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/signal_state_manager.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/signal_state_manager.py",
+      "sha256": "62c7d46ade7d03cd378e46cba2d06d2ee63bd218b27d9a853ee221a9899e6459",
+      "size_bytes": 22330,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/stable_gpu_trainer.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/stable_gpu_trainer.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/supervised_pretrainer.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/supervised_pretrainer.py",
+      "sha256": "e883cd35e2d2b2b47d53065998b5e4a72bb3cd0dc8aa4ed15e720c01aa46703d",
+      "size_bytes": 13742,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/supervised_trainer.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/supervised_trainer.py",
+      "sha256": "8a1c540d642f0fe84177d60a55687017d449497607bd20a518acc9d206f530b8",
+      "size_bytes": 42515,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/ta_direction_oracle.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/ta_direction_oracle.py",
+      "sha256": "bf210f6ca0d3372d0cda5b5d55ab85301af1ee31e9c1973a3328812c98f56109",
+      "size_bytes": 23754,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/target_exposure_controller.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/target_exposure_controller.py",
+      "sha256": "3a6cfb4b7f39c64e65773b33985cba272bc6255e8b6b27a98477f23490600c2f",
+      "size_bytes": 52977,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/temperature_calibration.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/temperature_calibration.py",
+      "sha256": "302355f82bbed15dd4db75600eb058406a0a08bd44ef86ef44f19c43f54cc221",
+      "size_bytes": 4993,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/tests/test_move_shock_engine.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/tests/test_move_shock_engine.py",
+      "sha256": "68683efccbc3f6f15808f1b8f90c2cbaec22f1f3f1bb6d6739ebd7f2d595a611",
+      "size_bytes": 3634,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/tests/test_scenario_engine_clamp.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/tests/test_scenario_engine_clamp.py",
+      "sha256": "74fbbf9afd44c96fee105dd94ea3d41200f7fb245a421409c85cca29fc75d138",
+      "size_bytes": 1059,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/tests/test_signal_pipeline.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/tests/test_signal_pipeline.py",
+      "sha256": "775ffa8ac388c7ba73650c6f977728cd807fb496b288036b89f43f950e08e320",
+      "size_bytes": 2469,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/tests/test_tf_aggregator.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/tests/test_tf_aggregator.py",
+      "sha256": "62fc9b0be4cf57107399e36fd0b98719f7e348fa999805d318e1bfa3e6667f8b",
+      "size_bytes": 1108,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/tf_aggregator.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/tf_aggregator.py",
+      "sha256": "d20049f79b916723c59362bfb5cf0c74d4d8ae7cc0bf57f8a929b15b83c7f9f4",
+      "size_bytes": 6496,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/threshold_ramper.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/threshold_ramper.py",
+      "sha256": "759cc7c0234e3bb2926f25821cc0adfbf9802b90a99a7de4bb57e8774482e9dc",
+      "size_bytes": 11633,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/toxicity_shield.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/toxicity_shield.py",
+      "sha256": "e00f098be80a682d41e5c98b34bf3d98392eb84db57a675ea49a15fe3e924c46",
+      "size_bytes": 6227,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/trade_feedback.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/trade_feedback.py",
+      "sha256": "b4002932745acd22e8d9006a4ae8eee0d175b71e66f3d434c958ffb3589ccd7d",
+      "size_bytes": 41564,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/trade_proposal.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/trade_proposal.py",
+      "sha256": "9eedce7573883900b0953c7c04f47210ae087bdbdd7241a9e6bbfd22278cf6ef",
+      "size_bytes": 9122,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/tradeplan_orchestrator.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/tradeplan_orchestrator.py",
+      "sha256": "1e4ad19faed9dc3498f15401dc1065f1e1eedb400a662fc7272bed7df12fa4d0",
+      "size_bytes": 64956,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/trainer_call_scripts.zip",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/trainer_call_scripts.zip",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "binary_extension:.zip",
+      "size_bytes": 449197
+    },
+    {
+      "legacy_rel_path": "rl/trainer_enhancements.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/trainer_enhancements.py",
+      "sha256": "b8159091cf1f15b536b5e4221c3952a58c6501d84248b14d23a5831c13efca23",
+      "size_bytes": 21186,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/trainer_incomplete.md",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/trainer_incomplete.md",
+      "sha256": "b5c81e4621039d7b4e05934c2da743dc54a289db9a7be8e5d2aae4ef6a606ef4",
+      "size_bytes": 83367,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/trainer_realtime_mixin.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/trainer_realtime_mixin.py",
+      "sha256": "cecfbf68a7fa26eb35fef5e7442979a7825534d1ff07a284b713db864d49925d",
+      "size_bytes": 12633,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/uncertainty.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/uncertainty.py",
+      "sha256": "162cd3b3c0e4756dc766562c2911252d5bde346e744945b0cd69a270fa86bf53",
+      "size_bytes": 11968,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/underwater_recovery_controller.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/underwater_recovery_controller.py",
+      "sha256": "341b3f3ca4b5b9059a4a76a3969a4e32e7a67dd07f2c232d6596965091fd55e5",
+      "size_bytes": 62545,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/unified_feature_builder.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/unified_feature_builder.py",
+      "sha256": "2af5c68d812c0a0a5db2e037204f0b2165d9084dea983d1737e09034e8c739a5",
+      "size_bytes": 29925,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/updatedplan.md",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/updatedplan.md",
+      "sha256": "e045f1031975d2305faaf62c0ee1c87a4715412b355d0bfebf0839ed419ce8ee",
+      "size_bytes": 13850,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/walk_forward_validation.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/walk_forward_validation.py",
+      "sha256": "233e376a7af41885799a46cb90cb77e46df20d64ed911cea6926d29dde853c5e",
+      "size_bytes": 8261,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "rl/warm_start.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/rl/warm_start.py",
+      "sha256": "4a50417adfdf8b05bcba74443a343c231c615623fb3358526bddf0cac913dd6a",
+      "size_bytes": 14053,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/__init__.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__init__.py",
+      "sha256": "19d6d8ddf04495275a2eeb14dacd751c0f4ae5f63805fdf147adfd28385cea6a",
+      "size_bytes": 26,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/__init__.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/__init__.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 139
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/adaptive_gate.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/adaptive_gate.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 33428
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/assertions.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/assertions.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 23269
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/auto_deleverager.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/auto_deleverager.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 72505
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/global_breadth.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/global_breadth.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 12675
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/halt_manager.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/halt_manager.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 23971
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/hedge_cage_manager.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/hedge_cage_manager.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 19728
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/intelligent_close_guard.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/intelligent_close_guard.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 44934
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/kill_switch.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/kill_switch.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 9547
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/ltf_reversal.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/ltf_reversal.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 25802
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/margin_governor.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/margin_governor.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 32606
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/market_regime.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/market_regime.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 24617
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/market_state_contract.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/market_state_contract.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 14260
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/microstructure_toxicity.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/microstructure_toxicity.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 12770
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/phase_controller.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/phase_controller.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 15751
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/reduce_only_latch.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/reduce_only_latch.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 7133
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/reversal_detector.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/reversal_detector.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 11317
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/risk_budget_allocator.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/risk_budget_allocator.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 23664
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/risk_state_machine.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/risk_state_machine.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 19683
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/shared_risk_gate.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/shared_risk_gate.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 16641
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/trainer_alignment.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/trainer_alignment.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 20489
+    },
+    {
+      "legacy_rel_path": "risk/__pycache__/trainer_intent.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/__pycache__/trainer_intent.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 13768
+    },
+    {
+      "legacy_rel_path": "risk/adaptive_gate.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/adaptive_gate.py",
+      "sha256": "a5057ea4ad4542881a6ebf14b9d789cbeed7873fc763c9d74d06c7c781674bce",
+      "size_bytes": 35074,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/assertions.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/assertions.py",
+      "sha256": "ebf903ef080176aa7a9c5fa574922a8b262e4b441f39a1a90ce842be27e1856d",
+      "size_bytes": 20177,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/auto_deleverager.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/auto_deleverager.py",
+      "sha256": "76652e99ec0b0717a3bfea887c25f78746df7765ba3f5e4eff6a21d0e820a377",
+      "size_bytes": 85148,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/global_breadth.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/global_breadth.py",
+      "sha256": "77bb8e4573b0ba9e8c557315345a0139b735da5b227121e232070ee240ba2bed",
+      "size_bytes": 11578,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/halt_manager.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/halt_manager.py",
+      "sha256": "49504d73a9fef319eb0ac6282d571492714a62526bc1c9849148685ad7eac314",
+      "size_bytes": 22707,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/hedge_cage_manager.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/hedge_cage_manager.py",
+      "sha256": "5b100f43ac003889977254a601c8e7afff294621c4beb5d1d63e3f67eae9b593",
+      "size_bytes": 17936,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/intelligent_close_guard.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/intelligent_close_guard.py",
+      "sha256": "7edf6d5eca3e8654bc17f0fad22831e4daedb411138d576904a29ab0a352c3ee",
+      "size_bytes": 47000,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/kill_switch.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/kill_switch.py",
+      "sha256": "bf730c6fa425097aa0c246dfbab88e4f8d158afdd606a905c8f9e3c7695df59e",
+      "size_bytes": 6143,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/ltf_reversal.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/ltf_reversal.py",
+      "sha256": "8d68dd32de6db155fbe51c77f1230356490205c38d3660dc36dab2a46866b84f",
+      "size_bytes": 22189,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/margin_governor.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/margin_governor.py",
+      "sha256": "e8448d2ee70697a97fbb4af27555adabe2af590d8185ebfc644b965070376eee",
+      "size_bytes": 38468,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/market_regime.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/market_regime.py",
+      "sha256": "1504593a301e268749c9a1f0e6c29a2abacf0db5e8c8adba354afce902c0bc13",
+      "size_bytes": 26986,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/market_state_contract.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/market_state_contract.py",
+      "sha256": "7a0b423f680271050ea7eb06de43098345e9bff49cc17d7c6c4315a19fdb4814",
+      "size_bytes": 12360,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/microstructure_toxicity.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/microstructure_toxicity.py",
+      "sha256": "5103e3078e15734eaca310e9ae58dd8e89725ebf4317a98313f078c8bd74beef",
+      "size_bytes": 10715,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/phase_controller.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/phase_controller.py",
+      "sha256": "ecd566ca7537551a9e6e267da4880a41764d346a1d43137d4088003951211ee1",
+      "size_bytes": 13441,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/reduce_only_latch.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/reduce_only_latch.py",
+      "sha256": "e0dc68486a5cc2fa0fc0ea1d1197f66373f8c090deb889a403257e187c7ac611",
+      "size_bytes": 5935,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/reversal_detector.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/reversal_detector.py",
+      "sha256": "fba7c0c839d2a06ed46fcd41f2e0ae5271aea460571fcff4fbadde3e15d63634",
+      "size_bytes": 11521,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/risk_budget_allocator.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/risk_budget_allocator.py",
+      "sha256": "e0a178d139695f97541e67f00ecaf7d8e7b7928e0290ba6a54edc0cfcfb1e832",
+      "size_bytes": 22010,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/risk_state_machine.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/risk_state_machine.py",
+      "sha256": "2bca8a985f0cb3415108b9e86260a0ad7611ed3a4680717cde496dfc63fee486",
+      "size_bytes": 19619,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/shared_risk_gate.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/shared_risk_gate.py",
+      "sha256": "62c2403f2cf2ce5dec71522b919f1db6a2f6908e338903e359e021c75c59dd7f",
+      "size_bytes": 18022,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/trainer_alignment.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/trainer_alignment.py",
+      "sha256": "ddd73997d9126ec8d03b93b763cce03d01fd3f608ff40a2fa959ee2cb50e4217",
+      "size_bytes": 17889,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "risk/trainer_intent.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/risk/trainer_intent.py",
+      "sha256": "4a76f18a9a04f3d94563bab8449746efdcda93c954b4406677328da2ac37262f",
+      "size_bytes": 12741,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "services/__init__.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/services/__init__.py",
+      "sha256": "d32d5bcb1c2e6f289492c3d12922d45d3c5c9cc18819e2ae47cbd6af3c1d64f4",
+      "size_bytes": 667,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "services/__pycache__/__init__.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/services/__pycache__/__init__.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 634
+    },
+    {
+      "legacy_rel_path": "services/__pycache__/liquidation_intelligence.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/services/__pycache__/liquidation_intelligence.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 7590
+    },
+    {
+      "legacy_rel_path": "services/__pycache__/onchain_analyzer.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/services/__pycache__/onchain_analyzer.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 17106
+    },
+    {
+      "legacy_rel_path": "services/__pycache__/portfolio_publisher.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/services/__pycache__/portfolio_publisher.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 3984
+    },
+    {
+      "legacy_rel_path": "services/__pycache__/portfolio_state.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/services/__pycache__/portfolio_state.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 23500
+    },
+    {
+      "legacy_rel_path": "services/data_archiver.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/services/data_archiver.py",
+      "sha256": "5563536027deacc7d9257c78c7b1c029f1fd86e42fda671ac8c13735e716ee38",
+      "size_bytes": 15716,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "services/liquidation_intelligence.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/services/liquidation_intelligence.py",
+      "sha256": "5a4773312ae0d0da58c2838d06b952946531083f53803b338f8b9590b6ea1f2c",
+      "size_bytes": 6421,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "services/live_decision_evaluator.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/services/live_decision_evaluator.py",
+      "sha256": "2e79bbce4fa102ba1c59f16a9cd96d3e91155a3aa328d3ad827d335b02c7d2a5",
+      "size_bytes": 18405,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "services/onchain_analyzer.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/services/onchain_analyzer.py",
+      "sha256": "3fc8a4270204c44136517eab17055a303a7a15d92160747f0403813892e249df",
+      "size_bytes": 19100,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "services/portfolio_publisher.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/services/portfolio_publisher.py",
+      "sha256": "32eabec0658d8f7eb5b7a127f9f5e6178e044b8ad23ac7bc8ff13bb562b50cd7",
+      "size_bytes": 3023,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "services/portfolio_state.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/services/portfolio_state.py",
+      "sha256": "0802dac418006e16f5ec4fec57df7fda25029c3240471a41054c02209f98d2d7",
+      "size_bytes": 17760,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "services/service_monitor.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/services/service_monitor.py",
+      "sha256": "7593d78319d5f329d5d91a67adf04818235b48e818b807273d060343acc41cce",
+      "size_bytes": 19474,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/__pycache__/binance_rate_limiter.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/__pycache__/binance_rate_limiter.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 13567
+    },
+    {
+      "legacy_rel_path": "utils/__pycache__/data_manager.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/__pycache__/data_manager.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 6085
+    },
+    {
+      "legacy_rel_path": "utils/__pycache__/data_normalizer.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/__pycache__/data_normalizer.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 20386
+    },
+    {
+      "legacy_rel_path": "utils/__pycache__/decision_bus.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/__pycache__/decision_bus.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 4219
+    },
+    {
+      "legacy_rel_path": "utils/__pycache__/ensemble_diagnostics.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/__pycache__/ensemble_diagnostics.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 2595
+    },
+    {
+      "legacy_rel_path": "utils/__pycache__/healthbeat.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/__pycache__/healthbeat.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 3047
+    },
+    {
+      "legacy_rel_path": "utils/__pycache__/interpreter_guard.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/__pycache__/interpreter_guard.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 1027
+    },
+    {
+      "legacy_rel_path": "utils/__pycache__/interrupt_lock.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/__pycache__/interrupt_lock.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 3116
+    },
+    {
+      "legacy_rel_path": "utils/__pycache__/logger.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/__pycache__/logger.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 2016
+    },
+    {
+      "legacy_rel_path": "utils/__pycache__/redis_client.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/__pycache__/redis_client.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 16930
+    },
+    {
+      "legacy_rel_path": "utils/__pycache__/redis_hardening.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/__pycache__/redis_hardening.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 1222
+    },
+    {
+      "legacy_rel_path": "utils/__pycache__/redis_key_audit.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/__pycache__/redis_key_audit.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 9317
+    },
+    {
+      "legacy_rel_path": "utils/__pycache__/runtime_flags.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/__pycache__/runtime_flags.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 5478
+    },
+    {
+      "legacy_rel_path": "utils/__pycache__/signal_publish.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/__pycache__/signal_publish.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 5485
+    },
+    {
+      "legacy_rel_path": "utils/__pycache__/symbol_manager.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/__pycache__/symbol_manager.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 26466
+    },
+    {
+      "legacy_rel_path": "utils/__pycache__/unified_position_loader.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/__pycache__/unified_position_loader.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 11048
+    },
+    {
+      "legacy_rel_path": "utils/__pycache__/websocket_limits.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/__pycache__/websocket_limits.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 5887
+    },
+    {
+      "legacy_rel_path": "utils/ai_coins_manager.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/ai_coins_manager.py",
+      "sha256": "11e7fe675e8851c8ab5813bcd8ee93d61cd43dcffdd48f33ad7044920a14dc0d",
+      "size_bytes": 10011,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/binance_rate_limiter.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/binance_rate_limiter.py",
+      "sha256": "b5cd60cba9593dda159d6a72af35eeae9496282eeeb2898c16d8f9297f0447a5",
+      "size_bytes": 9712,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/data_manager.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/data_manager.py",
+      "sha256": "bed11032e5f6ba514571c76b5457c9eb9d67f5680aa8762b86de8c385b4dd37a",
+      "size_bytes": 3662,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/data_normalizer.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/data_normalizer.py",
+      "sha256": "58da31183ab434213218431f99e39ba1b3cdb3d8f49b7ffdda7b70d07c5e221f",
+      "size_bytes": 18452,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/decision_bus.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/decision_bus.py",
+      "sha256": "075112b344c96d6ac8ec2b8721798070fe12af61095c6c4d2da7fe0cf49377fb",
+      "size_bytes": 2309,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/ensemble_diagnostics.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/ensemble_diagnostics.py",
+      "sha256": "9113e67c9bbef22a5f4a31cf928f267eb4265b56e1050e9830ea4b2ed1d26812",
+      "size_bytes": 1406,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/healthbeat.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/healthbeat.py",
+      "sha256": "1b21a229e4fe8d348743de190b6000d6876dd1955a1c9ced06f4e68fbc48dcae",
+      "size_bytes": 2360,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/interpreter_guard.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/interpreter_guard.py",
+      "sha256": "0f84f4d55b43afe233617e20ce9d1d64449bd9fc184338343a11563cbdc98578",
+      "size_bytes": 843,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/interrupt_lock.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/interrupt_lock.py",
+      "sha256": "2b89122079d6e96ba533230c9b56e5f9da0a00db8595f393f97b52b99056598e",
+      "size_bytes": 3131,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/logger.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/logger.py",
+      "sha256": "1c5c711ca9d182e8e2435179c6eb99f02ae0904988e664f4c3e5c935905f9b37",
+      "size_bytes": 1751,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/metrics.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/metrics.py",
+      "sha256": "75a0c83b7e752d25a3cd1bacce833b65bfd530c4723161f5813ca98d13184269",
+      "size_bytes": 486,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/preflight.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/preflight.py",
+      "sha256": "9ac990839b4042e274d0d38c21a84bd28cc0fe9f404744bf304b7f1fb5407cfd",
+      "size_bytes": 1654,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/redis_client.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/redis_client.py",
+      "sha256": "5424ec0d20920da9265b69a60d3a6ec86b9462405684683a802399809faf4fb0",
+      "size_bytes": 12565,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/redis_hardening.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/redis_hardening.py",
+      "sha256": "31d0ec83620c70a0c59dfe319fb17693677fe086d21140335515ce1927ab0110",
+      "size_bytes": 801,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/redis_key_audit.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/redis_key_audit.py",
+      "sha256": "d19c96d0f88958d5b5a639ed8f262085dd83834742f3da738ebd34cb08ad02e4",
+      "size_bytes": 6325,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/runtime_flags.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/runtime_flags.py",
+      "sha256": "b7fb174cc1a37d3dbc18368f4d8c48f2f89fc042983b0e26b7ce8f2077a29e3e",
+      "size_bytes": 4009,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/signal_publish.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/signal_publish.py",
+      "sha256": "6b72fdd8d9541ea4813b1f34db40c7eead14216d0e364706de4978e070d71562",
+      "size_bytes": 4270,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/signal_schema.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/signal_schema.py",
+      "sha256": "917bf3d6f0bbaa2c82064a7e2bc792a0862199707827a21372330655c2c9274a",
+      "size_bytes": 2312,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/symbol_manager.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/symbol_manager.py",
+      "sha256": "108105249afdd1ec12da31a0df0b7181a5c922381388f56f3b1c8576560e48fa",
+      "size_bytes": 22661,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/unified_position_loader.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/unified_position_loader.py",
+      "sha256": "5e8b5e5dfb736a1808f3e638ea51c25cab7c33c50d34abf210cc863854c21abe",
+      "size_bytes": 10293,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "utils/websocket_limits.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/utils/websocket_limits.py",
+      "sha256": "5cb7ceafff5f85a1ca3edc94a5be1c59d5af3aa7d342745eeb1c5acf32d23afd",
+      "size_bytes": 4612,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/__pycache__/action_constants.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/__pycache__/action_constants.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 7798
+    },
+    {
+      "legacy_rel_path": "trading/__pycache__/adaptive_edge_gate.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/__pycache__/adaptive_edge_gate.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 56076
+    },
+    {
+      "legacy_rel_path": "trading/__pycache__/adaptive_hedge_builder.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/__pycache__/adaptive_hedge_builder.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 23655
+    },
+    {
+      "legacy_rel_path": "trading/__pycache__/adaptive_threshold_engine.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/__pycache__/adaptive_threshold_engine.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 28461
+    },
+    {
+      "legacy_rel_path": "trading/__pycache__/base_executor.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/__pycache__/base_executor.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 91580
+    },
+    {
+      "legacy_rel_path": "trading/__pycache__/dynamic_adaptive_stops.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/__pycache__/dynamic_adaptive_stops.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 38560
+    },
+    {
+      "legacy_rel_path": "trading/__pycache__/dynamic_margin_manager.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/__pycache__/dynamic_margin_manager.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 13763
+    },
+    {
+      "legacy_rel_path": "trading/__pycache__/dynamic_tp_engine.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/__pycache__/dynamic_tp_engine.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 64271
+    },
+    {
+      "legacy_rel_path": "trading/__pycache__/execution_engine.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/__pycache__/execution_engine.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 16400
+    },
+    {
+      "legacy_rel_path": "trading/__pycache__/hedge_context.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/__pycache__/hedge_context.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 64252
+    },
+    {
+      "legacy_rel_path": "trading/__pycache__/hedge_pair_coordinator.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/__pycache__/hedge_pair_coordinator.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 14891
+    },
+    {
+      "legacy_rel_path": "trading/__pycache__/lifecycle_controller.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/__pycache__/lifecycle_controller.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 4841
+    },
+    {
+      "legacy_rel_path": "trading/__pycache__/market_intelligence.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/__pycache__/market_intelligence.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 65239
+    },
+    {
+      "legacy_rel_path": "trading/__pycache__/redesign_v2_helpers.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/__pycache__/redesign_v2_helpers.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 34287
+    },
+    {
+      "legacy_rel_path": "trading/__pycache__/redis_stream_reader.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/__pycache__/redis_stream_reader.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 16499
+    },
+    {
+      "legacy_rel_path": "trading/__pycache__/stealth_dynamic_integration.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/__pycache__/stealth_dynamic_integration.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 7779
+    },
+    {
+      "legacy_rel_path": "trading/__pycache__/stealth_stops.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/__pycache__/stealth_stops.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 302804
+    },
+    {
+      "legacy_rel_path": "trading/__pycache__/trader.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/__pycache__/trader.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 1077933
+    },
+    {
+      "legacy_rel_path": "trading/__pycache__/trader_websocket_helper.cpython-312.pyc",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/__pycache__/trader_websocket_helper.cpython-312.pyc",
+      "status": "SKIPPED_BINARY_OR_DISALLOWED_EXTENSION",
+      "reason": "non_text_extension:.pyc",
+      "size_bytes": 37701
+    },
+    {
+      "legacy_rel_path": "trading/action_constants.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/action_constants.py",
+      "sha256": "1714cc668b53f86b6fd40c5251b7402e553ce681e91420e6b0755337309d41f6",
+      "size_bytes": 9053,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/adaptive_edge_gate.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/adaptive_edge_gate.py",
+      "sha256": "f50455f52e53eb5e2476cae4d2722d5050980cca66a6204c2f0ecf5526054632",
+      "size_bytes": 69019,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/adaptive_hedge_builder.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/adaptive_hedge_builder.py",
+      "sha256": "55464cec53f7c2d6daec11a43a9c58cb874a34aafc556e09bcbad02730e83e85",
+      "size_bytes": 25287,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/adaptive_threshold_engine.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/adaptive_threshold_engine.py",
+      "sha256": "6bb198376377e5872619f007ee3420199c3a0a09fb570752cf78d7146e014629",
+      "size_bytes": 38109,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/assert_governor.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/assert_governor.py",
+      "sha256": "e870e06a87e8ac1049050f678edab8bd1a261b5ebd5b680f2541dced9ace9608",
+      "size_bytes": 1078,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/base_executor.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/base_executor.py",
+      "sha256": "b3672f5eba18d491c9bcb2efba22e61ea585448de5f7c2d3fc9586f8ebc1fa08",
+      "size_bytes": 94182,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/churn_prevention.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/churn_prevention.py",
+      "sha256": "f258b87233fc68d7d73e05f13fece322774bdf2a6e95ad8c081b83cbc3771d1f",
+      "size_bytes": 22085,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/coinank_signal_adapter.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/coinank_signal_adapter.py",
+      "sha256": "80af567877f88d974a6668ba9ab0242910b5b8ef80fae07f6cb9b7a73acebe4c",
+      "size_bytes": 8409,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/depth_execution_gate.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/depth_execution_gate.py",
+      "sha256": "6d920451d54622dc1c3d4529bce0eb7f66be861d4dc84fd00281e9fb348383e5",
+      "size_bytes": 16831,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/dynamic_adaptive_hedge.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/dynamic_adaptive_hedge.py",
+      "sha256": "745f5c2a2fc5eaee14622b731d2caade7cd0786e147c68c0dab67a4736528cf4",
+      "size_bytes": 50990,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/dynamic_adaptive_stops.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/dynamic_adaptive_stops.py",
+      "sha256": "523ef574f6f6729c831047e73ce53bfad3d980cb562a386bf8b648b22d9d061f",
+      "size_bytes": 47578,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/dynamic_margin_manager.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/dynamic_margin_manager.py",
+      "sha256": "a45e408e3d815eb9e9c009a079a3de87d95ee1600e33547829d8e23aaee253d5",
+      "size_bytes": 14595,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/dynamic_tp_engine.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/dynamic_tp_engine.py",
+      "sha256": "54bf102e9d5cfedb00f22f953c4894c4592a1b627a16bad51c034a7069c1e908",
+      "size_bytes": 72213,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/execution_engine.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/execution_engine.py",
+      "sha256": "f4311b8196c7130c81e41626e6ff27257387d1dc451324699b1416d9d4a64888",
+      "size_bytes": 13565,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/exit_coordinator.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/exit_coordinator.py",
+      "sha256": "fb0591c2a4ef29a40695556c536ef7998657135222dab86938a3ae4219941bc4",
+      "size_bytes": 21471,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/fee_ratio_gate.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/fee_ratio_gate.py",
+      "sha256": "c1829afcbdb6848fb8dffd76e14b78a140832c663bb9c2f16e75029b0e7f8e7f",
+      "size_bytes": 14577,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/hedge_context.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/hedge_context.py",
+      "sha256": "b7d40b6b41025df0c106b918c474b9a9900c8b637e820a8bde4f61f3b59a230a",
+      "size_bytes": 60519,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/hedge_intelligence_engine.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/hedge_intelligence_engine.py",
+      "sha256": "c177b29b8f0ea9a6c54ed7089732b051645f70679206a33e85f1f85459279724",
+      "size_bytes": 41087,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/hedge_pair_coordinator.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/hedge_pair_coordinator.py",
+      "sha256": "b7059809f8946a8be812da61c227705d128422c3d75b5c51081b01d0abee40c8",
+      "size_bytes": 13527,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/leg_manager.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/leg_manager.py",
+      "sha256": "1da61c132ffd96649f31511398610d39ab49e38bdb22adfa9a38d32632679474",
+      "size_bytes": 22683,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/lifecycle_controller.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/lifecycle_controller.py",
+      "sha256": "cbe9472229be257701c2fc4d48f52ad6baab6a869947d55c8a8faf430d4fd6ed",
+      "size_bytes": 4173,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/maker_execution.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/maker_execution.py",
+      "sha256": "5199d3893e5c3dc8f10d8b79ee4664e9ee0e4fb80ebe4a04ce96dffef80025b8",
+      "size_bytes": 26095,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/market_intelligence.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/market_intelligence.py",
+      "sha256": "bc783efc90c8d9e0669041b96596d1bbf09113371094af8b10c3b9603e51c266",
+      "size_bytes": 77710,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/market_regime_detector.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/market_regime_detector.py",
+      "sha256": "714511302a2cd2826f2c7a6763db5001c2d0abac0030ff10756d716934ac5d87",
+      "size_bytes": 36243,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/opportunity_tracker.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/opportunity_tracker.py",
+      "sha256": "3cd62f238dca7acc3dc010ead505033522b74d2a0bf6dc028ca171453e1c92cb",
+      "size_bytes": 7966,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/position_reporter.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/position_reporter.py",
+      "sha256": "da0958cb11f8106593049bdfb7c48d2603bb009ed9b3f2b76ce5043b0e6aabd2",
+      "size_bytes": 15390,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/redesign_v2_helpers.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/redesign_v2_helpers.py",
+      "sha256": "ba57163e83a494e8f2ac94d5a330cd08b1b5adbfea1f945033fa79c288b37638",
+      "size_bytes": 32625,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/redis_stream_reader.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/redis_stream_reader.py",
+      "sha256": "08f1864b4b030aac26f532e1e26553fe3ebddb7eaab118235859d25676c1c87a",
+      "size_bytes": 14476,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/signal_router.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/signal_router.py",
+      "sha256": "fbcad02f232512fefd33753ea0e387a163d5330ef1145f4f52d939de9d1758f3",
+      "size_bytes": 12454,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/smart_entry_gate.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/smart_entry_gate.py",
+      "sha256": "92e00347bbbd7e864603c27f95191dbb6736b13a2c0745b44049fad33612421e",
+      "size_bytes": 34958,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/stealth_dynamic_integration.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/stealth_dynamic_integration.py",
+      "sha256": "0e1f5ab2ccd0dc20af7cbca8c258f0d69c05f64507191ce6960e6c06cf003d52",
+      "size_bytes": 7320,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/stealth_stops.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/stealth_stops.py",
+      "sha256": "a76de1902e7c2a754f2e90a39fa9aac23d991ec059d5c54d6e0772b79b8a47cf",
+      "size_bytes": 389228,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/trader-asjad.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/trader-asjad.py",
+      "sha256": "0a6c4e4e7e00612f2987f25c9b6e84bdca6a4408ded818c8eed3ff255293bd4d",
+      "size_bytes": 1552,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/trader.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/trader.py",
+      "sha256": "8c56fb44a770d5016f2d5b07a74d527d8fca36d77cdd1ba37ea490bc72748583",
+      "size_bytes": 1456456,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "trading/trader_websocket_helper.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/trading/trader_websocket_helper.py",
+      "sha256": "79cca6583c5a55df03c724b6540602525aec3d2fec6e3ded94885b07f4b5c9a3",
+      "size_bytes": 37620,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "config.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/config.py",
+      "sha256": "98cfaa1c9650f013f8603c451f6f37491b8fa65e36ed1445a037c34d5f27f522",
+      "size_bytes": 406920,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "config_accounts.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/config_accounts.py",
+      "sha256": "3af98d8471e72729cfdd1c13e36b138cd80dda6710aa8aba8fa1d4c204726d6c",
+      "size_bytes": 9904,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "telegram_alerts.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/telegram_alerts.py",
+      "sha256": "f46c58984334577ae31c1d9db07a1dfcee4c38adc9c52e42e9ec26530ba57dd1",
+      "size_bytes": 111221,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/check_trainer_signal_health.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/check_trainer_signal_health.py",
+      "sha256": "279bea3e435bb4a9cf526fff4c5d7d749fc7d8aa20d1f0fd6582b26787994b01",
+      "size_bytes": 10724,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/integration_test_trainer.sh",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/integration_test_trainer.sh",
+      "sha256": "e999b96cc21ff81d24723a64a77da33beee69d6ff6fa1c1492190460480b21d9",
+      "size_bytes": 2322,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/logrotate_hybrid_trainer.conf",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/logrotate_hybrid_trainer.conf",
+      "sha256": "cc10d424e03661496795dc3c624cb85ef397992205e1c0e5084386f846254ab8",
+      "size_bytes": 203,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/monitor_trainer_predictions.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/monitor_trainer_predictions.py",
+      "sha256": "38068905908317415f91f76ed19797c393ee01f20135d59030289e2d697a495a",
+      "size_bytes": 13543,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/monitor_trainer_prices.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/monitor_trainer_prices.py",
+      "sha256": "ced3b14ee493d3e28a2222167dcda77b06ae6f1c3049ccab35751178fab87620",
+      "size_bytes": 11099,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/nightly_restart_trainer.sh",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/nightly_restart_trainer.sh",
+      "sha256": "208d16f2b2567ac0f072cf28598256fb7d626d0a264947f5c7a712e3bec1c42f",
+      "size_bytes": 14268,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/soak_test_trainer.sh",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/soak_test_trainer.sh",
+      "sha256": "a5e98228f220c9875a19fc47d1a7b883cdd7d17644dc175c16bc24e52f1ce781",
+      "size_bytes": 625,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/start_trainer.ps1",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/start_trainer.ps1",
+      "sha256": "89de5d74fac9d301512e141ca80401f566b5e90ba49e4fccb1262b559a5cd99c",
+      "size_bytes": 4639,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/start_trainer.sh",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/start_trainer.sh",
+      "sha256": "bcf4a8fe80337ada79f03d28944c1682244f50be74598d770fd0bb138c1f77cb",
+      "size_bytes": 7985,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/stop_trainer.sh",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/stop_trainer.sh",
+      "sha256": "550d510e652c64c083db5c64e5128fbea49004bad8f0361b255707ff7bb72e4c",
+      "size_bytes": 9364,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/audit_trade_attribution.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/audit_trade_attribution.py",
+      "sha256": "5bff5b5b198ad7a71164d38722dd12c390f56e8210d62e4dd06913bf93f74a0d",
+      "size_bytes": 3678,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/start_trader.ps1",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/start_trader.ps1",
+      "sha256": "3d26e378521ad2ae0e06e121535259a4a463258f86d8baa7a7ef4b1af89a7fdf",
+      "size_bytes": 5701,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/start_trader.sh",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/start_trader.sh",
+      "sha256": "558e448e367ffea381c2fc227c5da918696ab0df58e59a5eb1357cc06d340a10",
+      "size_bytes": 7649,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/stop_trader.sh",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/stop_trader.sh",
+      "sha256": "2f7e6907d97b5cf0c1ddf86b4fc0235f291ec12fe5751dae4e0e9d876f820c4e",
+      "size_bytes": 12328,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/stop_trader_asjad.sh",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/stop_trader_asjad.sh",
+      "sha256": "d49739e35b0f4a6d009d56c1efd326e433967b50a70ee71ed0a2f1d947cd1379",
+      "size_bytes": 11855,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/trace_trade_lifecycle.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/trace_trade_lifecycle.py",
+      "sha256": "77ea256e4c22af011d0159f7da248576036058af1ed6f1be2b15e47a9fcd76d4",
+      "size_bytes": 36698,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/validate_trader_alignment.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/validate_trader_alignment.py",
+      "sha256": "c9a3048bc141f790ae1bf725879e2372ad4ece80fd42fab112acbf0f7d2f2b15",
+      "size_bytes": 3986,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/verify_trader_consumption.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/verify_trader_consumption.py",
+      "sha256": "77fb744d57fe10d2986574498b8265266957321f7c369ea344121e4d253a4c64",
+      "size_bytes": 2383,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/test_hedge_build.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/test_hedge_build.py",
+      "sha256": "ad25b388a0afc7f1f40fc24ef13e5f1f8f0081d08c27f4354ab5474b6634fbd5",
+      "size_bytes": 10355,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/validate_flash_hedge_system.sh",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/validate_flash_hedge_system.sh",
+      "sha256": "39ccf3a40d0103d393fb3d73960e7e5ede7867f88e3239aa16268ffcfe0dddf5",
+      "size_bytes": 11961,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/why_hedged_timeline.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/why_hedged_timeline.py",
+      "sha256": "e67255ee14a10f42b990107b4df7b504b186a432875ee7c83b3987fead20e8d7",
+      "size_bytes": 17734,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/close_all_positions.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/close_all_positions.py",
+      "sha256": "78496881ad9604fcdd1a5b8415b055dea60f10c28316dbe76b7254b216e5475d",
+      "size_bytes": 17429,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/audit_orchestrator_last30m.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/audit_orchestrator_last30m.py",
+      "sha256": "71584d77c61bc22a866812a6018beb941ebb45760877fba1a1729ad67419559c",
+      "size_bytes": 11966,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    },
+    {
+      "legacy_rel_path": "scripts/monitor_orchestrator_shadow.py",
+      "v2_preserved_path": "v2/legacy_preserved/full_runtime_closure/scripts/monitor_orchestrator_shadow.py",
+      "sha256": "72a8eb3c8c717851faa88c2578ae11949d3058036fcdb54f92e76564bf7370cf",
+      "size_bytes": 4367,
+      "secret_heuristic_hits": [],
+      "safe_to_commit": true,
+      "status": "COPIED"
+    }
+  ]
+}

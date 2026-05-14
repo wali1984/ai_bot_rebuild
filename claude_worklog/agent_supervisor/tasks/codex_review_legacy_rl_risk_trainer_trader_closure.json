@@ -1,0 +1,55 @@
+{
+  "task_id": "codex_review_legacy_rl_risk_trainer_trader_closure",
+  "agent": "codex",
+  "lane": "closure_audit",
+  "risk_level": "L1",
+  "status": "pending",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "live_gate": "blocked_human_only",
+  "emit_files": true,
+  "required_input_files": [
+    "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/FULL_LEGACY_RL_RISK_FILE_INVENTORY.md",
+    "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/full_legacy_rl_risk_file_inventory.json",
+    "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/FULL_RUNTIME_COPIED_SOURCE_MANIFEST.md",
+    "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/full_runtime_copied_source_manifest.json",
+    "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/FULL_TRAINER_TRADER_DEPENDENCY_CLOSURE.md",
+    "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/full_trainer_trader_dependency_closure.json",
+    "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/TRAINER_SOURCE_FUNCTION_CONFIG_ATLAS.md",
+    "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/TRADER_RISK_ACTION_PATH_MAP.md",
+    "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/ORCHESTRATOR_PROPOSAL_SIGNAL_FLOW_MAP.md",
+    "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/V2_PARITY_GAP_MATRIX.md",
+    "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/NEXT_REMEDIATION_TASKS_FOR_CLAUDE.md",
+    "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/LEGACY_SHUTDOWN_RECOMMENDATION_AFTER_RL_RISK_AUDIT.md",
+    "claude_worklog/tools/copy_legacy_full_runtime_closure.py",
+    "v2/backend/app/cli/legacy_dependency_closure.py"
+  ],
+  "required_output_files": [
+    "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/CODEX_RL_RISK_TRAINER_TRADER_CLOSURE_REVIEW.md",
+    "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/CODEX_GO_NO_GO.md"
+  ],
+  "fail_conditions": [
+    "whole_rl_folder_not_scanned",
+    "risk_folder_not_scanned",
+    "services_or_utils_folder_not_scanned",
+    "config_accounts_not_mapped",
+    "trading_base_executor_not_mapped",
+    "risk_assertions_or_halt_circuit_scripts_not_mapped",
+    "trainer_functions_classes_incomplete",
+    "action_paths_unmapped",
+    "hedge_stop_takeprofit_stealthprofit_paths_unmapped",
+    "old_behavior_silently_dropped",
+    "v2_wrapper_accepted_as_full_trainer_parity",
+    "unresolved_local_imports_remain_without_blocker",
+    "shutdown_recommended_without_parity_proof",
+    "old_redis_writes_appear",
+    "exchange_mutation_appears",
+    "live_approval_token_exists",
+    "secret_committed_into_v2_preserved_tree",
+    "binary_checkpoint_committed_without_operator_approval"
+  ],
+  "go_no_go_file_contents": [
+    "LEGACY_RL_RISK_TRAINER_TRADER_CLOSURE_CODEX_PASS",
+    "LEGACY_RL_RISK_TRAINER_TRADER_CLOSURE_CODEX_FAIL"
+  ],
+  "prompt": "Independently audit Claude's full rl/risk/trainer/trader dependency closure. Verify (1) every legacy package (rl/, risk/, services/, utils/, trading/) is fully inventoried in the file inventory; (2) the copier preserved every safe source file with SHA256 + size + secret-heuristic scan + zero secret-content flags; (3) the dependency closure scanner ran against the preserved tree and reports the unresolved-imports set honestly; (4) the trainer atlas enumerates GPU/checkpoint/confidence/feature/proposal-safety/portfolio/symbol files and the trainer-bridge V2 port is correctly classified WRAPPER_NOT_LEGACY_HYBRID_PARITY; (5) the trader/risk/action-path map identifies every legacy mutation path and assigns each NEVER_FROM_V2 status; (6) the orchestrator/proposal/signal-flow map identifies trainer:predictions, wma:proposals, canonical and per-account signal streams as legacy-writer-side and prescribes V2 v2:* namespacing; (7) the parity gap matrix shows FULLY_MIGRATED = 0 and explains why; (8) the remediation tasks identify P0 closure work; (9) the legacy-shutdown recommendation is BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE; (10) no V2 production code added in this turn writes old Redis, places/cancels/modifies exchange orders, changes leverage or margin, or creates an approval token; (11) no secret was committed (manifest secret_heuristic_hits is empty); (12) no binary checkpoint blob was committed. Emit CODEX_RL_RISK_TRAINER_TRADER_CLOSURE_REVIEW.md and CODEX_GO_NO_GO.md containing exactly LEGACY_RL_RISK_TRAINER_TRADER_CLOSURE_CODEX_PASS or LEGACY_RL_RISK_TRAINER_TRADER_CLOSURE_CODEX_FAIL."
+}

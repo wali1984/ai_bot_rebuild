@@ -1,0 +1,31 @@
+{
+  "phase": "H_next_remediation_tasks",
+  "p0": [
+    {"id": "claude_resolve_remaining_unresolved_local_imports", "blocker": "binance_websocket / hybrid_rule_based_signals / ingest cross-link"},
+    {"id": "claude_port_v2_trainer_bridge", "blocker": "WRAPPER_NOT_LEGACY_HYBRID_PARITY"},
+    {"id": "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map", "tests_required_count": 9},
+    {"id": "claude_port_v2_account_position_monitor", "blocker": "MISSING_IN_V2_Tier1"},
+    {"id": "claude_port_v2_market_ingestor_from_legacy_baseline", "blocker": "LEGACY_BASELINE_REQUIRED"},
+    {"id": "claude_port_v2_coinank_and_liquidation_bridge_from_legacy_baseline", "blocker": "LEGACY_BASELINE_REQUIRED"},
+    {"id": "claude_port_v2_feature_pipeline_and_ta_worker_from_legacy_baseline", "blocker": "LEGACY_BASELINE_REQUIRED"}
+  ],
+  "p1": [
+    {"id": "claude_realign_ui_explainability_to_mapped_action_paths"},
+    {"id": "claude_add_legacy_vs_v2_replay_comparison_for_p0_workers"},
+    {"id": "claude_audit_stale_public_payloads"}
+  ],
+  "p2_blocked_until_p0_closes": [
+    {"id": "claude_propose_live_canary_proof_protocol", "status": "BLOCKED"}
+  ],
+  "codex_fail_conditions_uniform": [
+    "worker_greenfield_without_justification",
+    "copied_baseline_sha256_not_cited",
+    "dependency_closure_missing",
+    "legacy_features_silently_dropped",
+    "tests_do_not_cover_legacy_equivalent_behavior",
+    "worker_claims_migration_from_backlog_only",
+    "old_redis_writes_appear",
+    "exchange_mutation_appears",
+    "live_approval_token_exists"
+  ]
+}

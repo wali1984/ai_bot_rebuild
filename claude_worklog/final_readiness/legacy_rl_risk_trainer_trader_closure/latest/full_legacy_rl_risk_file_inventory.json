@@ -1,0 +1,64 @@
+{
+  "phase": "A_full_legacy_rl_risk_file_inventory",
+  "as_of_utc": "2026-05-14T00:00:00Z",
+  "legacy_root": "$HOME/Desktop/AI BOT",
+  "tree_counts": {
+    "rl_py_files": 121,
+    "trading_py_files": 35,
+    "risk_py_files": 22,
+    "utils_py_files": 21,
+    "services_py_files": 8,
+    "scripts_filtered": 21,
+    "top_level_helpers": 3,
+    "total_sources_analyzable": 231,
+    "legacy_total_size_mb": 19.6
+  },
+  "phase_c_closure_totals": {
+    "files_analyzed": 231,
+    "files_with_parse_error": 2,
+    "files_with_redis_usage": 49,
+    "files_with_exchange_api_usage": 43,
+    "files_with_subprocess_usage": 6,
+    "files_with_config_import": 100,
+    "files_with_unresolved_imports": 79
+  },
+  "external_dependency_profile": {
+    "numpy": 58,
+    "redis": 43,
+    "torch": 34,
+    "binance": 10,
+    "stable_baselines3": 9,
+    "requests": 5,
+    "psutil": 3,
+    "pandas": 3,
+    "pynvml": 3,
+    "aiohttp": 1
+  },
+  "category_classification": {
+    "trainer_core": ["rl/hybrid_trainer.py", "rl/gpu_optimized_trainer.py", "rl/stable_gpu_trainer.py", "rl/supervised_pretrainer.py", "rl/warm_start.py"],
+    "trainer_support": ["rl/checkpoint_manager.py", "rl/promotion_controller.py", "rl/confidence_gates.py", "rl/threshold_ramper.py", "rl/obs_schema.py", "rl/unified_feature_builder.py", "rl/gymnasium_wrapper.py", "rl/hedge_action_space.py", "rl/fee_ratio_reward_shaping.py", "rl/moe_router.py", "rl/scenario_engine.py", "rl/walk_forward_validation.py", "rl/replay_store.py", "rl/trade_feedback.py", "rl/gpu_cnn_policy.py", "rl/gpu_saturation.py", "rl/decision_trace.py", "rl/microstructure_overlay.py", "rl/microstructure_tf_modifier.py", "rl/coinapi_symbol_map.py", "rl/light_worker.py"],
+    "orchestrator_core": ["rl/orchestrator_worker.py", "rl/proposal_hedge_preflight.py", "rl/tradeplan_orchestrator.py"],
+    "risk_core": ["risk/assertions.py", "risk/halt_manager.py", "risk/kill_switch.py", "risk/risk_state_machine.py", "risk/phase_controller.py"],
+    "risk_assertion_close_guard": ["risk/intelligent_close_guard.py", "risk/reduce_only_latch.py"],
+    "halt_circuit": ["risk/halt_manager.py", "risk/kill_switch.py"],
+    "risk_gating": ["risk/auto_deleverager.py", "risk/adaptive_gate.py", "risk/risk_budget_allocator.py", "risk/shared_risk_gate.py", "risk/margin_governor.py"],
+    "risk_regime_intent": ["risk/market_regime.py", "risk/market_state_contract.py", "risk/trainer_intent.py", "risk/trainer_alignment.py", "risk/reversal_detector.py", "risk/ltf_reversal.py", "risk/microstructure_toxicity.py"],
+    "trader_core": ["trading/trader.py", "trading/trader-asjad.py"],
+    "executor_core": ["trading/base_executor.py", "trading/execution_engine.py", "trading/maker_execution.py", "trading/depth_execution_gate.py"],
+    "hedge_logic": ["trading/adaptive_hedge_builder.py", "trading/dynamic_adaptive_hedge.py", "trading/hedge_context.py", "trading/hedge_intelligence_engine.py", "trading/hedge_pair_coordinator.py", "trading/leg_manager.py"],
+    "stop_loss_take_profit_stealth": ["trading/dynamic_tp_engine.py", "trading/dynamic_adaptive_stops.py"],
+    "trader_support": ["trading/churn_prevention.py", "trading/opportunity_tracker.py", "trading/lifecycle_controller.py", "trading/exit_coordinator.py", "trading/market_intelligence.py", "trading/market_regime_detector.py", "trading/coinank_signal_adapter.py", "trading/redis_stream_reader.py", "trading/signal_router.py", "trading/position_reporter.py", "trading/assert_governor.py", "trading/dynamic_margin_manager.py", "trading/fee_ratio_gate.py", "trading/adaptive_edge_gate.py", "trading/action_constants.py", "trading/adaptive_threshold_engine.py"],
+    "service_helper": ["services/portfolio_state.py", "services/portfolio_publisher.py", "services/onchain_analyzer.py", "services/liquidation_intelligence.py", "services/data_archiver.py", "services/live_decision_evaluator.py", "services/service_monitor.py"],
+    "utility_helper": ["utils/logger.py", "utils/metrics.py", "utils/healthbeat.py", "utils/redis_client.py", "utils/redis_hardening.py", "utils/redis_key_audit.py", "utils/binance_rate_limiter.py", "utils/websocket_limits.py", "utils/symbol_manager.py", "utils/ai_coins_manager.py", "utils/decision_bus.py", "utils/signal_publish.py", "utils/signal_schema.py", "utils/preflight.py", "utils/runtime_flags.py", "utils/interpreter_guard.py", "utils/interrupt_lock.py", "utils/data_normalizer.py", "utils/data_manager.py", "utils/ensemble_diagnostics.py", "utils/unified_position_loader.py"],
+    "account_config": ["config_accounts.py", "config.py"],
+    "support_telegram": ["telegram_alerts.py"],
+    "scripts_helper": ["scripts/start_trainer.sh", "scripts/stop_trainer.sh", "scripts/nightly_restart_trainer.sh", "scripts/soak_test_trainer.sh", "scripts/monitor_trainer_predictions.py", "scripts/monitor_trainer_prices.py", "scripts/check_trainer_signal_health.py", "scripts/verify_trader_consumption.py", "scripts/validate_trader_alignment.py", "scripts/audit_trade_attribution.py", "scripts/trace_trade_lifecycle.py", "scripts/start_trader.sh", "scripts/stop_trader.sh", "scripts/stop_trader_asjad.sh", "scripts/why_hedged_timeline.py", "scripts/test_hedge_build.py", "scripts/close_all_positions.py", "scripts/audit_orchestrator_last30m.py", "scripts/monitor_orchestrator_shadow.py", "scripts/integration_test_trainer.sh", "scripts/validate_flash_hedge_system.sh"],
+    "unknown_requires_review": []
+  },
+  "tools_that_produced_this_inventory": {
+    "phase_b_copier": "claude_worklog/tools/copy_legacy_full_runtime_closure.py",
+    "phase_c_closure_scanner": "v2/backend/app/cli/legacy_dependency_closure.py",
+    "phase_b_manifest_full": "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/full_runtime_copied_source_manifest.json",
+    "phase_c_closure_full": "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/full_trainer_trader_dependency_closure.json"
+  }
+}
