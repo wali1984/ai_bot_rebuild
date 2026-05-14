@@ -167,6 +167,42 @@ def codex_review_descriptor_path(worker_id: str) -> Path:
     return TASKS_DIR / f"codex_review_{worker_id}.json"
 
 
+def task_state_path(task_id: str) -> Path:
+    return REPO_ROOT / "claude_worklog" / "agent_supervisor" / "state" / "tasks" / f"{task_id}.json"
+
+
+def read_json_file(path: Path) -> Dict[str, Any]:
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return {}
+
+
+def descriptor_required_paths(worker_id: str) -> List[Path]:
+    descriptor = read_json_file(task_descriptor_path(worker_id))
+    paths: List[Path] = []
+    for item in descriptor.get("required_output_files", []):
+        raw = str(item).strip()
+        if not raw:
+            continue
+        candidate = Path(raw)
+        if candidate.is_absolute() or ".." in candidate.parts:
+            continue
+        paths.append(REPO_ROOT / candidate)
+    return paths
+
+
+def first_required_path(worker_id: str, predicate: Any, fallback: Path) -> Path:
+    for path in descriptor_required_paths(worker_id):
+        try:
+            rel = str(path.relative_to(REPO_ROOT))
+        except Exception:
+            rel = str(path)
+        if predicate(rel):
+            return path
+    return fallback
+
+
 # ---------- completion logic ----------------------------------------------
 
 
@@ -182,19 +218,47 @@ def expected_codex_fail_token(worker_id: str) -> str:
 def check_worker_completion(worker: Dict[str, str]) -> Dict[str, Any]:
     """Inspect on-disk artifacts and classify the worker's state."""
     worker_id = worker["id"]
-    cli = cli_path_for(worker_id)
-    tests = test_path_for(worker_id)
-    report = worker_report_path(worker_id)
-    status_json = worker_status_json_path(worker_id)
+    cli = first_required_path(
+        worker_id,
+        lambda rel: rel.startswith("v2/backend/app/cli/") and rel.endswith(".py"),
+        cli_path_for(worker_id),
+    )
+    tests = first_required_path(
+        worker_id,
+        lambda rel: rel.startswith("v2/backend/tests/") and Path(rel).name.startswith("test_") and rel.endswith(".py"),
+        test_path_for(worker_id),
+    )
+    report = first_required_path(
+        worker_id,
+        lambda rel: rel.startswith(str(WORKERS_DIR.relative_to(REPO_ROOT))) and rel.endswith("_report.md"),
+        worker_report_path(worker_id),
+    )
+    status_json = first_required_path(
+        worker_id,
+        lambda rel: rel.startswith(str(WORKERS_DIR.relative_to(REPO_ROOT))) and rel.endswith("_status.json"),
+        worker_status_json_path(worker_id),
+    )
     codex_go = codex_go_no_go_path(worker_id)
-    payload = public_payload_path(worker_id)
+    payload = first_required_path(
+        worker_id,
+        lambda rel: rel.startswith("v2/frontend/public/operator_runtime/") and rel.endswith("_status.json"),
+        public_payload_path(worker_id),
+    )
     task = task_descriptor_path(worker_id)
     codex_task = codex_review_descriptor_path(worker_id)
     legacy_baseline = legacy_baseline_analysis_path(worker_id)
     legacy_mapping = legacy_behavior_mapping_path(worker_id)
+    required_outputs = descriptor_required_paths(worker_id)
+    missing_required_outputs = [
+        str(path.relative_to(REPO_ROOT))
+        for path in required_outputs
+        if not path.exists()
+    ]
 
     missing: List[str] = []
-    if not cli.exists():
+    if missing_required_outputs:
+        missing.extend(missing_required_outputs)
+    elif not cli.exists():
         missing.append(str(cli.relative_to(REPO_ROOT)))
     if not tests.exists():
         missing.append(str(tests.relative_to(REPO_ROOT)))
@@ -233,31 +297,37 @@ def check_worker_completion(worker: Dict[str, str]) -> Dict[str, Any]:
     # list but a backfill task is required.
     legacy_baseline_present = legacy_baseline.exists() and legacy_mapping.exists()
 
+    codex_state = read_json_file(task_state_path(f"codex_review_{worker_id}")).get("status")
+    claude_state = read_json_file(task_state_path(f"claude_port_{worker_id}")).get("status")
+
+    pass_token = expected_codex_pass_token(worker_id)
+    fail_token = expected_codex_fail_token(worker_id)
+
     if safety_violation:
         state = BLOCKED_SAFETY
+    elif codex_text and pass_token in codex_text:
+        if legacy_baseline_present:
+            state = CODEX_PASS
+        else:
+            state = CODEX_PASS_BUT_LEGACY_BACKFILL_REQUIRED
+    elif codex_text and fail_token in codex_text:
+        state = CODEX_FAIL_REMEDIATION_REQUIRED
     elif not cli.exists() and not legacy_baseline_present:
         state = LEGACY_BASELINE_REQUIRED
-    elif not cli.exists():
+    elif missing_required_outputs and claude_state in {"running"}:
+        state = CLAUDE_RUNNING
+    elif missing_required_outputs and claude_state in {"pending", "retry_scheduled", "blocked_dependency", None, ""}:
         state = QUEUED
     elif not legacy_baseline_present and not codex_go.exists():
         state = LEGACY_BASELINE_REQUIRED
     elif not tests.exists() or not report.exists() or not status_json.exists():
         state = CLAUDE_RUNNING
-    elif not codex_go.exists() and not codex_task.exists():
-        state = CLAUDE_COMPLETED_AWAITING_CODEX
-    elif not codex_go.exists():
+    elif not codex_go.exists() and codex_state == "running":
         state = CODEX_RUNNING
+    elif not codex_go.exists():
+        state = CLAUDE_COMPLETED_AWAITING_CODEX
     else:
-        text = codex_text or ""
-        if expected_codex_pass_token(worker_id) in text:
-            if legacy_baseline_present:
-                state = CODEX_PASS
-            else:
-                state = CODEX_PASS_BUT_LEGACY_BACKFILL_REQUIRED
-        elif expected_codex_fail_token(worker_id) in text:
-            state = CODEX_FAIL_REMEDIATION_REQUIRED
-        else:
-            state = BLOCKED_UNKNOWN
+        state = BLOCKED_UNKNOWN
 
     return {
         "worker_id": worker_id,

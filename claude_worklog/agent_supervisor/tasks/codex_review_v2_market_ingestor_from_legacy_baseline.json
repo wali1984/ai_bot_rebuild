@@ -7,6 +7,9 @@
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "live_gate": "blocked_human_only",
   "emit_files": true,
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/"
+  ],
   "required_input_files": [
     "v2/backend/app/cli/v2_market_ingestor.py",
     "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_market_ingestor_from_legacy_baseline_LEGACY_BASELINE_ANALYSIS.md",
@@ -31,5 +34,5 @@
     "data_source_priority_does_not_match_startup_script_table"
   ],
   "go_no_go_file_contents": ["V2_MARKET_INGESTOR_FROM_LEGACY_BASELINE_CODEX_PASS", "V2_MARKET_INGESTOR_FROM_LEGACY_BASELINE_CODEX_FAIL"],
-  "prompt": "Audit the V2 market ingestor baseline port. CRITICAL: verify (1) every baseline source path cited in the LEGACY_BASELINE_ANALYSIS.md has a matching sha256 in copied_baseline_manifest.json, (2) the worker writes only v2:* namespaced data plane (no old Redis keys), (3) no exchange mutating endpoint is reachable, (4) the data-source priority matches the startup-script table (CoinAPI V1 primary, Binance REST fallback for OHLCV; etc.), (5) tests cover the legacy-equivalent rate-limit backoff and reconnect behavior. Emit review markdown and a single-line GO/NO-GO."
+  "prompt": "EMIT-FILE MODE - DO NOT USE INTERACTIVE WRITE/EDIT TOOLS. The supervisor will materialize files from stdout. Output exactly these two BEGIN_FILE blocks: BEGIN_FILE: claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_market_ingestor_from_legacy_baseline_review.md and BEGIN_FILE: claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_market_ingestor_from_legacy_baseline_go_no_go.md. The GO/NO-GO file must contain exactly one line: V2_MARKET_INGESTOR_FROM_LEGACY_BASELINE_CODEX_PASS or V2_MARKET_INGESTOR_FROM_LEGACY_BASELINE_CODEX_FAIL. Audit the V2 market ingestor baseline port. CRITICAL: verify (1) every baseline source path cited in the LEGACY_BASELINE_ANALYSIS.md has a matching sha256 in copied_baseline_manifest.json, (2) the worker writes only v2:* namespaced data plane (no old Redis keys), (3) no exchange mutating endpoint is reachable, (4) the data-source priority matches the startup-script table (CoinAPI V1 primary, Binance REST fallback for OHLCV; etc.), (5) tests cover the legacy-equivalent rate-limit backoff and reconnect behavior. Fail if any required input/output artifact is missing, if old Redis writes exist, if live gate is not blocked_human_only, if exchange mutation/leverage/margin controls are reachable, or if tests are absent."
 }
