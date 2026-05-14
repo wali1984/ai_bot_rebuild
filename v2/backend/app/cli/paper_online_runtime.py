@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import time
 import urllib.error
@@ -10,6 +11,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from v2.backend.app.composition.canary_profile_tightening import build_canary_profile_tightening_runtime
 from v2.backend.app.services.signal_publisher import build_paper_runtime_lineage
 
 
@@ -26,6 +28,12 @@ LOCAL_RUNTIME_DIR = V2_ROOT / "runtime" / "paper_online" / "latest"
 FINAL_DIR = REPO_ROOT / "claude_worklog" / "final_readiness" / "v2_paper_online_recovery" / "latest"
 WEEKLY_LOSS_LIMIT_USDT = -250.0
 DAILY_LOSS_LIMIT_USDT = -75.0
+PAPER_TIGHTENING_MIN_CONFIDENCE = 0.75
+PAPER_TIGHTENING_MAX_FILLS_PER_HOUR = 12
+PAPER_TIGHTENING_COOLDOWN_SECONDS = 300
+PAPER_TIGHTENING_LOSS_COOLDOWN_SECONDS = 600
+PAPER_TIGHTENING_MAX_SIGNAL_AGE_SECONDS = 120
+PAPER_TIGHTENING_MAX_FEATURE_AGE_SECONDS = 120
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,6 +148,22 @@ def _read_json(path: Path) -> dict[str, Any] | None:
         return json.loads(path.read_text())
     except (OSError, json.JSONDecodeError):
         return None
+
+
+def _read_jsonl_tail(path: Path, limit: int = 500) -> list[dict[str, Any]]:
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in lines[-max(1, limit) :]:
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(item, dict):
+            rows.append(item)
+    return rows
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -279,6 +303,71 @@ def build_signal_lineage(
     )
 
 
+def apply_paper_tightening_gate(
+    lineage: dict[str, Any],
+    *,
+    generated_at: str,
+    recent_events: list[dict[str, Any]],
+    now_ms: int | None = None,
+) -> dict[str, Any]:
+    gated = copy.deepcopy(lineage)
+    risk = gated["risk_decision"]
+    intent = gated["execution_intent"]
+    if risk.get("risk_action") != "allow":
+        risk["canary_profile_tightening"] = {
+            "classification": "TIGHTENING_NOT_EVALUATED_RISK_ALREADY_DENIED",
+            "paper_simulation_allowed": False,
+            "blockers": [str(risk.get("risk_reason_code") or "risk_already_denied")],
+            "live_gate_status": LIVE_GATE_STATUS,
+            "safe_for_live": False,
+            "automation_can_enable_live": False,
+        }
+        return gated
+
+    signal = gated.get("signal", {})
+    feature_snapshot = gated.get("feature_snapshot", {})
+    prediction = gated.get("trainer_prediction", {})
+    raw_output = prediction.get("raw_output") if isinstance(prediction.get("raw_output"), dict) else {}
+    runtime = build_canary_profile_tightening_runtime(
+        now_ms_clock=lambda: now_ms if now_ms is not None else int(time.time() * 1000),
+        min_confidence=PAPER_TIGHTENING_MIN_CONFIDENCE,
+        max_fills_per_hour=PAPER_TIGHTENING_MAX_FILLS_PER_HOUR,
+        cooldown_seconds=PAPER_TIGHTENING_COOLDOWN_SECONDS,
+        loss_cooldown_seconds=PAPER_TIGHTENING_LOSS_COOLDOWN_SECONDS,
+        max_signal_age_seconds=PAPER_TIGHTENING_MAX_SIGNAL_AGE_SECONDS,
+        max_feature_age_seconds=PAPER_TIGHTENING_MAX_FEATURE_AGE_SECONDS,
+    )
+    gate = runtime.evaluate_now(
+        intent_payload={
+            "symbol": intent.get("symbol") or signal.get("symbol"),
+            "action": "OPEN_LONG" if intent.get("side") == "long" else "OPEN_SHORT" if intent.get("side") == "short" else "HOLD",
+            "confidence": signal.get("confidence") or signal.get("confidence_calibrated") or prediction.get("confidence_calibrated"),
+            "signal_generated_at": signal.get("generated_at") or generated_at,
+            "feature_snapshot_generated_at": feature_snapshot.get("generated_at") or feature_snapshot.get("generated_ts"),
+            "expected_move_bps": raw_output.get("expected_move_bps"),
+            "fee_bps": 4.0,
+            "slippage_bps": 2.0,
+            "funding_bps": 0.0,
+        },
+        recent_events=recent_events,
+        approval_token_present=False,
+    )
+    risk["canary_profile_tightening"] = gate
+    if gate.get("blockers"):
+        risk["risk_action"] = "deny"
+        risk["risk_result"] = "BLOCKED"
+        risk["risk_reason_code"] = "deny_canary_profile_tightening"
+        risk["canary_profile_tightening_blockers"] = list(gate.get("blockers") or [])
+        required = list(risk.get("required_blocks_checked") or [])
+        if "canary_profile_tightening" not in required:
+            required.append("canary_profile_tightening")
+        risk["required_blocks_checked"] = required
+        intent["intent_action"] = "paper_noop_blocked"
+        intent["exchange_order_allowed"] = False
+        intent["paper_only"] = True
+    return gated
+
+
 def build_paper_ledger_entry(
     *,
     tick_id: str,
@@ -369,6 +458,7 @@ def build_risk_runtime_payload(
 
 def append_paper_event(root: Path, payload: dict[str, Any], risk_runtime_payload: dict[str, Any]) -> None:
     ledger_entry = payload["paper_ledger_tail"][0]
+    signal = payload["current_signal_lineage"]["signal"]
     event = {
         "generated_at": payload["generated_at"],
         "tick_id": payload["paper_loop"]["tick_id"],
@@ -384,7 +474,7 @@ def append_paper_event(root: Path, payload: dict[str, Any], risk_runtime_payload
         "risk_reason_code": payload["current_risk_decision"]["risk_reason_code"],
         "ledger_action": ledger_entry["ledger_action"],
         "paper_result": ledger_entry["paper_result"],
-        "confidence": payload["current_signal_lineage"]["signal"]["confidence"],
+        "confidence": signal.get("confidence") or signal.get("confidence_calibrated"),
         "notional_usdt": ledger_entry["notional_usdt"],
         "fee_usdt": ledger_entry["fee_usdt"],
         "slippage_bps": ledger_entry["slippage_bps"],
@@ -393,6 +483,7 @@ def append_paper_event(root: Path, payload: dict[str, Any], risk_runtime_payload
         "paper_realized_pnl": payload["paper_account"]["realized_pnl"],
         "weekly_loss_gate_required": risk_runtime_payload["weekly_loss_gate_required"],
         "weekly_loss_breach": risk_runtime_payload["weekly_loss_breach"],
+        "canary_profile_tightening_blockers": payload["current_risk_decision"].get("canary_profile_tightening_blockers", []),
         "live_gate_status": LIVE_GATE_STATUS,
         "exchange_order": False,
         "legacy_redis_write": False,
@@ -419,6 +510,11 @@ def build_runtime_payload(symbol: str, interval: int) -> tuple[dict[str, Any], d
         feature_snapshot=feature_snapshot,
         prediction=trainer_prediction,
         market=market,
+    )
+    lineage = apply_paper_tightening_gate(
+        lineage,
+        generated_at=generated_at,
+        recent_events=_read_jsonl_tail(LOCAL_RUNTIME_DIR / "paper_events.jsonl"),
     )
     ledger_entry, paper_account = build_paper_ledger_entry(
         tick_id=tick_id,
