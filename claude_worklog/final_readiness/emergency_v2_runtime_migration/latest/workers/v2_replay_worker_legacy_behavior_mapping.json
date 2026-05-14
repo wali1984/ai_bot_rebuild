@@ -1,0 +1,185 @@
+{
+  "worker_id": "v2_replay_worker",
+  "classification": "LEGACY_REVIEWED_BEFORE_V2_BUILD",
+  "generated_at": "2026-05-14",
+  "live_gate": "blocked_human_only",
+  "gate_always_blocked_invariant": true,
+  "exchange_action_taken": false,
+  "exchange_call_invariant": "NO_REAL_EXCHANGE_CALL_FROM_REPLAY_WORKER",
+  "legacy_redis_writers_introduced": false,
+  "legacy_source_paths": [
+    "legacy_reference/scripts/replay_sanity_check.py",
+    "legacy_reference/rl/scripts/replay_decision.py",
+    "legacy_reference/rl/replay_store.py",
+    "legacy_reference/.backups/fix_signals_20251012_191330/paper_trader.py",
+    "legacy_reference/rl/historical_data_loader.py"
+  ],
+  "legacy_functions_preserved": [
+    {
+      "legacy_symbol": "replay_sanity_check.fetch_signals",
+      "responsibility": "read recent decisions from a stream-like store",
+      "v2_location": "v2/backend/app/cli/v2_replay_worker.py::_load_paper_ledger_entries_from_source",
+      "redis_writer_introduced": false
+    },
+    {
+      "legacy_symbol": "replay_sanity_check.fetch_executions",
+      "responsibility": "index executions by signal id",
+      "v2_location": "v2/backend/app/cli/v2_replay_worker.py::_index_executions_by_signal_id",
+      "v2_test": "v2/backend/tests/integration/cli/test_v2_replay_worker.py::test_execution_index_by_signal_id_is_preserved",
+      "redis_writer_introduced": false
+    },
+    {
+      "legacy_symbol": "replay_sanity_check.replay_and_validate",
+      "responsibility": "walk decisions chronologically and produce a per-step + summary report",
+      "v2_location": "v2/backend/app/services/replay_backtest_runner/service.py::assemble_replay_backtest_step + assemble_replay_backtest_summary, invoked through v2/backend/app/composition/replay_backtest_runner/runtime.py::build_replay_backtest_runner",
+      "redis_writer_introduced": false
+    },
+    {
+      "legacy_symbol": "replay_decision.main",
+      "responsibility": "replay a single decision by stream id",
+      "v2_location": "v2/backend/app/cli/v2_replay_worker.py::run_once with optional --paper-trade-id filter",
+      "redis_writer_introduced": false
+    },
+    {
+      "legacy_symbol": "paper_trader (simulated execution)",
+      "responsibility": "stamp simulated fill ledger",
+      "v2_location": "v2/backend/app/cli/v2_paper_execution_worker.py (upstream); this replay worker only consumes its ledger output",
+      "redis_writer_introduced": false
+    }
+  ],
+  "legacy_inputs": [
+    "redis_stream:signals:trading (legacy read-only reference, NOT consumed by V2 replay worker)",
+    "redis_stream:executed_signals (legacy read-only reference, NOT consumed by V2 replay worker)",
+    "env:REDIS_HOST",
+    "env:REDIS_PORT",
+    "env:REDIS_DB",
+    "env:PORTFOLIO_MAX_LONG_SLOTS",
+    "env:PORTFOLIO_MAX_SHORT_SLOTS",
+    "env:PORTFOLIO_MAX_TOTAL_POSITIONS"
+  ],
+  "legacy_outputs": [
+    "stdout console log of policy violations and counters",
+    "no persisted artefact"
+  ],
+  "legacy_redis_keys_read_only_references": [
+    "signals:trading",
+    "executed_signals"
+  ],
+  "legacy_redis_keys_written_by_v2_replay_worker": [],
+  "legacy_config_dependencies": [
+    "PORTFOLIO_MAX_LONG_SLOTS",
+    "PORTFOLIO_MAX_SHORT_SLOTS",
+    "PORTFOLIO_MAX_TOTAL_POSITIONS",
+    "PORTFOLIO_MARGIN_LIMITS"
+  ],
+  "legacy_edge_cases": [
+    {
+      "name": "empty_signals_stream",
+      "legacy_behavior": "prints 'no signals', exits 0",
+      "v2_behavior": "fail-closed status with reason no_paper_ledger_entries_in_window, rc 2"
+    },
+    {
+      "name": "malformed_payload",
+      "legacy_behavior": "logs and skips silently",
+      "v2_behavior": "fail-closed, runtime_evidence_status=INVALID_PAPER_LEDGER_ENTRY"
+    },
+    {
+      "name": "unordered_stream_entries",
+      "legacy_behavior": "reversed to chronological in fetch_signals",
+      "v2_behavior": "explicitly sorts entries by ledger_entry_ts_ms ascending before assembling steps"
+    },
+    {
+      "name": "pruned_old_entry_requested",
+      "legacy_behavior": "prints 'not found', rc 1",
+      "v2_behavior": "fail-closed with reason paper_trade_id_not_in_window, rc 2"
+    },
+    {
+      "name": "entry_outside_window",
+      "legacy_behavior": "still replayed",
+      "v2_behavior": "filtered out and counted as entries_filtered_outside_window"
+    }
+  ],
+  "legacy_failure_modes": [
+    "redis_connection_refused (not applicable to V2: replay worker has no Redis dependency)",
+    "stream_pruning_removed_id (V2: reported as paper_trade_id_not_in_window)",
+    "json_decode_failure (V2: INVALID_PAPER_LEDGER_ENTRY)"
+  ],
+  "legacy_tests_or_expected_behavior": [
+    "no unit tests in legacy; behaviour validated only by ad-hoc operator running the legacy script and reading console output"
+  ],
+  "v2_mapping": {
+    "cli_path": "v2/backend/app/cli/v2_replay_worker.py",
+    "composition_runtime_used": "v2/backend/app/composition/replay_backtest_runner/runtime.py::build_replay_backtest_runner",
+    "service_functions_used": [
+      "v2.backend.app.services.replay_backtest_runner.assemble_replay_backtest_step",
+      "v2.backend.app.services.replay_backtest_runner.assemble_replay_backtest_summary"
+    ],
+    "domain_types_used": [
+      "v2.backend.app.domain.replay_backtest_runner.ReplayBacktestRun",
+      "v2.backend.app.domain.replay_backtest_runner.ReplayBacktestStep",
+      "v2.backend.app.domain.replay_backtest_runner.ReplayBacktestSummary",
+      "v2.backend.app.domain.paper_execution_ledger.PaperExecutionLedgerEntry"
+    ],
+    "replay_output_paths": [
+      "v2/frontend/public/operator_runtime/v2_replay_worker/latest/v2_replay_worker_status.json",
+      "v2/runtime/v2_replay_worker/latest/v2_replay_worker_status.json",
+      "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_replay_worker_status.json"
+    ],
+    "replay_output_path_invariant": "REPLAY_OUTPUT_NEVER_OVERWRITES_PAPER_ONLINE",
+    "redis_writer_introduced": false
+  },
+  "intentional_changes": [
+    {
+      "change": "no_redis_read_or_write",
+      "reason": "V2 is local-first and reads file-based public payloads; replay path must not introduce a new Redis client"
+    },
+    {
+      "change": "no_portfolio_constraint_validation",
+      "reason": "portfolio policy is now evaluated by v2_risk_gateway_runtime_worker; replay is a deterministic re-walk only"
+    },
+    {
+      "change": "hard_write_path_invariant_REPLAY_OUTPUT_NEVER_OVERWRITES_PAPER_ONLINE",
+      "reason": "spec requirement; prevents replay artefacts from clobbering live paper runtime"
+    },
+    {
+      "change": "symbol_universe_contract_required",
+      "reason": "every V2 worker must read scope via the V2 Symbol Universe service; legacy scripts hardcoded the symbol set"
+    },
+    {
+      "change": "live_gate_blocked_human_only",
+      "reason": "no codepath unblocks live; legacy scripts had no live gate concept"
+    }
+  ],
+  "removed_or_deprecated_behavior": [
+    {
+      "removed": "redis.Redis client + xrevrange/xrange stream reads",
+      "reason": "V2 paper/replay path must not introduce a new Redis dependency"
+    },
+    {
+      "removed": "PORTFOLIO_MAX_* policy enforcement in replay",
+      "reason": "moved to risk gateway worker; replay is bookkeeping only"
+    },
+    {
+      "removed": "telegram alert emission (present in legacy paper_trader)",
+      "reason": "replay is a deterministic re-walk; it does not emit live alerts"
+    }
+  ],
+  "evidence_pointers": [
+    "legacy_reference/scripts/replay_sanity_check.py:1-120",
+    "legacy_reference/rl/scripts/replay_decision.py:1-42",
+    "legacy_reference/rl/replay_store.py:1-60",
+    "legacy_reference/.backups/fix_signals_20251012_191330/paper_trader.py:1-60",
+    "v2/backend/app/composition/replay_backtest_runner/runtime.py:1-55",
+    "v2/backend/app/services/replay_backtest_runner/service.py:30-226",
+    "v2/backend/app/domain/replay_backtest_runner/run.py:1-83",
+    "v2/backend/app/domain/paper_execution_ledger/record.py:1-100",
+    "v2/backend/app/cli/v2_paper_execution_worker.py:560-620"
+  ],
+  "blocked_human_only_acknowledgement": {
+    "live_gate": "blocked_human_only",
+    "gate_always_blocked_invariant": true,
+    "exchange_action_taken": false,
+    "exchange_call_invariant": "NO_REAL_EXCHANGE_CALL_FROM_REPLAY_WORKER",
+    "legacy_redis_writers_introduced": false
+  }
+}
