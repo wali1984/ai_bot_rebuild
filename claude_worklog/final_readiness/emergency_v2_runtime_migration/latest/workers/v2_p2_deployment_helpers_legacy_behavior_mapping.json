@@ -1,0 +1,110 @@
+{
+  "worker_id": "v2_p2_deployment_helpers",
+  "task_id": "claude_port_v2_p2_deployment_helpers",
+  "generated_ts": "2026-05-14T00:00:00Z",
+  "baseline_status": "BASELINE_COMPLETE",
+  "legacy_source_paths": [
+    {
+      "legacy_rel_path": "scripts/start_all_services_production.sh",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/scripts/start_all_services_production.sh",
+      "sha256": "2b5a9a63fc76487b3a6f46cdbb8060044aeab69c5f8117bbf30e7efdb8a10ca9",
+      "role": "legacy production startup order"
+    },
+    {
+      "legacy_rel_path": "scripts/stop_all_services_production.sh",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/scripts/stop_all_services_production.sh",
+      "sha256": "7db37564a3677d5e9e8b2f4f4ad8171fda99d3fcf163ccf23dd0c7e45dbc06d8",
+      "role": "legacy production stop flow"
+    },
+    {
+      "legacy_rel_path": "scripts/stop_ingestors.sh",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/scripts/stop_ingestors.sh",
+      "sha256": "83d6eb161b23b3bd748870be4440b8c6d1dfd0ae339b41a087eac2e0575fc50b",
+      "role": "legacy ingestor stop helper"
+    }
+  ],
+  "legacy_functions_preserved": [
+    "staged_startup_concept_only",
+    "preflight_before_launch_concept_only",
+    "idempotent_stop_concept_only"
+  ],
+  "legacy_functions_intentionally_not_preserved": [
+    "live_trader_start",
+    "production_exchange_start",
+    "old_redis_coordination",
+    "broad_legacy_process_kill"
+  ],
+  "legacy_inputs": [
+    "copied_baseline_manifest.json",
+    "worker_porting_state.json",
+    "V2 Symbol Universe service or public payload",
+    "approval marker absence"
+  ],
+  "legacy_outputs": [
+    "operator shell output only",
+    "no old Redis writes",
+    "no exchange actions",
+    "no live approval token"
+  ],
+  "legacy_redis_keys": [],
+  "legacy_config_dependencies": [
+    ".venv/bin/python3",
+    "v2/backend/app/services/symbol_universe/service.py"
+  ],
+  "legacy_edge_cases": [
+    "operator passes live or real mode flag",
+    "approval marker exists",
+    "live gate drifted away from blocked_human_only",
+    "venv Python missing",
+    "stop helper run repeatedly"
+  ],
+  "legacy_failure_modes": [
+    "legacy production script could start live trader",
+    "legacy stop script could target broad process sets",
+    "legacy production script could depend on old Redis"
+  ],
+  "legacy_tests_or_expected_behavior": [
+    "preflight_check_fails_when_approval_token_present",
+    "preflight_check_passes_when_paper_only",
+    "start_script_refuses_to_start_with_real_mode_flag",
+    "stop_script_idempotent_and_safe"
+  ],
+  "V2_mapping": {
+    "start_local_paper_runtime": {
+      "path": "v2/scripts/deployment/start_local_paper_runtime.sh",
+      "mode": "paper_only",
+      "live_enabled": false
+    },
+    "preflight": {
+      "path": "v2/scripts/deployment/preflight_check.py",
+      "blocks": [
+        "final_live_approval_token_present",
+        "redis_trim_approval_present",
+        "non_paper_mode_forbidden",
+        "live_gate_not_blocked"
+      ]
+    },
+    "stop_all_workers": {
+      "path": "v2/scripts/deployment/stop_all_workers.sh",
+      "default": "dry_run",
+      "legacy_touched": false
+    },
+    "symbol_scope": "SYMBOL_UNIVERSE_CONTRACT_REQUIRED"
+  },
+  "intentional_changes": [
+    "V2 starts only local paper/shadow helper patterns",
+    "V2 stop helper defaults to dry-run",
+    "real/live mode flags fail closed",
+    "Symbol Universe contract is emitted by preflight"
+  ],
+  "removed_deprecated_behavior": [
+    "legacy live trader start",
+    "legacy production exchange mutation path",
+    "old Redis coordination writes"
+  ],
+  "symbol_universe_contract": "SYMBOL_UNIVERSE_CONTRACT_REQUIRED",
+  "live_gate": "blocked_human_only",
+  "final_approval_token": "absent_required",
+  "old_redis_write": false,
+  "exchange_action": false
+}
