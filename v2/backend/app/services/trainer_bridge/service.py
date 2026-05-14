@@ -14,6 +14,7 @@ import re
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional
+from zoneinfo import ZoneInfo
 
 
 LIVE_GATE_STATUS = "blocked_human_only"
@@ -21,6 +22,7 @@ MISSING_RUNTIME_EVIDENCE = "MISSING_RUNTIME_EVIDENCE"
 WRAPPER_NOT_LEGACY_HYBRID_PARITY = "WRAPPER_NOT_LEGACY_HYBRID_PARITY"
 LEGACY_HYBRID_TRAINER_PRESENT = "LEGACY_HYBRID_TRAINER_PRESENT"
 LEGACY_HYBRID_TRAINER_PREDICTION_PRESENT = "LEGACY_HYBRID_TRAINER_PREDICTION_PRESENT"
+LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT = "LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT"
 LEGACY_SOURCE_PATH = "v2/legacy_preserved/startup_baseline/rl/hybrid_trainer.py"
 LEGACY_MANIFEST_PATH = (
     "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/"
@@ -39,6 +41,27 @@ ACCEPTED_PREDICTION_SOURCE_PREFIXES = (
     "LEGACY_HYBRID_TRAINER",
     "V2_NATIVE_TRAINER",
 )
+LEGACY_LOCAL_TZ = ZoneInfo("America/New_York")
+LEGACY_LOG_TS_RE = r"(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3})"
+LEGACY_PPO_DECISION_RE = re.compile(
+    LEGACY_LOG_TS_RE
+    + r".*?PPO_DECISION_RAW\s+\|\s+account=(?P<account>[^|]+)\s+\|\s+"
+    + r"symbol=(?P<symbol>[A-Za-z0-9]+)\s+\|\s+tf=(?P<timeframe>[^|]+)\s+\|\s+"
+    + r"action_id=(?P<action_id>[^|]+)\s+\|\s+action=(?P<action>[^|]+)\s+\|\s+"
+    + r"ppo_conf=(?P<ppo_conf>[-+]?\d+(?:\.\d+)?)\s+\|\s+"
+    + r"top1=(?P<top1>[-+]?\d+(?:\.\d+)?)\s+\|\s+top2=(?P<top2>[-+]?\d+(?:\.\d+)?)\s+\|\s+"
+    + r"top1_id=(?P<top1_id>[^|]+)\s+\|\s+top2_id=(?P<top2_id>[^|]+)"
+)
+ACTION_NAME_BY_ID = {
+    "0": "HOLD",
+    "1": "OPEN_LONG",
+    "2": "OPEN_SHORT",
+    "3": "CLOSE_LONG",
+    "4": "CLOSE_SHORT",
+    "5": "REDUCE_LONG",
+    "6": "REDUCE_SHORT",
+}
+LEGACY_LOG_TAIL_BYTES = 2 * 1024 * 1024
 
 
 def utc_now() -> str:
@@ -59,6 +82,14 @@ def age_seconds(value: Any) -> Optional[int]:
     if parsed is None:
         return None
     return max(0, int((dt.datetime.now(dt.timezone.utc) - parsed).total_seconds()))
+
+
+def parse_legacy_log_ts(value: str) -> Optional[dt.datetime]:
+    try:
+        parsed = dt.datetime.strptime(value, "%Y-%m-%d %H:%M:%S,%f")
+    except ValueError:
+        return None
+    return parsed.replace(tzinfo=LEGACY_LOCAL_TZ).astimezone(dt.timezone.utc)
 
 
 def sha256_file(path: Path) -> str:
@@ -85,6 +116,106 @@ def manifest_records(manifest_path: Path) -> List[Dict[str, Any]]:
     if isinstance(data, list):
         return [item for item in data if isinstance(item, dict)]
     return []
+
+
+def latest_legacy_ppo_decision_line(log_path: Path) -> Optional[str]:
+    try:
+        size = log_path.stat().st_size
+        with log_path.open("rb") as handle:
+            handle.seek(max(0, size - LEGACY_LOG_TAIL_BYTES))
+            text = handle.read().decode("utf-8", errors="replace")
+    except OSError:
+        return None
+    lines = text.splitlines()
+    for line in reversed(lines):
+        if "PPO_DECISION_RAW" in line and LEGACY_PPO_DECISION_RE.search(line):
+            return line
+    return None
+
+
+def latest_checkpoint_id(metadata_path: Path) -> str:
+    data = load_json(metadata_path)
+    if not isinstance(data, Mapping):
+        return ""
+    timestamp = data.get("timestamp")
+    ppo_path = str(data.get("ppo_path") or "")
+    if timestamp not in (None, ""):
+        return f"legacy_live_checkpoint_{timestamp}"
+    if ppo_path:
+        return Path(ppo_path).stem
+    return ""
+
+
+def legacy_log_prediction_payload(
+    *,
+    log_path: Path,
+    checkpoint_metadata_path: Path,
+) -> Optional[Dict[str, Any]]:
+    line = latest_legacy_ppo_decision_line(log_path)
+    if not line:
+        return None
+    match = LEGACY_PPO_DECISION_RE.search(line)
+    if not match:
+        return None
+    ts = parse_legacy_log_ts(match.group("ts"))
+    if ts is None:
+        return None
+    symbol = match.group("symbol").strip().upper()
+    timeframe = match.group("timeframe").strip()
+    action = match.group("action").strip()
+    digest = hashlib.sha256(line.encode("utf-8")).hexdigest()
+    checkpoint_id = latest_checkpoint_id(checkpoint_metadata_path)
+    confidence_raw = float(match.group("ppo_conf"))
+    top1_id = match.group("top1_id").strip()
+    top2_id = match.group("top2_id").strip()
+    top_features = [
+        {
+            "name": f"ppo_action_{ACTION_NAME_BY_ID.get(top1_id, top1_id)}_probability",
+            "value": float(match.group("top1")),
+            "source": "legacy_log:PPO_DECISION_RAW.top1",
+        },
+        {
+            "name": f"ppo_action_{ACTION_NAME_BY_ID.get(top2_id, top2_id)}_probability",
+            "value": float(match.group("top2")),
+            "source": "legacy_log:PPO_DECISION_RAW.top2",
+        },
+    ]
+    generated_at = ts.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {
+        "source_type": "LEGACY_HYBRID_TRAINER_LOG_READONLY",
+        "generated_at": generated_at,
+        "prediction_id": f"legacy_log_pred_{digest[:20]}",
+        "feature_snapshot_id": f"legacy_log_feature_{symbol}_{timeframe}_{int(ts.timestamp())}",
+        "model_version": "legacy_hybrid_trainer_live_legacy",
+        "model_checkpoint": checkpoint_id,
+        "checkpoint_id": checkpoint_id,
+        "confidence_raw": confidence_raw,
+        "confidence_calibrated": confidence_raw,
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "top_features": top_features,
+        "raw_model_output": {
+            "account": match.group("account").strip(),
+            "action": action,
+            "action_id": match.group("action_id").strip(),
+            "top1": match.group("top1"),
+            "top2": match.group("top2"),
+            "top1_id": top1_id,
+            "top2_id": top2_id,
+            "evidence_line_sha256": digest,
+        },
+        "lineage_derivation_warnings": [
+            "feature_snapshot_id_bridge_derived_from_legacy_log_line",
+            "confidence_calibrated_bridge_derived_from_ppo_conf",
+            "top_features_are_action_probability_evidence_not_full_feature_attribution",
+            "top_negative_features_absent_from_legacy_log_line",
+        ],
+        "trainer_full_parity_blockers": [
+            "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED",
+            "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
+            "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
+        ],
+    }
 
 
 def find_manifest_record(records: Iterable[Mapping[str, Any]], legacy_rel_path: str) -> Dict[str, Any]:
@@ -291,6 +422,8 @@ def evaluate_prediction_payload(payload: Mapping[str, Any], source_path: str) ->
     accepted_source_type = any(
         source_type.startswith(prefix) for prefix in ACCEPTED_PREDICTION_SOURCE_PREFIXES
     )
+    parity_blockers = list(payload.get("trainer_full_parity_blockers") or [])
+    is_legacy_log_evidence = source_type == "LEGACY_HYBRID_TRAINER_LOG_READONLY"
     if is_wrapper:
         accepted = False
         status = WRAPPER_NOT_LEGACY_HYBRID_PARITY
@@ -306,6 +439,9 @@ def evaluate_prediction_payload(payload: Mapping[str, Any], source_path: str) ->
     elif prediction_age_seconds > MAX_PREDICTION_AGE_SECONDS:
         accepted = False
         status = "PREDICTION_EVIDENCE_STALE"
+    elif is_legacy_log_evidence:
+        accepted = True
+        status = LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT
     else:
         accepted = True
         status = LEGACY_HYBRID_TRAINER_PREDICTION_PRESENT
@@ -326,6 +462,8 @@ def evaluate_prediction_payload(payload: Mapping[str, Any], source_path: str) ->
         "prediction_id": payload.get("prediction_id") or "",
         "feature_snapshot_id": payload.get("feature_snapshot_id") or "",
         "model_checkpoint_id": checkpoint,
+        "model_version": payload.get("model_version") or "",
+        "checkpoint_id": payload.get("checkpoint_id") or checkpoint,
         "latest_prediction_timestamp": generated_at or "",
         "prediction_age_seconds": prediction_age_seconds,
         "raw_confidence": raw_conf,
@@ -334,11 +472,23 @@ def evaluate_prediction_payload(payload: Mapping[str, Any], source_path: str) ->
         "top_negative_features": top_negative,
         "raw_prediction_payload": dict(payload),
         "missing_prediction_fields": missing,
+        "lineage_derivation_warnings": list(payload.get("lineage_derivation_warnings") or []),
+        "trainer_full_parity_blockers": parity_blockers,
     }
 
 
-def find_current_prediction(candidate_paths: Iterable[Path], *, repo_root: Path) -> Dict[str, Any]:
+def find_current_prediction(
+    candidate_paths: Iterable[Path],
+    *,
+    repo_root: Path,
+    extra_payloads: Optional[Iterable[tuple[str, Mapping[str, Any]]]] = None,
+) -> Dict[str, Any]:
     evidence: List[Dict[str, Any]] = []
+    for source_path, payload in extra_payloads or ():
+        evaluated = evaluate_prediction_payload(payload, source_path)
+        evidence.append(evaluated)
+        if evaluated["accepted_as_legacy_hybrid_prediction"]:
+            return evaluated | {"prediction_candidates_seen": evidence}
     for path in candidate_paths:
         data = load_json(path)
         if not isinstance(data, Mapping):

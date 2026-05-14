@@ -32,6 +32,7 @@ from v2.backend.app.services.trainer_bridge.service import (
     evaluate_feature_snapshot,
     find_current_prediction,
     inspect_legacy_trainer_source,
+    legacy_log_prediction_payload,
     utc_now,
 )
 
@@ -77,6 +78,10 @@ PREDICTION_CANDIDATES = [
     V2_ROOT / "frontend" / "public" / "legacy_trainer_restart_runtime" / "latest" / "legacy_trainer_current_prediction.json",
     REPO_ROOT / "claude_worklog" / "final_readiness" / "legacy_trainer_restart_runtime" / "latest" / "legacy_trainer_current_prediction.json",
 ]
+LEGACY_READONLY_TRAINER_LOG = Path("/home/wali/Desktop/AI BOT/.logs/hybrid_trainer.log")
+LEGACY_READONLY_CHECKPOINT_METADATA = Path(
+    "/home/wali/Desktop/AI BOT/models/checkpoints/live_legacy/checkpoint_metadata_latest.json"
+)
 
 REQUIRED_PUBLIC_PAYLOAD_FIELDS = (
     "worker_id",
@@ -237,7 +242,23 @@ def build_status() -> Dict[str, Any]:
     legacy = inspect_legacy_trainer_source(repo_root=REPO_ROOT)
     feature_path = _first_existing(FEATURE_SNAPSHOT_CANDIDATES) or FEATURE_SNAPSHOT_CANDIDATES[0]
     feature = evaluate_feature_snapshot(feature_path, repo_root=REPO_ROOT)
-    prediction = find_current_prediction(PREDICTION_CANDIDATES, repo_root=REPO_ROOT)
+    legacy_log_payload = legacy_log_prediction_payload(
+        log_path=LEGACY_READONLY_TRAINER_LOG,
+        checkpoint_metadata_path=LEGACY_READONLY_CHECKPOINT_METADATA,
+    )
+    extra_prediction_payloads: List[Tuple[str, Dict[str, Any]]] = []
+    if legacy_log_payload:
+        extra_prediction_payloads.append(
+            (
+                "legacy_readonly:/home/wali/Desktop/AI BOT/.logs/hybrid_trainer.log",
+                legacy_log_payload,
+            )
+        )
+    prediction = find_current_prediction(
+        PREDICTION_CANDIDATES,
+        repo_root=REPO_ROOT,
+        extra_payloads=extra_prediction_payloads,
+    )
     process = detect_trainer_process()
     gpu = detect_gpu_state()
     accepted_prediction = bool(prediction.get("accepted_as_legacy_hybrid_prediction"))
@@ -259,9 +280,13 @@ def build_status() -> Dict[str, Any]:
         blockers.append("MISSING_FEATURE_FLAGS")
     if feature.get("stale_feature_flags"):
         blockers.append("STALE_FEATURE_FLAGS")
+    for item in prediction.get("trainer_full_parity_blockers") or []:
+        blockers.append(str(item))
 
     runtime_status = LEGACY_HYBRID_TRAINER_PRESENT if legacy.get("legacy_binary_state") == "PRESENT" else MISSING_RUNTIME_EVIDENCE
-    if accepted_prediction:
+    if accepted_prediction and prediction.get("prediction_evidence_status"):
+        runtime_status = str(prediction.get("prediction_evidence_status"))
+    elif accepted_prediction:
         runtime_status = "LEGACY_HYBRID_TRAINER_PREDICTION_PRESENT"
     elif prediction.get("prediction_evidence_status") == WRAPPER_NOT_LEGACY_HYBRID_PARITY:
         runtime_status = WRAPPER_NOT_LEGACY_HYBRID_PARITY
@@ -294,14 +319,26 @@ def build_status() -> Dict[str, Any]:
         "predictions_emitted_total": 1 if accepted_prediction else 0,
         "prediction_id": prediction.get("prediction_id", ""),
         "feature_snapshot_id": prediction.get("feature_snapshot_id") or feature.get("feature_snapshot_id", ""),
+        "model_version": prediction.get("model_version", ""),
         "model_checkpoint_id": prediction.get("model_checkpoint_id", ""),
+        "checkpoint_id": prediction.get("checkpoint_id") or prediction.get("model_checkpoint_id", ""),
         "checkpoint_evidence_status": "PRESENT" if accepted_prediction and prediction.get("model_checkpoint_id") else "MISSING_OR_REJECTED",
         "raw_confidence": prediction.get("raw_confidence"),
         "calibrated_confidence": prediction.get("calibrated_confidence"),
+        "confidence_raw": prediction.get("raw_confidence"),
+        "confidence_calibrated": prediction.get("calibrated_confidence"),
         "top_positive_features": prediction.get("top_positive_features", []),
         "top_negative_features": prediction.get("top_negative_features", []),
         "missing_feature_flags": feature.get("missing_feature_flags", []),
         "stale_feature_flags": feature.get("stale_feature_flags", []),
+        "unused_feature_flags": [],
+        "lineage_derivation_warnings": prediction.get("lineage_derivation_warnings", []),
+        "trainer_full_parity_blockers": sorted(set(map(str, prediction.get("trainer_full_parity_blockers") or []))),
+        "legacy_readonly_log_bridge": {
+            "status": "PRESENT" if legacy_log_payload else "MISSING_OR_UNPARSEABLE",
+            "log_path": str(LEGACY_READONLY_TRAINER_LOG),
+            "checkpoint_metadata_path": str(LEGACY_READONLY_CHECKPOINT_METADATA),
+        },
         "trainer_readiness": "READY" if accepted_prediction and not blockers else "BLOCKED",
         "feature_snapshot_trainer_readiness_signal": feature.get("trainer_readiness_signal", "UNKNOWN"),
         "feature_snapshot_dependency_status": feature.get("feature_snapshot_status", MISSING_RUNTIME_EVIDENCE),

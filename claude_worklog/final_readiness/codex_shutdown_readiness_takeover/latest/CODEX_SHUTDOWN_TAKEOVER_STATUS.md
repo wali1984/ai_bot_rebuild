@@ -1,6 +1,6 @@
 # CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP
 
-As of: 2026-05-14T22:53:14Z
+As of: 2026-05-14T23:24:23Z
 
 Loop marker: `CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP_READY`
 Shutdown recommendation: `BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE`
@@ -15,15 +15,13 @@ Legacy shutdown remains blocked because required parity, edge, dependency, or sa
 
 ## Blockers
 
-- `LEGACY_BASELINE_BACKFILL_REQUIRED` [P0_SHUTDOWN_BLOCKER]: worker_porting: legacy_baseline_backfill_required; remediation=`claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis`
-- `WRAPPER_NOT_LEGACY_HYBRID_PARITY` [P0_SHUTDOWN_BLOCKER]: trainer_bridge: trainer_bridge_not_legacy_hybrid_parity; remediation=`claude_port_v2_trainer_bridge_full_legacy_parity`
-- `CHECKPOINT_EVIDENCE_MISSING_OR_REJECTED` [P0_SHUTDOWN_BLOCKER]: trainer_bridge: checkpoint_evidence_missing_or_rejected; remediation=`claude_port_v2_trainer_bridge_full_legacy_parity`
-- `TRAINER_EXTERNAL_DEPS_MISSING_IN_V2_VENV` [OPERATOR_DECISION_REQUIRED]: missing packages: torch, stable_baselines3, cloudpickle, gymnasium; remediation=`claude_port_v2_trainer_bridge_full_legacy_parity`
+- `LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED` [P0_SHUTDOWN_BLOCKER]: trainer_bridge: legacy_log_confidence_calibration_derived; remediation=`claude_port_v2_trainer_bridge_full_legacy_parity`
+- `LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE` [P0_SHUTDOWN_BLOCKER]: trainer_bridge: legacy_log_feature_attribution_incomplete; remediation=`claude_port_v2_trainer_bridge_full_legacy_parity`
+- `LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED` [P0_SHUTDOWN_BLOCKER]: trainer_bridge: legacy_log_feature_snapshot_id_derived; remediation=`claude_port_v2_trainer_bridge_full_legacy_parity`
 - `PAPER_PNL_NEGATIVE_BLOCKS_CANARY` [P0_SHUTDOWN_BLOCKER]: paper_runtime: paper_realized_pnl_negative; remediation=`claude_replay_paper_edge_repair_from_legacy_trainer_output`
 - `PAPER_EDGE_UNPROVEN` [P0_SHUTDOWN_BLOCKER]: paper_runtime: current_paper_intent_blocked_or_unfilled; remediation=`claude_replay_paper_edge_repair_from_legacy_trainer_output`
 - `TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY` [P0_SHUTDOWN_BLOCKER]: trade_permission: trade_permission_readonly_unknown; remediation=`claude_remediate_account_position_monitor_shutdown_parity`
 - `READONLY_ACCOUNT_EVIDENCE_STALE` [P0_SHUTDOWN_BLOCKER]: trade_permission: readonly_account_evidence_stale; remediation=`claude_remediate_account_position_monitor_shutdown_parity`
-- `FRESHNESS_GUARD_BLOCKED_ON_STALE_PUBLIC_ARTIFACTS` [P0_SHUTDOWN_BLOCKER]: stale public latest JSON count=220; remediation=`claude_audit_stale_public_payloads_and_freshness_guard`
 
 ## Next action
 
@@ -36,9 +34,9 @@ Legacy shutdown remains blocked because required parity, edge, dependency, or sa
 - binary blobs inventoried only: `139`
 - Redis users / exchange API users / config importers: `49` / `43` / `100`
 - paper runtime: `fresh`, PnL=`-49.12`, action=`None`
-- trainer bridge: `WRAPPER_NOT_LEGACY_HYBRID_PARITY`, accepted=`False`
+- trainer bridge: `LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT`, accepted=`True`
 - trade permission: `TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY`
-- symbol universe age seconds: `57`, live_symbols=`[]`
+- symbol universe age seconds: `5`, live_symbols=`[]`
 
 ## Hard constraints held
 

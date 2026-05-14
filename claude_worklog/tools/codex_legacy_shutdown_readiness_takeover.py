@@ -673,6 +673,8 @@ def trainer_evidence() -> Dict[str, Any]:
         blockers.append("wrapper_not_legacy_hybrid_parity")
     if payload.get("checkpoint_evidence_status") in {"MISSING_OR_REJECTED", "MISSING"}:
         blockers.append("checkpoint_evidence_missing_or_rejected")
+    for item in payload.get("trainer_full_parity_blockers") or []:
+        blockers.append(str(item).lower())
     return {
         "path": rel(TRAINER_BRIDGE),
         "generated_at": payload.get("generated_at"),
@@ -682,6 +684,10 @@ def trainer_evidence() -> Dict[str, Any]:
         "trainer_process_state": payload.get("trainer_process_state"),
         "accepted_as_legacy_hybrid_prediction": accepted,
         "model_checkpoint_id": payload.get("model_checkpoint_id"),
+        "model_version": payload.get("model_version"),
+        "checkpoint_id": payload.get("checkpoint_id"),
+        "lineage_derivation_warnings": payload.get("lineage_derivation_warnings", []),
+        "trainer_full_parity_blockers": payload.get("trainer_full_parity_blockers", []),
         "blockers": blockers,
     }
 

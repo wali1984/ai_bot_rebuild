@@ -1,28 +1,22 @@
 {
-  "as_of_utc": "2026-05-14T22:53:14Z",
+  "as_of_utc": "2026-05-14T23:24:23Z",
   "blockers": [
     {
       "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "worker_porting: legacy_baseline_backfill_required",
-      "id": "LEGACY_BASELINE_BACKFILL_REQUIRED",
-      "remediation_task_id": "claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis"
-    },
-    {
-      "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "trainer_bridge: trainer_bridge_not_legacy_hybrid_parity",
-      "id": "WRAPPER_NOT_LEGACY_HYBRID_PARITY",
+      "evidence": "trainer_bridge: legacy_log_confidence_calibration_derived",
+      "id": "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
       "remediation_task_id": "claude_port_v2_trainer_bridge_full_legacy_parity"
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "trainer_bridge: checkpoint_evidence_missing_or_rejected",
-      "id": "CHECKPOINT_EVIDENCE_MISSING_OR_REJECTED",
+      "evidence": "trainer_bridge: legacy_log_feature_attribution_incomplete",
+      "id": "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
       "remediation_task_id": "claude_port_v2_trainer_bridge_full_legacy_parity"
     },
     {
-      "category": "OPERATOR_DECISION_REQUIRED",
-      "evidence": "missing packages: torch, stable_baselines3, cloudpickle, gymnasium",
-      "id": "TRAINER_EXTERNAL_DEPS_MISSING_IN_V2_VENV",
+      "category": "P0_SHUTDOWN_BLOCKER",
+      "evidence": "trainer_bridge: legacy_log_feature_snapshot_id_derived",
+      "id": "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED",
       "remediation_task_id": "claude_port_v2_trainer_bridge_full_legacy_parity"
     },
     {
@@ -48,18 +42,12 @@
       "evidence": "trade_permission: readonly_account_evidence_stale",
       "id": "READONLY_ACCOUNT_EVIDENCE_STALE",
       "remediation_task_id": "claude_remediate_account_position_monitor_shutdown_parity"
-    },
-    {
-      "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "stale public latest JSON count=220",
-      "id": "FRESHNESS_GUARD_BLOCKED_ON_STALE_PUBLIC_ARTIFACTS",
-      "remediation_task_id": "claude_audit_stale_public_payloads_and_freshness_guard"
     }
   ],
   "counts": {
     "INFO_ONLY": 0,
-    "OPERATOR_DECISION_REQUIRED": 1,
-    "P0_SHUTDOWN_BLOCKER": 8,
+    "OPERATOR_DECISION_REQUIRED": 0,
+    "P0_SHUTDOWN_BLOCKER": 7,
     "P1_SHUTDOWN_SUPPORT": 0,
     "P2_LIVE_ONLY_BLOCKED": 0
   },

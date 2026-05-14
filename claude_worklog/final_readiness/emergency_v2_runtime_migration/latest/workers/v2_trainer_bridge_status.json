@@ -1,26 +1,33 @@
 {
-  "accepted_as_legacy_hybrid_prediction": false,
+  "accepted_as_legacy_hybrid_prediction": true,
   "binance_usdm_confirmed_symbols": [
     "BTCUSDT",
     "ETHUSDT",
     "SOLUSDT"
   ],
-  "calibrated_confidence": 0.779819,
-  "checkpoint_evidence_status": "MISSING_OR_REJECTED",
+  "calibrated_confidence": 0.918,
+  "checkpoint_evidence_status": "PRESENT",
+  "checkpoint_id": "legacy_live_checkpoint_1778800941",
   "coinank_symbols_directly_tradable": false,
   "coinank_tradability_policy": "CoinAnk-only symbols remain intelligence candidates until Binance USD-M confirmation exists.",
+  "confidence_calibrated": 0.918,
+  "confidence_raw": 0.918,
   "current_gate_state": "blocked_human_only",
   "discovered_symbols": [
+    "ALICEUSDT",
     "BTCUSDT",
     "COINANK_ONLY_USDT",
     "ETHUSDT",
+    "FARTCOINUSDT",
     "KUCOIN_ONLY_USDT",
     "SOLUSDT"
   ],
   "dynamic_discovered_symbols": [
+    "ALICEUSDT",
     "BTCUSDT",
     "COINANK_ONLY_USDT",
     "ETHUSDT",
+    "FARTCOINUSDT",
     "KUCOIN_ONLY_USDT",
     "SOLUSDT"
   ],
@@ -32,30 +39,32 @@
     "future_ingestors"
   ],
   "error_blocker_state": [
-    "WRAPPER_NOT_LEGACY_HYBRID_PARITY"
+    "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
+    "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
+    "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED"
   ],
   "exchange_action_taken": false,
   "fail_closed": true,
   "feature_snapshot_dependency_status": "PRESENT",
-  "feature_snapshot_id": "fs_paper_tick_1778753394386",
+  "feature_snapshot_id": "legacy_log_feature_ETHUSDT_1h_1778801060",
   "feature_snapshot_trainer_readiness_signal": "READY",
-  "freshness_seconds": 5,
+  "freshness_seconds": 0,
   "gpu_runtime": {
     "gpu_state": "GPU_EVIDENCE_PRESENT",
     "gpus": [
       {
-        "gpu_util_pct": 2.0,
+        "gpu_util_pct": 8.0,
         "memory_total_mb": 16303.0,
-        "memory_used_mb": 1554.0,
+        "memory_used_mb": 1614.0,
         "name": "NVIDIA GeForce RTX 5080",
-        "temperature_c": 53.0
+        "temperature_c": 51.0
       }
     ]
   },
   "gpu_state": "GPU_EVIDENCE_PRESENT",
-  "last_prediction_ts": "2026-05-14T10:09:51Z",
-  "last_run_ts": "2026-05-14T10:09:56Z",
-  "latest_prediction_timestamp": "2026-05-14T10:09:51Z",
+  "last_prediction_ts": "2026-05-14T23:24:20Z",
+  "last_run_ts": "2026-05-14T23:24:20Z",
+  "latest_prediction_timestamp": "2026-05-14T23:24:20Z",
   "legacy_active_symbol_source": "legacy_reference/config.py SYMBOLS via SymbolUniverseService",
   "legacy_active_symbols": [
     "1000BONKUSDT",
@@ -132,6 +141,11 @@
     "setup_models": true
   },
   "legacy_mutation_performed": false,
+  "legacy_readonly_log_bridge": {
+    "checkpoint_metadata_path": "/home/wali/Desktop/AI BOT/models/checkpoints/live_legacy/checkpoint_metadata_latest.json",
+    "log_path": "/home/wali/Desktop/AI BOT/.logs/hybrid_trainer.log",
+    "status": "PRESENT"
+  },
   "legacy_source_path": "v2/legacy_preserved/startup_baseline/rl/hybrid_trainer.py",
   "legacy_state_dirs_writable_by_bridge": false,
   "legacy_stream_contracts_readonly_reference": [
@@ -141,6 +155,12 @@
     "prediction:{symbol}:{timeframe}",
     "status:trainer",
     "heartbeat:trainer"
+  ],
+  "lineage_derivation_warnings": [
+    "feature_snapshot_id_bridge_derived_from_legacy_log_line",
+    "confidence_calibrated_bridge_derived_from_ppo_conf",
+    "top_features_are_action_probability_evidence_not_full_feature_attribution",
+    "top_negative_features_absent_from_legacy_log_line"
   ],
   "live_blocked": true,
   "live_blocked_symbols": [
@@ -153,9 +173,10 @@
   "live_symbols": [],
   "missing_feature_flags": [],
   "missing_runtime_evidence": true,
-  "model_checkpoint_id": "v2_paper_readonly_momentum_wrapper_v1",
+  "model_checkpoint_id": "legacy_live_checkpoint_1778800941",
+  "model_version": "legacy_hybrid_trainer_live_legacy",
   "observed_symbols": [
-    "BTCUSDT"
+    "ETHUSDT"
   ],
   "old_redis_write_performed": false,
   "paper_symbols": [
@@ -164,487 +185,108 @@
   "passive_monitor_all_discovered_symbols": true,
   "prediction_candidates_seen": [
     {
-      "accepted_as_legacy_hybrid_prediction": false,
-      "calibrated_confidence": 0.779819,
-      "feature_snapshot_id": "fs_paper_tick_1778753394386",
-      "latest_prediction_timestamp": "2026-05-14T10:09:51Z",
+      "accepted_as_legacy_hybrid_prediction": true,
+      "calibrated_confidence": 0.918,
+      "checkpoint_id": "legacy_live_checkpoint_1778800941",
+      "feature_snapshot_id": "legacy_log_feature_ETHUSDT_1h_1778801060",
+      "latest_prediction_timestamp": "2026-05-14T23:24:20Z",
+      "lineage_derivation_warnings": [
+        "feature_snapshot_id_bridge_derived_from_legacy_log_line",
+        "confidence_calibrated_bridge_derived_from_ppo_conf",
+        "top_features_are_action_probability_evidence_not_full_feature_attribution",
+        "top_negative_features_absent_from_legacy_log_line"
+      ],
       "missing_prediction_fields": [],
-      "model_checkpoint_id": "v2_paper_readonly_momentum_wrapper_v1",
-      "prediction_age_seconds": 5,
-      "prediction_evidence_status": "WRAPPER_NOT_LEGACY_HYBRID_PARITY",
-      "prediction_id": "pred_paper_tick_1778753394386",
-      "prediction_source_path": "v2/frontend/public/operator_runtime/paper_online/latest/trainer_prediction_current_record.json",
-      "prediction_source_type": "V2_PAPER_TRAINER_WRAPPER",
-      "raw_confidence": 0.799819,
+      "model_checkpoint_id": "legacy_live_checkpoint_1778800941",
+      "model_version": "legacy_hybrid_trainer_live_legacy",
+      "prediction_age_seconds": 0,
+      "prediction_evidence_status": "LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT",
+      "prediction_id": "legacy_log_pred_95d2cc641a9d335a11ca",
+      "prediction_source_path": "legacy_readonly:/home/wali/Desktop/AI BOT/.logs/hybrid_trainer.log",
+      "prediction_source_type": "LEGACY_HYBRID_TRAINER_LOG_READONLY",
+      "raw_confidence": 0.918,
       "raw_prediction_payload": {
-        "confidence_calibrated": 0.779819,
-        "confidence_raw": 0.799819,
-        "feature_snapshot_id": "fs_paper_tick_1778753394386",
-        "freshness_state": "CURRENT",
-        "generated_at": "2026-05-14T10:09:51Z",
-        "market_age_seconds": 10,
-        "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-        "prediction_id": "pred_paper_tick_1778753394386",
-        "raw_output": {
-          "momentum_score": -0.2398194,
-          "side": "short"
-        },
-        "source_type": "V2_PAPER_TRAINER_WRAPPER",
-        "symbol": "BTCUSDT",
-        "timeframe": "1m",
-        "top_features": [
-          {
-            "name": "return_5m",
-            "value": -0.00099201
-          },
-          {
-            "name": "return_15m",
-            "value": 0.00015086
-          },
-          {
-            "name": "volatility_10",
-            "value": 0.00021983
-          }
+        "checkpoint_id": "legacy_live_checkpoint_1778800941",
+        "confidence_calibrated": 0.918,
+        "confidence_raw": 0.918,
+        "feature_snapshot_id": "legacy_log_feature_ETHUSDT_1h_1778801060",
+        "generated_at": "2026-05-14T23:24:20Z",
+        "lineage_derivation_warnings": [
+          "feature_snapshot_id_bridge_derived_from_legacy_log_line",
+          "confidence_calibrated_bridge_derived_from_ppo_conf",
+          "top_features_are_action_probability_evidence_not_full_feature_attribution",
+          "top_negative_features_absent_from_legacy_log_line"
         ],
-        "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
-      },
-      "top_negative_features": [
-        {
-          "name": "return_5m",
-          "value": -0.00099201
-        }
-      ],
-      "top_positive_features": [
-        {
-          "name": "return_15m",
-          "value": 0.00015086
-        },
-        {
-          "name": "volatility_10",
-          "value": 0.00021983
-        }
-      ]
-    },
-    {
-      "accepted_as_legacy_hybrid_prediction": false,
-      "calibrated_confidence": 0.779819,
-      "feature_snapshot_id": "fs_paper_tick_1778753394386",
-      "latest_prediction_timestamp": "2026-05-14T10:09:51Z",
-      "missing_prediction_fields": [],
-      "model_checkpoint_id": "v2_paper_readonly_momentum_wrapper_v1",
-      "prediction_age_seconds": 5,
-      "prediction_evidence_status": "WRAPPER_NOT_LEGACY_HYBRID_PARITY",
-      "prediction_id": "pred_paper_tick_1778753394386",
-      "prediction_source_path": "v2/runtime/paper_online/latest/trainer_prediction_current_record.json",
-      "prediction_source_type": "V2_PAPER_TRAINER_WRAPPER",
-      "raw_confidence": 0.799819,
-      "raw_prediction_payload": {
-        "confidence_calibrated": 0.779819,
-        "confidence_raw": 0.799819,
-        "feature_snapshot_id": "fs_paper_tick_1778753394386",
-        "freshness_state": "CURRENT",
-        "generated_at": "2026-05-14T10:09:51Z",
-        "market_age_seconds": 10,
-        "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-        "prediction_id": "pred_paper_tick_1778753394386",
-        "raw_output": {
-          "momentum_score": -0.2398194,
-          "side": "short"
-        },
-        "source_type": "V2_PAPER_TRAINER_WRAPPER",
-        "symbol": "BTCUSDT",
-        "timeframe": "1m",
-        "top_features": [
-          {
-            "name": "return_5m",
-            "value": -0.00099201
-          },
-          {
-            "name": "return_15m",
-            "value": 0.00015086
-          },
-          {
-            "name": "volatility_10",
-            "value": 0.00021983
-          }
-        ],
-        "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
-      },
-      "top_negative_features": [
-        {
-          "name": "return_5m",
-          "value": -0.00099201
-        }
-      ],
-      "top_positive_features": [
-        {
-          "name": "return_15m",
-          "value": 0.00015086
-        },
-        {
-          "name": "volatility_10",
-          "value": 0.00021983
-        }
-      ]
-    },
-    {
-      "accepted_as_legacy_hybrid_prediction": false,
-      "calibrated_confidence": null,
-      "feature_snapshot_id": "",
-      "latest_prediction_timestamp": "2026-05-12T16:50:13Z",
-      "missing_prediction_fields": [
-        "prediction_id",
-        "feature_snapshot_id",
-        "model_checkpoint",
-        "confidence_calibrated"
-      ],
-      "model_checkpoint_id": "",
-      "prediction_age_seconds": 148783,
-      "prediction_evidence_status": "PREDICTION_EVIDENCE_INCOMPLETE",
-      "prediction_id": "",
-      "prediction_source_path": "v2/frontend/public/legacy_trainer_restart_runtime/latest/legacy_trainer_current_prediction.json",
-      "prediction_source_type": "LEGACY_TRAINER_LOG_READONLY",
-      "raw_confidence": 0.6154,
-      "raw_prediction_payload": {
-        "calibrated_confidence": null,
-        "classification": "LEGACY_TRAINER_OUTPUT_CURRENT",
-        "confidence": 0.6154,
-        "evidence_line": "2026-05-12 12:50:10,969 - INFO - hybrid_trainer - PPO_DECISION_RAW | account=primary | symbol=ALICEUSDT | tf=15m | action_id=1 | action=OPEN_LONG | ppo_conf=0.6154 | top1=0.4437 | top2=0.4270 | top1_id=1 | top2_id=2",
-        "feature_freshness_present": false,
-        "feature_snapshot_id": null,
-        "generated_at": "2026-05-12T16:50:13Z",
-        "legacy_output_can_reach_trader": true,
-        "missing_fields": [
-          "prediction_id",
-          "feature_snapshot_id",
-          "model_checkpoint",
-          "calibrated_confidence",
-          "feature_snapshot_payload",
-          "feature_flags"
-        ],
-        "model_checkpoint": null,
-        "prediction_id": null,
+        "model_checkpoint": "legacy_live_checkpoint_1778800941",
+        "model_version": "legacy_hybrid_trainer_live_legacy",
+        "prediction_id": "legacy_log_pred_95d2cc641a9d335a11ca",
         "raw_model_output": {
+          "account": "primary",
           "action": "OPEN_LONG",
           "action_id": "1",
-          "top1": "0.4437",
+          "evidence_line_sha256": "95d2cc641a9d335a11cacbc8fda8a0fc78cf5088f32a9c293a17da96898c1cf9",
+          "top1": "0.9345",
           "top1_id": "1",
-          "top2": "0.4270",
-          "top2_id": "2"
+          "top2": "0.0397",
+          "top2_id": "3"
         },
-        "source_line_age_seconds": 2,
-        "source_path": "/home/wali/Desktop/AI BOT/.logs/hybrid_trainer.log",
-        "source_type": "LEGACY_TRAINER_LOG_READONLY",
-        "symbol": "ALICEUSDT",
-        "timeframe": "15m"
-      },
-      "top_negative_features": [],
-      "top_positive_features": []
-    },
-    {
-      "accepted_as_legacy_hybrid_prediction": false,
-      "calibrated_confidence": null,
-      "feature_snapshot_id": "",
-      "latest_prediction_timestamp": "2026-05-12T16:50:13Z",
-      "missing_prediction_fields": [
-        "prediction_id",
-        "feature_snapshot_id",
-        "model_checkpoint",
-        "confidence_calibrated"
-      ],
-      "model_checkpoint_id": "",
-      "prediction_age_seconds": 148783,
-      "prediction_evidence_status": "PREDICTION_EVIDENCE_INCOMPLETE",
-      "prediction_id": "",
-      "prediction_source_path": "claude_worklog/final_readiness/legacy_trainer_restart_runtime/latest/legacy_trainer_current_prediction.json",
-      "prediction_source_type": "LEGACY_TRAINER_LOG_READONLY",
-      "raw_confidence": 0.6154,
-      "raw_prediction_payload": {
-        "calibrated_confidence": null,
-        "classification": "LEGACY_TRAINER_OUTPUT_CURRENT",
-        "confidence": 0.6154,
-        "evidence_line": "2026-05-12 12:50:10,969 - INFO - hybrid_trainer - PPO_DECISION_RAW | account=primary | symbol=ALICEUSDT | tf=15m | action_id=1 | action=OPEN_LONG | ppo_conf=0.6154 | top1=0.4437 | top2=0.4270 | top1_id=1 | top2_id=2",
-        "feature_freshness_present": false,
-        "feature_snapshot_id": null,
-        "generated_at": "2026-05-12T16:50:13Z",
-        "legacy_output_can_reach_trader": true,
-        "missing_fields": [
-          "prediction_id",
-          "feature_snapshot_id",
-          "model_checkpoint",
-          "calibrated_confidence",
-          "feature_snapshot_payload",
-          "feature_flags"
+        "source_type": "LEGACY_HYBRID_TRAINER_LOG_READONLY",
+        "symbol": "ETHUSDT",
+        "timeframe": "1h",
+        "top_features": [
+          {
+            "name": "ppo_action_OPEN_LONG_probability",
+            "source": "legacy_log:PPO_DECISION_RAW.top1",
+            "value": 0.9345
+          },
+          {
+            "name": "ppo_action_CLOSE_LONG_probability",
+            "source": "legacy_log:PPO_DECISION_RAW.top2",
+            "value": 0.0397
+          }
         ],
-        "model_checkpoint": null,
-        "prediction_id": null,
-        "raw_model_output": {
-          "action": "OPEN_LONG",
-          "action_id": "1",
-          "top1": "0.4437",
-          "top1_id": "1",
-          "top2": "0.4270",
-          "top2_id": "2"
-        },
-        "source_line_age_seconds": 2,
-        "source_path": "/home/wali/Desktop/AI BOT/.logs/hybrid_trainer.log",
-        "source_type": "LEGACY_TRAINER_LOG_READONLY",
-        "symbol": "ALICEUSDT",
-        "timeframe": "15m"
+        "trainer_full_parity_blockers": [
+          "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED",
+          "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
+          "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE"
+        ]
       },
       "top_negative_features": [],
-      "top_positive_features": []
+      "top_positive_features": [
+        {
+          "name": "ppo_action_OPEN_LONG_probability",
+          "source": "legacy_log:PPO_DECISION_RAW.top1",
+          "value": 0.9345
+        },
+        {
+          "name": "ppo_action_CLOSE_LONG_probability",
+          "source": "legacy_log:PPO_DECISION_RAW.top2",
+          "value": 0.0397
+        }
+      ],
+      "trainer_full_parity_blockers": [
+        "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED",
+        "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
+        "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE"
+      ]
     }
   ],
-  "prediction_evidence_status": "WRAPPER_NOT_LEGACY_HYBRID_PARITY",
-  "prediction_id": "pred_paper_tick_1778753394386",
-  "prediction_source_path": "v2/frontend/public/operator_runtime/paper_online/latest/trainer_prediction_current_record.json",
-  "prediction_source_type": "V2_PAPER_TRAINER_WRAPPER",
-  "predictions_emitted_total": 0,
-  "raw_confidence": 0.799819,
-  "rejected_prediction_sources": [
-    {
-      "accepted_as_legacy_hybrid_prediction": false,
-      "calibrated_confidence": 0.779819,
-      "feature_snapshot_id": "fs_paper_tick_1778753394386",
-      "latest_prediction_timestamp": "2026-05-14T10:09:51Z",
-      "missing_prediction_fields": [],
-      "model_checkpoint_id": "v2_paper_readonly_momentum_wrapper_v1",
-      "prediction_age_seconds": 5,
-      "prediction_evidence_status": "WRAPPER_NOT_LEGACY_HYBRID_PARITY",
-      "prediction_id": "pred_paper_tick_1778753394386",
-      "prediction_source_path": "v2/frontend/public/operator_runtime/paper_online/latest/trainer_prediction_current_record.json",
-      "prediction_source_type": "V2_PAPER_TRAINER_WRAPPER",
-      "raw_confidence": 0.799819,
-      "raw_prediction_payload": {
-        "confidence_calibrated": 0.779819,
-        "confidence_raw": 0.799819,
-        "feature_snapshot_id": "fs_paper_tick_1778753394386",
-        "freshness_state": "CURRENT",
-        "generated_at": "2026-05-14T10:09:51Z",
-        "market_age_seconds": 10,
-        "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-        "prediction_id": "pred_paper_tick_1778753394386",
-        "raw_output": {
-          "momentum_score": -0.2398194,
-          "side": "short"
-        },
-        "source_type": "V2_PAPER_TRAINER_WRAPPER",
-        "symbol": "BTCUSDT",
-        "timeframe": "1m",
-        "top_features": [
-          {
-            "name": "return_5m",
-            "value": -0.00099201
-          },
-          {
-            "name": "return_15m",
-            "value": 0.00015086
-          },
-          {
-            "name": "volatility_10",
-            "value": 0.00021983
-          }
-        ],
-        "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
-      },
-      "top_negative_features": [
-        {
-          "name": "return_5m",
-          "value": -0.00099201
-        }
-      ],
-      "top_positive_features": [
-        {
-          "name": "return_15m",
-          "value": 0.00015086
-        },
-        {
-          "name": "volatility_10",
-          "value": 0.00021983
-        }
-      ]
-    },
-    {
-      "accepted_as_legacy_hybrid_prediction": false,
-      "calibrated_confidence": 0.779819,
-      "feature_snapshot_id": "fs_paper_tick_1778753394386",
-      "latest_prediction_timestamp": "2026-05-14T10:09:51Z",
-      "missing_prediction_fields": [],
-      "model_checkpoint_id": "v2_paper_readonly_momentum_wrapper_v1",
-      "prediction_age_seconds": 5,
-      "prediction_evidence_status": "WRAPPER_NOT_LEGACY_HYBRID_PARITY",
-      "prediction_id": "pred_paper_tick_1778753394386",
-      "prediction_source_path": "v2/runtime/paper_online/latest/trainer_prediction_current_record.json",
-      "prediction_source_type": "V2_PAPER_TRAINER_WRAPPER",
-      "raw_confidence": 0.799819,
-      "raw_prediction_payload": {
-        "confidence_calibrated": 0.779819,
-        "confidence_raw": 0.799819,
-        "feature_snapshot_id": "fs_paper_tick_1778753394386",
-        "freshness_state": "CURRENT",
-        "generated_at": "2026-05-14T10:09:51Z",
-        "market_age_seconds": 10,
-        "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-        "prediction_id": "pred_paper_tick_1778753394386",
-        "raw_output": {
-          "momentum_score": -0.2398194,
-          "side": "short"
-        },
-        "source_type": "V2_PAPER_TRAINER_WRAPPER",
-        "symbol": "BTCUSDT",
-        "timeframe": "1m",
-        "top_features": [
-          {
-            "name": "return_5m",
-            "value": -0.00099201
-          },
-          {
-            "name": "return_15m",
-            "value": 0.00015086
-          },
-          {
-            "name": "volatility_10",
-            "value": 0.00021983
-          }
-        ],
-        "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
-      },
-      "top_negative_features": [
-        {
-          "name": "return_5m",
-          "value": -0.00099201
-        }
-      ],
-      "top_positive_features": [
-        {
-          "name": "return_15m",
-          "value": 0.00015086
-        },
-        {
-          "name": "volatility_10",
-          "value": 0.00021983
-        }
-      ]
-    },
-    {
-      "accepted_as_legacy_hybrid_prediction": false,
-      "calibrated_confidence": null,
-      "feature_snapshot_id": "",
-      "latest_prediction_timestamp": "2026-05-12T16:50:13Z",
-      "missing_prediction_fields": [
-        "prediction_id",
-        "feature_snapshot_id",
-        "model_checkpoint",
-        "confidence_calibrated"
-      ],
-      "model_checkpoint_id": "",
-      "prediction_age_seconds": 148783,
-      "prediction_evidence_status": "PREDICTION_EVIDENCE_INCOMPLETE",
-      "prediction_id": "",
-      "prediction_source_path": "v2/frontend/public/legacy_trainer_restart_runtime/latest/legacy_trainer_current_prediction.json",
-      "prediction_source_type": "LEGACY_TRAINER_LOG_READONLY",
-      "raw_confidence": 0.6154,
-      "raw_prediction_payload": {
-        "calibrated_confidence": null,
-        "classification": "LEGACY_TRAINER_OUTPUT_CURRENT",
-        "confidence": 0.6154,
-        "evidence_line": "2026-05-12 12:50:10,969 - INFO - hybrid_trainer - PPO_DECISION_RAW | account=primary | symbol=ALICEUSDT | tf=15m | action_id=1 | action=OPEN_LONG | ppo_conf=0.6154 | top1=0.4437 | top2=0.4270 | top1_id=1 | top2_id=2",
-        "feature_freshness_present": false,
-        "feature_snapshot_id": null,
-        "generated_at": "2026-05-12T16:50:13Z",
-        "legacy_output_can_reach_trader": true,
-        "missing_fields": [
-          "prediction_id",
-          "feature_snapshot_id",
-          "model_checkpoint",
-          "calibrated_confidence",
-          "feature_snapshot_payload",
-          "feature_flags"
-        ],
-        "model_checkpoint": null,
-        "prediction_id": null,
-        "raw_model_output": {
-          "action": "OPEN_LONG",
-          "action_id": "1",
-          "top1": "0.4437",
-          "top1_id": "1",
-          "top2": "0.4270",
-          "top2_id": "2"
-        },
-        "source_line_age_seconds": 2,
-        "source_path": "/home/wali/Desktop/AI BOT/.logs/hybrid_trainer.log",
-        "source_type": "LEGACY_TRAINER_LOG_READONLY",
-        "symbol": "ALICEUSDT",
-        "timeframe": "15m"
-      },
-      "top_negative_features": [],
-      "top_positive_features": []
-    },
-    {
-      "accepted_as_legacy_hybrid_prediction": false,
-      "calibrated_confidence": null,
-      "feature_snapshot_id": "",
-      "latest_prediction_timestamp": "2026-05-12T16:50:13Z",
-      "missing_prediction_fields": [
-        "prediction_id",
-        "feature_snapshot_id",
-        "model_checkpoint",
-        "confidence_calibrated"
-      ],
-      "model_checkpoint_id": "",
-      "prediction_age_seconds": 148783,
-      "prediction_evidence_status": "PREDICTION_EVIDENCE_INCOMPLETE",
-      "prediction_id": "",
-      "prediction_source_path": "claude_worklog/final_readiness/legacy_trainer_restart_runtime/latest/legacy_trainer_current_prediction.json",
-      "prediction_source_type": "LEGACY_TRAINER_LOG_READONLY",
-      "raw_confidence": 0.6154,
-      "raw_prediction_payload": {
-        "calibrated_confidence": null,
-        "classification": "LEGACY_TRAINER_OUTPUT_CURRENT",
-        "confidence": 0.6154,
-        "evidence_line": "2026-05-12 12:50:10,969 - INFO - hybrid_trainer - PPO_DECISION_RAW | account=primary | symbol=ALICEUSDT | tf=15m | action_id=1 | action=OPEN_LONG | ppo_conf=0.6154 | top1=0.4437 | top2=0.4270 | top1_id=1 | top2_id=2",
-        "feature_freshness_present": false,
-        "feature_snapshot_id": null,
-        "generated_at": "2026-05-12T16:50:13Z",
-        "legacy_output_can_reach_trader": true,
-        "missing_fields": [
-          "prediction_id",
-          "feature_snapshot_id",
-          "model_checkpoint",
-          "calibrated_confidence",
-          "feature_snapshot_payload",
-          "feature_flags"
-        ],
-        "model_checkpoint": null,
-        "prediction_id": null,
-        "raw_model_output": {
-          "action": "OPEN_LONG",
-          "action_id": "1",
-          "top1": "0.4437",
-          "top1_id": "1",
-          "top2": "0.4270",
-          "top2_id": "2"
-        },
-        "source_line_age_seconds": 2,
-        "source_path": "/home/wali/Desktop/AI BOT/.logs/hybrid_trainer.log",
-        "source_type": "LEGACY_TRAINER_LOG_READONLY",
-        "symbol": "ALICEUSDT",
-        "timeframe": "15m"
-      },
-      "top_negative_features": [],
-      "top_positive_features": []
-    }
-  ],
-  "runtime_evidence_status": "WRAPPER_NOT_LEGACY_HYBRID_PARITY",
+  "prediction_evidence_status": "LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT",
+  "prediction_id": "legacy_log_pred_95d2cc641a9d335a11ca",
+  "prediction_source_path": "legacy_readonly:/home/wali/Desktop/AI BOT/.logs/hybrid_trainer.log",
+  "prediction_source_type": "LEGACY_HYBRID_TRAINER_LOG_READONLY",
+  "predictions_emitted_total": 1,
+  "raw_confidence": 0.918,
+  "rejected_prediction_sources": [],
+  "runtime_evidence_status": "LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT",
   "source_feature_snapshot": {
     "feature_categories_present": [
       "price",
       "liquidity"
     ],
-    "feature_snapshot_age_seconds": 52,
-    "feature_snapshot_generated_ts": "2026-05-14T10:09:04Z",
-    "feature_snapshot_id": "feature_snapshot_1e3e01785287b71458126b8e",
+    "feature_snapshot_age_seconds": 46,
+    "feature_snapshot_generated_ts": "2026-05-14T23:23:34Z",
+    "feature_snapshot_id": "feature_snapshot_f144cec5d8a289c23e6797c5",
     "feature_snapshot_path": "v2/frontend/public/operator_runtime/v2_feature_snapshot_builder/latest/v2_feature_snapshot_builder_status.json",
     "feature_snapshot_status": "PRESENT",
     "missing_feature_flags": [],
@@ -674,29 +316,31 @@
   "symbol_universe_public_payload_path": "v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json",
   "symbol_universe_public_payload_status": "PRESENT",
   "symbol_universe_source_path": "v2/backend/app/services/symbol_universe/service.py",
-  "top_negative_features": [
-    {
-      "name": "return_5m",
-      "value": -0.00099201
-    }
-  ],
+  "top_negative_features": [],
   "top_positive_features": [
     {
-      "name": "return_15m",
-      "value": 0.00015086
+      "name": "ppo_action_OPEN_LONG_probability",
+      "source": "legacy_log:PPO_DECISION_RAW.top1",
+      "value": 0.9345
     },
     {
-      "name": "volatility_10",
-      "value": 0.00021983
+      "name": "ppo_action_CLOSE_LONG_probability",
+      "source": "legacy_log:PPO_DECISION_RAW.top2",
+      "value": 0.0397
     }
   ],
   "trade_all_discovered_symbols": false,
   "train_all_discovered_symbols": false,
+  "trainer_full_parity_blockers": [
+    "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
+    "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
+    "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED"
+  ],
   "trainer_mode": "PARITY_BRIDGE",
   "trainer_mode_one_of_PARITY_BRIDGE_V2_NATIVE": "PARITY_BRIDGE",
   "trainer_process_count": 1,
   "trainer_process_sample": [
-    "48623   48621   41979 81.9  2.9 python3 -u -m rl.hybrid_trainer --mode hybrid --epochs 1000 --batch-size 64"
+    "48623   48621   89643 81.6  3.2 python3 -u -m rl.hybrid_trainer --mode hybrid --epochs 1000 --batch-size 64"
   ],
   "trainer_process_state": "RUNNING_READONLY_OBSERVED",
   "trainer_readiness": "BLOCKED",
@@ -704,5 +348,6 @@
     "BTCUSDT",
     "ETHUSDT"
   ],
+  "unused_feature_flags": [],
   "worker_id": "v2_trainer_bridge"
 }

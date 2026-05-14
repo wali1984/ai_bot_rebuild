@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -27,6 +29,7 @@ from v2.backend.app.services.symbol_universe.service import (
 from v2.backend.app.services.trainer_bridge.service import (
     LEGACY_EXPECTED_SHA256,
     LEGACY_HYBRID_TRAINER_PREDICTION_PRESENT,
+    LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT,
     WRAPPER_NOT_LEGACY_HYBRID_PARITY,
     inspect_legacy_trainer_source,
     utc_now,
@@ -40,6 +43,8 @@ def _route_worker_io(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[st
     prediction = tmp_path / "trainer_prediction.json"
     feature = tmp_path / "feature_snapshot.json"
     scope = tmp_path / "feature_pipeline_scope.json"
+    legacy_log = tmp_path / "missing_hybrid_trainer.log"
+    checkpoint_metadata = tmp_path / "missing_checkpoint_metadata_latest.json"
     monkeypatch.setattr(worker, "PUBLIC_RUNTIME_DIR", public_dir)
     monkeypatch.setattr(worker, "LOCAL_RUNTIME_DIR", local_dir)
     monkeypatch.setattr(worker, "WORKER_STATUS_DIR", worker_dir)
@@ -50,6 +55,8 @@ def _route_worker_io(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[st
     monkeypatch.setattr(worker, "FEATURE_SNAPSHOT_CANDIDATES", [feature])
     monkeypatch.setattr(worker, "SYMBOL_UNIVERSE_PUBLIC_PAYLOAD_CANDIDATES", [tmp_path / "missing_symbol_universe.json"])
     monkeypatch.setattr(worker, "UPSTREAM_SYMBOL_SCOPE_CANDIDATES", [scope])
+    monkeypatch.setattr(worker, "LEGACY_READONLY_TRAINER_LOG", legacy_log)
+    monkeypatch.setattr(worker, "LEGACY_READONLY_CHECKPOINT_METADATA", checkpoint_metadata)
     monkeypatch.setattr(worker, "detect_trainer_process", lambda: {
         "trainer_process_state": "RUNNING_READONLY_OBSERVED",
         "trainer_process_count": 1,
@@ -172,6 +179,75 @@ def test_paper_momentum_wrapper_prediction_is_rejected_fail_closed(tmp_path: Pat
     assert status["fail_closed"] is True
     assert WRAPPER_NOT_LEGACY_HYBRID_PARITY in status["error_blocker_state"]
     assert status["trainer_readiness"] == "BLOCKED"
+    assert status["live_gate"] == "blocked_human_only"
+    assert status["exchange_action_taken"] is False
+    assert status["old_redis_write_performed"] is False
+
+
+def test_current_legacy_log_prediction_supersedes_wrapper_but_keeps_full_parity_blocked(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths = _route_worker_io(tmp_path, monkeypatch)
+    legacy_log = tmp_path / "hybrid_trainer.log"
+    checkpoint_metadata = tmp_path / "checkpoint_metadata_latest.json"
+    monkeypatch.setattr(worker, "LEGACY_READONLY_TRAINER_LOG", legacy_log)
+    monkeypatch.setattr(worker, "LEGACY_READONLY_CHECKPOINT_METADATA", checkpoint_metadata)
+    _write_ready_feature(paths["feature"])
+    _write_scope(paths["scope"])
+    paths["prediction"].write_text(
+        json.dumps(
+            {
+                "source_type": "V2_PAPER_TRAINER_WRAPPER",
+                "prediction_id": "pred_wrapper_001",
+                "feature_snapshot_id": "feature_snapshot_test_001",
+                "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
+                "confidence_raw": 0.73,
+                "confidence_calibrated": 0.71,
+                "generated_at": utc_now(),
+                "symbol": "BTCUSDT",
+                "top_features": [{"name": "return_5m", "value": -0.01}],
+            }
+        )
+    )
+    legacy_ts = datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
+    legacy_log.write_text(
+        f"{legacy_ts} - INFO - hybrid_trainer - "
+        "PPO_DECISION_RAW | account=primary | symbol=ALICEUSDT | tf=4h | "
+        "action_id=1 | action=OPEN_LONG | ppo_conf=0.8611 | top1=0.8026 | "
+        "top2=0.0938 | top1_id=1 | top2_id=2\n"
+    )
+    checkpoint_metadata.write_text(
+        json.dumps(
+            {
+                "timestamp": 1778800487,
+                "datetime": "2026-05-14T23:14:49.535378+00:00",
+                "ppo_path": "models/checkpoints/live_legacy/ppo_checkpoint_1778800487.zip",
+            }
+        )
+    )
+
+    status = run_once(parse_args(["--once"]))
+
+    assert status["accepted_as_legacy_hybrid_prediction"] is True
+    assert status["prediction_evidence_status"] == LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT
+    assert status["runtime_evidence_status"] == LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT
+    assert status["prediction_source_type"] == "LEGACY_HYBRID_TRAINER_LOG_READONLY"
+    assert status["prediction_source_path"].startswith("legacy_readonly:")
+    assert status["prediction_id"].startswith("legacy_log_pred_")
+    assert status["feature_snapshot_id"].startswith("legacy_log_feature_ALICEUSDT_4h_")
+    assert status["model_version"] == "legacy_hybrid_trainer_live_legacy"
+    assert status["checkpoint_id"] == "legacy_live_checkpoint_1778800487"
+    assert status["checkpoint_evidence_status"] == "PRESENT"
+    assert status["confidence_raw"] == pytest.approx(0.8611)
+    assert status["confidence_calibrated"] == pytest.approx(0.8611)
+    assert status["top_positive_features"][0]["name"] == "ppo_action_OPEN_LONG_probability"
+    assert status["trainer_readiness"] == "BLOCKED"
+    assert status["fail_closed"] is True
+    assert WRAPPER_NOT_LEGACY_HYBRID_PARITY not in status["error_blocker_state"]
+    assert "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE" in status["error_blocker_state"]
+    assert "top_negative_features_absent_from_legacy_log_line" in status["lineage_derivation_warnings"]
+    assert status["legacy_readonly_log_bridge"]["status"] == "PRESENT"
     assert status["live_gate"] == "blocked_human_only"
     assert status["exchange_action_taken"] is False
     assert status["old_redis_write_performed"] is False

@@ -1,0 +1,12 @@
+# V2-only trainer parity dependencies.
+# Operator approved installation into /home/wali/Desktop/AI BOT REBUILD/.venv only.
+# Do not install these into the legacy runtime or use this file for live trading.
+# Legacy reference versions:
+# - stable_baselines3==2.7.1
+# - cloudpickle==3.1.2
+# - gymnasium==1.2.3
+# - torch legacy runtime used a nightly 2.10.0.dev+cu128 build; V2 pins stable torch==2.10.0.
+torch==2.10.0
+stable_baselines3==2.7.1
+cloudpickle==3.1.2
+gymnasium==1.2.3

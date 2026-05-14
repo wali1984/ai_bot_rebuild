@@ -1,0 +1,53 @@
+{
+  "as_of_utc": "2026-05-14T23:20:46Z",
+  "task": "codex_trainer_readonly_log_bridge_takeover_after_stalled_claude",
+  "claude_task": "claude_port_v2_trainer_bridge_full_legacy_parity",
+  "claude_result": {
+    "status": "human_attention_required",
+    "reason": "second run stalled with zero stdout/stderr; Codex terminated only the V2 Claude child process",
+    "legacy_process_touched": false
+  },
+  "dependency_decision": {
+    "operator_approved_v2_env_only": true,
+    "installed_into": "/home/wali/Desktop/AI BOT REBUILD/.venv",
+    "requirements_file": "requirements/trainer_parity_requirements.txt",
+    "validation_artifact": "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/trainer_parity_dependency_install.json"
+  },
+  "bridge_result": {
+    "runtime_evidence_status": "LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT",
+    "prediction_evidence_status": "LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT",
+    "accepted_as_legacy_hybrid_prediction": true,
+    "trainer_readiness": "BLOCKED",
+    "checkpoint_evidence_status": "PRESENT",
+    "model_version": "legacy_hybrid_trainer_live_legacy",
+    "checkpoint_id": "legacy_live_checkpoint_1778800788",
+    "prediction_id": "legacy_log_pred_11cc17c1e10bb23bd84a",
+    "feature_snapshot_id": "legacy_log_feature_ALICEUSDT_4h_1778800812",
+    "confidence_raw": 0.9039,
+    "confidence_calibrated": 0.9039,
+    "source_path": "legacy_readonly:/home/wali/Desktop/AI BOT/.logs/hybrid_trainer.log"
+  },
+  "remaining_trainer_parity_blockers": [
+    "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
+    "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
+    "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED"
+  ],
+  "lineage_derivation_warnings": [
+    "feature_snapshot_id_bridge_derived_from_legacy_log_line",
+    "confidence_calibrated_bridge_derived_from_ppo_conf",
+    "top_features_are_action_probability_evidence_not_full_feature_attribution",
+    "top_negative_features_absent_from_legacy_log_line"
+  ],
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "final_approval_token": "absent",
+    "redis_trim_approval_token": "absent",
+    "legacy_mutation": false,
+    "old_redis_write": false,
+    "exchange_action": false,
+    "leverage_change": false,
+    "margin_mode_change": false
+  },
+  "shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE"
+}
