@@ -10,6 +10,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from v2.backend.app.services.signal_publisher import build_paper_runtime_lineage
+
 
 LIVE_GATE_STATUS = "blocked_human_only"
 READY_MARKER = "V2_PAPER_ONLINE_FULL_OPERATIONAL_RECOVERY_READY"
@@ -266,114 +268,15 @@ def build_signal_lineage(
     prediction: dict[str, Any],
     market: MarketSnapshot,
 ) -> dict[str, Any]:
-    side = str(prediction["raw_output"]["side"])
-    signal_id = f"sig_{tick_id}"
-    orchestrator_decision_id = f"orch_{tick_id}"
-    risk_decision_id = f"risk_{tick_id}"
-    execution_intent_id = f"pei_{tick_id}"
-    proposed_action = "open_long" if side == "long" else "open_short" if side == "short" else "hold"
-    signal = {
-        "signal_id": signal_id,
-        "generated_at": generated_at,
-        "symbol": market.symbol,
-        "prediction_id": prediction["prediction_id"],
-        "feature_snapshot_id": feature_snapshot["feature_snapshot_id"],
-        "proposed_action": proposed_action,
-        "confidence": prediction["confidence_calibrated"],
-        "source_freshness": market.freshness_state,
-    }
-    orchestrator = {
-        "orchestrator_decision_id": orchestrator_decision_id,
-        "generated_at": generated_at,
-        "signal_id": signal_id,
-        "decision_action": proposed_action,
-        "decision_reason": "paper_momentum_signal_routed" if proposed_action != "hold" else "paper_momentum_signal_held",
-        "risk_gateway_required": True,
-        "cannot_bypass_risk_gateway": True,
-    }
-    missing_fields = [
-        field
-        for field, value in {
-            "signal_id": signal_id,
-            "prediction_id": prediction["prediction_id"],
-            "feature_snapshot_id": feature_snapshot["feature_snapshot_id"],
-            "confidence": prediction["confidence_calibrated"],
-        }.items()
-        if value in (None, "", 0)
-    ]
-    risk_action = "deny"
-    risk_reason = "deny_default"
-    risk_result = "BLOCKED"
-    if missing_fields:
-        risk_reason = "deny_missing_required_evidence"
-    elif market.age_seconds is None or market.age_seconds > 120:
-        risk_reason = "deny_stale_market_feed"
-    elif proposed_action == "hold":
-        risk_reason = "deny_orchestrator_held"
-    elif float(prediction["confidence_calibrated"]) < 0.58:
-        risk_reason = "deny_low_confidence"
-    else:
-        risk_action = "allow"
-        risk_reason = "allow_proceed_long" if proposed_action == "open_long" else "allow_proceed_short"
-        risk_result = "APPROVED_FOR_PAPER_ONLY"
-    risk_decision = {
-        "risk_decision_id": risk_decision_id,
-        "generated_at": generated_at,
-        "signal_id": signal_id,
-        "prediction_id": prediction["prediction_id"],
-        "feature_snapshot_id": feature_snapshot["feature_snapshot_id"],
-        "orchestrator_decision_id": orchestrator_decision_id,
-        "risk_action": risk_action,
-        "risk_result": risk_result,
-        "risk_reason_code": risk_reason,
-        "live_blocked": True,
-        "required_blocks_checked": [
-            "missing_signal_id",
-            "missing_prediction_id",
-            "missing_feature_snapshot_id",
-            "missing_confidence",
-            "stale_signal",
-            "duplicate_signal_execution",
-            "cross_margin_live_mode",
-            "leverage_above_cap",
-            "adjust_leverage_disabled",
-            "missing_stop_policy",
-            "disabled_kill_switch",
-            "daily_loss_breach",
-            "weekly_loss_breach",
-            "untraceable_execution",
-        ],
-        "missing_fields": missing_fields,
-    }
-    execution_intent = {
-        "execution_intent_id": execution_intent_id,
-        "generated_at": generated_at,
-        "risk_decision_id": risk_decision_id,
-        "signal_id": signal_id,
-        "intent_action": "paper_fill_simulation" if risk_action == "allow" else "paper_noop_blocked",
-        "symbol": market.symbol,
-        "side": side,
-        "paper_only": True,
-        "exchange_order_allowed": False,
-    }
-    return {
-        "generated_at": generated_at,
-        "classification": "REALTIME_RUNTIME_EVIDENCE",
-        "feature_snapshot": feature_snapshot,
-        "trainer_prediction": prediction,
-        "signal": signal,
-        "orchestrator_decision": orchestrator,
-        "risk_decision": risk_decision,
-        "execution_intent": execution_intent,
-        "lineage_ids": {
-            "prediction_id": prediction["prediction_id"],
-            "feature_snapshot_id": feature_snapshot["feature_snapshot_id"],
-            "signal_id": signal_id,
-            "orchestrator_decision_id": orchestrator_decision_id,
-            "risk_decision_id": risk_decision_id,
-            "execution_intent_id": execution_intent_id,
-        },
-    }
+    return build_paper_runtime_lineage(
+        tick_id=tick_id,
+        generated_at=generated_at,
+        feature_snapshot=feature_snapshot,
+        prediction=prediction,
+        market_symbol=market.symbol,
+        market_freshness_state=market.freshness_state,
+        market_age_seconds=market.age_seconds,
+    )
 
 
 def build_paper_ledger_entry(
@@ -714,10 +617,10 @@ def write_evidence_packet(payload: dict[str, Any], positions: dict[str, Any]) ->
             "live blockers",
         ],
         "forbidden_actions": [
-            "enable_live_trading",
-            "change_leverage",
-            "change_margin",
-            "place_or_cancel_orders",
+            "enable-live-trading",
+            "change-leverage",
+            "change-margin",
+            "place-or-cancel-orders",
         ],
     })
     _write_json(

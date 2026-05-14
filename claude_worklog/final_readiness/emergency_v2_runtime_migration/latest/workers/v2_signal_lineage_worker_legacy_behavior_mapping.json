@@ -1,0 +1,167 @@
+{
+  "worker_id": "v2_signal_lineage_worker",
+  "legacy_source_paths": [
+    "legacy_reference/rl/hybrid_trainer.py",
+    "legacy_reference/rl/orchestrator_worker.py",
+    "legacy_reference/rl/signal_state_manager.py",
+    "legacy_reference/trading/signal_router.py",
+    "legacy_reference/monitor_trainer_signals.py",
+    "legacy_reference/scripts/trace_symbol_e2e.py",
+    "legacy_reference/scripts/signal_accuracy_v2.py",
+    "legacy_reference/scripts/signal_accuracy_48h.py",
+    "legacy_reference/scripts/why_hedged_timeline.py"
+  ],
+  "legacy_functions_preserved": [
+    {
+      "legacy": "Trainer publishes signal proposal with msg_id used as stream_id",
+      "legacy_file": "legacy_reference/rl/orchestrator_worker.py:2002",
+      "v2_target": "v2/backend/app/services/signal_publisher.py::build_signal_record (signal_id derived from prediction_id|run_ts)"
+    },
+    {
+      "legacy": "Orchestrator decision references the trainer-published stream_id",
+      "legacy_file": "legacy_reference/rl/orchestrator_worker.py:10183",
+      "v2_target": "stages.orchestrator_decision.evidence_citations[*] (orchestrator_decision_id, decision_action, decision_reason)"
+    },
+    {
+      "legacy": "Signal state machine record (signal_id, action_name, confidence, price_at_signal, timestamp_ms, state)",
+      "legacy_file": "legacy_reference/rl/signal_state_manager.py:288",
+      "v2_target": "signal_record from signal_publisher.build_signal_record (deterministic signal_id, prediction_id, feature_snapshot_id, confidence_calibrated, actionable, actionable_reason_code)"
+    },
+    {
+      "legacy": "mark_signal_executed records execution result",
+      "legacy_file": "legacy_reference/rl/signal_state_manager.py:329",
+      "v2_target": "stages.paper_execution_result.evidence_citations[*] (paper_ledger_entry_id, ledger_action, paper_result)"
+    },
+    {
+      "legacy": "Trainer → router → account-stream routing",
+      "legacy_file": "legacy_reference/trading/signal_router.py:199",
+      "v2_target": "NOT_RE_IMPLEMENTED (lineage worker is read-only; routing is a future V2 worker)"
+    },
+    {
+      "legacy": "End-to-end lineage reconstruction",
+      "legacy_file": "legacy_reference/scripts/trace_symbol_e2e.py",
+      "v2_target": "signal_lineage_record + lineage_ids; emitted on every chain_complete run"
+    },
+    {
+      "legacy": "Signal accuracy auditing",
+      "legacy_file": "legacy_reference/scripts/signal_accuracy_v2.py",
+      "v2_target": "OUT_OF_SCOPE_for_this_worker (accuracy auditor consumes v2 signal_lineage_record)"
+    },
+    {
+      "legacy": "Why-hedged timeline reconstruction",
+      "legacy_file": "legacy_reference/scripts/why_hedged_timeline.py",
+      "v2_target": "stages.orchestrator_decision.explanation + stages.risk_gateway_decision.explanation with citations"
+    },
+    {
+      "legacy": "Operator-facing signal stream view",
+      "legacy_file": "legacy_reference/monitor_trainer_signals.py",
+      "v2_target": "public payload stages.* + signal_lineage_record (file-based replacement for Redis-tail operator view)"
+    }
+  ],
+  "legacy_inputs": {
+    "trainer_signal_stream": "wma:signals:all",
+    "router_account_streams": "wma:signals:{ACCOUNT_ID}",
+    "trader_paper_log": "wma:paper:trade_log",
+    "risk_state": "wma:risk_state",
+    "v2_replacement_input_contract": "paper_online_runtime public payload (paper_runtime_status.json) which already contains every per-stage record",
+    "v2_input_sources": [
+      "--source-file PATH",
+      "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+      "v2/runtime/paper_online/latest/paper_runtime_status.json"
+    ]
+  },
+  "legacy_outputs": {
+    "redis_streams_audit_only": [
+      "wma:signals:all",
+      "wma:signals:{ACCOUNT_ID}",
+      "wma:paper:trade_log",
+      "wma:signal:*",
+      "wma:risk_state"
+    ],
+    "operator_console_queries": "legacy_reference/monitor_trainer_signals.py",
+    "alerts": "telegram_alerts.TelegramNotifier",
+    "v2_outputs": [
+      "v2/frontend/public/operator_runtime/v2_signal_lineage_worker/latest/v2_signal_lineage_worker_status.json",
+      "v2/runtime/v2_signal_lineage_worker/latest/v2_signal_lineage_worker_status.json",
+      "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_signal_lineage_worker_status.json"
+    ]
+  },
+  "legacy_redis_keys_audit_only": [
+    "wma:signals:all",
+    "wma:signals:{ACCOUNT_ID}",
+    "wma:paper:trade_log",
+    "wma:signal:*",
+    "wma:risk_state"
+  ],
+  "legacy_config_dependencies": [
+    {
+      "key": "SIGNAL_TTL_SECONDS",
+      "legacy_file": "legacy_reference/config.py",
+      "v2_note": "v2 lineage worker stale_threshold_seconds defaults to 600s; CLI-overridable"
+    },
+    {
+      "key": "ROUTE_ACCOUNTS",
+      "legacy_file": "legacy_reference/trading/signal_router.py:13",
+      "v2_note": "not re-implemented; lineage worker is account-agnostic"
+    },
+    {
+      "key": "BASE_NOTIONAL",
+      "legacy_file": "legacy_reference/config.py",
+      "v2_note": "not redefined; surfaced via paper_execution_result stage citations only"
+    }
+  ],
+  "legacy_edge_cases": [
+    "signal_expired_before_execution -> v2 fail-closed MISSING_CHAIN_RECORDS",
+    "trainer_pause_no_signal -> v2 chain complete but signal_record.actionable=false (non_directional_side)",
+    "stale_feature_snapshot -> v2 signal_record.actionable=false (non_actionable_market_freshness)",
+    "risk_gateway_denied_missing_field -> v2 stage explanation collapses to EVIDENCE_MISSING_LABEL",
+    "signal_id_collision -> v2 deterministic SHA-256 prefix of prediction_id|run_ts",
+    "bundle_clock_skew -> v2 prefers generated_at_ms; absent both -> STALE_RUNTIME_EVIDENCE"
+  ],
+  "legacy_failure_modes": [
+    "trainer_not_running -> MISSING_RUNTIME_EVIDENCE",
+    "router_not_running -> MISSING_CHAIN_RECORDS at downstream stages",
+    "trader_logs_but_no_publish -> MISSING_CHAIN_RECORDS:paper_execution_result",
+    "redis_stream_truncated -> v2 file-based bundle is atomic; partial bundles -> INVALID_PAYLOAD",
+    "operator_unable_to_attribute_risk_denial -> v2 explicit risk_reason_code citation"
+  ],
+  "legacy_tests_or_expected_behavior": "Legacy shipped no pytest coverage for lineage reconstruction. Closest legacy assurance was manual replay via trace_symbol_e2e.py and signal_accuracy_v2.py. V2 adds integration tests at v2/backend/tests/integration/cli/test_v2_signal_lineage_worker.py.",
+  "V2_mapping": {
+    "worker": "v2/backend/app/cli/v2_signal_lineage_worker.py",
+    "service": "v2/backend/app/services/signal_publisher.py",
+    "tests": "v2/backend/tests/integration/cli/test_v2_signal_lineage_worker.py",
+    "public_payload": "v2/frontend/public/operator_runtime/v2_signal_lineage_worker/latest/v2_signal_lineage_worker_status.json",
+    "local_payload": "v2/runtime/v2_signal_lineage_worker/latest/v2_signal_lineage_worker_status.json",
+    "final_readiness_payload": "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_signal_lineage_worker_status.json"
+  },
+  "intentional_changes": [
+    "ad_hoc_lineage_reconstruction_replaced_with_durable_unified_record",
+    "silent_inference_replaced_with_evidence_citations_or_EVIDENCE_MISSING_LABEL",
+    "redis_pubsub_routing_replaced_with_file_based_per_stage_bundle",
+    "chain_level_fail_closed_enforced_on_missing_or_stale_records",
+    "signal_publisher_service_wired_to_replace_one_line_scaffold"
+  ],
+  "removed_or_deprecated_behavior": [
+    {
+      "removed": "Redis publishing of signals (wma:signals:all)",
+      "reason": "v2 evidence-integrity rule prohibits legacy-Redis writes"
+    },
+    {
+      "removed": "Account routing (wma:signals:{ACCOUNT_ID})",
+      "reason": "lineage worker is account-agnostic; multi-account routing reserved for a future v2 worker"
+    },
+    {
+      "removed": "In-memory signal_state_manager cooldown deduplication",
+      "reason": "cooldown is enforced upstream by orchestrator + risk gateway; lineage worker only assembles"
+    },
+    {
+      "removed": "Telegram signal alerts",
+      "reason": "out of scope for lineage assembly; reserved for operator alerting worker"
+    }
+  ],
+  "codex_review_trigger": "codex_review_v2_signal_lineage_worker",
+  "live_gate": "blocked_human_only",
+  "exchange_call_invariant": "NO_REAL_EXCHANGE_CALL_FROM_SIGNAL_LINEAGE_WORKER",
+  "symbol_universe_contract": "SYMBOL_UNIVERSE_CONTRACT_REQUIRED",
+  "symbol_universe_source_path": "v2/backend/app/services/symbol_universe/service.py"
+}

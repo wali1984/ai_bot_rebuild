@@ -1,0 +1,902 @@
+{
+  "binance_usdm_confirmed_symbols": [],
+  "chain_complete": true,
+  "chain_consistent": true,
+  "chain_inconsistencies": [],
+  "coinank_symbols_tradability": "market_intelligence_only_until_binance_usdm_confirmed",
+  "current_gate_state": "blocked_human_only",
+  "current_gate_state_must_equal_blocked_human_only": true,
+  "discovered_symbols": [],
+  "dynamic_discovered_symbols": [],
+  "dynamic_symbol_sources": [
+    "binance_futures",
+    "coinank",
+    "coinapi",
+    "kucoin",
+    "future_ingestors"
+  ],
+  "evidence_missing_label": "Evidence missing \u2014 cannot explain without guessing",
+  "exchange_action_taken": false,
+  "exchange_call_invariant": "NO_REAL_EXCHANGE_CALL_FROM_SIGNAL_LINEAGE_WORKER",
+  "explainability_invariant_violated": false,
+  "fail_closed": false,
+  "fail_closed_reason": "",
+  "freshness_seconds": 14,
+  "gate_always_blocked_invariant": true,
+  "last_run_ts": "2026-05-14T05:44:19Z",
+  "legacy_active_symbol_source": "legacy_config.py_SYMBOLS_current_25",
+  "legacy_active_symbols": [
+    "1000BONKUSDT",
+    "1000FLOKIUSDT",
+    "1000PEPEUSDT",
+    "1000SHIBUSDT",
+    "ALICEUSDT",
+    "ASTERUSDT",
+    "AUCTIONUSDT",
+    "AVNTUSDT",
+    "BANKUSDT",
+    "BARDUSDT",
+    "BTCUSDT",
+    "DOGEUSDT",
+    "ETHUSDT",
+    "FARTCOINUSDT",
+    "HIGHUSDT",
+    "LINKUSDT",
+    "LTCUSDT",
+    "PENGUUSDT",
+    "PIPPINUSDT",
+    "RAVEUSDT",
+    "RIVERUSDT",
+    "SOLUSDT",
+    "UNIUSDT",
+    "WIFUSDT",
+    "XRPUSDT"
+  ],
+  "legacy_source_paths": [
+    "legacy_reference/rl/orchestrator_worker.py",
+    "legacy_reference/rl/hybrid_trainer.py",
+    "legacy_reference/rl/signal_state_manager.py",
+    "legacy_reference/trading/signal_router.py",
+    "legacy_reference/monitor_trainer_signals.py",
+    "legacy_reference/scripts/trace_symbol_e2e.py",
+    "legacy_reference/scripts/signal_accuracy_v2.py",
+    "legacy_reference/scripts/signal_accuracy_48h.py",
+    "legacy_reference/scripts/why_hedged_timeline.py"
+  ],
+  "lineage_ids": {
+    "execution_intent_id": "pei_paper_tick_1778737445673",
+    "feature_snapshot_id": "fs_paper_tick_1778737445673",
+    "orchestrator_decision_id": "orch_paper_tick_1778737445673",
+    "paper_ledger_entry_id": "pledger_paper_tick_1778737445673",
+    "prediction_id": "pred_paper_tick_1778737445673",
+    "risk_decision_id": "risk_paper_tick_1778737445673",
+    "signal_id": "sig_paper_tick_1778737445673",
+    "signal_id_sources": {
+      "orchestrator_decision.signal_id": "sig_paper_tick_1778737445673",
+      "paper_execution.signal_id": "sig_paper_tick_1778737445673",
+      "risk_decision.signal_id": "sig_paper_tick_1778737445673",
+      "signal_record.signal_id": "sig_paper_tick_1778737445673"
+    }
+  },
+  "live_blocked": true,
+  "live_blocked_symbols": [
+    "BTCUSDT"
+  ],
+  "live_gate": "blocked_human_only",
+  "live_symbol_policy": "none_live_blocked_human_only",
+  "live_symbols": [],
+  "missing_runtime_evidence": false,
+  "observed_symbols": [
+    "BTCUSDT"
+  ],
+  "paper_symbols": [],
+  "passive_monitor_all_discovered_symbols": true,
+  "placeholder_remnant_check": {
+    "patterns_checked": [
+      "placeholder",
+      "todo",
+      "fixme",
+      "scaffold",
+      "no behavior",
+      "not implemented",
+      "stub"
+    ],
+    "read_error": "",
+    "readable": true,
+    "remnants_found": false,
+    "remnants_matched": [],
+    "signal_publisher_path": "v2/backend/app/services/signal_publisher.py"
+  },
+  "runtime_evidence_status": "PRESENT",
+  "signal_lineage_record": {
+    "bundle_generated_at": "2026-05-14T05:44:05Z",
+    "classification": "REALTIME_RUNTIME_EVIDENCE",
+    "exchange_action_taken": false,
+    "exchange_call_invariant": "NO_REAL_EXCHANGE_CALL_FROM_SIGNAL_LINEAGE_WORKER",
+    "generated_at": "2026-05-14T05:44:19Z",
+    "lineage_ids": {
+      "execution_intent_id": "pei_paper_tick_1778737445673",
+      "feature_snapshot_id": "fs_paper_tick_1778737445673",
+      "orchestrator_decision_id": "orch_paper_tick_1778737445673",
+      "paper_ledger_entry_id": "pledger_paper_tick_1778737445673",
+      "prediction_id": "pred_paper_tick_1778737445673",
+      "risk_decision_id": "risk_paper_tick_1778737445673",
+      "signal_id": "sig_paper_tick_1778737445673",
+      "signal_id_sources": {
+        "orchestrator_decision.signal_id": "sig_paper_tick_1778737445673",
+        "paper_execution.signal_id": "sig_paper_tick_1778737445673",
+        "risk_decision.signal_id": "sig_paper_tick_1778737445673",
+        "signal_record.signal_id": "sig_paper_tick_1778737445673"
+      }
+    },
+    "live_gate": "blocked_human_only",
+    "schema": "v2_signal_lineage_record_v1",
+    "signal_record": {
+      "actionable": true,
+      "actionable_reason_code": "actionable",
+      "confidence_calibrated": 0.635526,
+      "confidence_floor": 0.58,
+      "evidence_citations": [
+        {
+          "field_name": "prediction_id",
+          "present": true,
+          "source": "trainer_prediction.prediction_id",
+          "value": "pred_paper_tick_1778737445673"
+        },
+        {
+          "field_name": "feature_snapshot_id",
+          "present": true,
+          "source": "feature_snapshot.feature_snapshot_id",
+          "value": "fs_paper_tick_1778737445673"
+        },
+        {
+          "field_name": "side",
+          "present": true,
+          "source": "trainer_prediction.raw_output.side",
+          "value": "long"
+        },
+        {
+          "field_name": "confidence_calibrated",
+          "present": true,
+          "source": "trainer_prediction.confidence_calibrated",
+          "value": 0.635526
+        },
+        {
+          "field_name": "market_freshness_state",
+          "present": true,
+          "source": "market_feed.freshness_state",
+          "value": "CURRENT"
+        },
+        {
+          "field_name": "market_age_seconds",
+          "present": true,
+          "source": "market_feed.age_seconds",
+          "value": 5
+        }
+      ],
+      "exchange_action_taken": false,
+      "exchange_call_invariant": "NO_REAL_EXCHANGE_CALL_FROM_SIGNAL_PUBLISHER",
+      "explanation": "Signal 'open_long' proposed because trainer side='long' with calibrated confidence 0.635526 (floor=0.58) and market freshness 'CURRENT' (age_seconds=5).",
+      "feature_snapshot_id": "fs_paper_tick_1778737445673",
+      "generated_at": "2026-05-14T05:44:19Z",
+      "live_gate": "blocked_human_only",
+      "market_age_seconds": 5,
+      "prediction_id": "pred_paper_tick_1778737445673",
+      "proposed_action": "open_long",
+      "service_id": "v2_signal_publisher",
+      "side": "long",
+      "signal_id": "sig_paper_tick_1778737445673",
+      "source_freshness": "CURRENT",
+      "symbol": "BTCUSDT"
+    },
+    "source_runtime_id": "paper_online",
+    "stage_order": [
+      "market_data",
+      "feature_snapshot",
+      "model_output",
+      "trainer_prediction",
+      "orchestrator_decision",
+      "risk_gateway_decision",
+      "paper_execution_result"
+    ],
+    "stages": {
+      "feature_snapshot": {
+        "age_seconds": 14,
+        "evidence_citations": [
+          {
+            "field_name": "feature_snapshot_id",
+            "present": true,
+            "source": "feature_snapshot.feature_snapshot_id",
+            "value": "fs_paper_tick_1778737445673"
+          },
+          {
+            "field_name": "freshness_state",
+            "present": true,
+            "source": "feature_snapshot.freshness_state",
+            "value": "CURRENT"
+          },
+          {
+            "field_name": "market_age_seconds",
+            "present": true,
+            "source": "feature_snapshot.market_age_seconds",
+            "value": 5
+          },
+          {
+            "field_name": "return_5m",
+            "present": true,
+            "source": "feature_snapshot.features.return_5m",
+            "value": -0.00015064
+          },
+          {
+            "field_name": "return_15m",
+            "present": true,
+            "source": "feature_snapshot.features.return_15m",
+            "value": 0.00112244
+          },
+          {
+            "field_name": "volume_last",
+            "present": true,
+            "source": "feature_snapshot.features.volume_last",
+            "value": 0.297
+          }
+        ],
+        "evidence_missing_label_used": false,
+        "explanation": "Feature snapshot 'fs_paper_tick_1778737445673' captured return_5m=-0.00015064 return_15m=0.00112244 volume_last=0.297 with freshness='CURRENT'.",
+        "freshness_state": "CURRENT",
+        "present": true,
+        "record_ts": "2026-05-14T05:44:02Z",
+        "source_path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+        "stage_name": "feature_snapshot"
+      },
+      "market_data": {
+        "age_seconds": 14,
+        "evidence_citations": [
+          {
+            "field_name": "symbol",
+            "present": true,
+            "source": "market_feed.symbol",
+            "value": "BTCUSDT"
+          },
+          {
+            "field_name": "price",
+            "present": true,
+            "source": "market_feed.price",
+            "value": 79648.1
+          },
+          {
+            "field_name": "freshness_state",
+            "present": true,
+            "source": "market_feed.freshness_state",
+            "value": "CURRENT"
+          },
+          {
+            "field_name": "age_seconds",
+            "present": true,
+            "source": "market_feed.age_seconds",
+            "value": 5
+          },
+          {
+            "field_name": "source_type",
+            "present": true,
+            "source": "market_feed.source_type",
+            "value": "READONLY_MARKET_FEED"
+          }
+        ],
+        "evidence_missing_label_used": false,
+        "explanation": "Read-only market feed observed price=79648.1 for symbol='BTCUSDT' from source_type='READONLY_MARKET_FEED'; freshness='CURRENT' age_seconds=5.",
+        "freshness_state": "CURRENT",
+        "present": true,
+        "record_ts": "2026-05-14T05:44:00Z",
+        "source_path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+        "stage_name": "market_data"
+      },
+      "model_output": {
+        "age_seconds": 14,
+        "evidence_citations": [
+          {
+            "field_name": "side",
+            "present": true,
+            "source": "trainer_prediction.raw_output.side",
+            "value": "long"
+          },
+          {
+            "field_name": "momentum_score",
+            "present": true,
+            "source": "trainer_prediction.raw_output.momentum_score",
+            "value": 0.0955264
+          },
+          {
+            "field_name": "model_checkpoint",
+            "present": true,
+            "source": "trainer_prediction.model_checkpoint",
+            "value": "v2_paper_readonly_momentum_wrapper_v1"
+          }
+        ],
+        "evidence_missing_label_used": false,
+        "explanation": "Model raw output side='long' momentum_score=0.0955264 from checkpoint='v2_paper_readonly_momentum_wrapper_v1'.",
+        "freshness_state": "CURRENT",
+        "present": true,
+        "record_ts": "2026-05-14T05:44:02Z",
+        "source_path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+        "stage_name": "model_output"
+      },
+      "orchestrator_decision": {
+        "age_seconds": 14,
+        "evidence_citations": [
+          {
+            "field_name": "orchestrator_decision_id",
+            "present": true,
+            "source": "current_signal_lineage.orchestrator_decision.orchestrator_decision_id",
+            "value": "orch_paper_tick_1778737445673"
+          },
+          {
+            "field_name": "decision_action",
+            "present": true,
+            "source": "current_signal_lineage.orchestrator_decision.decision_action",
+            "value": "open_long"
+          },
+          {
+            "field_name": "decision_reason",
+            "present": true,
+            "source": "current_signal_lineage.orchestrator_decision.decision_reason",
+            "value": "paper_momentum_signal_routed"
+          },
+          {
+            "field_name": "risk_gateway_required",
+            "present": true,
+            "source": "current_signal_lineage.orchestrator_decision.risk_gateway_required",
+            "value": true
+          }
+        ],
+        "evidence_missing_label_used": false,
+        "explanation": "Orchestrator decision 'orch_paper_tick_1778737445673' selected action 'open_long' with reason 'paper_momentum_signal_routed'; risk_gateway_required=True.",
+        "freshness_state": "CURRENT",
+        "present": true,
+        "record_ts": "2026-05-14T05:44:05Z",
+        "source_path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+        "stage_name": "orchestrator_decision"
+      },
+      "paper_execution_result": {
+        "age_seconds": 14,
+        "evidence_citations": [
+          {
+            "field_name": "paper_ledger_entry_id",
+            "present": true,
+            "source": "paper_ledger_tail[0].paper_ledger_entry_id",
+            "value": "pledger_paper_tick_1778737445673"
+          },
+          {
+            "field_name": "execution_intent_id",
+            "present": true,
+            "source": "paper_ledger_tail[0].execution_intent_id",
+            "value": "pei_paper_tick_1778737445673"
+          },
+          {
+            "field_name": "ledger_action",
+            "present": true,
+            "source": "paper_ledger_tail[0].ledger_action",
+            "value": "PAPER_FILL_SIMULATED"
+          },
+          {
+            "field_name": "paper_result",
+            "present": true,
+            "source": "paper_ledger_tail[0].paper_result",
+            "value": "FILLED_PAPER_ONLY"
+          },
+          {
+            "field_name": "live_order",
+            "present": true,
+            "source": "paper_ledger_tail[0].live_order",
+            "value": false
+          }
+        ],
+        "evidence_missing_label_used": false,
+        "explanation": "Paper execution ledger entry 'pledger_paper_tick_1778737445673' recorded ledger_action='PAPER_FILL_SIMULATED' with paper_result='FILLED_PAPER_ONLY'; live_order=False.",
+        "freshness_state": "CURRENT",
+        "present": true,
+        "record_ts": "2026-05-14T05:44:05Z",
+        "source_path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+        "stage_name": "paper_execution_result"
+      },
+      "risk_gateway_decision": {
+        "age_seconds": 14,
+        "evidence_citations": [
+          {
+            "field_name": "risk_decision_id",
+            "present": true,
+            "source": "current_signal_lineage.risk_decision.risk_decision_id",
+            "value": "risk_paper_tick_1778737445673"
+          },
+          {
+            "field_name": "risk_action",
+            "present": true,
+            "source": "current_signal_lineage.risk_decision.risk_action",
+            "value": "allow"
+          },
+          {
+            "field_name": "risk_reason_code",
+            "present": true,
+            "source": "current_signal_lineage.risk_decision.risk_reason_code",
+            "value": "allow_proceed_long"
+          },
+          {
+            "field_name": "risk_result",
+            "present": true,
+            "source": "current_signal_lineage.risk_decision.risk_result",
+            "value": "APPROVED_FOR_PAPER_ONLY"
+          },
+          {
+            "field_name": "live_blocked",
+            "present": true,
+            "source": "current_signal_lineage.risk_decision.live_blocked",
+            "value": true
+          }
+        ],
+        "evidence_missing_label_used": false,
+        "explanation": "Risk gateway decision 'risk_paper_tick_1778737445673' returned action 'allow' with reason 'allow_proceed_long'; result='APPROVED_FOR_PAPER_ONLY'; live_blocked=True.",
+        "freshness_state": "CURRENT",
+        "present": true,
+        "record_ts": "2026-05-14T05:44:05Z",
+        "source_path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+        "stage_name": "risk_gateway_decision"
+      },
+      "trainer_prediction": {
+        "age_seconds": 14,
+        "evidence_citations": [
+          {
+            "field_name": "prediction_id",
+            "present": true,
+            "source": "trainer_prediction.prediction_id",
+            "value": "pred_paper_tick_1778737445673"
+          },
+          {
+            "field_name": "feature_snapshot_id",
+            "present": true,
+            "source": "trainer_prediction.feature_snapshot_id",
+            "value": "fs_paper_tick_1778737445673"
+          },
+          {
+            "field_name": "confidence_calibrated",
+            "present": true,
+            "source": "trainer_prediction.confidence_calibrated",
+            "value": 0.635526
+          },
+          {
+            "field_name": "trainer_state",
+            "present": true,
+            "source": "trainer_prediction.trainer_state",
+            "value": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
+          },
+          {
+            "field_name": "model_checkpoint",
+            "present": true,
+            "source": "trainer_prediction.model_checkpoint",
+            "value": "v2_paper_readonly_momentum_wrapper_v1"
+          }
+        ],
+        "evidence_missing_label_used": false,
+        "explanation": "Trainer prediction 'pred_paper_tick_1778737445673' for feature snapshot 'fs_paper_tick_1778737445673' produced calibrated confidence 0.635526 from trainer state 'V2_PAPER_TRAINER_WRAPPER_CURRENT' checkpoint 'v2_paper_readonly_momentum_wrapper_v1'.",
+        "freshness_state": "CURRENT",
+        "present": true,
+        "record_ts": "2026-05-14T05:44:02Z",
+        "source_path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+        "stage_name": "trainer_prediction"
+      }
+    }
+  },
+  "signal_publisher_self_check": {
+    "evidence_missing_label": "Evidence missing \u2014 cannot explain without guessing",
+    "exchange_call_invariant": "NO_REAL_EXCHANGE_CALL_FROM_SIGNAL_PUBLISHER",
+    "implementation_present": true,
+    "live_gate": "blocked_human_only",
+    "required_record_fields": [
+      "signal_id",
+      "service_id",
+      "generated_at",
+      "symbol",
+      "prediction_id",
+      "feature_snapshot_id",
+      "proposed_action",
+      "side",
+      "confidence_calibrated",
+      "confidence_floor",
+      "actionable",
+      "actionable_reason_code",
+      "source_freshness",
+      "market_age_seconds",
+      "evidence_citations",
+      "explanation",
+      "live_gate",
+      "exchange_call_invariant",
+      "exchange_action_taken"
+    ],
+    "service_id": "v2_signal_publisher"
+  },
+  "signal_record": {
+    "actionable": true,
+    "actionable_reason_code": "actionable",
+    "confidence_calibrated": 0.635526,
+    "confidence_floor": 0.58,
+    "evidence_citations": [
+      {
+        "field_name": "prediction_id",
+        "present": true,
+        "source": "trainer_prediction.prediction_id",
+        "value": "pred_paper_tick_1778737445673"
+      },
+      {
+        "field_name": "feature_snapshot_id",
+        "present": true,
+        "source": "feature_snapshot.feature_snapshot_id",
+        "value": "fs_paper_tick_1778737445673"
+      },
+      {
+        "field_name": "side",
+        "present": true,
+        "source": "trainer_prediction.raw_output.side",
+        "value": "long"
+      },
+      {
+        "field_name": "confidence_calibrated",
+        "present": true,
+        "source": "trainer_prediction.confidence_calibrated",
+        "value": 0.635526
+      },
+      {
+        "field_name": "market_freshness_state",
+        "present": true,
+        "source": "market_feed.freshness_state",
+        "value": "CURRENT"
+      },
+      {
+        "field_name": "market_age_seconds",
+        "present": true,
+        "source": "market_feed.age_seconds",
+        "value": 5
+      }
+    ],
+    "exchange_action_taken": false,
+    "exchange_call_invariant": "NO_REAL_EXCHANGE_CALL_FROM_SIGNAL_PUBLISHER",
+    "explanation": "Signal 'open_long' proposed because trainer side='long' with calibrated confidence 0.635526 (floor=0.58) and market freshness 'CURRENT' (age_seconds=5).",
+    "feature_snapshot_id": "fs_paper_tick_1778737445673",
+    "generated_at": "2026-05-14T05:44:19Z",
+    "live_gate": "blocked_human_only",
+    "market_age_seconds": 5,
+    "prediction_id": "pred_paper_tick_1778737445673",
+    "proposed_action": "open_long",
+    "service_id": "v2_signal_publisher",
+    "side": "long",
+    "signal_id": "sig_paper_tick_1778737445673",
+    "source_freshness": "CURRENT",
+    "symbol": "BTCUSDT"
+  },
+  "source_payload_path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+  "source_runtime_id": "paper_online",
+  "stage_names": [
+    "market_data",
+    "feature_snapshot",
+    "model_output",
+    "trainer_prediction",
+    "orchestrator_decision",
+    "risk_gateway_decision",
+    "paper_execution_result"
+  ],
+  "stage_order": [
+    "market_data",
+    "feature_snapshot",
+    "model_output",
+    "trainer_prediction",
+    "orchestrator_decision",
+    "risk_gateway_decision",
+    "paper_execution_result"
+  ],
+  "stages": {
+    "feature_snapshot": {
+      "age_seconds": 14,
+      "evidence_citations": [
+        {
+          "field_name": "feature_snapshot_id",
+          "present": true,
+          "source": "feature_snapshot.feature_snapshot_id",
+          "value": "fs_paper_tick_1778737445673"
+        },
+        {
+          "field_name": "freshness_state",
+          "present": true,
+          "source": "feature_snapshot.freshness_state",
+          "value": "CURRENT"
+        },
+        {
+          "field_name": "market_age_seconds",
+          "present": true,
+          "source": "feature_snapshot.market_age_seconds",
+          "value": 5
+        },
+        {
+          "field_name": "return_5m",
+          "present": true,
+          "source": "feature_snapshot.features.return_5m",
+          "value": -0.00015064
+        },
+        {
+          "field_name": "return_15m",
+          "present": true,
+          "source": "feature_snapshot.features.return_15m",
+          "value": 0.00112244
+        },
+        {
+          "field_name": "volume_last",
+          "present": true,
+          "source": "feature_snapshot.features.volume_last",
+          "value": 0.297
+        }
+      ],
+      "evidence_missing_label_used": false,
+      "explanation": "Feature snapshot 'fs_paper_tick_1778737445673' captured return_5m=-0.00015064 return_15m=0.00112244 volume_last=0.297 with freshness='CURRENT'.",
+      "freshness_state": "CURRENT",
+      "present": true,
+      "record_ts": "2026-05-14T05:44:02Z",
+      "source_path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+      "stage_name": "feature_snapshot"
+    },
+    "market_data": {
+      "age_seconds": 14,
+      "evidence_citations": [
+        {
+          "field_name": "symbol",
+          "present": true,
+          "source": "market_feed.symbol",
+          "value": "BTCUSDT"
+        },
+        {
+          "field_name": "price",
+          "present": true,
+          "source": "market_feed.price",
+          "value": 79648.1
+        },
+        {
+          "field_name": "freshness_state",
+          "present": true,
+          "source": "market_feed.freshness_state",
+          "value": "CURRENT"
+        },
+        {
+          "field_name": "age_seconds",
+          "present": true,
+          "source": "market_feed.age_seconds",
+          "value": 5
+        },
+        {
+          "field_name": "source_type",
+          "present": true,
+          "source": "market_feed.source_type",
+          "value": "READONLY_MARKET_FEED"
+        }
+      ],
+      "evidence_missing_label_used": false,
+      "explanation": "Read-only market feed observed price=79648.1 for symbol='BTCUSDT' from source_type='READONLY_MARKET_FEED'; freshness='CURRENT' age_seconds=5.",
+      "freshness_state": "CURRENT",
+      "present": true,
+      "record_ts": "2026-05-14T05:44:00Z",
+      "source_path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+      "stage_name": "market_data"
+    },
+    "model_output": {
+      "age_seconds": 14,
+      "evidence_citations": [
+        {
+          "field_name": "side",
+          "present": true,
+          "source": "trainer_prediction.raw_output.side",
+          "value": "long"
+        },
+        {
+          "field_name": "momentum_score",
+          "present": true,
+          "source": "trainer_prediction.raw_output.momentum_score",
+          "value": 0.0955264
+        },
+        {
+          "field_name": "model_checkpoint",
+          "present": true,
+          "source": "trainer_prediction.model_checkpoint",
+          "value": "v2_paper_readonly_momentum_wrapper_v1"
+        }
+      ],
+      "evidence_missing_label_used": false,
+      "explanation": "Model raw output side='long' momentum_score=0.0955264 from checkpoint='v2_paper_readonly_momentum_wrapper_v1'.",
+      "freshness_state": "CURRENT",
+      "present": true,
+      "record_ts": "2026-05-14T05:44:02Z",
+      "source_path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+      "stage_name": "model_output"
+    },
+    "orchestrator_decision": {
+      "age_seconds": 14,
+      "evidence_citations": [
+        {
+          "field_name": "orchestrator_decision_id",
+          "present": true,
+          "source": "current_signal_lineage.orchestrator_decision.orchestrator_decision_id",
+          "value": "orch_paper_tick_1778737445673"
+        },
+        {
+          "field_name": "decision_action",
+          "present": true,
+          "source": "current_signal_lineage.orchestrator_decision.decision_action",
+          "value": "open_long"
+        },
+        {
+          "field_name": "decision_reason",
+          "present": true,
+          "source": "current_signal_lineage.orchestrator_decision.decision_reason",
+          "value": "paper_momentum_signal_routed"
+        },
+        {
+          "field_name": "risk_gateway_required",
+          "present": true,
+          "source": "current_signal_lineage.orchestrator_decision.risk_gateway_required",
+          "value": true
+        }
+      ],
+      "evidence_missing_label_used": false,
+      "explanation": "Orchestrator decision 'orch_paper_tick_1778737445673' selected action 'open_long' with reason 'paper_momentum_signal_routed'; risk_gateway_required=True.",
+      "freshness_state": "CURRENT",
+      "present": true,
+      "record_ts": "2026-05-14T05:44:05Z",
+      "source_path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+      "stage_name": "orchestrator_decision"
+    },
+    "paper_execution_result": {
+      "age_seconds": 14,
+      "evidence_citations": [
+        {
+          "field_name": "paper_ledger_entry_id",
+          "present": true,
+          "source": "paper_ledger_tail[0].paper_ledger_entry_id",
+          "value": "pledger_paper_tick_1778737445673"
+        },
+        {
+          "field_name": "execution_intent_id",
+          "present": true,
+          "source": "paper_ledger_tail[0].execution_intent_id",
+          "value": "pei_paper_tick_1778737445673"
+        },
+        {
+          "field_name": "ledger_action",
+          "present": true,
+          "source": "paper_ledger_tail[0].ledger_action",
+          "value": "PAPER_FILL_SIMULATED"
+        },
+        {
+          "field_name": "paper_result",
+          "present": true,
+          "source": "paper_ledger_tail[0].paper_result",
+          "value": "FILLED_PAPER_ONLY"
+        },
+        {
+          "field_name": "live_order",
+          "present": true,
+          "source": "paper_ledger_tail[0].live_order",
+          "value": false
+        }
+      ],
+      "evidence_missing_label_used": false,
+      "explanation": "Paper execution ledger entry 'pledger_paper_tick_1778737445673' recorded ledger_action='PAPER_FILL_SIMULATED' with paper_result='FILLED_PAPER_ONLY'; live_order=False.",
+      "freshness_state": "CURRENT",
+      "present": true,
+      "record_ts": "2026-05-14T05:44:05Z",
+      "source_path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+      "stage_name": "paper_execution_result"
+    },
+    "risk_gateway_decision": {
+      "age_seconds": 14,
+      "evidence_citations": [
+        {
+          "field_name": "risk_decision_id",
+          "present": true,
+          "source": "current_signal_lineage.risk_decision.risk_decision_id",
+          "value": "risk_paper_tick_1778737445673"
+        },
+        {
+          "field_name": "risk_action",
+          "present": true,
+          "source": "current_signal_lineage.risk_decision.risk_action",
+          "value": "allow"
+        },
+        {
+          "field_name": "risk_reason_code",
+          "present": true,
+          "source": "current_signal_lineage.risk_decision.risk_reason_code",
+          "value": "allow_proceed_long"
+        },
+        {
+          "field_name": "risk_result",
+          "present": true,
+          "source": "current_signal_lineage.risk_decision.risk_result",
+          "value": "APPROVED_FOR_PAPER_ONLY"
+        },
+        {
+          "field_name": "live_blocked",
+          "present": true,
+          "source": "current_signal_lineage.risk_decision.live_blocked",
+          "value": true
+        }
+      ],
+      "evidence_missing_label_used": false,
+      "explanation": "Risk gateway decision 'risk_paper_tick_1778737445673' returned action 'allow' with reason 'allow_proceed_long'; result='APPROVED_FOR_PAPER_ONLY'; live_blocked=True.",
+      "freshness_state": "CURRENT",
+      "present": true,
+      "record_ts": "2026-05-14T05:44:05Z",
+      "source_path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+      "stage_name": "risk_gateway_decision"
+    },
+    "trainer_prediction": {
+      "age_seconds": 14,
+      "evidence_citations": [
+        {
+          "field_name": "prediction_id",
+          "present": true,
+          "source": "trainer_prediction.prediction_id",
+          "value": "pred_paper_tick_1778737445673"
+        },
+        {
+          "field_name": "feature_snapshot_id",
+          "present": true,
+          "source": "trainer_prediction.feature_snapshot_id",
+          "value": "fs_paper_tick_1778737445673"
+        },
+        {
+          "field_name": "confidence_calibrated",
+          "present": true,
+          "source": "trainer_prediction.confidence_calibrated",
+          "value": 0.635526
+        },
+        {
+          "field_name": "trainer_state",
+          "present": true,
+          "source": "trainer_prediction.trainer_state",
+          "value": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
+        },
+        {
+          "field_name": "model_checkpoint",
+          "present": true,
+          "source": "trainer_prediction.model_checkpoint",
+          "value": "v2_paper_readonly_momentum_wrapper_v1"
+        }
+      ],
+      "evidence_missing_label_used": false,
+      "explanation": "Trainer prediction 'pred_paper_tick_1778737445673' for feature snapshot 'fs_paper_tick_1778737445673' produced calibrated confidence 0.635526 from trainer state 'V2_PAPER_TRAINER_WRAPPER_CURRENT' checkpoint 'v2_paper_readonly_momentum_wrapper_v1'.",
+      "freshness_state": "CURRENT",
+      "present": true,
+      "record_ts": "2026-05-14T05:44:02Z",
+      "source_path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+      "stage_name": "trainer_prediction"
+    }
+  },
+  "stale_threshold_seconds": 600,
+  "symbol_scope_policy": "do_not_train_or_trade_all_discovered_symbols_automatically",
+  "symbol_selection_score_factors": [
+    "liquidity",
+    "volume",
+    "volatility",
+    "funding",
+    "open_interest",
+    "spread",
+    "freshness",
+    "feature_completeness",
+    "exchange_availability",
+    "risk_profile",
+    "model_confidence",
+    "replay_performance",
+    "operator_overrides"
+  ],
+  "symbol_universe_contract": "SYMBOL_UNIVERSE_CONTRACT_REQUIRED",
+  "symbol_universe_public_payload_status": "MISSING_SYMBOL_UNIVERSE_PUBLIC_PAYLOAD",
+  "symbol_universe_source_path": "v2/backend/app/services/symbol_universe/service.py",
+  "trade_all_discovered_symbols": false,
+  "train_all_discovered_symbols": false,
+  "training_symbols": [],
+  "warn_threshold_seconds": 120,
+  "worker_id": "v2_signal_lineage_worker"
+}
