@@ -167,6 +167,10 @@ def codex_review_descriptor_path(worker_id: str) -> Path:
     return TASKS_DIR / f"codex_review_{worker_id}.json"
 
 
+def remediation_descriptor_path(worker_id: str) -> Path:
+    return TASKS_DIR / f"claude_remediate_{worker_id}_codex_fail.json"
+
+
 def task_state_path(task_id: str) -> Path:
     return REPO_ROOT / "claude_worklog" / "agent_supervisor" / "state" / "tasks" / f"{task_id}.json"
 
@@ -176,6 +180,28 @@ def read_json_file(path: Path) -> Dict[str, Any]:
         return json.loads(path.read_text())
     except Exception:
         return {}
+
+
+def parse_utc_ts(value: Any) -> Optional[dt.datetime]:
+    if not value:
+        return None
+    try:
+        text = str(value)
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        parsed = dt.datetime.fromisoformat(text)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=dt.timezone.utc)
+        return parsed.astimezone(dt.timezone.utc)
+    except Exception:
+        return None
+
+
+def task_state_end_ts(task_id: str) -> Optional[dt.datetime]:
+    last_run = read_json_file(task_state_path(task_id)).get("last_run")
+    if isinstance(last_run, dict):
+        return parse_utc_ts(last_run.get("end"))
+    return None
 
 
 def descriptor_required_paths(worker_id: str) -> List[Path]:
@@ -299,6 +325,15 @@ def check_worker_completion(worker: Dict[str, str]) -> Dict[str, Any]:
 
     codex_state = read_json_file(task_state_path(f"codex_review_{worker_id}")).get("status")
     claude_state = read_json_file(task_state_path(f"claude_port_{worker_id}")).get("status")
+    remediation_task_id = f"claude_remediate_{worker_id}_codex_fail"
+    remediation_state = read_json_file(task_state_path(remediation_task_id)).get("status")
+    remediation_finished_at = task_state_end_ts(remediation_task_id)
+    codex_finished_at = task_state_end_ts(f"codex_review_{worker_id}")
+    remediation_newer_than_codex = (
+        remediation_state == "completed"
+        and remediation_finished_at is not None
+        and (codex_finished_at is None or remediation_finished_at > codex_finished_at)
+    )
 
     pass_token = expected_codex_pass_token(worker_id)
     fail_token = expected_codex_fail_token(worker_id)
@@ -310,6 +345,8 @@ def check_worker_completion(worker: Dict[str, str]) -> Dict[str, Any]:
             state = CODEX_PASS
         else:
             state = CODEX_PASS_BUT_LEGACY_BACKFILL_REQUIRED
+    elif codex_text and fail_token in codex_text and remediation_newer_than_codex:
+        state = CLAUDE_COMPLETED_AWAITING_CODEX
     elif codex_text and fail_token in codex_text:
         state = CODEX_FAIL_REMEDIATION_REQUIRED
     elif not cli.exists() and not legacy_baseline_present:
@@ -729,9 +766,7 @@ def select_task_descriptor(action: Dict[str, Any], dry_run: bool) -> Optional[st
     elif kind == "dispatch_codex_review":
         target = codex_review_descriptor_path(worker_id)
     else:
-        # remediation: orchestrator does NOT auto-create the descriptor; operator
-        # or a separate planner must create it. Just record the recommendation.
-        return f"recommend_create:claude_remediate_{worker_id}_codex_fail"
+        target = remediation_descriptor_path(worker_id)
     if dry_run:
         return f"dry_run_would_select:{target.relative_to(REPO_ROOT)}"
     if not target.exists():
@@ -759,6 +794,21 @@ def select_task_descriptor(action: Dict[str, Any], dry_run: bool) -> Optional[st
             sort_keys=True,
         )
     )
+    if kind == "dispatch_codex_review":
+        task_id = f"codex_review_{worker_id}"
+        state_path = task_state_path(task_id)
+        existing = read_json_file(state_path)
+        existing.update(
+            {
+                "task_id": task_id,
+                "status": "pending",
+                "run_pid": None,
+                "resume_after_utc": None,
+                "last_retry_reason": "rerun_after_remediation",
+            }
+        )
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text(json.dumps(existing, indent=2, sort_keys=True) + "\n")
     return f"selected:{target.relative_to(REPO_ROOT)}"
 
 

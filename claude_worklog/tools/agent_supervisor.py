@@ -285,6 +285,8 @@ def task_allowed_by_v2_worker_porting_state(task: Dict[str, Any]) -> Tuple[bool,
         return True, "selected_by_v2_worker_porting_orchestrator"
     if kind == "dispatch_codex_review" and next_worker and task_id == f"codex_review_{next_worker}":
         return True, "selected_by_v2_worker_porting_orchestrator"
+    if kind == "dispatch_remediation" and next_worker and task_id == f"claude_remediate_{next_worker}_codex_fail":
+        return True, "selected_by_v2_worker_porting_orchestrator_remediation"
     return False, "not_selected_by_v2_worker_porting_orchestrator"
 
 
