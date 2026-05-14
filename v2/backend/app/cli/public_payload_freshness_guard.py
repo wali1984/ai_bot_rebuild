@@ -111,7 +111,19 @@ def _has_source(payload: dict[str, Any]) -> bool:
 
 def _has_required_evidence(payload: dict[str, Any]) -> bool:
     keys = {path.rsplit(".", 1)[-1].lower() for path, _ in _walk(payload)}
-    return bool({"generated_at", "source_paths"} & keys or {"evidence_status", "classifications"} & keys)
+    if {"generated_at", "source_paths"} & keys or {"evidence_status", "classifications"} & keys:
+        return True
+    if any(key.endswith("evidence_status") for key in keys):
+        return True
+    runtime_source_keys = {
+        "source_payload_path",
+        "source_files",
+        "source_ingestor_refs",
+        "source_key_refs",
+        "source_snapshot_ids",
+        "last_snapshot_id",
+    }
+    return bool(runtime_source_keys & keys)
 
 
 def _approval_token_exists(root: Path) -> bool:

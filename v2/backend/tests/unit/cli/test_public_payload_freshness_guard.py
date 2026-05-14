@@ -88,3 +88,50 @@ def test_guard_accepts_worker_status_last_run_ts_and_worker_id(tmp_path) -> None
 
     assert result["result"] == "PASS"
     assert result["payload_results"][0]["generated_at"] == "2026-05-13T00:00:00Z"
+
+
+def test_guard_accepts_ready_worker_payload_with_snapshot_source_evidence(tmp_path) -> None:
+    _write(
+        tmp_path / "v2/frontend/public/operator_runtime/v2_worker/latest/v2_worker_status.json",
+        """
+        {
+          "worker_id": "v2_worker",
+          "last_run_ts": "2026-05-13T00:00:00Z",
+          "live_gate": "blocked_human_only",
+          "trainer_readiness": "READY",
+          "last_snapshot_id": "feature_snapshot_abc",
+          "source_payload_path": "binance_public_rest:BTCUSDT"
+        }
+        """,
+    )
+
+    result = build_guard(
+        tmp_path,
+        now=datetime(2026, 5, 13, 0, 1, tzinfo=timezone.utc),
+        stale_after_seconds=120,
+    )
+
+    assert result["result"] == "PASS"
+
+
+def test_guard_blocks_ready_worker_payload_without_evidence(tmp_path) -> None:
+    _write(
+        tmp_path / "v2/frontend/public/operator_runtime/v2_worker/latest/v2_worker_status.json",
+        """
+        {
+          "worker_id": "v2_worker",
+          "last_run_ts": "2026-05-13T00:00:00Z",
+          "live_gate": "blocked_human_only",
+          "trainer_readiness": "READY"
+        }
+        """,
+    )
+
+    result = build_guard(
+        tmp_path,
+        now=datetime(2026, 5, 13, 0, 1, tzinfo=timezone.utc),
+        stale_after_seconds=120,
+    )
+
+    assert result["result"] == "BLOCKED"
+    assert "READY_CLAIM_WITH_MISSING_EVIDENCE" in result["findings"]
