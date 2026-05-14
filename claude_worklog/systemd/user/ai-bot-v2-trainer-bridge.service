@@ -1,0 +1,14 @@
+[Unit]
+Description=AI Bot V2 trainer bridge evidence publisher
+After=network-online.target ai-bot-v2-feature-snapshot-builder.service ai-bot-v2-paper-online-runtime.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-trainer-bridge'
+ExecStart=/usr/bin/env bash -lc 'mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.v2_trainer_bridge --once --readonly-only >> v2/runtime/v2_trainer_bridge.log 2>&1 || true; sleep 60; done'
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

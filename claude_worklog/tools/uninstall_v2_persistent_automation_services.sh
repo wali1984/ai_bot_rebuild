@@ -5,6 +5,7 @@ UNIT_DST="$HOME/.config/systemd/user"
 UNITS=(
   ai-bot-v2-automation-liveness-watchdog.timer
   ai-bot-v2-automation-liveness-watchdog.service
+  ai-bot-v2-trainer-bridge.service
   ai-bot-v2-feature-snapshot-builder.service
   ai-bot-v2-paper-shadow-observation.service
   ai-bot-v2-paper-online-runtime.service
