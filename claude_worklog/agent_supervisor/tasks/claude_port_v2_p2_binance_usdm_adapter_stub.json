@@ -24,7 +24,10 @@
     "greenfield_without_legacy_baseline",
     "dropping_legacy_behavior_silently",
     "ignoring_legacy_redis_or_config_or_stream_contracts_without_reason",
-    "behavior_change_without_explanation"
+    "behavior_change_without_explanation",
+    "hardcoded_current_25_symbols_as_full_universe",
+    "train_or_trade_all_discovered_symbols_automatically",
+    "coinank_symbols_treated_as_tradable_without_binance_usdm_confirmation"
   ],
   "required_output_files": [
     "v2/backend/app/cli/v2_binance_usdm_adapter_stub.py",
@@ -42,18 +45,32 @@
     "change_margin_type_method_raises_BLOCKED_GATE_NOT_APPROVED",
     "change_position_mode_method_raises_BLOCKED_GATE_NOT_APPROVED",
     "account_info_v3_read_only_path_works_but_does_not_unlock_gate",
-    "no_secret_logged_or_returned_from_stub_contract"
+    "no_secret_logged_or_returned_from_stub_contract",
+    "symbol_universe_contract_required",
+    "symbol_scope_roles_distinguished",
+    "no_hardcoded_current_25_symbols_as_full_universe",
+    "no_train_or_trade_all_discovered_symbols_automatically",
+    "coinank_symbols_require_binance_usdm_confirmation_before_tradable"
   ],
   "required_public_payload_fields": [
     "worker_id",
     "stub_state_one_of_DISABLED_OR_BLOCKED_NEVER_ACTIVE",
     "endpoints_exposed_read_only",
     "endpoints_blocked_mutating",
-    "freshness_seconds"
+    "freshness_seconds",
+    "symbol_universe_contract",
+    "symbol_universe_source_path",
+    "legacy_active_symbols",
+    "discovered_symbols",
+    "observed_symbols",
+    "training_symbols",
+    "paper_symbols",
+    "live_blocked_symbols",
+    "binance_usdm_confirmed_symbols"
   ],
   "required_codex_review_task": "codex_review_v2_p2_binance_usdm_adapter_stub",
   "runnable_invocation_template": "python3 -m v2.backend.app.cli.v2_binance_usdm_adapter_stub --status-only",
-  "prompt": "EMIT-FILE MODE - DO NOT USE INTERACTIVE WRITE/EDIT TOOLS. The supervisor will materialize files from stdout. Output BEGIN_FILE blocks only for the required files. Use exactly this format, repeated once per file:\nBEGIN_FILE: relative/path/from/repo/root\n<complete file contents>\nEND_FILE\n\nRequired files to emit exactly:\n- v2/backend/app/cli/v2_binance_usdm_adapter_stub.py\n- v2/backend/app/services/binance_usdm_adapter/service.py\n- v2/backend/tests/integration/cli/test_v2_binance_usdm_adapter_stub.py\n- v2/frontend/public/operator_runtime/v2_binance_usdm_adapter/latest/v2_binance_usdm_adapter_status.json\n- claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_binance_usdm_adapter_report.md\n- claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_binance_usdm_adapter_status.json\n- claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_LEGACY_BASELINE_ANALYSIS.md\n- claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_legacy_behavior_mapping.json\n\nDo not ask for permission to write files. Do not say files are drafted. Do not output a summary instead of file blocks. If you cannot complete all implementation files in one pass, still emit the legacy baseline files first when required and emit a failing status/report explaining the blocker. Keep live blocked_human_only. Do not touch /home/wali/Desktop/AI BOT. Do not write old Redis. Do not call exchange mutation APIs. Do not change leverage or margin.\n\nLEGACY-FIRST MANDATE. This is not a greenfield build. Before writing any V2 implementation code, you MUST read the relevant files under legacy_reference/, identify the exact legacy source paths/functions/classes that own this responsibility today, and produce TWO required files:\n  1. claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/<worker_id>_LEGACY_BASELINE_ANALYSIS.md\n  2. claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/<worker_id>_legacy_behavior_mapping.json\nThe analysis must list: legacy_source_paths, legacy_functions_preserved, legacy_inputs, legacy_outputs, legacy_redis_keys (read-only references; never writers), legacy_config_dependencies, legacy_edge_cases, legacy_failure_modes, legacy_tests_or_expected_behavior, V2_mapping, intentional_changes, and any removed/deprecated behavior with reason. The mapping JSON must be a structured version of the same. If legacy_reference has no equivalent, justify the greenfield decision in writing with citations. Codex will fail the review if either file is missing, vague, or silently drops legacy behavior.\n\nOnly after both baseline files exist may you implement the worker.\n\nBuild the Binance USD-M futures adapter stub. Read-only paths (account info v3, position risk) may be exposed only if credentials are present. ALL mutating endpoints (new order, change initial leverage, change margin type, change position mode) must raise BLOCKED_GATE_NOT_APPROVED. Tests must prove every mutating method raises, that read-only access does not unlock the gate, and that no secret is logged or returned. Trigger codex_review_v2_p2_binance_usdm_adapter_stub on emit.",
+  "prompt": "EMIT-FILE MODE - DO NOT USE INTERACTIVE WRITE/EDIT TOOLS. The supervisor will materialize files from stdout. Output BEGIN_FILE blocks only for the required files. Use exactly this format, repeated once per file:\nBEGIN_FILE: relative/path/from/repo/root\n<complete file contents>\nEND_FILE\n\nRequired files to emit exactly:\n- v2/backend/app/cli/v2_binance_usdm_adapter_stub.py\n- v2/backend/app/services/binance_usdm_adapter/service.py\n- v2/backend/tests/integration/cli/test_v2_binance_usdm_adapter_stub.py\n- v2/frontend/public/operator_runtime/v2_binance_usdm_adapter/latest/v2_binance_usdm_adapter_status.json\n- claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_binance_usdm_adapter_report.md\n- claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_binance_usdm_adapter_status.json\n- claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_LEGACY_BASELINE_ANALYSIS.md\n- claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_legacy_behavior_mapping.json\n\nDo not ask for permission to write files. Do not say files are drafted. Do not output a summary instead of file blocks. If you cannot complete all implementation files in one pass, still emit the legacy baseline files first when required and emit a failing status/report explaining the blocker. Keep live blocked_human_only. Do not touch /home/wali/Desktop/AI BOT. Do not write old Redis. Do not call exchange mutation APIs. Do not change leverage or margin.\n\nLEGACY-FIRST MANDATE. This is not a greenfield build. Before writing any V2 implementation code, you MUST read the relevant files under legacy_reference/, identify the exact legacy source paths/functions/classes that own this responsibility today, and produce TWO required files:\n  1. claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/<worker_id>_LEGACY_BASELINE_ANALYSIS.md\n  2. claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/<worker_id>_legacy_behavior_mapping.json\nThe analysis must list: legacy_source_paths, legacy_functions_preserved, legacy_inputs, legacy_outputs, legacy_redis_keys (read-only references; never writers), legacy_config_dependencies, legacy_edge_cases, legacy_failure_modes, legacy_tests_or_expected_behavior, V2_mapping, intentional_changes, and any removed/deprecated behavior with reason. The mapping JSON must be a structured version of the same. If legacy_reference has no equivalent, justify the greenfield decision in writing with citations. Codex will fail the review if either file is missing, vague, or silently drops legacy behavior.\n\nOnly after both baseline files exist may you implement the worker.\n\nBuild the Binance USD-M futures adapter stub. Read-only paths (account info v3, position risk) may be exposed only if credentials are present. ALL mutating endpoints (new order, change initial leverage, change margin type, change position mode) must raise BLOCKED_GATE_NOT_APPROVED. Tests must prove every mutating method raises, that read-only access does not unlock the gate, and that no secret is logged or returned. Trigger codex_review_v2_p2_binance_usdm_adapter_stub on emit.\n\nSYMBOL_UNIVERSE_CONTRACT_REQUIRED. Every V2 worker must read active symbol scope from the V2 Symbol Universe service (`v2/backend/app/services/symbol_universe/service.py`) or from a V2 public symbol-universe payload if present. If the public payload is absent, classify it as MISSING_SYMBOL_UNIVERSE_PUBLIC_PAYLOAD and still use the service contract instead of hardcoding scope. The worker output and tests must distinguish `legacy_active_symbols`, `discovered_symbols`, `observed_symbols`, `training_symbols`, `paper_symbols`, and `live_blocked_symbols`. No worker may hardcode the current 25 symbols as the full universe. No worker may train or trade all discovered symbols automatically. CoinAnk symbols are market-intelligence candidates only until confirmed by Binance USD-M tradability evidence; do not treat CoinAnk symbols as directly tradable without Binance USD-M confirmation.",
   "required_legacy_baseline_files": [
     "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_LEGACY_BASELINE_ANALYSIS.md",
     "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_legacy_behavior_mapping.json"
@@ -68,5 +85,9 @@
     "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/"
   ],
   "max_attempts": 5,
-  "task_timeout_seconds": 2400
+  "task_timeout_seconds": 2400,
+  "symbol_universe_contract": "SYMBOL_UNIVERSE_CONTRACT_REQUIRED",
+  "required_input_files": [
+    "v2/backend/app/services/symbol_universe/service.py"
+  ]
 }
