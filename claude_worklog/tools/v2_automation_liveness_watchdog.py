@@ -55,7 +55,7 @@ PROCESS_PATTERNS = {
     "paper_online_runtime": "paper_online_runtime",
     "paper_shadow_observation": "paper_shadow_observation",
     "feature_snapshot_builder": "v2_feature_snapshot_builder",
-    "trainer_bridge": "v2_trainer_bridge",
+    "trainer_bridge": "-m v2.backend.app.cli.v2_trainer_bridge",
     "claude_worker": "claude --print",
 }
 

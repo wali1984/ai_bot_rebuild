@@ -29,6 +29,8 @@ echo
 echo "=== active processes ==="
 ps -eo pid,ppid,etimes,cmd --no-headers \
   | grep -E "v2_worker_porting_orchestrator|agent_supervisor.py|parallel_capacity_scheduler|codex_non_live_watchdog|paper_online_runtime|paper_shadow_observation|v2_feature_snapshot_builder|v2_trainer_bridge" \
+  | grep -v "sleep 900" \
+  | grep -v "sleep 65" \
   | grep -v "grep -E" || echo "(no V2 automation processes found)"
 
 echo
