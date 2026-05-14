@@ -1,18 +1,67 @@
 {
-  "binance_usdm_confirmed_symbols": [],
+  "binance_usdm_confirmed_symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+  ],
   "coinank_symbols_tradability": "market_intelligence_only_until_binance_usdm_confirmed",
   "current_gate_state": "blocked_human_only",
-  "discovered_symbols": [],
+  "discovered_symbols": [
+    "BTCUSDT",
+    "COINANK_ONLY_USDT",
+    "ETHUSDT",
+    "KUCOIN_ONLY_USDT",
+    "SOLUSDT"
+  ],
+  "dynamic_discovered_symbols": [
+    "BTCUSDT",
+    "COINANK_ONLY_USDT",
+    "ETHUSDT",
+    "KUCOIN_ONLY_USDT",
+    "SOLUSDT"
+  ],
+  "dynamic_symbol_sources": [
+    "binance_futures",
+    "coinank",
+    "coinapi",
+    "kucoin",
+    "future_ingestors"
+  ],
   "fast_lane_interval_sec": 10,
   "fast_timeframes": [
     "1m",
     "5m"
   ],
-  "freshness_seconds": 63227610,
+  "freshness_seconds": 63228604,
   "last_kline_ts": 1715500060000,
-  "last_run_ts": "2026-05-14T03:01:10Z",
+  "last_run_ts": "2026-05-14T03:17:44Z",
+  "legacy_active_symbol_source": "legacy_config.py_SYMBOLS_current_25",
   "legacy_active_symbols": [
-    "BTCUSDT"
+    "1000BONKUSDT",
+    "1000FLOKIUSDT",
+    "1000PEPEUSDT",
+    "1000SHIBUSDT",
+    "ALICEUSDT",
+    "ASTERUSDT",
+    "AUCTIONUSDT",
+    "AVNTUSDT",
+    "BANKUSDT",
+    "BARDUSDT",
+    "BTCUSDT",
+    "DOGEUSDT",
+    "ETHUSDT",
+    "FARTCOINUSDT",
+    "HIGHUSDT",
+    "LINKUSDT",
+    "LTCUSDT",
+    "PENGUUSDT",
+    "PIPPINUSDT",
+    "RAVEUSDT",
+    "RIVERUSDT",
+    "SOLUSDT",
+    "UNIUSDT",
+    "WIFUSDT",
+    "XRPUSDT"
   ],
   "legacy_baseline_source_paths": [
     "v2/legacy_preserved/startup_baseline/feature_pipeline.py",
@@ -60,9 +109,15 @@
     "volatility"
   ],
   "live_blocked_symbols": [
-    "BTCUSDT"
+    "BTCUSDT",
+    "COINANK_ONLY_USDT",
+    "ETHUSDT",
+    "KUCOIN_ONLY_USDT",
+    "SOLUSDT"
   ],
   "live_gate": "blocked_human_only",
+  "live_symbol_policy": "none_live_blocked_human_only",
+  "live_symbols": [],
   "observed_symbols": [
     "BTCUSDT"
   ],
@@ -73,7 +128,9 @@
     "4h": 28800,
     "5m": 600
   },
-  "paper_symbols": [],
+  "paper_symbols": [
+    "BTCUSDT"
+  ],
   "paralysis_detector": {
     "default_window_minutes": 5.0,
     "result": {
@@ -92,14 +149,30 @@
       "window_minutes": 5.0
     }
   },
+  "passive_monitor_all_discovered_symbols": true,
   "slow_lane_interval_sec": 300,
   "slow_timeframes": [
     "15m",
     "1h",
     "4h"
   ],
-  "snapshot_source": "codex_remediation_fixture_static_evidence",
+  "snapshot_source": "codex_symbol_universe_scope_fixture",
   "symbol_scope_policy": "do_not_train_or_trade_all_discovered_symbols_automatically",
+  "symbol_selection_score_factors": [
+    "liquidity",
+    "volume",
+    "volatility",
+    "funding",
+    "open_interest",
+    "spread",
+    "freshness",
+    "feature_completeness",
+    "exchange_availability",
+    "risk_profile",
+    "model_confidence",
+    "replay_performance",
+    "operator_overrides"
+  ],
   "symbol_universe_contract": "SYMBOL_UNIVERSE_CONTRACT_REQUIRED",
   "symbol_universe_public_payload_status": "MISSING_SYMBOL_UNIVERSE_PUBLIC_PAYLOAD",
   "symbol_universe_source_path": "v2/backend/app/services/symbol_universe/service.py",
@@ -136,7 +209,12 @@
   "timeframes": [
     "1m"
   ],
-  "training_symbols": [],
+  "trade_all_discovered_symbols": false,
+  "train_all_discovered_symbols": false,
+  "training_symbols": [
+    "BTCUSDT",
+    "ETHUSDT"
+  ],
   "universe_validation": {
     "fast_tf_max_age_sec": 90.0,
     "min_candles": 50,

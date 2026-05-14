@@ -57,6 +57,10 @@ from v2.backend.app.services.feature_pipeline_and_ta.service import (
     VALIDATE_SLOW_TF_MAX_AGE_SEC,
     FeaturePipelineAndTAService,
 )
+from v2.backend.app.services.symbol_universe.service import (
+    LEGACY_ACTIVE_SYMBOLS_25,
+    SYMBOL_SELECTION_SCORE_FACTORS,
+)
 
 
 # ----------------------------------------------------------------------
@@ -190,20 +194,49 @@ def test_symbol_universe_contract_required_in_public_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _route_writes_to(tmp_path, monkeypatch)
-    args = parse_args(["--once", "--input-file", str(freshly_built_snapshot_file)])
+    snapshot = json.loads(freshly_built_snapshot_file.read_text())
+    snapshot["dynamic_discovered_symbols"] = [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT",
+        "COINANK_ONLY_USDT",
+        "KUCOIN_ONLY_USDT",
+    ]
+    snapshot["training_symbols"] = ["BTCUSDT", "ETHUSDT"]
+    snapshot["paper_symbols"] = ["BTCUSDT"]
+    scoped_snapshot = tmp_path / "scoped_snapshot.json"
+    scoped_snapshot.write_text(json.dumps(snapshot))
+
+    args = parse_args(["--once", "--input-file", str(scoped_snapshot)])
     status = run_once(args)
 
     assert status["symbol_universe_contract"] == "SYMBOL_UNIVERSE_CONTRACT_REQUIRED"
     assert status["symbol_universe_source_path"] == "v2/backend/app/services/symbol_universe/service.py"
     assert status["symbol_universe_public_payload_status"] == "MISSING_SYMBOL_UNIVERSE_PUBLIC_PAYLOAD"
-    assert status["legacy_active_symbols"] == ["BTCUSDT"]
+    assert status["legacy_active_symbol_source"] == "legacy_config.py_SYMBOLS_current_25"
+    assert status["legacy_active_symbols"] == LEGACY_ACTIVE_SYMBOLS_25
     assert status["observed_symbols"] == ["BTCUSDT"]
-    assert status["discovered_symbols"] == []
-    assert status["training_symbols"] == []
-    assert status["paper_symbols"] == []
-    assert status["live_blocked_symbols"] == ["BTCUSDT"]
+    assert status["dynamic_discovered_symbols"] == [
+        "BTCUSDT",
+        "COINANK_ONLY_USDT",
+        "ETHUSDT",
+        "KUCOIN_ONLY_USDT",
+        "SOLUSDT",
+    ]
+    assert status["discovered_symbols"] == status["dynamic_discovered_symbols"]
+    assert status["training_symbols"] == ["BTCUSDT", "ETHUSDT"]
+    assert status["paper_symbols"] == ["BTCUSDT"]
+    assert status["live_symbols"] == []
+    assert set(status["live_blocked_symbols"]) == set(status["dynamic_discovered_symbols"])
     assert status["binance_usdm_confirmed_symbols"] == []
     assert status["symbol_scope_policy"] == "do_not_train_or_trade_all_discovered_symbols_automatically"
+    assert status["passive_monitor_all_discovered_symbols"] is True
+    assert status["train_all_discovered_symbols"] is False
+    assert status["trade_all_discovered_symbols"] is False
+    assert status["live_symbol_policy"] == "none_live_blocked_human_only"
+    assert status["symbol_selection_score_factors"] == SYMBOL_SELECTION_SCORE_FACTORS
+    assert set(status["training_symbols"]) < set(status["dynamic_discovered_symbols"])
+    assert set(status["paper_symbols"]) < set(status["dynamic_discovered_symbols"])
 
 
 # ----------------------------------------------------------------------

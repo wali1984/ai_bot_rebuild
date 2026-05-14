@@ -2,7 +2,13 @@ import json
 from pathlib import Path
 
 from v2.backend.app.adapters.symbol_sources.binance_usdm import BinanceUsdMFuturesSource
-from v2.backend.app.services.symbol_universe.service import HOT_RELOAD_COMPONENTS, SymbolUniverseService
+from v2.backend.app.services.symbol_universe.service import (
+    DYNAMIC_SYMBOL_SOURCES,
+    HOT_RELOAD_COMPONENTS,
+    LEGACY_ACTIVE_SYMBOLS_25,
+    SYMBOL_SELECTION_SCORE_FACTORS,
+    SymbolUniverseService,
+)
 
 
 def _payload(name):
@@ -36,3 +42,19 @@ def test_legacy_active_symbols_are_explicit_subset_not_discovered_universe():
 
     assert len(service.legacy_active_symbols()) == 25
     assert "BTCUSDT" in service.legacy_active_symbols()
+    assert set(service.legacy_active_symbols()) == set(LEGACY_ACTIVE_SYMBOLS_25)
+
+
+def test_default_symbol_universe_preserves_current_25_legacy_scope():
+    service = SymbolUniverseService()
+
+    assert service.legacy_active_symbols() == LEGACY_ACTIVE_SYMBOLS_25
+    assert DYNAMIC_SYMBOL_SOURCES == [
+        "binance_futures",
+        "coinank",
+        "coinapi",
+        "kucoin",
+        "future_ingestors",
+    ]
+    assert "model_confidence" in SYMBOL_SELECTION_SCORE_FACTORS
+    assert "operator_overrides" in SYMBOL_SELECTION_SCORE_FACTORS

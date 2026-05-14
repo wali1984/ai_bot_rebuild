@@ -52,7 +52,12 @@ from v2.backend.app.services.feature_pipeline_and_ta.service import (
     VALIDATE_ORDERBOOK_STALE_SEC,
     VALIDATE_SLOW_TF_MAX_AGE_SEC,
 )
-from v2.backend.app.services.symbol_universe.service import SymbolUniverseService
+from v2.backend.app.services.symbol_universe.service import (
+    DYNAMIC_SYMBOL_SOURCES,
+    LEGACY_ACTIVE_SYMBOLS_25,
+    SYMBOL_SELECTION_SCORE_FACTORS,
+    SymbolUniverseService,
+)
 
 
 WORKER_ID = "v2_feature_pipeline_and_ta_worker"
@@ -232,7 +237,7 @@ def build_symbol_scope(snapshot: Dict[str, Any], observed_symbols: List[str]) ->
     legacy_seed = _as_symbol_list(
         source_payload.get("legacy_active_symbols")
         or snapshot.get("legacy_active_symbols")
-        or observed
+        or LEGACY_ACTIVE_SYMBOLS_25
     )
     universe_service = SymbolUniverseService(legacy_active_symbols=legacy_seed)
 
@@ -249,6 +254,13 @@ def build_symbol_scope(snapshot: Dict[str, Any], observed_symbols: List[str]) ->
                 if getattr(identity, "canonical_symbol_id", None)
             }
         )
+    dynamic_discovered = _as_symbol_list(
+        source_payload.get("dynamic_discovered_symbols")
+        or source_payload.get("dynamic_symbols")
+        or discovered
+    )
+    if not discovered and dynamic_discovered:
+        discovered = list(dynamic_discovered)
 
     training_symbols = _as_symbol_list(source_payload.get("training_symbols"))
     paper_symbols = _as_symbol_list(source_payload.get("paper_symbols"))
@@ -258,7 +270,9 @@ def build_symbol_scope(snapshot: Dict[str, Any], observed_symbols: List[str]) ->
     )
     live_blocked = _as_symbol_list(source_payload.get("live_blocked_symbols"))
     if not live_blocked:
-        live_blocked = sorted(set(observed or universe_service.legacy_active_symbols()))
+        live_blocked = sorted(
+            set(dynamic_discovered or discovered or observed or universe_service.legacy_active_symbols())
+        )
 
     return {
         "symbol_universe_contract": SYMBOL_UNIVERSE_CONTRACT,
@@ -267,14 +281,23 @@ def build_symbol_scope(snapshot: Dict[str, Any], observed_symbols: List[str]) ->
             "PRESENT" if public_path else "MISSING_SYMBOL_UNIVERSE_PUBLIC_PAYLOAD"
         ),
         "legacy_active_symbols": universe_service.legacy_active_symbols(),
+        "legacy_active_symbol_source": "legacy_config.py_SYMBOLS_current_25",
         "discovered_symbols": discovered,
+        "dynamic_discovered_symbols": dynamic_discovered,
+        "dynamic_symbol_sources": list(DYNAMIC_SYMBOL_SOURCES),
         "observed_symbols": observed,
         "training_symbols": training_symbols,
         "paper_symbols": paper_symbols,
+        "live_symbols": [],
         "live_blocked_symbols": live_blocked,
         "binance_usdm_confirmed_symbols": binance_confirmed,
         "coinank_symbols_tradability": "market_intelligence_only_until_binance_usdm_confirmed",
         "symbol_scope_policy": "do_not_train_or_trade_all_discovered_symbols_automatically",
+        "passive_monitor_all_discovered_symbols": True,
+        "train_all_discovered_symbols": False,
+        "trade_all_discovered_symbols": False,
+        "live_symbol_policy": "none_live_blocked_human_only",
+        "symbol_selection_score_factors": list(SYMBOL_SELECTION_SCORE_FACTORS),
     }
 
 
