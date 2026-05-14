@@ -1,0 +1,161 @@
+{
+  "worker_id": "v2_trainer_bridge",
+  "classification": "P1_READONLY_PARITY_BRIDGE_FAIL_CLOSED",
+  "live_gate": "blocked_human_only",
+  "legacy_mutation_performed": false,
+  "old_redis_write_performed": false,
+  "exchange_action_taken": false,
+  "final_approval_token_created": false,
+  "copied_baseline": {
+    "manifest_path": "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/copied_baseline_manifest.json",
+    "manifest_sha256": "f379d80fdb8b4b44934cafb304e28050ee28bc38e3ff96b2fdbdb569c32f677c",
+    "trainer_source_path": "v2/legacy_preserved/startup_baseline/rl/hybrid_trainer.py",
+    "legacy_rel_path": "rl/hybrid_trainer.py",
+    "trainer_source_sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+    "manifest_record_status": "COPIED",
+    "sha_status": "SHA_MATCH"
+  },
+  "legacy_source_paths": [
+    "legacy_reference/rl/hybrid_trainer.py",
+    "legacy_reference/config.py",
+    "legacy_reference/scripts/start_all_services_production.sh",
+    "legacy_reference/scripts/monitor_trainer_predictions.py",
+    "v2/legacy_preserved/startup_baseline/rl/hybrid_trainer.py",
+    "v2/legacy_preserved/startup_baseline/config.py",
+    "v2/legacy_preserved/startup_baseline/scripts/start_all_services_production.sh",
+    "v2/legacy_preserved/startup_baseline/scripts/monitor_trainer_predictions.py"
+  ],
+  "legacy_functions_preserved": [
+    "get_active_symbols",
+    "setup_models",
+    "_build_trade_signal",
+    "_normalize_action_name",
+    "_publish_signal_payload",
+    "_publish_signal_unified"
+  ],
+  "legacy_classes_preserved": [
+    "RTX5080FeatureExtractor",
+    "RTX5080Policy",
+    "GPUForcedPPO",
+    "HybridConfig",
+    "HybridTrainer",
+    "RTX5080Optimizer"
+  ],
+  "legacy_inputs": [
+    "SYMBOLS",
+    "TIMEFRAMES",
+    "PREDICTION_LOOP_SECONDS",
+    "feature snapshots",
+    "checkpoint files",
+    "GPU runtime state",
+    "trainer heartbeat/status evidence",
+    "proposal and prediction stream evidence"
+  ],
+  "legacy_outputs": [
+    "trainer process state",
+    "GPU state",
+    "model/checkpoint ID",
+    "prediction_id",
+    "feature_snapshot_id",
+    "raw confidence",
+    "calibrated confidence",
+    "top positive features",
+    "top negative features",
+    "missing feature flags",
+    "stale feature flags",
+    "trainer readiness",
+    "latest prediction timestamp",
+    "error/blocker state"
+  ],
+  "legacy_redis_keys_readonly_reference": [
+    "signals:trading",
+    "signals:trainer:heartbeat",
+    "wma:proposals",
+    "prediction:{symbol}:{timeframe}",
+    "status:trainer",
+    "heartbeat:trainer"
+  ],
+  "legacy_config_dependencies": [
+    "SYMBOLS",
+    "TIMEFRAMES",
+    "PREDICTION_LOOP_SECONDS",
+    "SAVE_EVERY_LOOPS",
+    "DISABLE_MODEL_SAVES",
+    "OBS_SCHEMA_VERSION",
+    "SAFE_MODE_DEFAULT_ON",
+    "ENABLE_GPU_BATCH_INFERENCE",
+    "SIGNAL_OUTPUT_STREAM",
+    "SIGNAL_HEARTBEAT_STREAM"
+  ],
+  "legacy_edge_cases": [
+    "checkpoint missing keeps trainer in safe mode",
+    "checkpoint shape mismatch requires compatibility guard",
+    "GPU unavailable falls back to missing GPU evidence in V2 bridge",
+    "feature snapshot missing blocks readiness",
+    "stale feature flags block readiness",
+    "paper momentum wrapper is not legacy hybrid trainer parity",
+    "legacy log snapshot without prediction_id/checkpoint/feature snapshot is incomplete"
+  ],
+  "legacy_failure_modes": [
+    "MISSING_RUNTIME_EVIDENCE",
+    "LEGACY_BASELINE_SHA_MISMATCH",
+    "WRAPPER_NOT_LEGACY_HYBRID_PARITY",
+    "PREDICTION_SOURCE_NOT_LEGACY_HYBRID_OR_V2_NATIVE",
+    "PREDICTION_EVIDENCE_STALE",
+    "PREDICTION_EVIDENCE_INCOMPLETE",
+    "FEATURE_SNAPSHOT_MISSING",
+    "MISSING_FEATURE_FLAGS",
+    "STALE_FEATURE_FLAGS"
+  ],
+  "v2_mapping": {
+    "cli": "v2/backend/app/cli/v2_trainer_bridge.py",
+    "service": "v2/backend/app/services/trainer_bridge/service.py",
+    "tests": "v2/backend/tests/integration/cli/test_v2_trainer_bridge.py",
+    "public_payload": "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json",
+    "worklog_status": "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_trainer_bridge_status.json"
+  },
+  "symbol_universe_contract": {
+    "required": "SYMBOL_UNIVERSE_CONTRACT_REQUIRED",
+    "legacy_active_symbols_role": "current 25-symbol legacy subset",
+    "dynamic_discovered_symbols_role": "broader passive discovery universe",
+    "training_symbols_role": "selected evidence-backed subset",
+    "paper_symbols_role": "selected evidence-backed subset",
+    "live_symbols_role": "empty while live remains blocked_human_only",
+    "live_blocked_symbols_role": "explicitly blocked live universe",
+    "train_all_discovered_symbols": false,
+    "trade_all_discovered_symbols": false,
+    "coinank_symbols_directly_tradable": false,
+    "selection_score_factors": [
+      "liquidity",
+      "volume",
+      "volatility",
+      "funding",
+      "open_interest",
+      "spread",
+      "freshness",
+      "feature_completeness",
+      "exchange_availability",
+      "risk_profile",
+      "model_confidence",
+      "replay_performance",
+      "operator_overrides"
+    ]
+  },
+  "intentional_changes": [
+    "V2 bridge does not start legacy trainer",
+    "V2 bridge does not write legacy state",
+    "V2 bridge does not publish to old Redis",
+    "V2 bridge rejects paper momentum-wrapper predictions as parity",
+    "V2 bridge emits fail-closed status when current prediction evidence is incomplete",
+    "V2 bridge keeps live_symbols empty while live is blocked"
+  ],
+  "current_runtime_result": {
+    "trainer_readiness": "BLOCKED",
+    "runtime_evidence_status": "WRAPPER_NOT_LEGACY_HYBRID_PARITY",
+    "predictions_emitted_total": 0,
+    "accepted_as_legacy_hybrid_prediction": false,
+    "feature_snapshot_dependency_status": "PRESENT",
+    "feature_snapshot_trainer_readiness_signal": "READY",
+    "live_symbols": []
+  }
+}
