@@ -10,6 +10,7 @@ UNITS=(
   ai-bot-v2-paper-online-runtime.service
   ai-bot-v2-paper-shadow-observation.service
   ai-bot-v2-feature-snapshot-builder.service
+  ai-bot-v2-symbol-universe-publisher.service
   ai-bot-v2-trainer-bridge.service
   ai-bot-v2-automation-liveness-watchdog.timer
 )
@@ -28,7 +29,7 @@ fi
 echo
 echo "=== active processes ==="
 ps -eo pid,ppid,etimes,cmd --no-headers \
-  | grep -E "v2_worker_porting_orchestrator|agent_supervisor.py|parallel_capacity_scheduler|codex_non_live_watchdog|paper_online_runtime|paper_shadow_observation|v2_feature_snapshot_builder|v2_trainer_bridge" \
+  | grep -E "v2_worker_porting_orchestrator|agent_supervisor.py|parallel_capacity_scheduler|codex_non_live_watchdog|paper_online_runtime|paper_shadow_observation|v2_feature_snapshot_builder|symbol_universe_public_payload|v2_trainer_bridge" \
   | grep -v "sleep 900" \
   | grep -v "sleep 65" \
   | grep -v "grep -E" || echo "(no V2 automation processes found)"

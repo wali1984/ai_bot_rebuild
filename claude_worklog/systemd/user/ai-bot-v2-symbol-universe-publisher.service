@@ -1,0 +1,15 @@
+[Unit]
+Description=AI Bot V2 symbol universe public payload publisher
+After=network-online.target ai-bot-v2-feature-snapshot-builder.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-symbol-universe-publisher'
+ExecStart=/usr/bin/env bash -lc 'mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.symbol_universe_public_payload --write >> v2/runtime/symbol_universe_public_payload.log 2>&1 || true; sleep 60; done'
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

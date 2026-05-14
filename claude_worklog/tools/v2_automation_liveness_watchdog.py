@@ -43,6 +43,7 @@ SERVICE_UNITS = [
     "ai-bot-v2-paper-online-runtime.service",
     "ai-bot-v2-paper-shadow-observation.service",
     "ai-bot-v2-feature-snapshot-builder.service",
+    "ai-bot-v2-symbol-universe-publisher.service",
     "ai-bot-v2-trainer-bridge.service",
 ]
 TIMER_UNITS = ["ai-bot-v2-automation-liveness-watchdog.timer"]
@@ -55,6 +56,7 @@ PROCESS_PATTERNS = {
     "paper_online_runtime": "paper_online_runtime",
     "paper_shadow_observation": "paper_shadow_observation",
     "feature_snapshot_builder": "v2_feature_snapshot_builder",
+    "symbol_universe_publisher": "symbol_universe_public_payload",
     "trainer_bridge": "-m v2.backend.app.cli.v2_trainer_bridge",
     "claude_worker": "claude --print",
 }
