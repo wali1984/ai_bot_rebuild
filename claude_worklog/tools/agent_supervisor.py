@@ -1750,8 +1750,21 @@ def list_tasks() -> List[Tuple[pathlib.Path, Dict[str, Any]]]:
 
 
 def dependency_blockers(task: Dict[str, Any], status_map: Dict[str, str]) -> List[str]:
-    deps = [str(x) for x in task.get("depends_on", []) if str(x).strip()]
-    deps.extend(str(x) for x in task.get("predecessor_task_ids", []) if str(x).strip())
+    def _normalize_dependency_values(raw: Any) -> List[str]:
+        if isinstance(raw, str):
+            text = raw.strip()
+            if not text:
+                return []
+            # Some descriptors use depends_on as a human-readable note such as
+            # "path.py (library already implemented)". Use the path/task token,
+            # not the annotation and never iterate the string character-by-character.
+            return [text.split()[0]]
+        if isinstance(raw, list):
+            return [str(x).strip() for x in raw if str(x).strip()]
+        return []
+
+    deps = _normalize_dependency_values(task.get("depends_on", []))
+    deps.extend(_normalize_dependency_values(task.get("predecessor_task_ids", [])))
     satisfied = {"completed", "superseded_by_evidence"}
     blockers: List[str] = []
     for dep in deps:
