@@ -2781,6 +2781,15 @@ def run_task(
                                     extra = f"missing required output files: {', '.join(missing_required)}"
                                     result["summary"] = f"{prior}; {extra}".strip("; ")
 
+                        if result["status"] == "completed":
+                            missing_required = check_required_outputs(task)
+                            if missing_required:
+                                result["status"] = "failed"
+                                result["last_retry_reason"] = "missing_required_outputs"
+                                prior = result.get("summary", "")
+                                extra = f"missing required output files: {', '.join(missing_required)}"
+                                result["summary"] = f"{prior}; {extra}".strip("; ")
+
                         if result["status"] in {"blocked_quota", "claude_rate_limited_resume_scheduled"} and agent == "claude":
                             resume_at = parse_iso_utc(task.get("resume_after_utc"))
                             if resume_at is not None and dt.datetime.now(dt.timezone.utc) >= resume_at:
