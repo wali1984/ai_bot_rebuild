@@ -196,3 +196,40 @@ def test_guard_distinguishes_profitability_proof_claim_from_pending_or_negated(t
     good = next(item for item in result["payload_results"] if "/good/" in item["path"])
     assert "PAPER_RUNTIME_ALIVE_CALLED_PROFITABILITY_PROOF" in bad["findings"]
     assert "PAPER_RUNTIME_ALIVE_CALLED_PROFITABILITY_PROOF" not in good["findings"]
+
+
+def test_guard_distinguishes_backlog_called_migration_from_incomplete_language(tmp_path) -> None:
+    _write(
+        tmp_path / "v2/frontend/public/bad/latest/operator_dashboard_payload.json",
+        """
+        {
+          "generated_at": "2026-05-13T00:00:00Z",
+          "source_paths": ["runtime"],
+          "live_gate": "blocked_human_only",
+          "status": "backlog migrated and complete"
+        }
+        """,
+    )
+    _write(
+        tmp_path / "v2/frontend/public/good/latest/operator_dashboard_payload.json",
+        """
+        {
+          "generated_at": "2026-05-13T00:00:00Z",
+          "source_paths": ["runtime"],
+          "live_gate": "blocked_human_only",
+          "status": "MIGRATION_INCOMPLETE",
+          "summary": "Backlog exists, but migration is not complete."
+        }
+        """,
+    )
+
+    result = build_guard(
+        tmp_path,
+        now=datetime(2026, 5, 13, 0, 1, tzinfo=timezone.utc),
+        stale_after_seconds=120,
+    )
+
+    bad = next(item for item in result["payload_results"] if "/bad/" in item["path"])
+    good = next(item for item in result["payload_results"] if "/good/" in item["path"])
+    assert "BACKLOG_CALLED_MIGRATION" in bad["findings"]
+    assert "BACKLOG_CALLED_MIGRATION" not in good["findings"]

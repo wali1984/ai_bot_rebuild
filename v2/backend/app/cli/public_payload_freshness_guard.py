@@ -195,7 +195,21 @@ def inspect_payload(path: Path, payload: dict[str, Any], *, root: Path, now: dat
     )
     if profitability_alive_claim and not profitability_alive_negated:
         findings.append("PAPER_RUNTIME_ALIVE_CALLED_PROFITABILITY_PROOF")
-    if "backlog" in lowered and "migrated" in lowered:
+    backlog_migration_claim = "backlog" in lowered and "migrated" in lowered
+    backlog_migration_negated = any(
+        marker in lowered
+        for marker in {
+            "backlog_only",
+            "backlog_not_migrated",
+            "not-migrated",
+            "not migrated",
+            "migration incomplete",
+            "migration remains incomplete",
+            "backlog cannot be treated as migration complete",
+            "backlog exists, but migration is not complete",
+        }
+    )
+    if backlog_migration_claim and not backlog_migration_negated:
         findings.append("BACKLOG_CALLED_MIGRATION")
 
     return {
