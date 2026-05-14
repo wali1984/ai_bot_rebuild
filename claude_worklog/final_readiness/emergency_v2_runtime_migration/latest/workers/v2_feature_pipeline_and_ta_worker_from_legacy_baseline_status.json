@@ -1,0 +1,168 @@
+{
+  "binance_usdm_confirmed_symbols": [],
+  "coinank_symbols_tradability": "market_intelligence_only_until_binance_usdm_confirmed",
+  "current_gate_state": "blocked_human_only",
+  "discovered_symbols": [],
+  "fast_lane_interval_sec": 10,
+  "fast_timeframes": [
+    "1m",
+    "5m"
+  ],
+  "freshness_seconds": 63227610,
+  "last_kline_ts": 1715500060000,
+  "last_run_ts": "2026-05-14T03:01:10Z",
+  "legacy_active_symbols": [
+    "BTCUSDT"
+  ],
+  "legacy_baseline_source_paths": [
+    "v2/legacy_preserved/startup_baseline/feature_pipeline.py",
+    "v2/legacy_preserved/startup_baseline/ingest/live_technical_analysis.py",
+    "v2/legacy_preserved/startup_baseline/ohlcv_resampler_hotfix.py",
+    "v2/legacy_preserved/startup_baseline/scripts/paralysis_detectors.py",
+    "v2/legacy_preserved/startup_baseline/scripts/validate_symbol_universe_data.py"
+  ],
+  "legacy_baseline_source_sha256_list": [
+    {
+      "path": "v2/legacy_preserved/startup_baseline/feature_pipeline.py",
+      "sha256": "143938e735342179105155a12c50d7c495bdd1c16d570586cb369d03d7d4b2e8"
+    },
+    {
+      "path": "v2/legacy_preserved/startup_baseline/ingest/live_technical_analysis.py",
+      "sha256": "5cdd4ea1d43271d0199e1ca92ecad3a8b76308838898a611df6ef4602f7388ac"
+    },
+    {
+      "path": "v2/legacy_preserved/startup_baseline/ohlcv_resampler_hotfix.py",
+      "sha256": "b83edf60a7d0db51556752cdcf9d713ee9d7175d05b26a6ce6c2235d214f4239"
+    },
+    {
+      "path": "v2/legacy_preserved/startup_baseline/scripts/paralysis_detectors.py",
+      "sha256": "8fd4c4f55ac43e5af07c84cddea04328f7b4e5811a5230442f276caf33fc7c27"
+    },
+    {
+      "path": "v2/legacy_preserved/startup_baseline/scripts/validate_symbol_universe_data.py",
+      "sha256": "151720d7e9b1c3f9608df6404e20a912da4572dc66078d7cef001bc4ddd5ec07"
+    }
+  ],
+  "legacy_feature_families_deferred_with_reason": {
+    "binance_tape": "owned by the V2 market-ingestor market-intelligence data plane",
+    "btc_correlation": "deferred to a dedicated V2 BTC-correlation feature module",
+    "coinank_endpoint_family": "owned by the V2 CoinAnk bridge; not tradable until Binance USD-M confirmation",
+    "coinapi_wsds_depth": "owned by the V2 market-ingestor depth/microstructure data plane",
+    "cross_timeframe_context": "deferred to a dedicated V2 cross-timeframe feature module",
+    "kline_taker_buy_ratios": "owned by the V2 market-ingestor kline enrichment path"
+  },
+  "legacy_feature_families_preserved": [
+    "ohlcv",
+    "orderbook_top",
+    "mark_funding",
+    "ta_passthrough",
+    "pressure",
+    "volatility"
+  ],
+  "live_blocked_symbols": [
+    "BTCUSDT"
+  ],
+  "live_gate": "blocked_human_only",
+  "observed_symbols": [
+    "BTCUSDT"
+  ],
+  "ohlcv_resampler_interval_sec": 12,
+  "ohlcv_resampler_tf_expiry_seconds": {
+    "15m": 1800,
+    "1h": 7200,
+    "4h": 28800,
+    "5m": 600
+  },
+  "paper_symbols": [],
+  "paralysis_detector": {
+    "default_window_minutes": 5.0,
+    "result": {
+      "alerts": [
+        {
+          "count": 5,
+          "reason": "MICROSTRUCTURE_FAIL_CLOSED",
+          "sustained_buckets": 5
+        }
+      ],
+      "expected_buckets": 5,
+      "per_reason_counts": {
+        "MICROSTRUCTURE_FAIL_CLOSED": 5
+      },
+      "total_events": 5,
+      "window_minutes": 5.0
+    }
+  },
+  "slow_lane_interval_sec": 300,
+  "slow_timeframes": [
+    "15m",
+    "1h",
+    "4h"
+  ],
+  "snapshot_source": "codex_remediation_fixture_static_evidence",
+  "symbol_scope_policy": "do_not_train_or_trade_all_discovered_symbols_automatically",
+  "symbol_universe_contract": "SYMBOL_UNIVERSE_CONTRACT_REQUIRED",
+  "symbol_universe_public_payload_status": "MISSING_SYMBOL_UNIVERSE_PUBLIC_PAYLOAD",
+  "symbol_universe_source_path": "v2/backend/app/services/symbol_universe/service.py",
+  "symbols": [
+    "BTCUSDT"
+  ],
+  "ta_indicator_families_deferred_with_reason": {
+    "AD": "requires full TA-Lib accumulation/distribution parity pass",
+    "ADX": "requires directional-movement parity against legacy TA-Lib output",
+    "AROON": "requires full TA-Lib parity fixture before production use",
+    "BOP": "requires candlestick-body parity fixture before production use",
+    "CCI": "requires typical-price parity fixture before production use",
+    "CDL_PATTERNS": "requires selected candlestick-pattern parity fixtures",
+    "HT_TRENDMODE": "requires Hilbert-transform TA-Lib parity fixture",
+    "MINUS_DI": "requires directional-index parity against legacy TA-Lib output",
+    "MOM": "requires momentum-window parity fixture before production use",
+    "NATR": "requires normalized-ATR parity against legacy TA-Lib output",
+    "OBV": "requires volume-series parity fixture before production use",
+    "PLUS_DI": "requires directional-index parity against legacy TA-Lib output",
+    "STOCHRSI": "requires stochastic-RSI parity fixture before production use",
+    "TRIX": "requires triple-EMA parity fixture before production use",
+    "ULTOSC": "requires multi-window oscillator parity fixture before production use",
+    "WILLR": "requires Williams-R parity fixture before production use"
+  },
+  "ta_indicator_families_preserved": [
+    "RSI",
+    "MACD",
+    "ATR",
+    "SMA",
+    "EMA"
+  ],
+  "ta_library_legacy": "talib",
+  "ta_update_interval_sec": 60,
+  "timeframes": [
+    "1m"
+  ],
+  "training_symbols": [],
+  "universe_validation": {
+    "fast_tf_max_age_sec": 90.0,
+    "min_candles": 50,
+    "orderbook_stale_sec": 10.0,
+    "result": {
+      "issues": [],
+      "passed": true,
+      "retries_remaining": 10,
+      "sleep_seconds_between_retries": 15,
+      "symbols_checked": 1
+    },
+    "slow_tf_max_age_sec": 600.0,
+    "startup_validate_retries": 10,
+    "startup_validate_sleep_sec": 15
+  },
+  "v2_key_prefix": "v2:features",
+  "v2_keys_written": {
+    "ohlcv_resampled": [
+      "v2:features:BTCUSDT:1m:ohlcv_resampled"
+    ],
+    "ta": [
+      "v2:features:BTCUSDT:1m:ta"
+    ],
+    "unified_features": [
+      "v2:features:BTCUSDT:1m:unified"
+    ]
+  },
+  "worker_id": "v2_feature_pipeline_and_ta_worker"
+}

@@ -1,0 +1,253 @@
+{
+  "worker_id": "v2_feature_pipeline_and_ta_worker",
+  "task_id": "claude_port_v2_feature_pipeline_and_ta_worker_from_legacy_baseline",
+  "produced_ts": "2026-05-13T00:00:00Z",
+  "legacy_baseline_root": "v2/legacy_preserved/startup_baseline",
+  "baseline_manifest_path": "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/copied_baseline_manifest.json",
+  "legacy_source_files": [
+    {
+      "legacy_rel_path": "feature_pipeline.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/feature_pipeline.py",
+      "sha256": "143938e735342179105155a12c50d7c495bdd1c16d570586cb369d03d7d4b2e8",
+      "size_bytes": 69156,
+      "role": "dual_speed_feature_aggregator_unified_features_writer"
+    },
+    {
+      "legacy_rel_path": "ohlcv_resampler_hotfix.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/ohlcv_resampler_hotfix.py",
+      "sha256": "b83edf60a7d0db51556752cdcf9d713ee9d7175d05b26a6ce6c2235d214f4239",
+      "size_bytes": 8795,
+      "role": "ohlcv_freshness_sidecar_for_higher_timeframes"
+    },
+    {
+      "legacy_rel_path": "ingest/live_technical_analysis.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/ingest/live_technical_analysis.py",
+      "sha256": "5cdd4ea1d43271d0199e1ca92ecad3a8b76308838898a611df6ef4602f7388ac",
+      "size_bytes": 6103,
+      "role": "continuous_ta_calculator_service_60s_cadence"
+    },
+    {
+      "legacy_rel_path": "scripts/validate_symbol_universe_data.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/scripts/validate_symbol_universe_data.py",
+      "sha256": "151720d7e9b1c3f9608df6404e20a912da4572dc66078d7cef001bc4ddd5ec07",
+      "size_bytes": 10111,
+      "role": "universe_data_freshness_validator"
+    },
+    {
+      "legacy_rel_path": "scripts/paralysis_detectors.py",
+      "v2_preserved_path": "v2/legacy_preserved/startup_baseline/scripts/paralysis_detectors.py",
+      "sha256": "8fd4c4f55ac43e5af07c84cddea04328f7b4e5811a5230442f276caf33fc7c27",
+      "size_bytes": 8801,
+      "role": "sustained_skip_pattern_detector_paralysis_alerts"
+    }
+  ],
+  "closure_status": {
+    "covered_in_baseline": [
+      "feature_pipeline.py",
+      "ohlcv_resampler_hotfix.py",
+      "ingest/live_technical_analysis.py",
+      "scripts/validate_symbol_universe_data.py",
+      "scripts/paralysis_detectors.py"
+    ],
+    "missing_in_legacy_baseline_intentionally_replaced": [
+      {"import": "utils.symbol_manager", "reason": "V2 takes symbols via CLI args / snapshot input; no legacy Redis hot-reload key is read."},
+      {"import": "redis.Redis.from_url", "reason": "V2 never writes any legacy Redis key; data plane is a V2 JSON file."},
+      {"import": "talib", "reason": "V2 preserves legacy ta_*_NN naming convention but computes values inline in pure Python; lightweight V2 control-plane venv."},
+      {"import": "pandas", "reason": "V2 worker operates on plain Python sequences; pandas not required."},
+      {"import": "numpy", "reason": "V2 worker operates on plain Python sequences; numpy not required."},
+      {"import": "rl.btc_correlation.compute_btc_correlation", "reason": "out of scope for this worker; BTC correlation owned by a separate V2 feature module."},
+      {"import": "ingest.technical_analysis.TechnicalAnalysisEngine", "reason": "replaced by FeaturePipelineAndTAService.compute_ta_indicators (legacy hash naming preserved)."},
+      {"import": "dateutil", "reason": "V2 uses stdlib datetime only."},
+      {"import": "pytz", "reason": "V2 uses datetime.timezone.utc only."},
+      {"import": "config.PORTFOLIO_EQUITY_MAX_AGE_MS", "reason": "paralysis-detector equity-stale branch dropped; equity health lives on operator dashboard."}
+    ]
+  },
+  "legacy_redis_keys_read_only_references": [
+    "unified_features:{symbol}:{timeframe}",
+    "ta:{symbol}:{timeframe}",
+    "market:{symbol}:{timeframe}",
+    "latest:binance:mark_price:{symbol}",
+    "latest:binance:index_price:{symbol}",
+    "latest:binance:premium_index:{symbol}",
+    "latest:binance:depth:{symbol}:20",
+    "orderbook:top:{symbol}",
+    "ohlcv:list:binance:{symbol}:{timeframe}",
+    "ohlcv:list:coinapi:{symbol}:{timeframe}",
+    "msnap:coinapi_wsds:{symbol}",
+    "msnap:binance_tape:{symbol}",
+    "features:resampler:last_run_ms",
+    "features:resampler:last_success_ms",
+    "features:symbols:active",
+    "features:coinank:{family}:{symbol}:{exchange}:{timeframe}:latest",
+    "features:coinank_endpoint:{endpoint}:{symbol}:{exchange}:{timeframe}:latest",
+    "metrics:coinapi:v1:connected",
+    "metrics:coinapi:v1:last_ohlcv_ts",
+    "signals:execution:skips",
+    "executed_signals",
+    "portfolio:equity:{account}"
+  ],
+  "v2_namespaced_outputs": [
+    {"key_template": "v2:features:{symbol}:{timeframe}:unified",          "producer": "FeaturePipelineAndTAService.compute_unified_features"},
+    {"key_template": "v2:features:{symbol}:{timeframe}:ta",               "producer": "FeaturePipelineAndTAService.compute_ta_indicators"},
+    {"key_template": "v2:features:{symbol}:{timeframe}:ohlcv_resampled",  "producer": "FeaturePipelineAndTAService.resample_ohlcv"}
+  ],
+  "legacy_config_dependencies": [
+    {"symbol_universe": "config.SYMBOLS", "v2_mapping": "snapshot.symbols / --symbol CLI flag"},
+    {"timeframes": "config.TIMEFRAMES", "v2_mapping": "snapshot.timeframes / --timeframe CLI flag"},
+    {"redis_url": "config.REDIS_URL", "v2_mapping": "(out of scope; V2 data-plane file)"},
+    {"cross_tf_features_enabled": "config.ENABLE_CROSS_TF_FEATURES", "v2_mapping": "(out of scope; deferred to V2 cross-TF feature worker)"},
+    {"cross_tf_signal_fields": "config.CROSS_TF_SIGNAL_FIELDS", "v2_mapping": "(out of scope; deferred)"},
+    {"btc_correlation_enabled": "config.BTC_CORRELATION_ENABLED", "v2_mapping": "(out of scope; deferred to V2 BTC-correlation feature module)"},
+    {"validate_orderbook_stale_sec": "VALIDATE_ORDERBOOK_STALE_SEC env, default 10", "v2_mapping": "service constant VALIDATE_ORDERBOOK_STALE_SEC (= 10)"},
+    {"validate_fast_tf_max_age_sec": "VALIDATE_FAST_TF_MAX_AGE_SEC env, default 90", "v2_mapping": "service constant VALIDATE_FAST_TF_MAX_AGE_SEC (= 90)"},
+    {"validate_slow_tf_max_age_sec": "VALIDATE_SLOW_TF_MAX_AGE_SEC env, default 600", "v2_mapping": "service constant VALIDATE_SLOW_TF_MAX_AGE_SEC (= 600)"},
+    {"validate_min_candles": "VALIDATE_MIN_CANDLES env, default 50", "v2_mapping": "service constant VALIDATE_MIN_CANDLES (= 50)"},
+    {"startup_validate_retries": "STARTUP_VALIDATE_RETRIES env (start_all_services_production.sh L646), default 10", "v2_mapping": "service constant STARTUP_VALIDATE_RETRIES (= 10)"},
+    {"startup_validate_sleep_sec": "STARTUP_VALIDATE_SLEEP_SEC env (start_all_services_production.sh L647), default 15", "v2_mapping": "service constant STARTUP_VALIDATE_SLEEP_SEC (= 15)"},
+    {"paralysis_window_minutes": "scripts/paralysis_detectors.py --minutes default 5.0", "v2_mapping": "CLI flag --paralysis-window-minutes (= 5.0)"}
+  ],
+  "legacy_edge_cases": {
+    "ohlcv_resampler_tf_expiry_map": {
+      "legacy_behavior": "expiry_map = {'5m': 600, '15m': 1800, '1h': 7200, '4h': 28800}; default 3600 (ohlcv_resampler_hotfix.py L150-152)",
+      "v2_behavior": "preserved verbatim in service constant OHLCV_RESAMPLER_TF_EXPIRY_SEC + OHLCV_RESAMPLER_DEFAULT_EXPIRY_SEC"
+    },
+    "ohlcv_resampler_six_fields": {
+      "legacy_behavior": "writes only open/high/low/close/volume/ts_ms (extract_ohlcv L94-114)",
+      "v2_behavior": "preserved exactly in resample_ohlcv; tested against the legacy six-field set"
+    },
+    "ohlcv_resampler_update_interval": {
+      "legacy_behavior": "UPDATE_INTERVAL = 12 (L68)",
+      "v2_behavior": "preserved as service constant OHLCV_RESAMPLER_INTERVAL_SEC = 12"
+    },
+    "live_ta_update_interval_60s": {
+      "legacy_behavior": "LiveTechnicalAnalysisService(update_interval=60) (L154)",
+      "v2_behavior": "preserved as service constant TA_UPDATE_INTERVAL_SEC = 60"
+    },
+    "ta_library_choice": {
+      "legacy_behavior": "imports talib (TA-Lib Python bindings) in ingest/technical_analysis.py",
+      "v2_behavior": "documented departure: pure-Python implementation preserving the legacy ta_*_NN naming convention; LEGACY_TA_LIBRARY constant cites the legacy library"
+    },
+    "fast_lane_timeframes": {
+      "legacy_behavior": "['1m', '5m'] @ 10s (feature_pipeline.py L667/L682)",
+      "v2_behavior": "preserved exactly in FAST_TIMEFRAMES + FAST_LANE_INTERVAL_SEC"
+    },
+    "slow_lane_timeframes": {
+      "legacy_behavior": "['15m', '1h', '4h'] @ 300s (feature_pipeline.py L668/L683)",
+      "v2_behavior": "preserved exactly in SLOW_TIMEFRAMES + SLOW_LANE_INTERVAL_SEC"
+    },
+    "universe_validation_tf_aware_floor": {
+      "legacy_behavior": "max_age = max(base_floor, period * 2.0) (validate_symbol_universe_data.py L147-148)",
+      "v2_behavior": "preserved verbatim in validate_universe_coverage"
+    },
+    "universe_validation_startup_retry_window": {
+      "legacy_behavior": "wrapper script retries up to STARTUP_VALIDATE_RETRIES=10 with STARTUP_VALIDATE_SLEEP_SEC=15 (start_all_services_production.sh L646-660)",
+      "v2_behavior": "preserved as service constants surfaced via the public payload; the retry loop is supervisor-orchestrated, not in-worker"
+    },
+    "paralysis_sustained_definition": {
+      "legacy_behavior": "expected_buckets = max(1, int(args.minutes)); alert when bucket_coverage(reason) >= expected_buckets (paralysis_detectors.py L200-211)",
+      "v2_behavior": "preserved verbatim in detect_paralysis"
+    },
+    "paralysis_alert_routing": {
+      "legacy_behavior": "stdout print of '❌ ALERTS:' lines; no Redis stream emitted by the script itself",
+      "v2_behavior": "documented departure: V2 alerts route into the operator-facing public payload (paralysis_detector.result.alerts); no Redis stream emitted"
+    },
+    "paralysis_equity_branch_dropped": {
+      "legacy_behavior": "checks portfolio:equity:{account} freshness against PORTFOLIO_EQUITY_MAX_AGE_MS",
+      "v2_behavior": "removed from this worker; equity health surfaces on the operator dashboard, not the feature/TA worker"
+    },
+    "config_drift_disable_binance_ohlcv": {
+      "legacy_behavior": "alerts when DISABLE_BINANCE_OHLCV=1 env is set",
+      "v2_behavior": "removed from this worker; Binance gating is owned by the V2 market ingestor"
+    }
+  },
+  "legacy_failure_modes": [
+    "unified_features_missing_or_stale_per_symbol_tf",
+    "ta_hash_missing_or_stale_per_symbol_tf",
+    "market_data_missing_or_stale_per_symbol_tf",
+    "ohlcv_list_short_under_min_candles",
+    "sustained_microstructure_fail_closed_window",
+    "sustained_portfolio_budget_block_window",
+    "sustained_margin_insufficient_window",
+    "config_drift_disable_binance_ohlcv_set"
+  ],
+  "legacy_tests_or_expected_behavior": "No formal legacy unit tests; expected behavior documented in module docstrings and the legacy startup script (start_all_services_production.sh validation block).",
+  "v2_mapping": {
+    "unified_features_writer": {"legacy_redis_key": "unified_features:{symbol}:{tf}", "v2_data_plane_key": "v2:features:{symbol}:{tf}:unified", "v2_producer": "FeaturePipelineAndTAService.compute_unified_features"},
+    "ta_writer":               {"legacy_redis_key": "ta:{symbol}:{tf}",               "v2_data_plane_key": "v2:features:{symbol}:{tf}:ta",      "v2_producer": "FeaturePipelineAndTAService.compute_ta_indicators"},
+    "ohlcv_resampler_writer":  {"legacy_redis_key_overwrite": "unified_features:{symbol}:{tf} (six fields only)", "v2_data_plane_key": "v2:features:{symbol}:{tf}:ohlcv_resampled", "v2_producer": "FeaturePipelineAndTAService.resample_ohlcv"},
+    "universe_validator":      {"legacy_script": "scripts/validate_symbol_universe_data.py", "v2_producer": "FeaturePipelineAndTAService.validate_universe_coverage", "public_payload_field": "universe_validation"},
+    "paralysis_detector":      {"legacy_script": "scripts/paralysis_detectors.py",          "v2_producer": "FeaturePipelineAndTAService.detect_paralysis",            "public_payload_field": "paralysis_detector"}
+  },
+  "intentional_changes": [
+    "v2_never_writes_legacy_redis_keys",
+    "persistence_is_v2_data_plane_file_not_legacy_redis",
+    "no_exchange_mutating_method_invocation",
+    "talib_replaced_with_inline_pure_python_preserving_indicator_naming",
+    "paralysis_alerts_routed_into_v2_public_payload_not_legacy_redis_stream",
+    "paralysis_equity_branch_removed_owned_by_operator_dashboard",
+    "config_drift_disable_binance_ohlcv_branch_removed_owned_by_v2_market_ingestor",
+    "universe_validation_retry_window_constants_surfaced_supervisor_orchestrates_loop",
+    "live_gate_always_blocked_human_only"
+  ],
+  "removed_or_deprecated_behavior": [
+    {"removed": "unified_features:{symbol}:{tf} HSET", "reason": "writes legacy redis key"},
+    {"removed": "ta:{symbol}:{tf} HSET",               "reason": "writes legacy redis key"},
+    {"removed": "features:resampler:last_run_ms / last_success_ms", "reason": "heartbeat surfaces in V2 public payload"},
+    {"removed": "features:symbols:active",             "reason": "symbol set lives on V2 control-plane snapshot input"},
+    {"removed": "rl.btc_correlation feature injection","reason": "out of scope; deferred to V2 BTC-correlation feature module"},
+    {"removed": "cross-TF feature injection",          "reason": "out of scope; deferred to V2 cross-TF feature worker"},
+    {"removed": "talib dependency",                    "reason": "preserved indicator naming via pure-Python implementation"},
+    {"removed": "stdout '❌ ALERTS:' print",            "reason": "alerts routed via V2 public payload"},
+    {"removed": "portfolio:equity:{account} stale check", "reason": "equity health owned by operator dashboard"},
+    {"removed": "DISABLE_BINANCE_OHLCV alert",         "reason": "Binance gating owned by V2 market ingestor"}
+  ],
+  "ta_indicator_families_preserved": ["RSI", "MACD", "ATR", "SMA", "EMA"],
+  "ta_indicator_families_deferred_with_reason": {
+    "AD": "requires full TA-Lib accumulation/distribution parity pass",
+    "ADX": "requires directional-movement parity against legacy TA-Lib output",
+    "AROON": "requires full TA-Lib parity fixture before production use",
+    "BOP": "requires candlestick-body parity fixture before production use",
+    "CCI": "requires typical-price parity fixture before production use",
+    "HT_TRENDMODE": "requires Hilbert-transform TA-Lib parity fixture",
+    "MINUS_DI": "requires directional-index parity against legacy TA-Lib output",
+    "MOM": "requires momentum-window parity fixture before production use",
+    "NATR": "requires normalized-ATR parity against legacy TA-Lib output",
+    "OBV": "requires volume-series parity fixture before production use",
+    "PLUS_DI": "requires directional-index parity against legacy TA-Lib output",
+    "STOCHRSI": "requires stochastic-RSI parity fixture before production use",
+    "TRIX": "requires triple-EMA parity fixture before production use",
+    "ULTOSC": "requires multi-window oscillator parity fixture before production use",
+    "WILLR": "requires Williams-R parity fixture before production use",
+    "CDL_PATTERNS": "requires selected candlestick-pattern parity fixtures"
+  },
+  "legacy_feature_families_preserved": [
+    "ohlcv",
+    "orderbook_top",
+    "mark_funding",
+    "ta_passthrough",
+    "pressure",
+    "volatility"
+  ],
+  "legacy_feature_families_deferred_with_reason": {
+    "binance_tape": "owned by the V2 market-ingestor market-intelligence data plane",
+    "btc_correlation": "deferred to a dedicated V2 BTC-correlation feature module",
+    "coinank_endpoint_family": "owned by the V2 CoinAnk bridge; not tradable until Binance USD-M confirmation",
+    "coinapi_wsds_depth": "owned by the V2 market-ingestor depth/microstructure data plane",
+    "cross_timeframe_context": "deferred to a dedicated V2 cross-timeframe feature module",
+    "kline_taker_buy_ratios": "owned by the V2 market-ingestor kline enrichment path"
+  },
+  "live_gate": "blocked_human_only",
+  "v2_required_tests": [
+    "unified_features_built_from_snapshot_into_v2_namespaced_data_plane",
+    "ta_indicators_preserve_legacy_indicator_set",
+    "ohlcv_resampler_writes_six_fields_with_legacy_tf_expiry_map",
+    "universe_validation_uses_legacy_freshness_thresholds_and_retry_window",
+    "paralysis_detector_emits_sustained_bucket_alert_into_public_payload",
+    "no_old_redis_write_contract",
+    "no_real_exchange_mutating_method_invoked_contract",
+    "baseline_sha256_matches_copied_baseline_manifest_contract",
+    "live_gate_is_always_blocked_human_only",
+    "data_plane_keys_use_v2_features_prefix_only",
+    "symbol_universe_contract_required"
+  ]
+}
