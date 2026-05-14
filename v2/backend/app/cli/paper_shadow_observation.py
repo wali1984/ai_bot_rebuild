@@ -168,6 +168,19 @@ def build_observation_status(
         for event in events
         if event.get("risk_action") == "deny" or event.get("paper_result") == "NO_FILL_RISK_BLOCKED"
     ]
+    paper_pnl_current = runtime.get("paper_account", {}).get("realized_pnl")
+    profitability_blockers: list[str] = []
+    if not (windows["6h"]["window_complete"] and windows["24h"]["window_complete"]):
+        profitability_status = "PROFITABILITY_PROOF_PENDING"
+        profitability_blockers.append("paper_shadow_window_incomplete")
+    elif not isinstance(paper_pnl_current, int | float):
+        profitability_status = "PROFITABILITY_PROOF_INSUFFICIENT_PNL_EVIDENCE"
+        profitability_blockers.append("paper_pnl_missing")
+    elif float(paper_pnl_current) < 0:
+        profitability_status = "PROFITABILITY_PROOF_BLOCKED_NEGATIVE_PNL"
+        profitability_blockers.append("paper_pnl_negative")
+    else:
+        profitability_status = "PROFITABILITY_PROOF_AVAILABLE"
     return {
         "generated_at": _iso_now(),
         "source": source,
@@ -184,7 +197,7 @@ def build_observation_status(
         "allowed_intents": sum(1 for event in events if event.get("risk_action") == "allow"),
         "blocked_intents": len(blocked_events),
         "simulated_fills": len(fill_events),
-        "paper_pnl_current_usdt": runtime.get("paper_account", {}).get("realized_pnl"),
+        "paper_pnl_current_usdt": paper_pnl_current,
         "fees_slippage_funding_assumptions": {
             "fee_rate": latest_ledger.get("fee_rate"),
             "slippage_bps": latest_ledger.get("slippage_bps"),
@@ -193,7 +206,8 @@ def build_observation_status(
         "windows": windows,
         "paper_shadow_6h_status": windows["6h"]["classification"],
         "paper_shadow_24h_status": windows["24h"]["classification"],
-        "profitability_proof_status": "PROFITABILITY_PROOF_AVAILABLE" if windows["6h"]["window_complete"] and windows["24h"]["window_complete"] else "PROFITABILITY_PROOF_PENDING",
+        "profitability_proof_status": profitability_status,
+        "profitability_proof_blockers": profitability_blockers,
         "legacy_vs_v2_comparison": "MISSING_EVIDENCE_UNTIL_RECENT_LEGACY_EXECUTION_IMPORT_WINDOW",
         "safety": {
             "old_redis_write": False,

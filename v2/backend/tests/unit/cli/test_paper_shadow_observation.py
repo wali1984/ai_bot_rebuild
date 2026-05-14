@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[5]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from v2.backend.app.cli.paper_shadow_observation import build_observation_status
 
@@ -96,3 +101,47 @@ def test_observation_falls_back_to_text_action_log(tmp_path: Path) -> None:
     assert status["paper_events_count"] == 2
     assert status["simulated_fills"] == 1
     assert status["blocked_intents"] == 1
+
+
+def test_negative_pnl_blocks_profitability_proof_even_when_windows_complete(tmp_path: Path) -> None:
+    paper_dir = tmp_path / "paper"
+    now = datetime(2026, 5, 13, 7, 0, tzinfo=timezone.utc)
+    _write_json(
+        paper_dir / "paper_runtime_status.json",
+        {
+            "runtime_state": "PAPER_RUNTIME_ONLINE_ACTIVE",
+            "freshness": {"runtime_age_seconds": 0},
+            "paper_account": {"realized_pnl": -2.5},
+            "paper_ledger_tail": [],
+        },
+    )
+    events = [
+        {
+            "generated_at": "2026-05-12T06:00:00Z",
+            "ledger_action": "PAPER_FILL_SIMULATED",
+            "paper_result": "FILLED_PAPER_ONLY",
+            "risk_action": "allow",
+            "risk_reason_code": "allow_proceed_long",
+            "confidence": 0.78,
+            "symbol": "BTCUSDT",
+            "paper_realized_pnl": -2.0,
+        },
+        {
+            "generated_at": "2026-05-13T06:30:00Z",
+            "ledger_action": "PAPER_FILL_SIMULATED",
+            "paper_result": "FILLED_PAPER_ONLY",
+            "risk_action": "allow",
+            "risk_reason_code": "allow_proceed_short",
+            "confidence": 0.79,
+            "symbol": "BTCUSDT",
+            "paper_realized_pnl": -2.5,
+        },
+    ]
+    (paper_dir / "paper_events.jsonl").write_text("\n".join(json.dumps(event) for event in events) + "\n")
+
+    status = build_observation_status(paper_dir=paper_dir, public_paper_dir=tmp_path / "missing", now=now)
+
+    assert status["paper_shadow_6h_status"] == "PAPER_SHADOW_6H_COMPLETE"
+    assert status["paper_shadow_24h_status"] == "PAPER_SHADOW_24H_COMPLETE"
+    assert status["profitability_proof_status"] == "PROFITABILITY_PROOF_BLOCKED_NEGATIVE_PNL"
+    assert status["profitability_proof_blockers"] == ["paper_pnl_negative"]
