@@ -5,7 +5,7 @@
     "ETHUSDT",
     "SOLUSDT"
   ],
-  "calibrated_confidence": 0.723805,
+  "calibrated_confidence": 0.779819,
   "checkpoint_evidence_status": "MISSING_OR_REJECTED",
   "coinank_symbols_directly_tradable": false,
   "coinank_tradability_policy": "CoinAnk-only symbols remain intelligence candidates until Binance USD-M confirmation exists.",
@@ -37,25 +37,25 @@
   "exchange_action_taken": false,
   "fail_closed": true,
   "feature_snapshot_dependency_status": "PRESENT",
-  "feature_snapshot_id": "fs_paper_tick_1778742687184",
+  "feature_snapshot_id": "fs_paper_tick_1778753394386",
   "feature_snapshot_trainer_readiness_signal": "READY",
-  "freshness_seconds": 14,
+  "freshness_seconds": 5,
   "gpu_runtime": {
     "gpu_state": "GPU_EVIDENCE_PRESENT",
     "gpus": [
       {
-        "gpu_util_pct": 3.0,
+        "gpu_util_pct": 2.0,
         "memory_total_mb": 16303.0,
-        "memory_used_mb": 1585.0,
+        "memory_used_mb": 1554.0,
         "name": "NVIDIA GeForce RTX 5080",
-        "temperature_c": 52.0
+        "temperature_c": 53.0
       }
     ]
   },
   "gpu_state": "GPU_EVIDENCE_PRESENT",
-  "last_prediction_ts": "2026-05-14T07:11:24Z",
-  "last_run_ts": "2026-05-14T07:11:38Z",
-  "latest_prediction_timestamp": "2026-05-14T07:11:24Z",
+  "last_prediction_ts": "2026-05-14T10:09:51Z",
+  "last_run_ts": "2026-05-14T10:09:56Z",
+  "latest_prediction_timestamp": "2026-05-14T10:09:51Z",
   "legacy_active_symbol_source": "legacy_reference/config.py SYMBOLS via SymbolUniverseService",
   "legacy_active_symbols": [
     "1000BONKUSDT",
@@ -165,28 +165,28 @@
   "prediction_candidates_seen": [
     {
       "accepted_as_legacy_hybrid_prediction": false,
-      "calibrated_confidence": 0.723805,
-      "feature_snapshot_id": "fs_paper_tick_1778742687184",
-      "latest_prediction_timestamp": "2026-05-14T07:11:24Z",
+      "calibrated_confidence": 0.779819,
+      "feature_snapshot_id": "fs_paper_tick_1778753394386",
+      "latest_prediction_timestamp": "2026-05-14T10:09:51Z",
       "missing_prediction_fields": [],
       "model_checkpoint_id": "v2_paper_readonly_momentum_wrapper_v1",
-      "prediction_age_seconds": 14,
+      "prediction_age_seconds": 5,
       "prediction_evidence_status": "WRAPPER_NOT_LEGACY_HYBRID_PARITY",
-      "prediction_id": "pred_paper_tick_1778742687184",
+      "prediction_id": "pred_paper_tick_1778753394386",
       "prediction_source_path": "v2/frontend/public/operator_runtime/paper_online/latest/trainer_prediction_current_record.json",
       "prediction_source_type": "V2_PAPER_TRAINER_WRAPPER",
-      "raw_confidence": 0.743805,
+      "raw_confidence": 0.799819,
       "raw_prediction_payload": {
-        "confidence_calibrated": 0.723805,
-        "confidence_raw": 0.743805,
-        "feature_snapshot_id": "fs_paper_tick_1778742687184",
+        "confidence_calibrated": 0.779819,
+        "confidence_raw": 0.799819,
+        "feature_snapshot_id": "fs_paper_tick_1778753394386",
         "freshness_state": "CURRENT",
-        "generated_at": "2026-05-14T07:11:24Z",
-        "market_age_seconds": 5,
+        "generated_at": "2026-05-14T10:09:51Z",
+        "market_age_seconds": 10,
         "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-        "prediction_id": "pred_paper_tick_1778742687184",
+        "prediction_id": "pred_paper_tick_1778753394386",
         "raw_output": {
-          "momentum_score": -0.1838054,
+          "momentum_score": -0.2398194,
           "side": "short"
         },
         "source_type": "V2_PAPER_TRAINER_WRAPPER",
@@ -195,15 +195,15 @@
         "top_features": [
           {
             "name": "return_5m",
-            "value": -0.00032227
+            "value": -0.00099201
           },
           {
             "name": "return_15m",
-            "value": -0.00083346
+            "value": 0.00015086
           },
           {
             "name": "volatility_10",
-            "value": 0.00029408
+            "value": 0.00021983
           }
         ],
         "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
@@ -211,44 +211,44 @@
       "top_negative_features": [
         {
           "name": "return_5m",
-          "value": -0.00032227
-        },
-        {
-          "name": "return_15m",
-          "value": -0.00083346
+          "value": -0.00099201
         }
       ],
       "top_positive_features": [
         {
+          "name": "return_15m",
+          "value": 0.00015086
+        },
+        {
           "name": "volatility_10",
-          "value": 0.00029408
+          "value": 0.00021983
         }
       ]
     },
     {
       "accepted_as_legacy_hybrid_prediction": false,
-      "calibrated_confidence": 0.723805,
-      "feature_snapshot_id": "fs_paper_tick_1778742687184",
-      "latest_prediction_timestamp": "2026-05-14T07:11:24Z",
+      "calibrated_confidence": 0.779819,
+      "feature_snapshot_id": "fs_paper_tick_1778753394386",
+      "latest_prediction_timestamp": "2026-05-14T10:09:51Z",
       "missing_prediction_fields": [],
       "model_checkpoint_id": "v2_paper_readonly_momentum_wrapper_v1",
-      "prediction_age_seconds": 14,
+      "prediction_age_seconds": 5,
       "prediction_evidence_status": "WRAPPER_NOT_LEGACY_HYBRID_PARITY",
-      "prediction_id": "pred_paper_tick_1778742687184",
+      "prediction_id": "pred_paper_tick_1778753394386",
       "prediction_source_path": "v2/runtime/paper_online/latest/trainer_prediction_current_record.json",
       "prediction_source_type": "V2_PAPER_TRAINER_WRAPPER",
-      "raw_confidence": 0.743805,
+      "raw_confidence": 0.799819,
       "raw_prediction_payload": {
-        "confidence_calibrated": 0.723805,
-        "confidence_raw": 0.743805,
-        "feature_snapshot_id": "fs_paper_tick_1778742687184",
+        "confidence_calibrated": 0.779819,
+        "confidence_raw": 0.799819,
+        "feature_snapshot_id": "fs_paper_tick_1778753394386",
         "freshness_state": "CURRENT",
-        "generated_at": "2026-05-14T07:11:24Z",
-        "market_age_seconds": 5,
+        "generated_at": "2026-05-14T10:09:51Z",
+        "market_age_seconds": 10,
         "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-        "prediction_id": "pred_paper_tick_1778742687184",
+        "prediction_id": "pred_paper_tick_1778753394386",
         "raw_output": {
-          "momentum_score": -0.1838054,
+          "momentum_score": -0.2398194,
           "side": "short"
         },
         "source_type": "V2_PAPER_TRAINER_WRAPPER",
@@ -257,15 +257,15 @@
         "top_features": [
           {
             "name": "return_5m",
-            "value": -0.00032227
+            "value": -0.00099201
           },
           {
             "name": "return_15m",
-            "value": -0.00083346
+            "value": 0.00015086
           },
           {
             "name": "volatility_10",
-            "value": 0.00029408
+            "value": 0.00021983
           }
         ],
         "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
@@ -273,17 +273,17 @@
       "top_negative_features": [
         {
           "name": "return_5m",
-          "value": -0.00032227
-        },
-        {
-          "name": "return_15m",
-          "value": -0.00083346
+          "value": -0.00099201
         }
       ],
       "top_positive_features": [
         {
+          "name": "return_15m",
+          "value": 0.00015086
+        },
+        {
           "name": "volatility_10",
-          "value": 0.00029408
+          "value": 0.00021983
         }
       ]
     },
@@ -299,7 +299,7 @@
         "confidence_calibrated"
       ],
       "model_checkpoint_id": "",
-      "prediction_age_seconds": 138085,
+      "prediction_age_seconds": 148783,
       "prediction_evidence_status": "PREDICTION_EVIDENCE_INCOMPLETE",
       "prediction_id": "",
       "prediction_source_path": "v2/frontend/public/legacy_trainer_restart_runtime/latest/legacy_trainer_current_prediction.json",
@@ -353,7 +353,7 @@
         "confidence_calibrated"
       ],
       "model_checkpoint_id": "",
-      "prediction_age_seconds": 138085,
+      "prediction_age_seconds": 148783,
       "prediction_evidence_status": "PREDICTION_EVIDENCE_INCOMPLETE",
       "prediction_id": "",
       "prediction_source_path": "claude_worklog/final_readiness/legacy_trainer_restart_runtime/latest/legacy_trainer_current_prediction.json",
@@ -397,36 +397,36 @@
     }
   ],
   "prediction_evidence_status": "WRAPPER_NOT_LEGACY_HYBRID_PARITY",
-  "prediction_id": "pred_paper_tick_1778742687184",
+  "prediction_id": "pred_paper_tick_1778753394386",
   "prediction_source_path": "v2/frontend/public/operator_runtime/paper_online/latest/trainer_prediction_current_record.json",
   "prediction_source_type": "V2_PAPER_TRAINER_WRAPPER",
   "predictions_emitted_total": 0,
-  "raw_confidence": 0.743805,
+  "raw_confidence": 0.799819,
   "rejected_prediction_sources": [
     {
       "accepted_as_legacy_hybrid_prediction": false,
-      "calibrated_confidence": 0.723805,
-      "feature_snapshot_id": "fs_paper_tick_1778742687184",
-      "latest_prediction_timestamp": "2026-05-14T07:11:24Z",
+      "calibrated_confidence": 0.779819,
+      "feature_snapshot_id": "fs_paper_tick_1778753394386",
+      "latest_prediction_timestamp": "2026-05-14T10:09:51Z",
       "missing_prediction_fields": [],
       "model_checkpoint_id": "v2_paper_readonly_momentum_wrapper_v1",
-      "prediction_age_seconds": 14,
+      "prediction_age_seconds": 5,
       "prediction_evidence_status": "WRAPPER_NOT_LEGACY_HYBRID_PARITY",
-      "prediction_id": "pred_paper_tick_1778742687184",
+      "prediction_id": "pred_paper_tick_1778753394386",
       "prediction_source_path": "v2/frontend/public/operator_runtime/paper_online/latest/trainer_prediction_current_record.json",
       "prediction_source_type": "V2_PAPER_TRAINER_WRAPPER",
-      "raw_confidence": 0.743805,
+      "raw_confidence": 0.799819,
       "raw_prediction_payload": {
-        "confidence_calibrated": 0.723805,
-        "confidence_raw": 0.743805,
-        "feature_snapshot_id": "fs_paper_tick_1778742687184",
+        "confidence_calibrated": 0.779819,
+        "confidence_raw": 0.799819,
+        "feature_snapshot_id": "fs_paper_tick_1778753394386",
         "freshness_state": "CURRENT",
-        "generated_at": "2026-05-14T07:11:24Z",
-        "market_age_seconds": 5,
+        "generated_at": "2026-05-14T10:09:51Z",
+        "market_age_seconds": 10,
         "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-        "prediction_id": "pred_paper_tick_1778742687184",
+        "prediction_id": "pred_paper_tick_1778753394386",
         "raw_output": {
-          "momentum_score": -0.1838054,
+          "momentum_score": -0.2398194,
           "side": "short"
         },
         "source_type": "V2_PAPER_TRAINER_WRAPPER",
@@ -435,15 +435,15 @@
         "top_features": [
           {
             "name": "return_5m",
-            "value": -0.00032227
+            "value": -0.00099201
           },
           {
             "name": "return_15m",
-            "value": -0.00083346
+            "value": 0.00015086
           },
           {
             "name": "volatility_10",
-            "value": 0.00029408
+            "value": 0.00021983
           }
         ],
         "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
@@ -451,44 +451,44 @@
       "top_negative_features": [
         {
           "name": "return_5m",
-          "value": -0.00032227
-        },
-        {
-          "name": "return_15m",
-          "value": -0.00083346
+          "value": -0.00099201
         }
       ],
       "top_positive_features": [
         {
+          "name": "return_15m",
+          "value": 0.00015086
+        },
+        {
           "name": "volatility_10",
-          "value": 0.00029408
+          "value": 0.00021983
         }
       ]
     },
     {
       "accepted_as_legacy_hybrid_prediction": false,
-      "calibrated_confidence": 0.723805,
-      "feature_snapshot_id": "fs_paper_tick_1778742687184",
-      "latest_prediction_timestamp": "2026-05-14T07:11:24Z",
+      "calibrated_confidence": 0.779819,
+      "feature_snapshot_id": "fs_paper_tick_1778753394386",
+      "latest_prediction_timestamp": "2026-05-14T10:09:51Z",
       "missing_prediction_fields": [],
       "model_checkpoint_id": "v2_paper_readonly_momentum_wrapper_v1",
-      "prediction_age_seconds": 14,
+      "prediction_age_seconds": 5,
       "prediction_evidence_status": "WRAPPER_NOT_LEGACY_HYBRID_PARITY",
-      "prediction_id": "pred_paper_tick_1778742687184",
+      "prediction_id": "pred_paper_tick_1778753394386",
       "prediction_source_path": "v2/runtime/paper_online/latest/trainer_prediction_current_record.json",
       "prediction_source_type": "V2_PAPER_TRAINER_WRAPPER",
-      "raw_confidence": 0.743805,
+      "raw_confidence": 0.799819,
       "raw_prediction_payload": {
-        "confidence_calibrated": 0.723805,
-        "confidence_raw": 0.743805,
-        "feature_snapshot_id": "fs_paper_tick_1778742687184",
+        "confidence_calibrated": 0.779819,
+        "confidence_raw": 0.799819,
+        "feature_snapshot_id": "fs_paper_tick_1778753394386",
         "freshness_state": "CURRENT",
-        "generated_at": "2026-05-14T07:11:24Z",
-        "market_age_seconds": 5,
+        "generated_at": "2026-05-14T10:09:51Z",
+        "market_age_seconds": 10,
         "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-        "prediction_id": "pred_paper_tick_1778742687184",
+        "prediction_id": "pred_paper_tick_1778753394386",
         "raw_output": {
-          "momentum_score": -0.1838054,
+          "momentum_score": -0.2398194,
           "side": "short"
         },
         "source_type": "V2_PAPER_TRAINER_WRAPPER",
@@ -497,15 +497,15 @@
         "top_features": [
           {
             "name": "return_5m",
-            "value": -0.00032227
+            "value": -0.00099201
           },
           {
             "name": "return_15m",
-            "value": -0.00083346
+            "value": 0.00015086
           },
           {
             "name": "volatility_10",
-            "value": 0.00029408
+            "value": 0.00021983
           }
         ],
         "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
@@ -513,17 +513,17 @@
       "top_negative_features": [
         {
           "name": "return_5m",
-          "value": -0.00032227
-        },
-        {
-          "name": "return_15m",
-          "value": -0.00083346
+          "value": -0.00099201
         }
       ],
       "top_positive_features": [
         {
+          "name": "return_15m",
+          "value": 0.00015086
+        },
+        {
           "name": "volatility_10",
-          "value": 0.00029408
+          "value": 0.00021983
         }
       ]
     },
@@ -539,7 +539,7 @@
         "confidence_calibrated"
       ],
       "model_checkpoint_id": "",
-      "prediction_age_seconds": 138085,
+      "prediction_age_seconds": 148783,
       "prediction_evidence_status": "PREDICTION_EVIDENCE_INCOMPLETE",
       "prediction_id": "",
       "prediction_source_path": "v2/frontend/public/legacy_trainer_restart_runtime/latest/legacy_trainer_current_prediction.json",
@@ -593,7 +593,7 @@
         "confidence_calibrated"
       ],
       "model_checkpoint_id": "",
-      "prediction_age_seconds": 138085,
+      "prediction_age_seconds": 148783,
       "prediction_evidence_status": "PREDICTION_EVIDENCE_INCOMPLETE",
       "prediction_id": "",
       "prediction_source_path": "claude_worklog/final_readiness/legacy_trainer_restart_runtime/latest/legacy_trainer_current_prediction.json",
@@ -642,9 +642,9 @@
       "price",
       "liquidity"
     ],
-    "feature_snapshot_age_seconds": 61,
-    "feature_snapshot_generated_ts": "2026-05-14T07:10:37Z",
-    "feature_snapshot_id": "feature_snapshot_9db5d3803d07ab91e20c4e9a",
+    "feature_snapshot_age_seconds": 52,
+    "feature_snapshot_generated_ts": "2026-05-14T10:09:04Z",
+    "feature_snapshot_id": "feature_snapshot_1e3e01785287b71458126b8e",
     "feature_snapshot_path": "v2/frontend/public/operator_runtime/v2_feature_snapshot_builder/latest/v2_feature_snapshot_builder_status.json",
     "feature_snapshot_status": "PRESENT",
     "missing_feature_flags": [],
@@ -671,23 +671,23 @@
     "operator_overrides"
   ],
   "symbol_universe_contract": "SYMBOL_UNIVERSE_CONTRACT_REQUIRED",
-  "symbol_universe_public_payload_path": "",
-  "symbol_universe_public_payload_status": "MISSING_SYMBOL_UNIVERSE_PUBLIC_PAYLOAD",
+  "symbol_universe_public_payload_path": "v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json",
+  "symbol_universe_public_payload_status": "PRESENT",
   "symbol_universe_source_path": "v2/backend/app/services/symbol_universe/service.py",
   "top_negative_features": [
     {
       "name": "return_5m",
-      "value": -0.00032227
-    },
-    {
-      "name": "return_15m",
-      "value": -0.00083346
+      "value": -0.00099201
     }
   ],
   "top_positive_features": [
     {
+      "name": "return_15m",
+      "value": 0.00015086
+    },
+    {
       "name": "volatility_10",
-      "value": 0.00029408
+      "value": 0.00021983
     }
   ],
   "trade_all_discovered_symbols": false,
@@ -696,7 +696,7 @@
   "trainer_mode_one_of_PARITY_BRIDGE_V2_NATIVE": "PARITY_BRIDGE",
   "trainer_process_count": 1,
   "trainer_process_sample": [
-    "48623   48621   31281 82.0  3.1 python3 -u -m rl.hybrid_trainer --mode hybrid --epochs 1000 --batch-size 64"
+    "48623   48621   41979 81.9  2.9 python3 -u -m rl.hybrid_trainer --mode hybrid --epochs 1000 --batch-size 64"
   ],
   "trainer_process_state": "RUNNING_READONLY_OBSERVED",
   "trainer_readiness": "BLOCKED",

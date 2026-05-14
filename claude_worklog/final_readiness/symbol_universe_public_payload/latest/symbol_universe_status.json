@@ -1,0 +1,124 @@
+{
+  "binance_usdm_confirmed_symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+  ],
+  "coinank_symbols_directly_tradable": false,
+  "coinank_symbols_tradability": "market_intelligence_only_until_binance_usdm_confirmed",
+  "discovered_symbols": [
+    "BTCUSDT",
+    "COINANK_ONLY_USDT",
+    "ETHUSDT",
+    "KUCOIN_ONLY_USDT",
+    "SOLUSDT"
+  ],
+  "dynamic_discovered_symbols": [
+    "BTCUSDT",
+    "COINANK_ONLY_USDT",
+    "ETHUSDT",
+    "KUCOIN_ONLY_USDT",
+    "SOLUSDT"
+  ],
+  "dynamic_symbol_sources": [
+    "binance_futures",
+    "coinank",
+    "coinapi",
+    "kucoin",
+    "future_ingestors"
+  ],
+  "generated_at": "2026-05-14T10:09:46Z",
+  "legacy_active_symbol_source": "legacy_config.py_SYMBOLS_current_25",
+  "legacy_active_symbols": [
+    "1000BONKUSDT",
+    "1000FLOKIUSDT",
+    "1000PEPEUSDT",
+    "1000SHIBUSDT",
+    "ALICEUSDT",
+    "ASTERUSDT",
+    "AUCTIONUSDT",
+    "AVNTUSDT",
+    "BANKUSDT",
+    "BARDUSDT",
+    "BTCUSDT",
+    "DOGEUSDT",
+    "ETHUSDT",
+    "FARTCOINUSDT",
+    "HIGHUSDT",
+    "LINKUSDT",
+    "LTCUSDT",
+    "PENGUUSDT",
+    "PIPPINUSDT",
+    "RAVEUSDT",
+    "RIVERUSDT",
+    "SOLUSDT",
+    "UNIUSDT",
+    "WIFUSDT",
+    "XRPUSDT"
+  ],
+  "legacy_active_symbols_are_full_universe": false,
+  "live_blocked_symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+  ],
+  "live_gate": "blocked_human_only",
+  "live_symbol_policy": "none_live_blocked_human_only",
+  "live_symbols": [],
+  "observed_symbols": [
+    "BTCUSDT"
+  ],
+  "paper_symbols": [
+    "BTCUSDT"
+  ],
+  "passive_monitor_all_discovered_symbols": true,
+  "rejected_paper_symbols": [],
+  "rejected_training_symbols": [],
+  "requested_paper_symbols": [
+    "BTCUSDT"
+  ],
+  "requested_training_symbols": [
+    "BTCUSDT",
+    "ETHUSDT"
+  ],
+  "source": "V2_SYMBOL_UNIVERSE_PUBLIC_PAYLOAD",
+  "source_paths": [
+    "v2/frontend/public/operator_runtime/v2_feature_pipeline_and_ta_worker/latest/v2_feature_pipeline_and_ta_worker_status.json"
+  ],
+  "symbol_scope_policy": "do_not_train_or_trade_all_discovered_symbols_automatically",
+  "symbol_selection_evidence": {
+    "binance_confirmation_source_paths": [
+      "v2/frontend/public/operator_runtime/v2_feature_pipeline_and_ta_worker/latest/v2_feature_pipeline_and_ta_worker_status.json"
+    ],
+    "paper_source_paths": [
+      "v2/frontend/public/operator_runtime/v2_feature_pipeline_and_ta_worker/latest/v2_feature_pipeline_and_ta_worker_status.json"
+    ],
+    "training_source_paths": [
+      "v2/frontend/public/operator_runtime/v2_feature_pipeline_and_ta_worker/latest/v2_feature_pipeline_and_ta_worker_status.json"
+    ]
+  },
+  "symbol_selection_score_factors": [
+    "liquidity",
+    "volume",
+    "volatility",
+    "funding",
+    "open_interest",
+    "spread",
+    "freshness",
+    "feature_completeness",
+    "exchange_availability",
+    "risk_profile",
+    "model_confidence",
+    "replay_performance",
+    "operator_overrides"
+  ],
+  "symbol_universe_contract": "SYMBOL_UNIVERSE_CONTRACT_REQUIRED",
+  "symbol_universe_payload_evidence_gaps": [],
+  "symbol_universe_source_path": "v2/backend/app/services/symbol_universe/service.py",
+  "trade_all_discovered_symbols": false,
+  "train_all_discovered_symbols": false,
+  "training_symbols": [
+    "BTCUSDT",
+    "ETHUSDT"
+  ]
+}

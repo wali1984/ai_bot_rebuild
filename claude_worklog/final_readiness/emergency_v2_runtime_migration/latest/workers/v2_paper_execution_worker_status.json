@@ -1,5 +1,9 @@
 {
-  "binance_usdm_confirmed_symbols": [],
+  "binance_usdm_confirmed_symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+  ],
   "coinank_symbols_tradability": "market_intelligence_only_until_binance_usdm_confirmed",
   "current_gate_state": "blocked_human_only",
   "current_gate_state_must_equal_blocked_human_only": true,
@@ -10,8 +14,20 @@
     "deny_default": 1
   },
   "denials_recorded_total": 0,
-  "discovered_symbols": [],
-  "dynamic_discovered_symbols": [],
+  "discovered_symbols": [
+    "BTCUSDT",
+    "COINANK_ONLY_USDT",
+    "ETHUSDT",
+    "KUCOIN_ONLY_USDT",
+    "SOLUSDT"
+  ],
+  "dynamic_discovered_symbols": [
+    "BTCUSDT",
+    "COINANK_ONLY_USDT",
+    "ETHUSDT",
+    "KUCOIN_ONLY_USDT",
+    "SOLUSDT"
+  ],
   "dynamic_symbol_sources": [
     "binance_futures",
     "coinank",
@@ -34,7 +50,7 @@
   "last_paper_trade_ts_ms": 0,
   "last_risk_decision_id": "",
   "last_risk_decision_ts": "",
-  "last_run_ts": "2026-05-14T04:40:48Z",
+  "last_run_ts": "2026-05-14T10:09:56Z",
   "ledger_action": "",
   "ledger_reason_code": "",
   "legacy_active_symbol_source": "legacy_config.py_SYMBOLS_current_25",
@@ -75,38 +91,18 @@
   ],
   "live_blocked": true,
   "live_blocked_symbols": [
-    "1000BONKUSDT",
-    "1000FLOKIUSDT",
-    "1000PEPEUSDT",
-    "1000SHIBUSDT",
-    "ALICEUSDT",
-    "ASTERUSDT",
-    "AUCTIONUSDT",
-    "AVNTUSDT",
-    "BANKUSDT",
-    "BARDUSDT",
     "BTCUSDT",
-    "DOGEUSDT",
     "ETHUSDT",
-    "FARTCOINUSDT",
-    "HIGHUSDT",
-    "LINKUSDT",
-    "LTCUSDT",
-    "PENGUUSDT",
-    "PIPPINUSDT",
-    "RAVEUSDT",
-    "RIVERUSDT",
-    "SOLUSDT",
-    "UNIUSDT",
-    "WIFUSDT",
-    "XRPUSDT"
+    "SOLUSDT"
   ],
   "live_gate": "blocked_human_only",
   "live_symbol_policy": "none_live_blocked_human_only",
   "live_symbols": [],
   "missing_runtime_evidence": true,
   "observed_symbols": [],
-  "paper_symbols": [],
+  "paper_symbols": [
+    "BTCUSDT"
+  ],
   "passive_monitor_all_discovered_symbols": true,
   "runtime_evidence_status": "MISSING_RUNTIME_EVIDENCE",
   "simulated_fill": {
@@ -139,10 +135,13 @@
     "operator_overrides"
   ],
   "symbol_universe_contract": "SYMBOL_UNIVERSE_CONTRACT_REQUIRED",
-  "symbol_universe_public_payload_status": "MISSING_SYMBOL_UNIVERSE_PUBLIC_PAYLOAD",
-  "symbol_universe_source_path": "v2/backend/app/services/symbol_universe/service.py",
+  "symbol_universe_public_payload_status": "PRESENT",
+  "symbol_universe_source_path": "v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json",
   "trade_all_discovered_symbols": false,
   "train_all_discovered_symbols": false,
-  "training_symbols": [],
+  "training_symbols": [
+    "BTCUSDT",
+    "ETHUSDT"
+  ],
   "worker_id": "v2_paper_execution_worker"
 }
