@@ -176,7 +176,23 @@ def inspect_payload(path: Path, payload: dict[str, Any], *, root: Path, now: dat
 
     if any("READY" in value for value in _string_values(payload)) and not _has_required_evidence(payload):
         findings.append("READY_CLAIM_WITH_MISSING_EVIDENCE")
-    if "paper_runtime_alive" in lowered and "profitability" in lowered and "proof" in lowered:
+    profitability_alive_claim = (
+        "paper_runtime_alive" in lowered and "profitability" in lowered and "proof" in lowered
+    )
+    profitability_alive_negated = any(
+        marker in lowered
+        for marker in {
+            "paper_runtime_alive_not_called_profitability_proof",
+            "not called profitability proof",
+            "does not claim profitability proof",
+            "profitability proof pending",
+            "profitability_proof_pending",
+            "profitability_proof_status\": \"profitability_proof_pending",
+            "simulated fills are not profitability proof",
+            "simulated_fills_are_not_profitability_proof",
+        }
+    )
+    if profitability_alive_claim and not profitability_alive_negated:
         findings.append("PAPER_RUNTIME_ALIVE_CALLED_PROFITABILITY_PROOF")
     if "backlog" in lowered and "migrated" in lowered:
         findings.append("BACKLOG_CALLED_MIGRATION")
