@@ -94,6 +94,7 @@ TIMER_UNITS = ["ai-bot-v2-codex-shutdown-readiness-takeover.timer"]
 
 REMEDIATION_PRIORITY = [
     "claude_resolve_remaining_unresolved_local_imports",
+    "claude_port_v2_risk_gateway_legacy_gate_implementations_from_legacy_action_map",
     "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map",
     "claude_port_v2_trainer_bridge_full_legacy_parity",
     "claude_port_v2_signal_publisher_from_legacy_schema",
@@ -108,6 +109,7 @@ REMEDIATION_PRIORITY = [
 
 TEMPLATE_TASKS = [
     "claude_resolve_remaining_unresolved_local_imports",
+    "claude_port_v2_risk_gateway_legacy_gate_implementations_from_legacy_action_map",
     "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map",
     "claude_port_v2_trainer_bridge_full_legacy_parity",
     "claude_port_v2_signal_publisher_from_legacy_schema",
@@ -116,6 +118,7 @@ TEMPLATE_TASKS = [
 
 CODEX_REVIEW_IDS = {
     "claude_resolve_remaining_unresolved_local_imports": "codex_review_resolved_local_imports",
+    "claude_port_v2_risk_gateway_legacy_gate_implementations_from_legacy_action_map": "codex_review_v2_risk_gateway_legacy_gate_implementations",
     "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map": "codex_review_v2_risk_gateway_legacy_action_parity_tests",
     "claude_port_v2_trainer_bridge_full_legacy_parity": "codex_review_v2_trainer_full_legacy_parity",
     "claude_port_v2_signal_publisher_from_legacy_schema": "codex_review_v2_signal_publisher_legacy_schema_parity",
@@ -1014,6 +1017,21 @@ def claude_prompt(task_id: str) -> str:
             "If helper source is found, emit the V2-preserved copy or copier update with SHA evidence. If not found, emit a reasoned "
             "LEGACY_ONLY_DEP_REPLACED_BY_V2_WITH_REASON classification. Re-run or specify the exact closure validation needed.\n"
         )
+    elif task_id == "claude_port_v2_risk_gateway_legacy_gate_implementations_from_legacy_action_map":
+        body = (
+            "Task: implement the missing V2 risk-gateway legacy gate callables needed before parity tests can exist. "
+            "Use the preserved full-runtime closure and cite SHA256 for risk/kill_switch.py, risk/halt_manager.py, "
+            "risk/reduce_only_latch.py, risk/intelligent_close_guard.py, risk/auto_deleverager.py, "
+            "risk/shared_risk_gate.py, risk/margin_governor.py, risk/phase_controller.py, "
+            "risk/microstructure_toxicity.py, and risk/adaptive_gate.py. Add fail-closed V2 modules/functions for "
+            "evaluate_kill_switch_state, evaluate_halt_state, evaluate_latch_state, evaluate_close_guard, "
+            "evaluate_adl_state, evaluate_budget_state, evaluate_margin_state, evaluate_phase_gate, and "
+            "evaluate_toxicity_block. Add the corresponding V2 risk reason codes. Do not wire exchange mutation, "
+            "old Redis writes, leverage changes, margin-mode changes, or live enablement. Add non-skipped unit tests "
+            "that invoke real V2 callables for all nine gates and prove deny/close-only behavior. If exact legacy "
+            "behavior is too broad for this cycle, implement the minimal fail-closed paper/shadow parity surface with "
+            "an explicit behavior mapping and remaining-gap list.\n"
+        )
     elif task_id == "claude_port_v2_trainer_bridge_full_legacy_parity":
         body = (
             "Task: remediate V2 trainer bridge parity. Use the full runtime closure under v2/legacy_preserved/full_runtime_closure "
@@ -1196,6 +1214,17 @@ def codex_passed(task_id: str) -> bool:
     return path.exists() and upper_token(task_id, "CODEX_PASS") in read_text(path)
 
 
+def codex_failed(task_id: str) -> bool:
+    path = codex_output_dir(task_id) / "CODEX_GO_NO_GO.md"
+    return path.exists() and upper_token(task_id, "CODEX_FAIL") in read_text(path)
+
+
+def failed_review_followup_task(task_id: str) -> Optional[str]:
+    if task_id == "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map":
+        return "claude_port_v2_risk_gateway_legacy_gate_implementations_from_legacy_action_map"
+    return None
+
+
 def select_next_action(blockers: List[Dict[str, Any]], dry_run: bool) -> Dict[str, Any]:
     task_ids = [str(item.get("remediation_task_id")) for item in blockers if item.get("remediation_task_id")]
     if not dry_run:
@@ -1245,6 +1274,18 @@ def select_next_action(blockers: List[Dict[str, Any]], dry_run: bool) -> Dict[st
         if not codex_passed(task_id):
             review_id = review_task_id_for(task_id)
             review_status = task_effective_status(review_id)
+            followup_task_id = failed_review_followup_task(task_id) if codex_failed(task_id) else None
+            if followup_task_id:
+                if not dry_run:
+                    write_task_descriptors([followup_task_id])
+                    set_task_pending(followup_task_id)
+                return {
+                    "kind": "dispatch_claude_remediation",
+                    "task_id": followup_task_id,
+                    "task_descriptor": rel(TASKS_DIR / f"{followup_task_id}.json"),
+                    "blocker_id": item["id"],
+                    "follow_up": f"Codex review {review_id} failed; dispatch implementation remediation before rerunning {task_id}",
+                }
             if review_status == "running" and task_running_stale(review_id):
                 if not dry_run:
                     set_task_pending(review_id, force=True)

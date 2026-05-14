@@ -1,0 +1,51 @@
+{
+  "task_id": "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map",
+  "status": "BLOCKED_OR_REMEDIATED",
+  "classification": "V2_ENV_BLOCKED_MISSING_EVIDENCE",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "final_approval_token": "absent",
+  "redis_trim_approval_token": "absent",
+  "tests_added_count": 0,
+  "tests_skipped_count": 0,
+  "v2_callables_required_but_absent": [
+    "services.risk_gateway.kill_switch.evaluate_kill_switch_state",
+    "services.risk_gateway.halt_manager.evaluate_halt_state",
+    "services.risk_gateway.reduce_only_latch.evaluate_latch_state",
+    "services.risk_gateway.intelligent_close_guard.evaluate_close_guard",
+    "services.risk_gateway.auto_deleverager.evaluate_adl_state",
+    "services.risk_gateway.shared_risk_gate.evaluate_budget_state",
+    "services.risk_gateway.margin_governor.evaluate_margin_state",
+    "services.risk_gateway.phase_controller.evaluate_phase_gate",
+    "services.risk_gateway.adaptive_gate.evaluate_toxicity_block"
+  ],
+  "v2_domain_reason_codes_required_but_absent": [
+    "deny_kill_switch_active",
+    "deny_halt_manager_active",
+    "deny_reduce_only_latch",
+    "allow_close_only_intelligent_close_guard",
+    "deny_auto_deleverager_triggered",
+    "deny_shared_risk_budget_exhausted",
+    "deny_margin_governor_leverage_increase_blocked",
+    "deny_phase_controller_warmup",
+    "deny_adaptive_microstructure_toxic"
+  ],
+  "evidence_pointers": {
+    "legacy_action_path_map": "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/trader_risk_action_path_map.json",
+    "v2_parity_gap_matrix": "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/v2_parity_gap_matrix.json",
+    "full_runtime_copied_source_manifest": "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/full_runtime_copied_source_manifest.json",
+    "copied_baseline_manifest": "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/copied_baseline_manifest.json",
+    "v2_risk_gateway_service": "v2/backend/app/services/risk_gateway/service.py",
+    "v2_risk_gateway_domain": "v2/backend/app/domain/risk_gateway/record.py"
+  },
+  "dependency_closure_status": "legacy_artefacts_closed_v2_callables_absent",
+  "public_payload_impact": "none",
+  "go_no_go": "NO_GO_FOR_TEST_EXPANSION_GO_FOR_BLOCKER_PUBLICATION",
+  "produced_artifacts": [
+    "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map_REPORT.md",
+    "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map_STATUS.json",
+    "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map_GO_NO_GO.md",
+    "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map_LEGACY_BASELINE_ANALYSIS.md",
+    "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map_legacy_behavior_mapping.json"
+  ]
+}

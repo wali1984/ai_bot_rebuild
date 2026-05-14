@@ -1,6 +1,6 @@
 # CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP
 
-As of: 2026-05-14T19:35:43Z
+As of: 2026-05-14T21:05:05Z
 
 Loop marker: `CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP_READY`
 Shutdown recommendation: `BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE`
@@ -24,13 +24,13 @@ Legacy shutdown remains blocked because required parity, edge, dependency, or sa
 - `PAPER_EDGE_UNPROVEN` [P0_SHUTDOWN_BLOCKER]: paper_runtime: current_paper_intent_blocked_or_unfilled; remediation=`claude_replay_paper_edge_repair_from_legacy_trainer_output`
 - `TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY` [P0_SHUTDOWN_BLOCKER]: trade_permission: trade_permission_readonly_unknown; remediation=`claude_remediate_account_position_monitor_shutdown_parity`
 - `READONLY_ACCOUNT_EVIDENCE_STALE` [P0_SHUTDOWN_BLOCKER]: trade_permission: readonly_account_evidence_stale; remediation=`claude_remediate_account_position_monitor_shutdown_parity`
-- `FRESHNESS_GUARD_BLOCKED_ON_STALE_PUBLIC_ARTIFACTS` [P0_SHUTDOWN_BLOCKER]: stale public latest JSON count=254; remediation=`claude_audit_stale_public_payloads_and_freshness_guard`
+- `FRESHNESS_GUARD_BLOCKED_ON_STALE_PUBLIC_ARTIFACTS` [P0_SHUTDOWN_BLOCKER]: stale public latest JSON count=271; remediation=`claude_audit_stale_public_payloads_and_freshness_guard`
 
 ## Next action
 
-- kind: `wait_for_claude_remediation`
-- task_id: `claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map`
-- descriptor: `claude_worklog/agent_supervisor/tasks/claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map.json`
+- kind: `dispatch_claude_remediation`
+- task_id: `claude_port_v2_risk_gateway_legacy_gate_implementations_from_legacy_action_map`
+- descriptor: `claude_worklog/agent_supervisor/tasks/claude_port_v2_risk_gateway_legacy_gate_implementations_from_legacy_action_map.json`
 - blocker: `RISK_GATEWAY_LEGACY_PARITY_TESTS_MISSING`
 
 ## Evidence snapshot
@@ -42,7 +42,7 @@ Legacy shutdown remains blocked because required parity, edge, dependency, or sa
 - paper runtime: `fresh`, PnL=`-49.12`, action=`None`
 - trainer bridge: `WRAPPER_NOT_LEGACY_HYBRID_PARITY`, accepted=`False`
 - trade permission: `TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY`
-- symbol universe age seconds: `34`, live_symbols=`[]`
+- symbol universe age seconds: `52`, live_symbols=`[]`
 
 ## Hard constraints held
 

@@ -1,5 +1,5 @@
 {
-  "as_of_utc": "2026-05-14T19:35:43Z",
+  "as_of_utc": "2026-05-14T21:05:05Z",
   "blockers": [
     {
       "category": "P0_SHUTDOWN_BLOCKER",
@@ -57,7 +57,7 @@
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "stale public latest JSON count=254",
+      "evidence": "stale public latest JSON count=271",
       "id": "FRESHNESS_GUARD_BLOCKED_ON_STALE_PUBLIC_ARTIFACTS",
       "remediation_task_id": "claude_audit_stale_public_payloads_and_freshness_guard"
     }
