@@ -56,6 +56,9 @@ NON_DRIFT_LOCK_FILE = pathlib.Path("claude_worklog/autonomous_governor/latest/NO
 V2_WORKER_PORTING_STATE_FILE = pathlib.Path(
     "claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/worker_porting_state.json"
 )
+SHUTDOWN_READINESS_TAKEOVER_STATE_FILE = pathlib.Path(
+    "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/codex_shutdown_takeover_status.json"
+)
 
 AUTONOMOUS_CONTROL_PLANE_DIR = pathlib.Path("claude_worklog/autonomous_control_plane")
 PLANNER_INPUT_PACKET_FILE = PLANNER_DIR / "PLANNER_INPUT_PACKET.md"
@@ -290,6 +293,47 @@ def task_allowed_by_v2_worker_porting_state(task: Dict[str, Any]) -> Tuple[bool,
     return False, "not_selected_by_v2_worker_porting_orchestrator"
 
 
+def task_allowed_by_shutdown_readiness_takeover_state(task: Dict[str, Any]) -> Tuple[bool, str]:
+    """Allow only the task selected by the shutdown-readiness controller.
+
+    This mirrors the worker-porting state gate so the non-drift lock can remain
+    active while Codex coordinates shutdown-readiness remediation. The state
+    file is advisory only unless the hard safety fields still prove live is
+    blocked and approval tokens are absent.
+    """
+    state = load_optional_json(SHUTDOWN_READINESS_TAKEOVER_STATE_FILE)
+    if not isinstance(state, dict):
+        return False, "shutdown_readiness_takeover_state_missing"
+    if state.get("live_gate") != "blocked_human_only":
+        return False, "shutdown_readiness_live_gate_not_blocked"
+    if state.get("final_approval_token") not in {None, "absent"}:
+        return False, "shutdown_readiness_final_approval_present"
+    if state.get("redis_trim_approval") not in {None, "absent"}:
+        return False, "shutdown_readiness_redis_trim_approval_present"
+    live_symbols = state.get("live_symbols")
+    if isinstance(live_symbols, list) and live_symbols:
+        return False, "shutdown_readiness_live_symbols_not_empty"
+
+    action = state.get("next_action")
+    if not isinstance(action, dict):
+        return False, "shutdown_readiness_next_action_missing"
+    kind = str(action.get("kind") or "")
+    if not kind.startswith("dispatch_"):
+        return False, "shutdown_readiness_next_action_not_dispatch"
+
+    task_id = str(task.get("task_id") or "")
+    expected_task_id = str(action.get("task_id") or "")
+    if expected_task_id and task_id == expected_task_id:
+        return True, "selected_by_shutdown_readiness_takeover_loop"
+
+    descriptor = str(action.get("task_descriptor") or "")
+    expected_from_descriptor = pathlib.Path(descriptor).stem if descriptor else ""
+    if expected_from_descriptor and task_id == expected_from_descriptor:
+        return True, "selected_by_shutdown_readiness_takeover_loop"
+
+    return False, "not_selected_by_shutdown_readiness_takeover_loop"
+
+
 def task_allowed_by_non_drift_lock(task: Dict[str, Any]) -> Tuple[bool, str]:
     lock = non_drift_lock()
     if not lock:
@@ -308,6 +352,9 @@ def task_allowed_by_non_drift_lock(task: Dict[str, Any]) -> Tuple[bool, str]:
     v2_allowed, v2_reason = task_allowed_by_v2_worker_porting_state(task)
     if v2_allowed:
         return True, v2_reason
+    shutdown_allowed, shutdown_reason = task_allowed_by_shutdown_readiness_takeover_state(task)
+    if shutdown_allowed:
+        return True, shutdown_reason
     return False, "blocked_by_non_drift_governor_lock_selected_task_only"
 
 

@@ -1,0 +1,79 @@
+{
+  "as_of_utc": "2026-05-14T19:21:16Z",
+  "blockers": [
+    {
+      "category": "P0_SHUTDOWN_BLOCKER",
+      "evidence": "remaining: ingest, binance_websocket, hybrid_rule_based_signals",
+      "id": "UNRESOLVED_LOCAL_IMPORTS",
+      "remediation_task_id": "claude_resolve_remaining_unresolved_local_imports"
+    },
+    {
+      "category": "P0_SHUTDOWN_BLOCKER",
+      "evidence": "worker_porting: legacy_baseline_backfill_required",
+      "id": "LEGACY_BASELINE_BACKFILL_REQUIRED",
+      "remediation_task_id": "claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis"
+    },
+    {
+      "category": "P0_SHUTDOWN_BLOCKER",
+      "evidence": "missing terms: halt_manager, reduce_only, intelligent_close_guard, auto_deleverager, shared_risk, margin_governor, phase_controller, adaptive_gate",
+      "id": "RISK_GATEWAY_LEGACY_PARITY_TESTS_MISSING",
+      "remediation_task_id": "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map"
+    },
+    {
+      "category": "P0_SHUTDOWN_BLOCKER",
+      "evidence": "trainer_bridge: trainer_bridge_not_legacy_hybrid_parity",
+      "id": "WRAPPER_NOT_LEGACY_HYBRID_PARITY",
+      "remediation_task_id": "claude_port_v2_trainer_bridge_full_legacy_parity"
+    },
+    {
+      "category": "P0_SHUTDOWN_BLOCKER",
+      "evidence": "trainer_bridge: checkpoint_evidence_missing_or_rejected",
+      "id": "CHECKPOINT_EVIDENCE_MISSING_OR_REJECTED",
+      "remediation_task_id": "claude_port_v2_trainer_bridge_full_legacy_parity"
+    },
+    {
+      "category": "OPERATOR_DECISION_REQUIRED",
+      "evidence": "missing packages: torch, stable_baselines3, cloudpickle, gymnasium",
+      "id": "TRAINER_EXTERNAL_DEPS_MISSING_IN_V2_VENV",
+      "remediation_task_id": "claude_port_v2_trainer_bridge_full_legacy_parity"
+    },
+    {
+      "category": "P0_SHUTDOWN_BLOCKER",
+      "evidence": "paper_runtime: paper_realized_pnl_negative",
+      "id": "PAPER_PNL_NEGATIVE_BLOCKS_CANARY",
+      "remediation_task_id": "claude_replay_paper_edge_repair_from_legacy_trainer_output"
+    },
+    {
+      "category": "P0_SHUTDOWN_BLOCKER",
+      "evidence": "paper_runtime: current_paper_intent_blocked_or_unfilled",
+      "id": "PAPER_EDGE_UNPROVEN",
+      "remediation_task_id": "claude_replay_paper_edge_repair_from_legacy_trainer_output"
+    },
+    {
+      "category": "P0_SHUTDOWN_BLOCKER",
+      "evidence": "trade_permission: trade_permission_readonly_unknown",
+      "id": "TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY",
+      "remediation_task_id": "claude_remediate_account_position_monitor_shutdown_parity"
+    },
+    {
+      "category": "P0_SHUTDOWN_BLOCKER",
+      "evidence": "trade_permission: readonly_account_evidence_stale",
+      "id": "READONLY_ACCOUNT_EVIDENCE_STALE",
+      "remediation_task_id": "claude_remediate_account_position_monitor_shutdown_parity"
+    },
+    {
+      "category": "P0_SHUTDOWN_BLOCKER",
+      "evidence": "stale public latest JSON count=254",
+      "id": "FRESHNESS_GUARD_BLOCKED_ON_STALE_PUBLIC_ARTIFACTS",
+      "remediation_task_id": "claude_audit_stale_public_payloads_and_freshness_guard"
+    }
+  ],
+  "counts": {
+    "INFO_ONLY": 0,
+    "OPERATOR_DECISION_REQUIRED": 1,
+    "P0_SHUTDOWN_BLOCKER": 10,
+    "P1_SHUTDOWN_SUPPORT": 0,
+    "P2_LIVE_ONLY_BLOCKED": 0
+  },
+  "current_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE"
+}

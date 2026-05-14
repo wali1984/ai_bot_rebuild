@@ -40,19 +40,24 @@ SERVICE_UNITS = [
     "ai-bot-v2-agent-supervisor.service",
     "ai-bot-v2-parallel-scheduler.service",
     "ai-bot-v2-codex-watchdog.service",
+    "ai-bot-v2-codex-shutdown-readiness-takeover.service",
     "ai-bot-v2-paper-online-runtime.service",
     "ai-bot-v2-paper-shadow-observation.service",
     "ai-bot-v2-feature-snapshot-builder.service",
     "ai-bot-v2-symbol-universe-publisher.service",
     "ai-bot-v2-trainer-bridge.service",
 ]
-TIMER_UNITS = ["ai-bot-v2-automation-liveness-watchdog.timer"]
+TIMER_UNITS = [
+    "ai-bot-v2-automation-liveness-watchdog.timer",
+    "ai-bot-v2-codex-shutdown-readiness-takeover.timer",
+]
 
 PROCESS_PATTERNS = {
     "v2_worker_porting_orchestrator": "v2_worker_porting_orchestrator.py",
     "agent_supervisor": "agent_supervisor.py --daemon",
     "parallel_capacity_scheduler": "parallel_capacity_scheduler.py --daemon",
     "codex_non_live_watchdog": "codex_non_live_watchdog.py --daemon",
+    "codex_shutdown_readiness_takeover": "codex_legacy_shutdown_readiness_takeover.py",
     "paper_online_runtime": "paper_online_runtime",
     "paper_shadow_observation": "paper_shadow_observation",
     "feature_snapshot_builder": "v2_feature_snapshot_builder",

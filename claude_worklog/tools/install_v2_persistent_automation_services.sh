@@ -9,13 +9,17 @@ SERVICES=(
   ai-bot-v2-agent-supervisor.service
   ai-bot-v2-parallel-scheduler.service
   ai-bot-v2-codex-watchdog.service
+  ai-bot-v2-codex-shutdown-readiness-takeover.service
   ai-bot-v2-paper-online-runtime.service
   ai-bot-v2-paper-shadow-observation.service
   ai-bot-v2-feature-snapshot-builder.service
   ai-bot-v2-symbol-universe-publisher.service
   ai-bot-v2-trainer-bridge.service
 )
-TIMERS=(ai-bot-v2-automation-liveness-watchdog.timer)
+TIMERS=(
+  ai-bot-v2-automation-liveness-watchdog.timer
+  ai-bot-v2-codex-shutdown-readiness-takeover.timer
+)
 
 cd "$ROOT"
 

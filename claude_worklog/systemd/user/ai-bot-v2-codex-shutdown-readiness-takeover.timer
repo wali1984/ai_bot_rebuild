@@ -1,0 +1,12 @@
+[Unit]
+Description=Run AI Bot V2 Codex shutdown-readiness takeover every 2 minutes
+
+[Timer]
+OnBootSec=30
+OnUnitActiveSec=2min
+AccuracySec=10s
+Persistent=true
+Unit=ai-bot-v2-codex-shutdown-readiness-takeover.service
+
+[Install]
+WantedBy=timers.target

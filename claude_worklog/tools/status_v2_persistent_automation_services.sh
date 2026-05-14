@@ -7,12 +7,14 @@ UNITS=(
   ai-bot-v2-agent-supervisor.service
   ai-bot-v2-parallel-scheduler.service
   ai-bot-v2-codex-watchdog.service
+  ai-bot-v2-codex-shutdown-readiness-takeover.service
   ai-bot-v2-paper-online-runtime.service
   ai-bot-v2-paper-shadow-observation.service
   ai-bot-v2-feature-snapshot-builder.service
   ai-bot-v2-symbol-universe-publisher.service
   ai-bot-v2-trainer-bridge.service
   ai-bot-v2-automation-liveness-watchdog.timer
+  ai-bot-v2-codex-shutdown-readiness-takeover.timer
 )
 
 cd "$ROOT"
@@ -29,10 +31,45 @@ fi
 echo
 echo "=== active processes ==="
 ps -eo pid,ppid,etimes,cmd --no-headers \
-  | grep -E "v2_worker_porting_orchestrator|agent_supervisor.py|parallel_capacity_scheduler|codex_non_live_watchdog|paper_online_runtime|paper_shadow_observation|v2_feature_snapshot_builder|symbol_universe_public_payload|v2_trainer_bridge" \
+  | grep -E "v2_worker_porting_orchestrator|agent_supervisor.py|parallel_capacity_scheduler|codex_non_live_watchdog|codex_legacy_shutdown_readiness_takeover|paper_online_runtime|paper_shadow_observation|v2_feature_snapshot_builder|symbol_universe_public_payload|v2_trainer_bridge" \
   | grep -v "sleep 900" \
   | grep -v "sleep 65" \
   | grep -v "grep -E" || echo "(no V2 automation processes found)"
+
+echo
+echo "=== shutdown readiness takeover snapshot ==="
+if [ -f "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/codex_shutdown_takeover_status.json" ]; then
+  ./.venv/bin/python3 - <<'PY'
+import json
+from pathlib import Path
+
+data = json.loads(Path("claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/codex_shutdown_takeover_status.json").read_text())
+e = data.get("evidence", {})
+paper = e.get("paper_runtime", {})
+edge = e.get("paper_edge", {})
+symbol = e.get("symbol_universe", {})
+trainer = e.get("trainer_bridge", {})
+safety = e.get("runtime_safety", {})
+services = e.get("service_liveness", {})
+action = data.get("next_action", {})
+print(f"loop_marker: {data.get('loop_marker')}")
+print(f"current_recommendation: {data.get('shutdown_recommendation')}")
+print(f"blocker_count: {len(data.get('blockers', []))}")
+print(f"next_action: {action.get('kind')} task={action.get('task_id')}")
+print(f"current_claude_task: {action.get('task_id') if action.get('kind') in {'dispatch_claude_remediation','wait_for_claude_remediation'} else None}")
+print(f"current_codex_review: {action.get('task_id') if action.get('kind') in {'dispatch_codex_review','wait_for_codex_review'} else None}")
+print(f"v2_services_active: {services.get('active_count')}/{services.get('total_count')}")
+print(f"symbol_universe_age_seconds: {symbol.get('age_seconds')} live_symbols={symbol.get('live_symbols')}")
+print(f"paper_runtime_age_seconds: {paper.get('age_seconds')} pnl={paper.get('realized_pnl')} fills={paper.get('fill_count') or edge.get('simulated_fills')} blocked_intents={edge.get('blocked_intents')}")
+print(f"trainer_bridge_status: {trainer.get('runtime_evidence_status')}")
+print(f"live_gate: {data.get('live_gate')}")
+print(f"approval_tokens: final={data.get('final_approval_token')} redis_trim={data.get('redis_trim_approval')}")
+print(f"old_redis_writes_absent: {safety.get('old_redis_writes_absent')}")
+print(f"exchange_actions_absent: {safety.get('exchange_actions_absent')}")
+PY
+else
+  echo "(shutdown takeover status not found)"
+fi
 
 echo
 echo "=== current worker snapshot ==="
@@ -71,6 +108,7 @@ for log in \
   claude_worklog/agent_supervisor/logs/control_plane/agent_supervisor.log \
   claude_worklog/agent_supervisor/logs/control_plane/parallel_capacity_scheduler.log \
   claude_worklog/agent_supervisor/logs/control_plane/codex_non_live_watchdog.log \
+  claude_worklog/agent_supervisor/logs/control_plane/codex_shutdown_readiness_takeover.log \
   claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log; do
   echo "--- $log"
   tail -5 "$log" 2>/dev/null || echo "(no log yet)"
