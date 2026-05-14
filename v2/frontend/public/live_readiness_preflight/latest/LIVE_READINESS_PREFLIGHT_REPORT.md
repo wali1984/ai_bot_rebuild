@@ -1,6 +1,6 @@
 # Live Readiness Preflight Report
 
-Generated: 2026-05-14T09:52:45Z
+Generated: 2026-05-14T10:10:00Z
 
 Status: `LIVE_READINESS_PREFLIGHT_BLOCKED`
 
@@ -33,15 +33,14 @@ The V2 worker migration sequence is complete, but the system is not ready for li
 
 | Blocker | Current evidence | Required resolution |
 |---|---|---|
-| Paper PnL negative | `pnl=-48.96`, `PAPER_PNL_NEGATIVE_BLOCKS_CANARY` | sustained positive paper-shadow evidence without faking profitability |
-| Paper churn too high | `fill_rate=0.89626391`, `PAPER_FILL_RATE_TOO_HIGH` | risk/orchestrator/paper guard must reduce unsafe fill cadence |
+| Paper PnL negative | `pnl=-49.12`, `PAPER_PNL_NEGATIVE_BLOCKS_CANARY` | sustained positive paper-shadow evidence without faking profitability |
+| Historical paper churn too high | `fill_rate=0.89233792`, `PAPER_FILL_RATE_TOO_HIGH`; new paper fills are now gated by `deny_canary_profile_tightening` | complete a fresh post-tightening soak window with safe fill cadence |
 | Paper edge unproven | `win_rate=0.0`, `profit_factor=0.0`, `PAPER_EDGE_UNPROVEN` | prove positive edge over the required window |
 | Trainer parity not live-ready | `v2_trainer_bridge` rejects `V2_PAPER_TRAINER_WRAPPER` with `WRAPPER_NOT_LEGACY_HYBRID_PARITY` | current accepted legacy-hybrid or V2-native trainer prediction evidence |
 | Trade permission evidence not canary-ready | account evidence is read-only; trade permission is `TRADE_PERMISSION_EVIDENCE_PRESENT_READONLY`; canary blockers include `TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY` | read-only proof of account/trade permission sufficient for canary, without secrets or mutation |
 | Legacy runtime still observed | legacy `rl.hybrid_trainer`, `rl.orchestrator_worker`, `ingest/live_coinank.py`, and trainer monitors are running outside V2 | containment decision or shutdown must be handled by an explicit legacy containment task |
-| Symbol Universe public payload missing | deployment preflight reports `MISSING_SYMBOL_UNIVERSE_PUBLIC_PAYLOAD` | publish fresh Symbol Universe public payload or document service-only fallback per worker |
 | Public freshness guard blocked | stale/current-public artifacts still report stale or overbroad ready/profitability claims | update or quarantine stale public truth artifacts |
 
 ## Decision
 
-No live approval was created. No live trading was enabled. The correct operating state is `blocked_human_only` until every blocker above is cleared with fresh evidence.
+No live approval was created. No live trading was enabled. The Symbol Universe public payload is now present with `live_symbols=[]`, but the correct operating state remains `blocked_human_only` until every blocker above is cleared with fresh evidence.
