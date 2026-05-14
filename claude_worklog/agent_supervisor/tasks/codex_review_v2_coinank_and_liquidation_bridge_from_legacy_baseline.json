@@ -27,6 +27,14 @@
     "exchange_mutating_endpoint_reachable_from_worker",
     "tests_do_not_cover_legacy_equivalent_behavior"
   ],
-  "go_no_go_file_contents": ["V2_COINANK_AND_LIQUIDATION_BRIDGE_FROM_LEGACY_BASELINE_CODEX_PASS", "V2_COINANK_AND_LIQUIDATION_BRIDGE_FROM_LEGACY_BASELINE_CODEX_FAIL"],
-  "prompt": "Audit the V2 CoinAnk + liquidation bridge baseline port. Verify the patched legacy CoinAnk Plan-3 contracts are preserved, sha256 citations match copied_baseline_manifest.json, missing_api_blockers are surfaced rather than synthesized data, and no old Redis namespace is written. Emit review markdown and a single-line GO/NO-GO."
+  "go_no_go_file_contents": [
+    "V2_COINANK_AND_LIQUIDATION_BRIDGE_FROM_LEGACY_BASELINE_CODEX_PASS",
+    "V2_COINANK_AND_LIQUIDATION_BRIDGE_FROM_LEGACY_BASELINE_CODEX_FAIL"
+  ],
+  "prompt": "EMIT-FILE MODE - DO NOT USE INTERACTIVE WRITE/EDIT TOOLS. The supervisor will materialize files from stdout. Output BEGIN_FILE blocks only for the required files. Use exactly this format, repeated once per file:\nBEGIN_FILE: relative/path/from/repo/root\n<complete file contents>\nEND_FILE\n\nRequired files to emit exactly:\n- claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_coinank_and_liquidation_bridge_from_legacy_baseline_review.md\n- claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_coinank_and_liquidation_bridge_from_legacy_baseline_go_no_go.md\n\nDo not ask for permission to write files. Do not say files are drafted. Do not output a summary instead of file blocks. If you cannot complete all implementation files in one pass, still emit the legacy baseline files first when required and emit a failing status/report explaining the blocker. Keep live blocked_human_only. Do not touch /home/wali/Desktop/AI BOT. Do not write old Redis. Do not call exchange mutation APIs. Do not change leverage or margin.\n\nAudit the V2 CoinAnk + liquidation bridge baseline port. Verify the patched legacy CoinAnk Plan-3 contracts are preserved, sha256 citations match copied_baseline_manifest.json, missing_api_blockers are surfaced rather than synthesized data, and no old Redis namespace is written. Emit review markdown and a single-line GO/NO-GO.",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/"
+  ],
+  "max_attempts": 5,
+  "task_timeout_seconds": 2400
 }

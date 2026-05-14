@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Patch V2 Claude worker descriptors for supervisor file materialization.
+"""Patch V2 worker/review descriptors for supervisor file materialization.
 
 The agent supervisor only writes files from Claude stdout when descriptors set
 emit_files=true and the prompt asks for BEGIN_FILE blocks. Without that contract
@@ -61,9 +61,10 @@ def emit_prompt_prefix(required_outputs: list[str]) -> str:
 
 def patch_descriptor(path: Path) -> bool:
     data = json.loads(path.read_text(encoding="utf-8"))
-    if data.get("agent") != "claude":
+    if data.get("agent") not in {"claude", "codex"}:
         return False
-    if not str(data.get("task_id", "")).startswith("claude_port_v2"):
+    task_id = str(data.get("task_id", ""))
+    if not (task_id.startswith("claude_port_v2") or task_id.startswith("codex_review_v2")):
         return False
 
     required_outputs = [normalize_relpath(p) for p in data.get("required_output_files", [])]
@@ -119,7 +120,8 @@ def main() -> int:
         raise SystemExit(f"REDIS_TRIM_APPROVAL_PRESENT: {REDIS_TRIM_APPROVAL}")
 
     changed_paths: list[str] = []
-    for path in sorted(TASKS_DIR.glob("claude_port_v2*.json")):
+    paths = list(TASKS_DIR.glob("claude_port_v2*.json")) + list(TASKS_DIR.glob("codex_review_v2*.json"))
+    for path in sorted(paths):
         if patch_descriptor(path):
             changed_paths.append(str(path.relative_to(REPO_ROOT)))
 
