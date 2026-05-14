@@ -66,6 +66,20 @@ def test_preflight_check_passes_when_paper_only(tmp_path: Path) -> None:
     assert payload["live_gate"] == "blocked_human_only"
 
 
+def test_preflight_check_direct_script_invocation_uses_repo_imports() -> None:
+    result = subprocess.run(
+        [str(REPO_ROOT / ".venv/bin/python3"), str(MODULE_PATH), "--paper-only", "--json"],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "PASS"
+    assert payload["live_gate"] == "blocked_human_only"
+
+
 def test_start_script_refuses_to_start_with_real_mode_flag() -> None:
     result = subprocess.run(
         ["bash", str(START_SCRIPT), "--paper-only", "--real"],

@@ -3,8 +3,13 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from v2.backend.app.services.symbol_universe.service import (
     DYNAMIC_SYMBOL_SOURCES,
@@ -21,7 +26,7 @@ WORKER_ID = "v2_p2_deployment_helpers"
 
 
 def default_repo_root() -> Path:
-    return Path(__file__).resolve().parents[3]
+    return REPO_ROOT
 
 
 def iso_now() -> str:
