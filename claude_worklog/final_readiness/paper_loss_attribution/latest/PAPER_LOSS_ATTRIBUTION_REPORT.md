@@ -1,25 +1,25 @@
 # Paper Loss Attribution Report
 
-Generated: `2026-05-15T09:43:55Z`
+Generated: `2026-05-15T09:52:19Z`
 
 ## Executive Summary
 
 - Current cumulative paper PnL: `-49.197409` USDT.
 - Source-detailed pre-filter observed loss: `-22.75` USDT.
-- Source-limited pre-observation/baseline loss: `-26.417409` USDT.
-- Post-filter PnL delta: `-0.03` USDT with `4` fills.
-- Post-filter safety classification: `POST_CANARY_FILTER_HAD_ONE_SOURCE_LIMITED_UNSAFE_FILL`.
+- Source-limited pre-observation/baseline loss: `-26.37` USDT.
+- Post-filter PnL delta: `-0.077409` USDT with `4` fills.
+- Post-filter safety classification: `POST_FILTER_FILLS_OBSERVED_LOSS_SOURCE_LIMITED`.
 - Edge classification: `POST_FILTER_EDGE_PENDING`.
 
-The important split is that most cumulative paper PnL is historical/pre-filter, while the current post-filter window now has `4` observed fills and `-0.03` USDT realized delta. That does not prove positive edge; it keeps paper edge blocked until strict-gate fills close net-positive after fees/slippage over a sufficient sample.
+The important split is that most cumulative paper PnL is historical/pre-filter, while the current post-filter window now has `4` observed fills and `-0.077409` USDT realized delta. That does not prove positive edge; it keeps paper edge blocked until strict-gate fills close net-positive after fees/slippage over a sufficient sample.
 
 ## PnL Waterfall
 
 | Bucket | PnL USDT | Evidence |
 | --- | --- | --- |
-| Source-limited prior baseline through first observed paper event | -26.417409 | Cumulative PnL already negative at first JSONL event; no per-fill source detail for this portion |
+| Source-limited prior baseline through first observed paper event | -26.37 | Cumulative PnL already negative at first JSONL event; no per-fill source detail for this portion |
 | Observed pre-filter event delta | -22.75 | Paper JSONL cumulative PnL delta before filter activation |
-| Observed post-filter event delta | -0.03 | Paper JSONL cumulative PnL delta after filter activation |
+| Observed post-filter event delta | -0.077409 | Paper JSONL cumulative PnL delta after filter activation |
 | Current cumulative paper PnL | -49.197409 | Paper shadow status / latest paper event |
 
 ## Pre-Filter Vs Post-Filter
@@ -27,7 +27,7 @@ The important split is that most cumulative paper PnL is historical/pre-filter, 
 | Window | Events | Fills | Blocked | PnL Delta | Fees | Slippage Estimate | Classification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Pre-filter observed | 3910 | 2269 | 1641 | -22.75 | 22.69 | 11.345 | LOSS_OBSERVED_PRE_FILTER |
-| Post-filter observed | 1214 | 4 | 1210 | -0.077409 | 0.04 | 0.02 | POST_CANARY_FILTER_HAD_ONE_SOURCE_LIMITED_UNSAFE_FILL |
+| Post-filter observed | 1229 | 4 | 1225 | -0.077409 | 0.04 | 0.02 | POST_FILTER_FILLS_OBSERVED_LOSS_SOURCE_LIMITED |
 
 ## Requested Attribution Dimensions
 
@@ -35,8 +35,8 @@ The important split is that most cumulative paper PnL is historical/pre-filter, 
 
 | Symbol / bucket | Observed pre-filter PnL | Post-filter PnL | Events / note |
 | --- | --- | --- | --- |
-| BTCUSDT | -22.75 | -0.077409 | 3910 pre-filter events, 1214 post-filter events |
-| SOURCE_LIMITED_PRIOR_BASELINE | -26.417409 | 0.0 | No source detail by symbol for this prior cumulative portion |
+| BTCUSDT | -22.75 | -0.077409 | 3910 pre-filter events, 1229 post-filter events |
+| SOURCE_LIMITED_PRIOR_BASELINE | -26.37 | 0.0 | No source detail by symbol for this prior cumulative portion |
 
 ### Side / Risk Reason
 
@@ -51,7 +51,7 @@ The important split is that most cumulative paper PnL is historical/pre-filter, 
 | --- | --- | --- | --- | --- |
 | allow_proceed_long | APPROVED_FOR_PAPER_ONLY | -11.56 | 1156 | 1 |
 | allow_proceed_short | APPROVED_FOR_PAPER_ONLY | -11.19 | 1113 | 3 |
-| deny_canary_profile_tightening | BLOCKED | 0.0 | 1276 | 1091 |
+| deny_canary_profile_tightening | BLOCKED | 0.0 | 1276 | 1106 |
 | deny_low_confidence | BLOCKED | 0.0 | 233 | 66 |
 | deny_orchestrator_held | BLOCKED | 0.0 | 131 | 46 |
 | deny_stale_market_feed | BLOCKED | 0.0 | 1 | 2 |
@@ -84,16 +84,16 @@ The important split is that most cumulative paper PnL is historical/pre-filter, 
 | Per-fill feature freshness | SOURCE_LIMITED_MIXED_POST_FILTER_COVERAGE | Coverage is measured on observed post-filter fills; older events remain source-limited |
 | Current feature freshness | CURRENT | paper runtime current lineage |
 | Stale market feed risk decisions | 1 | Pre-filter denials, not filled-loss attribution |
-| Post-filter stale market feed risk decisions | 2 | Post-filter denials, no fills |
+| Post-filter stale market feed risk decisions | 2 | Post-filter denials; fills tracked separately |
 
 ### Edge-After-Costs / Cooldown / Churn
 
 | Dimension | Pre-filter observed | Post-filter observed | Interpretation |
 | --- | --- | --- | --- |
-| missing_expected_move_after_costs | 1276 | 924 | Edge-after-costs unavailable on denied intents; not present for pre-filter allowed fills |
+| missing_expected_move_after_costs | 1276 | 925 | Edge-after-costs unavailable on denied intents; not present for pre-filter allowed fills |
 | same_symbol_same_direction_cooldown | 6 | 31 | Explicit cooldown blocker counts in event stream |
 | flip_churn_cooldown | 3 | 2 | Explicit flip/churn blocker counts in event stream |
-| churn_flip_count | 193 | 0 | Pre-filter audit count vs post-filter observation |
+| churn_flip_count | 193 | 2 | Pre-filter audit count vs post-filter observation |
 
 ## Safety State
 

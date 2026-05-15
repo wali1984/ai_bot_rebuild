@@ -400,7 +400,7 @@ def build_markdown(status: dict[str, Any]) -> str:
                 ["Per-fill feature freshness", limitations["feature_freshness_per_fill"], "Coverage is measured on observed post-filter fills; older events remain source-limited"],
                 ["Current feature freshness", status["feature_freshness"]["current_paper_runtime_feature_freshness"], "paper runtime current lineage"],
                 ["Stale market feed risk decisions", pre["risk_reason_distribution"].get("deny_stale_market_feed", 0), "Pre-filter denials, not filled-loss attribution"],
-                ["Post-filter stale market feed risk decisions", post["risk_reason_distribution"].get("deny_stale_market_feed", 0), "Post-filter denials, no fills"],
+                ["Post-filter stale market feed risk decisions", post["risk_reason_distribution"].get("deny_stale_market_feed", 0), "Post-filter denials; fills tracked separately"],
             ],
         ),
         "",
@@ -494,10 +494,21 @@ def main() -> int:
         if shadow_status.get("paper_pnl_current_usdt") is not None
         else all_summary.get("last_cumulative_pnl_usdt")
     )
+    post_filter_generated = parse_dt(post_filter.get("generated_at"))
+    post_summary_last = parse_dt(post_summary.get("last_event_at"))
+    post_summary_newer_than_packet = bool(
+        post_summary_last is not None
+        and (post_filter_generated is None or post_summary_last > post_filter_generated)
+    )
     post_delta = (
-        post_filter.get("post_filter_realized_pnl_delta_usdt")
-        if post_filter.get("post_filter_realized_pnl_delta_usdt") is not None
-        else post_summary.get("cumulative_pnl_delta_usdt")
+        post_summary.get("cumulative_pnl_delta_usdt")
+        if post_summary.get("cumulative_pnl_delta_usdt") is not None
+        else post_filter.get("post_filter_realized_pnl_delta_usdt")
+    )
+    post_delta_source = (
+        "paper_events_jsonl_post_filter_window_current"
+        if post_summary.get("cumulative_pnl_delta_usdt") is not None
+        else "paper_edge_post_filter_observation_status"
     )
     observed_pre_delta = pre_summary.get("cumulative_pnl_delta_usdt")
     baseline = None
@@ -529,6 +540,22 @@ def main() -> int:
         edge_after_cost_fill_coverage = "SOURCE_LIMITED_MIXED_POST_FILTER_COVERAGE"
     else:
         edge_after_cost_fill_coverage = "MISSING_IN_OBSERVED_POST_FILTER_FILLS"
+    if post_summary.get("fill_count") == 0 and post_summary.get("fee_usdt") in (None, 0, 0.0):
+        derived_post_filter_safety = "POST_FILTER_NO_UNSAFE_FILLS"
+    elif float(post_summary.get("cumulative_pnl_delta_usdt") or 0.0) < 0:
+        derived_post_filter_safety = "POST_FILTER_FILLS_OBSERVED_LOSS_SOURCE_LIMITED"
+    else:
+        derived_post_filter_safety = "POST_FILTER_FILLS_OBSERVED_EDGE_UNPROVEN"
+    post_filter_safety = (
+        derived_post_filter_safety
+        if post_summary_newer_than_packet or post_fill_count
+        else post_filter.get("post_filter_safety_classification", derived_post_filter_safety)
+    )
+    post_filter_classification = (
+        "POST_FILTER_EDGE_PENDING"
+        if post_filter_safety != "POST_FILTER_NO_UNSAFE_FILLS"
+        else post_filter.get("classification", "POST_FILTER_EDGE_PENDING")
+    )
 
     status: dict[str, Any] = {
         "task_id": "paper_loss_attribution",
@@ -557,6 +584,8 @@ def main() -> int:
             "source_limited_prior_baseline_loss_usdt": baseline,
             "observed_pre_filter_pnl_delta_usdt": observed_pre_delta,
             "post_filter_pnl_delta_usdt": round_money(post_delta),
+            "post_filter_pnl_delta_source": post_delta_source,
+            "post_filter_event_stream_newer_than_observation_packet": post_summary_newer_than_packet,
             "reconciles_to_current_cumulative_pnl": (
                 baseline is not None
                 and current_pnl is not None
@@ -570,11 +599,14 @@ def main() -> int:
         "post_filter_event_detail": post_summary,
         "all_event_detail": all_summary,
         "post_filter_classification": {
-            "classification": post_filter.get("classification", "POST_FILTER_EDGE_PENDING"),
-            "post_filter_safety_classification": post_filter.get("post_filter_safety_classification", "POST_FILTER_NO_UNSAFE_FILLS" if post_summary.get("fill_count") == 0 else "POST_FILTER_FILLS_OBSERVED"),
+            "classification": post_filter_classification,
+            "post_filter_safety_classification": post_filter_safety,
             "post_filter_window_start_utc": post_filter.get("post_filter_window_start_utc"),
-            "post_filter_window_end_utc": post_filter.get("post_filter_window_end_utc"),
-            "post_filter_churn_events": post_filter.get("post_filter_churn_events", 0),
+            "post_filter_window_end_utc": post_summary.get("last_event_at") or post_filter.get("post_filter_window_end_utc"),
+            "post_filter_churn_events": post_summary["canary_profile_tightening_blocker_distribution"].get(
+                "flip_churn_cooldown",
+                post_filter.get("post_filter_churn_events", 0),
+            ),
             "paper_edge_positive_proven": bool(post_filter.get("paper_edge_positive_proven", False)),
         },
         "observed_pre_filter_loss_breakdown": {
