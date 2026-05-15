@@ -1,6 +1,6 @@
 # CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP
 
-As of: 2026-05-15T08:44:24Z
+As of: 2026-05-15T09:01:14Z
 
 Loop marker: `CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP_READY`
 Shutdown recommendation: `BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE`
@@ -20,16 +20,15 @@ Legacy shutdown remains blocked because required parity, edge, dependency, or sa
 - `LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED` [OPERATOR_DECISION_REQUIRED]: trainer_bridge: legacy_log_feature_snapshot_id_derived; native trainer evidence was not found and TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_PACKET requires explicit operator acceptance for V2 paper-only shutdown evaluation; live/canary remain blocked; remediation=`claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet`
 - `PAPER_PNL_NEGATIVE_BLOCKS_CANARY` [P0_SHUTDOWN_BLOCKER]: paper_runtime: paper_realized_pnl_negative; remediation=`claude_v2_paper_edge_recovery_and_cost_aware_trade_selection`
 - `PAPER_EDGE_UNPROVEN` [P0_SHUTDOWN_BLOCKER]: paper_runtime: current_paper_intent_blocked_or_unfilled; remediation=`claude_v2_paper_edge_recovery_and_cost_aware_trade_selection`
-- `PAPER_EXIT_OUTCOME_SIMULATOR_MISSING` [P0_SHUTDOWN_BLOCKER]: paper_edge_recovery: fee-charging paper fills are blocked until a non-live paper exit/outcome simulator exists; remediation=`claude_v2_paper_edge_recovery_and_cost_aware_trade_selection`
 - `OBSERVATORY_LEGACY_SIGNALS_STALE_SOURCE_LIMITED` [INFO_ONLY]: observatory: legacy signals are stale; classify comparison as MISSING_EVIDENCE_CANNOT_COMPARE and do not invent outcomes
 - `OBSERVATORY_DECISION_QUALITY_INSUFFICIENT_SAMPLE` [INFO_ONLY]: observatory: insufficient acted-trade sample; keep no-trade/outcome observation active and do not claim 99% correctness
 - `TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY` [OPERATOR_DECISION_REQUIRED]: trade_permission: trade_permission_readonly_unknown; account monitor is fail-closed/read-only with no exchange mutation, so this blocks live/canary and requires explicit operator decision for paper-only shutdown; remediation=`claude_remediate_account_position_monitor_shutdown_parity`
 
 ## Next action
 
-- kind: `codex_direct_fix_required`
-- task_id: `paper_exit_outcome_simulator_non_live`
-- blocker: `PAPER_EXIT_OUTCOME_SIMULATOR_MISSING`
+- kind: `monitor_shadow_outcome_observer`
+- task_id: `paper_shadow_outcome_observer`
+- blocker: `PAPER_EDGE_UNPROVEN`
 
 ## Evidence snapshot
 
@@ -42,7 +41,7 @@ Legacy shutdown remains blocked because required parity, edge, dependency, or sa
 - trainer bridge: `LEGACY_HYBRID_TRAINER_PREDICTION_PRESENT`, accepted=`True`
 - trainer derived evidence: `V2_TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_REQUIRED`, operator_acceptance_required=`True`
 - trade permission: `TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY`, paper_only=`OPERATOR_DECISION_REQUIRED`, live_canary=`P2_LIVE_ONLY_BLOCKED`
-- symbol universe age seconds: `45`, live_symbols=`[]`
+- symbol universe age seconds: `35`, live_symbols=`[]`
 
 ## Hard constraints held
 

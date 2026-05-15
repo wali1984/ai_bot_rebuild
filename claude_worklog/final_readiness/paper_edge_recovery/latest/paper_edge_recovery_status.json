@@ -3,7 +3,7 @@
   "approves_legacy_shutdown": false,
   "approves_live": false,
   "edge_proven": false,
-  "edge_status": "POST_OUTCOME_GUARD_NO_FEE_BLEED_EDGE_PENDING",
+  "edge_status": "PAPER_OUTCOME_MODEL_READY_EDGE_PENDING",
   "forbidden_action_scan_summary": {
     "approval_token_created": false,
     "exchange_mutations": "absent_in_touched_runtime_code_and_audited_events",
@@ -11,34 +11,33 @@
     "old_redis_writes": "absent_in_touched_runtime_code_and_audited_events",
     "redis_trim_approval_created": false
   },
-  "generated_at": "2026-05-15T08:34:00Z",
+  "generated_at": "2026-05-15T09:00:09Z",
   "go_no_go": "V2_PAPER_EDGE_RECOVERY_READY_NO_UNSAFE_FILLS_EDGE_PENDING",
   "live_gate": "blocked_human_only",
   "live_symbols": [],
-  "no_trade_status": "QUALIFIED_INTENTS_SHADOW_OBSERVED_UNTIL_PAPER_OUTCOME_MODEL_READY",
-  "paper_fill_boundary_status": "HARD_GATE_PLUS_OUTCOME_MODEL_GUARD_IMPLEMENTED",
+  "paper_fill_boundary_status": "HARD_GATE_PLUS_POSITION_LIFECYCLE_IMPLEMENTED",
   "paper_pnl": {
     "current_cumulative_paper_pnl_usdt": -49.15,
     "observed_pre_filter_loss_usdt": -22.75,
-    "outcome_guard_fills": 0,
-    "outcome_guard_pnl_delta_usdt": 0.0,
-    "outcome_guard_unsafe_fills": 0,
-    "post_strict_cost_aware_gate_fills_before_outcome_guard": 2,
-    "post_strict_cost_aware_gate_pnl_delta_before_outcome_guard_usdt": -0.02,
+    "post_lifecycle_blocked_intents": 26,
+    "post_lifecycle_closed_positions": 0,
+    "post_lifecycle_fees_usdt": 0.0,
+    "post_lifecycle_fills": 0,
+    "post_lifecycle_held_positions": 0,
+    "post_lifecycle_pnl_delta_usdt": 0.0,
     "source_limited_prior_baseline_usdt": -26.37
   },
   "phase_status": {
     "phase_a_extend_paper_event_schema": "STRICT_GATE_RUNTIME_FIELDS_PRESENT_FOR_CURRENT_EVENTS",
     "phase_b_cost_aware_scoring_module": "IMPLEMENTED_TESTED",
     "phase_c_shadow_outcome_observer": "RUNNING_WITH_SOURCE_PROVENANCE_CLASSIFICATION",
-    "phase_d_threshold_replay": "SOURCE_LIMITED_UNTIL_MORE_STRICT_GATE_SAMPLES_ACCUMULATE",
+    "phase_d_threshold_replay": "SOURCE_LIMITED_UNTIL_MORE_POST_LIFECYCLE_SAMPLES_ACCUMULATE",
     "phase_e_legacy_protective_behavior_map": "MAPPED_WITH_EXPLICIT_PENDING_EQUIVALENTS",
     "phase_f_dashboard_payload": "UPDATED",
-    "phase_g_fee_bleed_guard": "IMPLEMENTED_OUTCOME_MODEL_REQUIRED_FOR_FEE_CHARGING_FILL"
+    "phase_g_paper_position_lifecycle": "IMPLEMENTED_NON_LIVE_OPEN_HOLD_CLOSE_MODEL"
   },
   "remaining_blockers": [
-    "POST_FILTER_POSITIVE_EDGE_NOT_PROVEN_NO_OUTCOME_MODEL",
-    "PAPER_EXIT_OUTCOME_SIMULATOR_MISSING",
+    "POST_FILTER_POSITIVE_EDGE_NOT_PROVEN_INSUFFICIENT_POST_LIFECYCLE_SAMPLE",
     "THRESHOLD_REPLAY_SOURCE_LIMITED_UNTIL_NEW_EDGE_FIELDS_ACCUMULATE",
     "TRAINER_PARITY_DERIVED_EVIDENCE_OPERATOR_DECISION_STILL_OPEN",
     "TRADE_PERMISSION_UNKNOWN_REMAINS_LIVE_CANARY_BLOCKER"
@@ -49,20 +48,21 @@
     "missing_feature_freshness_state_blocks_fill",
     "symbol_not_in_paper_symbols_blocks_fill",
     "confidence_alone_cannot_allow_fill",
-    "paper_outcome_model_missing_blocks_fee_charging_fill",
+    "paper_position_lifecycle_prevents_fee_only_fill_drift",
     "worker_status_preserves_live_gate_blocked_human_only_and_live_symbols_empty"
   ],
   "runtime_observation": {
-    "outcome_guard_start_utc": "2026-05-15T08:32:56Z",
-    "post_guard_events_observed": 2,
-    "post_guard_fee_usdt": 0.0,
-    "post_guard_fills": 0,
-    "post_guard_pnl_delta_usdt": 0.0,
-    "post_guard_shadow_blocks": 2,
-    "post_guard_unsafe_fills": 0,
-    "strict_cost_aware_gate_start_utc": "2026-05-15T08:11:06Z"
+    "lifecycle_start_utc": "2026-05-15T08:47:22Z",
+    "post_lifecycle_blocked": 26,
+    "post_lifecycle_closed_positions": 0,
+    "post_lifecycle_events": 26,
+    "post_lifecycle_fee_usdt": 0.0,
+    "post_lifecycle_fills": 0,
+    "post_lifecycle_held_positions": 0,
+    "post_lifecycle_latest_event_utc": "2026-05-15T08:59:56Z",
+    "post_lifecycle_pnl_delta_usdt": 0.0,
+    "post_lifecycle_unsafe_fills": 0
   },
-  "shadow_observations_pending": "continue_observing_blocked_qualified_intents",
   "source_evidence": {
     "event_log": "v2/runtime/paper_online/latest/paper_events.jsonl",
     "paper_runtime": "v2/backend/app/cli/paper_online_runtime.py",
@@ -71,9 +71,9 @@
   },
   "task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection",
   "validation": {
-    "focused_pytest": "PASS_18_TESTS",
+    "focused_pytest": "PASS_20_TESTS",
     "positive_edge_proven": false,
-    "post_outcome_guard_no_fee_bleed": true,
+    "post_lifecycle_no_fee_bleed": true,
     "py_compile": "PASS"
   }
 }

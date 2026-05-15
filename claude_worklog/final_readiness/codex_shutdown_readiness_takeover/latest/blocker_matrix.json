@@ -1,5 +1,5 @@
 {
-  "as_of_utc": "2026-05-15T08:44:24Z",
+  "as_of_utc": "2026-05-15T09:01:14Z",
   "blockers": [
     {
       "category": "OPERATOR_DECISION_REQUIRED",
@@ -38,12 +38,6 @@
       "remediation_task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
     },
     {
-      "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "paper_edge_recovery: fee-charging paper fills are blocked until a non-live paper exit/outcome simulator exists",
-      "id": "PAPER_EXIT_OUTCOME_SIMULATOR_MISSING",
-      "remediation_task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
-    },
-    {
       "category": "INFO_ONLY",
       "evidence": "observatory: legacy signals are stale; classify comparison as MISSING_EVIDENCE_CANNOT_COMPARE and do not invent outcomes",
       "id": "OBSERVATORY_LEGACY_SIGNALS_STALE_SOURCE_LIMITED"
@@ -63,7 +57,7 @@
   "counts": {
     "INFO_ONLY": 2,
     "OPERATOR_DECISION_REQUIRED": 4,
-    "P0_SHUTDOWN_BLOCKER": 3,
+    "P0_SHUTDOWN_BLOCKER": 2,
     "P1_SHUTDOWN_SUPPORT": 0,
     "P2_LIVE_ONLY_BLOCKED": 0
   },

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import datetime as dt
 import json
 import time
 import urllib.error
@@ -47,8 +48,11 @@ PAPER_TIGHTENING_COOLDOWN_SECONDS = 300
 PAPER_TIGHTENING_LOSS_COOLDOWN_SECONDS = 600
 PAPER_TIGHTENING_MAX_SIGNAL_AGE_SECONDS = 120
 PAPER_TIGHTENING_MAX_FEATURE_AGE_SECONDS = 120
-PAPER_OUTCOME_MODEL_READY = False
+PAPER_OUTCOME_MODEL_READY = True
 PAPER_OUTCOME_MODEL_BLOCKER = "paper_outcome_model_missing"
+PAPER_POSITION_MAX_HOLD_SECONDS = 15 * 60
+PAPER_POSITION_DEFAULT_STOP_BPS = 8.0
+PAPER_POSITION_MIN_TAKE_PROFIT_BPS = 8.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -280,6 +284,64 @@ def _clamp(value: float, lower: float, upper: float) -> float:
     return max(lower, min(value, upper))
 
 
+def _parse_ts(value: Any) -> float | None:
+    if not value:
+        return None
+    try:
+        text = str(value)
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        parsed = dt.datetime.fromisoformat(text)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=dt.timezone.utc)
+        return parsed.timestamp()
+    except Exception:
+        return None
+
+
+def _open_position_from_previous(previous: dict[str, Any]) -> dict[str, Any] | None:
+    lifecycle = previous.get("paper_position_lifecycle")
+    if not isinstance(lifecycle, dict):
+        return None
+    position = lifecycle.get("open_position")
+    if not isinstance(position, dict):
+        return None
+    if str(position.get("status") or "") != "OPEN":
+        return None
+    return dict(position)
+
+
+def _position_return_bps(side: str, entry_price: float, current_price: float) -> float:
+    if entry_price <= 0:
+        return 0.0
+    raw = ((current_price - entry_price) / entry_price) * 10_000
+    return round(raw if side == "long" else -raw, 8)
+
+
+def _position_exit_reason(position: dict[str, Any], *, current_price: float, generated_at: str) -> str | None:
+    side = str(position.get("side") or "").lower()
+    entry_price = _float_or_none(position.get("entry_price")) or 0.0
+    current_return_bps = _position_return_bps(side, entry_price, current_price)
+    take_profit_bps = max(
+        PAPER_POSITION_MIN_TAKE_PROFIT_BPS,
+        _float_or_none(position.get("take_profit_bps")) or PAPER_POSITION_MIN_TAKE_PROFIT_BPS,
+    )
+    stop_loss_bps = max(
+        PAPER_POSITION_DEFAULT_STOP_BPS,
+        _float_or_none(position.get("stop_loss_bps")) or PAPER_POSITION_DEFAULT_STOP_BPS,
+    )
+    opened_ts = _parse_ts(position.get("opened_at"))
+    current_ts = _parse_ts(generated_at)
+    age_seconds = None if opened_ts is None or current_ts is None else max(0, int(current_ts - opened_ts))
+    if current_return_bps >= take_profit_bps:
+        return "TAKE_PROFIT"
+    if current_return_bps <= -stop_loss_bps:
+        return "STOP_LOSS"
+    if age_seconds is not None and age_seconds >= PAPER_POSITION_MAX_HOLD_SECONDS:
+        return "MAX_HOLD_TIME"
+    return None
+
+
 def _confidence_bucket(value: Any) -> str:
     confidence = _float_or_none(value)
     if confidence is None:
@@ -398,6 +460,28 @@ def build_signal_lineage(
     )
 
 
+def _paper_outcome_model_contract() -> tuple[dict[str, Any], list[str]]:
+    blockers: list[str] = [] if PAPER_OUTCOME_MODEL_READY else [PAPER_OUTCOME_MODEL_BLOCKER]
+    detail = (
+        "non-live paper position lifecycle is active; fills can only open paper-only positions after strict edge, "
+        "provenance, freshness, symbol-scope, cooldown, churn, and risk gates pass"
+        if PAPER_OUTCOME_MODEL_READY
+        else (
+            "paper fill recording is blocked until V2 has a non-live exit/outcome simulator; "
+            "qualified intents remain shadow-observed so fee-only ledger drift cannot masquerade as edge"
+        )
+    )
+    return (
+        {
+            "status": "READY" if PAPER_OUTCOME_MODEL_READY else "MISSING_EXIT_LIFECYCLE_SIMULATOR",
+            "paper_fill_allowed": PAPER_OUTCOME_MODEL_READY,
+            "blockers": blockers,
+            "detail": detail,
+        },
+        blockers,
+    )
+
+
 def apply_paper_tightening_gate(
     lineage: dict[str, Any],
     *,
@@ -409,6 +493,7 @@ def apply_paper_tightening_gate(
     risk = gated["risk_decision"]
     intent = gated["execution_intent"]
     if risk.get("risk_action") != "allow":
+        paper_outcome_model, paper_outcome_model_blockers = _paper_outcome_model_contract()
         risk["canary_profile_tightening"] = {
             "classification": "TIGHTENING_NOT_EVALUATED_RISK_ALREADY_DENIED",
             "paper_simulation_allowed": False,
@@ -417,6 +502,12 @@ def apply_paper_tightening_gate(
             "safe_for_live": False,
             "automation_can_enable_live": False,
         }
+        risk["paper_outcome_model"] = paper_outcome_model
+        risk["paper_outcome_model_blockers"] = paper_outcome_model_blockers
+        required = list(risk.get("required_blocks_checked") or [])
+        if "paper_outcome_model" not in required:
+            required.append("paper_outcome_model")
+        risk["required_blocks_checked"] = required
         return gated
 
     signal = gated.get("signal", {})
@@ -489,16 +580,8 @@ def apply_paper_tightening_gate(
     risk["paper_edge_gate"] = paper_edge_gate
     risk["paper_edge_gate_classification"] = paper_edge_gate.get("classification")
     risk["paper_edge_gate_blockers"] = list(paper_edge_gate.get("blockers") or [])
-    paper_outcome_model_blockers: list[str] = [] if PAPER_OUTCOME_MODEL_READY else [PAPER_OUTCOME_MODEL_BLOCKER]
-    risk["paper_outcome_model"] = {
-        "status": "READY" if PAPER_OUTCOME_MODEL_READY else "MISSING_EXIT_LIFECYCLE_SIMULATOR",
-        "paper_fill_allowed": PAPER_OUTCOME_MODEL_READY,
-        "blockers": paper_outcome_model_blockers,
-        "detail": (
-            "paper fill recording is blocked until V2 has a non-live exit/outcome simulator; "
-            "qualified intents remain shadow-observed so fee-only ledger drift cannot masquerade as edge"
-        ),
-    }
+    paper_outcome_model, paper_outcome_model_blockers = _paper_outcome_model_contract()
+    risk["paper_outcome_model"] = paper_outcome_model
     if gate.get("blockers") or paper_edge_gate.get("blockers") or paper_outcome_model_blockers:
         risk["risk_action"] = "deny"
         risk["risk_result"] = "BLOCKED"
@@ -575,6 +658,153 @@ def build_paper_ledger_entry(
     return ledger_entry, account
 
 
+def build_position_lifecycle_entry(
+    *,
+    tick_id: str,
+    generated_at: str,
+    market: MarketSnapshot,
+    lineage: dict[str, Any],
+    previous_position: dict[str, Any],
+    previous_account: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    risk = lineage["risk_decision"]
+    current_price = market.price or _float_or_none(previous_position.get("entry_price")) or 0.0
+    side = str(previous_position.get("side") or "").lower()
+    notional = _float_or_none(previous_position.get("notional_usdt")) or 0.0
+    entry_price = _float_or_none(previous_position.get("entry_price")) or 0.0
+    fee_rate = _float_or_none(previous_position.get("fee_rate")) or 0.0004
+    current_return_bps = _position_return_bps(side, entry_price, current_price)
+    gross_unrealized = round(notional * current_return_bps / 10_000, 6)
+    previous_realized = float(previous_account.get("realized_pnl") or 0.0)
+    exit_reason = _position_exit_reason(previous_position, current_price=current_price, generated_at=generated_at)
+    if exit_reason:
+        exit_fee = round(notional * fee_rate, 6)
+        realized_delta = round(gross_unrealized - exit_fee, 6)
+        realized_pnl = round(previous_realized + realized_delta, 6)
+        equity = round(10000.0 + realized_pnl, 6)
+        ledger_entry = {
+            "paper_ledger_entry_id": f"pledger_{tick_id}",
+            "generated_at": generated_at,
+            "execution_intent_id": lineage["execution_intent"]["execution_intent_id"],
+            "risk_decision_id": risk["risk_decision_id"],
+            "signal_id": lineage["signal"]["signal_id"],
+            "symbol": market.symbol,
+            "ledger_action": "PAPER_POSITION_CLOSED",
+            "paper_result": "POSITION_CLOSED_PAPER_ONLY",
+            "fill_price": None,
+            "exit_price": current_price,
+            "exit_reason": exit_reason,
+            "notional_usdt": notional,
+            "fee_usdt": exit_fee,
+            "fee_rate": fee_rate,
+            "slippage_bps": 0.0,
+            "funding_assumption": "zero_until_funding_feed_adapter_current",
+            "gross_pnl_usdt": gross_unrealized,
+            "realized_delta_usdt": realized_delta,
+            "exchange_order_id": None,
+            "live_order": False,
+            "legacy_redis_write": False,
+        }
+        account = {
+            "currency": "USDT",
+            "starting_equity": 10000.0,
+            "equity": equity,
+            "realized_pnl": realized_pnl,
+            "unrealized_pnl": 0.0,
+            "open_position_count": 0,
+            "position_source": "V2_PAPER_RUNTIME_POSITION_CLOSED",
+        }
+        lifecycle = {
+            "status": "CLOSED",
+            "open_position": None,
+            "last_closed_position": {
+                **previous_position,
+                "status": "CLOSED",
+                "closed_at": generated_at,
+                "exit_price": current_price,
+                "exit_reason": exit_reason,
+                "gross_pnl_usdt": gross_unrealized,
+                "realized_delta_usdt": realized_delta,
+            },
+        }
+        return ledger_entry, account, lifecycle
+
+    equity = round(10000.0 + previous_realized + gross_unrealized, 6)
+    ledger_entry = {
+        "paper_ledger_entry_id": f"pledger_{tick_id}",
+        "generated_at": generated_at,
+        "execution_intent_id": lineage["execution_intent"]["execution_intent_id"],
+        "risk_decision_id": risk["risk_decision_id"],
+        "signal_id": lineage["signal"]["signal_id"],
+        "symbol": market.symbol,
+        "ledger_action": "PAPER_POSITION_HELD",
+        "paper_result": "POSITION_HELD_PAPER_ONLY",
+        "fill_price": None,
+        "notional_usdt": 0.0,
+        "fee_usdt": 0.0,
+        "fee_rate": fee_rate,
+        "slippage_bps": 0.0,
+        "funding_assumption": "zero_until_funding_feed_adapter_current",
+        "unrealized_pnl_usdt": gross_unrealized,
+        "exchange_order_id": None,
+        "live_order": False,
+        "legacy_redis_write": False,
+    }
+    account = {
+        "currency": "USDT",
+        "starting_equity": 10000.0,
+        "equity": equity,
+        "realized_pnl": previous_realized,
+        "unrealized_pnl": gross_unrealized,
+        "open_position_count": 1,
+        "position_source": "V2_PAPER_RUNTIME_POSITION_HELD",
+    }
+    lifecycle = {
+        "status": "OPEN",
+        "open_position": {
+            **previous_position,
+            "status": "OPEN",
+            "last_mark_price": current_price,
+            "last_mark_at": generated_at,
+            "unrealized_pnl_usdt": gross_unrealized,
+            "current_return_bps": current_return_bps,
+        },
+        "last_closed_position": None,
+    }
+    return ledger_entry, account, lifecycle
+
+
+def paper_position_lifecycle_from_entry(
+    *,
+    ledger_entry: dict[str, Any],
+    lineage: dict[str, Any],
+) -> dict[str, Any]:
+    if ledger_entry["paper_result"] != "FILLED_PAPER_ONLY":
+        return {"status": "FLAT", "open_position": None, "last_closed_position": None}
+    risk = lineage["risk_decision"]
+    intent = lineage["execution_intent"]
+    expected_after_cost = _float_or_none(risk.get("expected_move_after_cost_bps")) or PAPER_POSITION_MIN_TAKE_PROFIT_BPS
+    return {
+        "status": "OPEN",
+        "open_position": {
+            "status": "OPEN",
+            "opened_at": ledger_entry["generated_at"],
+            "symbol": ledger_entry["symbol"],
+            "side": intent.get("side"),
+            "entry_price": ledger_entry["fill_price"],
+            "notional_usdt": ledger_entry["notional_usdt"],
+            "entry_fee_usdt": ledger_entry["fee_usdt"],
+            "fee_rate": ledger_entry["fee_rate"],
+            "take_profit_bps": max(PAPER_POSITION_MIN_TAKE_PROFIT_BPS, expected_after_cost),
+            "stop_loss_bps": PAPER_POSITION_DEFAULT_STOP_BPS,
+            "expected_move_after_cost_bps": risk.get("expected_move_after_cost_bps"),
+            "prediction_id": lineage["lineage_ids"]["prediction_id"],
+            "feature_snapshot_id": lineage["lineage_ids"]["feature_snapshot_id"],
+        },
+        "last_closed_position": None,
+    }
+
+
 def build_risk_runtime_payload(
     *,
     generated_at: str,
@@ -622,6 +852,8 @@ def append_paper_event(root: Path, payload: dict[str, Any], risk_runtime_payload
     feature_snapshot = payload["feature_snapshot"]
     paper_edge_gate = risk.get("paper_edge_gate") if isinstance(risk.get("paper_edge_gate"), dict) else {}
     confidence = signal.get("confidence") or signal.get("confidence_calibrated") or trainer.get("confidence_calibrated")
+    is_fill = ledger_entry["paper_result"] == "FILLED_PAPER_ONLY"
+    is_blocked = ledger_entry["paper_result"] == "NO_FILL_RISK_BLOCKED"
     event = {
         "generated_at": payload["generated_at"],
         "tick_id": payload["paper_loop"]["tick_id"],
@@ -655,9 +887,9 @@ def append_paper_event(root: Path, payload: dict[str, Any], risk_runtime_payload
         "risk_result": risk["risk_result"],
         "risk_reason_code": risk["risk_reason_code"],
         "risk_reason": risk["risk_reason_code"],
-        "block_reason": risk["risk_reason_code"] if risk["risk_action"] != "allow" else None,
-        "fill_allowed": risk["risk_action"] == "allow",
-        "fill_rejected_reason": risk["risk_reason_code"] if risk["risk_action"] != "allow" else None,
+        "block_reason": risk["risk_reason_code"] if is_blocked else None,
+        "fill_allowed": is_fill,
+        "fill_rejected_reason": risk["risk_reason_code"] if is_blocked else None,
         "ledger_action": ledger_entry["ledger_action"],
         "paper_result": ledger_entry["paper_result"],
         "confidence": confidence,
@@ -690,6 +922,8 @@ def build_runtime_payload(symbol: str, interval: int) -> tuple[dict[str, Any], d
     previous = _read_json(LOCAL_RUNTIME_DIR / "paper_runtime_status.json") or {}
     previous_count = int(previous.get("paper_loop", {}).get("paper_event_count", 0) or 0)
     previous_equity = float(previous.get("paper_account", {}).get("equity", 10000.0) or 10000.0)
+    previous_account = previous.get("paper_account") if isinstance(previous.get("paper_account"), dict) else {}
+    previous_position = _open_position_from_previous(previous)
     generated_at = iso_now()
     runtime_online = market.freshness_state in {"CURRENT", "WARN"}
     tick_id = f"paper_tick_{int(time.time() * 1000)}"
@@ -707,13 +941,27 @@ def build_runtime_payload(symbol: str, interval: int) -> tuple[dict[str, Any], d
         generated_at=generated_at,
         recent_events=_read_jsonl_tail(LOCAL_RUNTIME_DIR / "paper_events.jsonl"),
     )
-    ledger_entry, paper_account = build_paper_ledger_entry(
-        tick_id=tick_id,
-        generated_at=generated_at,
-        market=market,
-        lineage=lineage,
-        previous_equity=previous_equity,
-    )
+    if previous_position:
+        ledger_entry, paper_account, position_lifecycle = build_position_lifecycle_entry(
+            tick_id=tick_id,
+            generated_at=generated_at,
+            market=market,
+            lineage=lineage,
+            previous_position=previous_position,
+            previous_account=previous_account,
+        )
+    else:
+        ledger_entry, paper_account = build_paper_ledger_entry(
+            tick_id=tick_id,
+            generated_at=generated_at,
+            market=market,
+            lineage=lineage,
+            previous_equity=previous_equity,
+        )
+        position_lifecycle = paper_position_lifecycle_from_entry(
+            ledger_entry=ledger_entry,
+            lineage=lineage,
+        )
     risk_runtime_payload = build_risk_runtime_payload(
         generated_at=generated_at,
         lineage=lineage,
@@ -749,7 +997,9 @@ def build_runtime_payload(symbol: str, interval: int) -> tuple[dict[str, Any], d
         "generated_at": generated_at,
         "runtime": "v2_paper_online",
         "runtime_state": runtime_state,
+        "live_gate": LIVE_GATE_STATUS,
         "live_gate_status": LIVE_GATE_STATUS,
+        "live_symbols": [],
         "mode": "paper_only_non_live",
         "continuous_loop_available": True,
         "loop_interval_seconds": interval,
@@ -770,6 +1020,7 @@ def build_runtime_payload(symbol: str, interval: int) -> tuple[dict[str, Any], d
             "last_risk_block_count": 0 if lineage["risk_decision"]["risk_action"] == "allow" else 1,
         },
         "paper_account": paper_account,
+        "paper_position_lifecycle": position_lifecycle,
         "feature_snapshot": feature_snapshot,
         "trainer_prediction": trainer_prediction,
         "current_signal_lineage": lineage,
@@ -783,7 +1034,9 @@ def build_runtime_payload(symbol: str, interval: int) -> tuple[dict[str, Any], d
                 "event_type": "V2_PAPER_RUNTIME_TICK",
                 "lineage_ids": lineage["lineage_ids"],
                 "paper_ledger_entry_id": ledger_entry["paper_ledger_entry_id"],
+                "live_gate": LIVE_GATE_STATUS,
                 "live_gate_status": LIVE_GATE_STATUS,
+                "live_symbols": [],
             }
         ],
         "last_paper_event": paper_event,
@@ -809,15 +1062,19 @@ def build_runtime_payload(symbol: str, interval: int) -> tuple[dict[str, Any], d
     }
     positions = {
         "generated_at": generated_at,
+        "live_gate": LIVE_GATE_STATUS,
         "live_gate_status": LIVE_GATE_STATUS,
+        "live_symbols": [],
         "mode": "paper_only_non_live",
         "paper_pnl": paper_account["realized_pnl"],
         "position_count": paper_account["open_position_count"],
         "open_positions": [
             {
-                "symbol": symbol,
-                "side": lineage["execution_intent"]["side"],
-                "source": "V2_PAPER_RUNTIME_SIMULATED_FILL",
+                "symbol": (position_lifecycle.get("open_position") or {}).get("symbol", symbol),
+                "side": (position_lifecycle.get("open_position") or {}).get("side", lineage["execution_intent"]["side"]),
+                "entry_price": (position_lifecycle.get("open_position") or {}).get("entry_price"),
+                "unrealized_pnl_usdt": (position_lifecycle.get("open_position") or {}).get("unrealized_pnl_usdt"),
+                "source": "V2_PAPER_RUNTIME_POSITION_LIFECYCLE",
                 "paper_only": True,
             }
         ]
