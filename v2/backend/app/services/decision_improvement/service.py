@@ -37,11 +37,15 @@ def build_decision_improvement_recommendations(
         or _nested_get(paper_edge_status, "paper_pnl", "expected_move_after_cost_false_block_model_review")
         or {}
     )
+    reviewed_false_block_count = int(expected_move_review.get("false_block_count") or 0)
     expected_move_review_ready = (
-        expected_move_review.get("classification")
-        == "EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_READY_EDGE_PENDING"
-        or expected_move_review.get("remediation_status")
-        == "PAPER_EXPECTED_MOVE_COVERAGE_REMEDIATION_READY"
+        (
+            expected_move_review.get("classification")
+            == "EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_READY_EDGE_PENDING"
+            or expected_move_review.get("remediation_status")
+            == "PAPER_EXPECTED_MOVE_COVERAGE_REMEDIATION_READY"
+        )
+        and reviewed_false_block_count >= false_block_count
     )
     shadow_learning_ready = (
         shadow_learning_status.get("go_no_go")
