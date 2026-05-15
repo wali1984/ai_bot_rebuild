@@ -55,27 +55,20 @@
       "id": "TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY",
       "route": "claude_remediate_account_position_monitor_shutdown_parity",
       "status": "ACTIVE"
-    },
-    {
-      "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "stale public latest JSON count=5",
-      "id": "FRESHNESS_GUARD_BLOCKED_ON_STALE_PUBLIC_ARTIFACTS",
-      "route": "claude_audit_stale_public_payloads_and_freshness_guard",
-      "status": "ACTIVE"
     }
   ],
   "blocker_counts": {
     "INFO_ONLY": 2,
     "OPERATOR_DECISION_REQUIRED": 4,
-    "P0_SHUTDOWN_BLOCKER": 2,
+    "P0_SHUTDOWN_BLOCKER": 1,
     "P1_SHUTDOWN_SUPPORT": 0,
     "P2_LIVE_ONLY_BLOCKED": 1
   },
   "claude_current_status": {
     "agent": null,
-    "end_time": "2026-05-15T19:49:44.139717+00:00",
+    "end_time": "2026-05-15T19:52:45.493731+00:00",
     "next_recommended_action": "wait for dependencies/quota or add pending tasks",
-    "start_time": "2026-05-15T19:49:44.139715+00:00",
+    "start_time": "2026-05-15T19:52:45.493727+00:00",
     "status": "pending",
     "summary": "no runnable task",
     "task_id": null
@@ -101,7 +94,7 @@
     "final_live_gate_required_count": 0,
     "final_live_gate_required_tasks": [],
     "gate": "NON_LIVE_DECISION_PACKETS_PRESENT_QUEUE_CONTINUES",
-    "generated_at": "2026-05-15T19:49:44.266644+00:00",
+    "generated_at": "2026-05-15T19:52:45.624657+00:00",
     "human_attention_global_blocking": false,
     "human_attention_required_count": 4,
     "human_attention_required_tasks": [
@@ -180,19 +173,19 @@
   },
   "expected_move_model_review": {
     "completed_observations_reviewed": 259,
-    "current_completed_observations": 324,
-    "current_false_block_count": 126,
-    "current_no_trade_correct_count": 198,
+    "current_completed_observations": 326,
+    "current_false_block_count": 125,
+    "current_no_trade_correct_count": 201,
     "edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
     "false_block_count_reviewed": 95,
     "go_no_go": "V2_EXPECTED_MOVE_MODEL_REVIEW_READY_KEEP_GATE_STRICT",
     "recommended_gate_action": "KEEP_GATE_STRICT",
     "review_current": false,
-    "staleness_delta_false_blocks": 31
+    "staleness_delta_false_blocks": 30
   },
   "final_shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
   "frontend_review_status": "FRONTEND_TRUTH_CURRENT_WITH_EXPECTED_MOVE_REVIEW_STALENESS_VISIBLE",
-  "generated_at": "2026-05-15T19:50:02Z",
+  "generated_at": "2026-05-15T19:53:11Z",
   "go_no_go": "CODEX_PERMANENT_SHUTDOWN_AND_MIGRATION_GOVERNOR_READY",
   "implementation_mode": "NO_NEW_SCRIPT_OR_SERVICE_PER_OPERATOR_OVERRIDE; existing takeover and observatory services are active",
   "mandatory_monitored_conditions": [
@@ -205,7 +198,7 @@
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "reviewed_false_blocks=95; current_false_blocks=126; expected_move_review_current=False",
+      "evidence": "reviewed_false_blocks=95; current_false_blocks=125; expected_move_review_current=False",
       "id": "EXPECTED_MOVE_MODEL_REVIEW_STALE_AGAINST_SHADOW_OUTCOMES",
       "route": "claude_v2_expected_move_model_review_and_false_block_calibration",
       "status": "ACTIVE"
@@ -239,11 +232,11 @@
     "task_id": "claude_v2_expected_move_model_review_and_false_block_calibration"
   },
   "paper_shadow_outcome": {
-    "completed_observations": 324,
+    "completed_observations": 326,
     "edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
-    "false_block_count": 126,
-    "no_trade_correct_count": 198,
-    "observations_total": 386,
+    "false_block_count": 125,
+    "no_trade_correct_count": 201,
+    "observations_total": 388,
     "outcome_status": "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED",
     "pending_observations": 62
   },
@@ -253,7 +246,7 @@
   },
   "router_status": {
     "service_active": false,
-    "status_artifact_p0_count": 9,
+    "status_artifact_p0_count": 8,
     "status_artifact_selected_blocker": {
       "category": "P0_SHUTDOWN_BLOCKER",
       "evidence": "paper_runtime: current_paper_intent_blocked_or_unfilled",

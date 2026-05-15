@@ -4,7 +4,7 @@
   "approves_live": false,
   "approves_redis_trim": false,
   "contract_ref": "claude_worklog/final_readiness/permanent_migration_runtime/latest/MIGRATION_COMPLETION_CONTRACT.md",
-  "generated_utc": "2026-05-15T19:49:11+00:00",
+  "generated_utc": "2026-05-15T19:52:28+00:00",
   "inputs_present": {
     "blocker_matrix": true,
     "expected_move_review": true,
@@ -78,14 +78,7 @@
       },
       {
         "category": "P0_SHUTDOWN_BLOCKER",
-        "evidence": "stale public latest JSON count=5",
-        "id": "FRESHNESS_GUARD_BLOCKED_ON_STALE_PUBLIC_ARTIFACTS",
-        "remediation_task_id": "claude_audit_stale_public_payloads_and_freshness_guard",
-        "source": "codex_shutdown_readiness_takeover"
-      },
-      {
-        "category": "P0_SHUTDOWN_BLOCKER",
-        "evidence": "expected_move_review.go_no_go=V2_EXPECTED_MOVE_MODEL_REVIEW_READY_KEEP_GATE_STRICT outcome=BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED review_state=stale_against_shadow_observer reviewed_false_blocks=95 current_false_blocks=126",
+        "evidence": "expected_move_review.go_no_go=V2_EXPECTED_MOVE_MODEL_REVIEW_READY_KEEP_GATE_STRICT outcome=BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED review_state=stale_against_shadow_observer reviewed_false_blocks=95 current_false_blocks=125",
         "id": "EXPECTED_MOVE_MODEL_REVIEW_INCOMPLETE",
         "remediation_task_id": "claude_v2_expected_move_model_review_and_false_block_calibration",
         "source": "expected_move_model_review"
@@ -109,7 +102,7 @@
     "live_gate": "blocked_human_only",
     "live_symbols": [],
     "next_task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection",
-    "p0_blockers_remaining": 9,
+    "p0_blockers_remaining": 8,
     "p1_blockers_remaining": 0,
     "p2_blockers_blocked_until_p0_p1_clear": 3,
     "priority_bucket": "P0",

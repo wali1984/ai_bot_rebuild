@@ -55,23 +55,16 @@
       "id": "TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY",
       "route": "claude_remediate_account_position_monitor_shutdown_parity",
       "status": "ACTIVE"
-    },
-    {
-      "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "stale public latest JSON count=5",
-      "id": "FRESHNESS_GUARD_BLOCKED_ON_STALE_PUBLIC_ARTIFACTS",
-      "route": "claude_audit_stale_public_payloads_and_freshness_guard",
-      "status": "ACTIVE"
     }
   ],
   "counts": {
     "INFO_ONLY": 2,
     "OPERATOR_DECISION_REQUIRED": 4,
-    "P0_SHUTDOWN_BLOCKER": 2,
+    "P0_SHUTDOWN_BLOCKER": 1,
     "P1_SHUTDOWN_SUPPORT": 0,
     "P2_LIVE_ONLY_BLOCKED": 1
   },
-  "generated_at": "2026-05-15T19:50:02Z",
+  "generated_at": "2026-05-15T19:53:11Z",
   "mandatory_monitored_conditions": [
     {
       "category": "P0_SHUTDOWN_BLOCKER",
@@ -82,7 +75,7 @@
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "reviewed_false_blocks=95; current_false_blocks=126; expected_move_review_current=False",
+      "evidence": "reviewed_false_blocks=95; current_false_blocks=125; expected_move_review_current=False",
       "id": "EXPECTED_MOVE_MODEL_REVIEW_STALE_AGAINST_SHADOW_OUTCOMES",
       "route": "claude_v2_expected_move_model_review_and_false_block_calibration",
       "status": "ACTIVE"

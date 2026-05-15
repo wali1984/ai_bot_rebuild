@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-05-15T17:35:39.689Z",
+  "generated_at": "2026-05-15T19:51:59.417Z",
   "status": "PAPER_ONLINE_CANONICAL_TRUTH_ACTIVE",
   "canonical_truth_bridge": {
     "status": "PAPER_ONLINE_CANONICAL_TRUTH_ACTIVE",
     "source": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
-    "generated_at": "2026-05-15T17:35:30Z",
-    "paper_runtime_age_seconds": 10,
+    "generated_at": "2026-05-15T19:51:47Z",
+    "paper_runtime_age_seconds": 12,
     "operator_truth_was_stale": false,
     "runtime_state": "PAPER_RUNTIME_ONLINE_ACTIVE",
     "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT",
