@@ -1,0 +1,12 @@
+[Unit]
+Description=Run AI Bot V2 read-only realtime decision observatory every 2 minutes
+
+[Timer]
+OnBootSec=30
+OnUnitActiveSec=2min
+AccuracySec=10s
+Persistent=true
+Unit=ai-bot-v2-readonly-decision-observatory.service
+
+[Install]
+WantedBy=timers.target

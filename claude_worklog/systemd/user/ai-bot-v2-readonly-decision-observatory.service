@@ -1,0 +1,15 @@
+[Unit]
+Description=AI Bot V2 read-only realtime decision observatory
+After=network-online.target ai-bot-v2-agent-supervisor.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-readonly-decision-observatory'
+ExecStart=/usr/bin/env bash -lc 'mkdir -p claude_worklog/agent_supervisor/logs/control_plane; exec ./.venv/bin/python3 claude_worklog/tools/codex_legacy_v2_realtime_decision_observatory.py --daemon --poll-seconds 120 >> claude_worklog/agent_supervisor/logs/control_plane/legacy_v2_decision_observatory.log 2>&1'
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

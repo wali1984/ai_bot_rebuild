@@ -1,0 +1,69 @@
+{
+  "after_cost_correctness": "PENDING_OUTCOME",
+  "approval_token_status": "ABSENT",
+  "claude_tasks_dispatched": [],
+  "codex_reviews_passed_failed": {
+    "failed": 0,
+    "passed": 0,
+    "pending": [
+      "paper_edge_recovery"
+    ]
+  },
+  "does_not_approve_legacy_shutdown": true,
+  "does_not_approve_live": true,
+  "exchange_action_status": "ABSENT",
+  "generated_at": "2026-05-15T04:24:38Z",
+  "go_no_go": "CODEX_LEGACY_V2_REALTIME_DECISION_OBSERVATORY_READY",
+  "legacy_ingestion_health": "STALE",
+  "legacy_shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
+  "legacy_signal_health": "STALE",
+  "legacy_trader_process_state": {
+    "count": 0,
+    "sample": [],
+    "state": "NOT_OBSERVED"
+  },
+  "legacy_trainer_health": "RUNNING_READONLY_OBSERVED",
+  "legacy_v2_agreement": "LEGACY_SIGNAL_MISSING_V2_PRESENT",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "no_trade_correctness": "PENDING_OUTCOME",
+  "old_redis_write_status": "ABSENT",
+  "paper_edge_status": "EDGE_PENDING",
+  "paper_pnl_visible": -49.12,
+  "paper_shadow_outcome": "OUTCOME_PENDING_SOURCE_LIMITED",
+  "read_only_legacy_reference": true,
+  "recommendations_generated": [
+    {
+      "priority": "P0",
+      "reason": "Paper loss attribution found fee/slippage/churn loss and missing edge-after-cost evidence.",
+      "required_result": "Confidence alone cannot permit paper fills; missing expected edge blocks and records shadow observation.",
+      "task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
+    },
+    {
+      "priority": "P0",
+      "reason": "Per-fill trainer source and feature freshness are missing from paper events.",
+      "required_result": "Every intent/fill/block carries trainer_source and feature_freshness_state.",
+      "task_id": "claude_add_per_fill_trainer_source_and_feature_freshness"
+    },
+    {
+      "priority": "P1",
+      "reason": "Post-filter no-fill state is safe but cannot prove edge without outcome observations.",
+      "required_result": "Blocked intents collect 5m/15m/30m/1h after-cost outcomes without paper fees.",
+      "task_id": "claude_add_shadow_outcome_learning_for_blocked_intents"
+    },
+    {
+      "priority": "P1",
+      "reason": "Legacy closure includes churn, lifecycle, TP/stop, reduce-only, and adaptive gate behavior not silently droppable.",
+      "required_result": "Each protective behavior is implemented in paper-only form or emitted as an explicit blocker.",
+      "task_id": "claude_map_legacy_protective_behaviors_to_v2_paper"
+    }
+  ],
+  "safety_findings": [],
+  "trainer_parity_gaps": [
+    "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
+    "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
+    "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED"
+  ],
+  "v2_decision_quality": "EDGE_PENDING_INSUFFICIENT_SAMPLE",
+  "worker_id": "codex_legacy_v2_realtime_decision_observatory"
+}

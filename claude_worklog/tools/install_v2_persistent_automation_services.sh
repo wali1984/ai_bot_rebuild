@@ -10,6 +10,7 @@ SERVICES=(
   ai-bot-v2-parallel-scheduler.service
   ai-bot-v2-codex-watchdog.service
   ai-bot-v2-codex-shutdown-readiness-takeover.service
+  ai-bot-v2-readonly-decision-observatory.service
   ai-bot-v2-paper-online-runtime.service
   ai-bot-v2-paper-shadow-observation.service
   ai-bot-v2-feature-snapshot-builder.service
@@ -19,6 +20,7 @@ SERVICES=(
 TIMERS=(
   ai-bot-v2-automation-liveness-watchdog.timer
   ai-bot-v2-codex-shutdown-readiness-takeover.timer
+  ai-bot-v2-readonly-decision-observatory.timer
 )
 
 cd "$ROOT"

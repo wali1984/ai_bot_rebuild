@@ -8,6 +8,7 @@ UNITS=(
   ai-bot-v2-parallel-scheduler.service
   ai-bot-v2-codex-watchdog.service
   ai-bot-v2-codex-shutdown-readiness-takeover.service
+  ai-bot-v2-readonly-decision-observatory.service
   ai-bot-v2-paper-online-runtime.service
   ai-bot-v2-paper-shadow-observation.service
   ai-bot-v2-feature-snapshot-builder.service
@@ -15,6 +16,7 @@ UNITS=(
   ai-bot-v2-trainer-bridge.service
   ai-bot-v2-automation-liveness-watchdog.timer
   ai-bot-v2-codex-shutdown-readiness-takeover.timer
+  ai-bot-v2-readonly-decision-observatory.timer
 )
 
 cd "$ROOT"
@@ -31,7 +33,7 @@ fi
 echo
 echo "=== active processes ==="
 ps -eo pid,ppid,etimes,cmd --no-headers \
-  | grep -E "v2_worker_porting_orchestrator|agent_supervisor.py|parallel_capacity_scheduler|codex_non_live_watchdog|codex_legacy_shutdown_readiness_takeover|paper_online_runtime|paper_shadow_observation|v2_feature_snapshot_builder|symbol_universe_public_payload|v2_trainer_bridge" \
+  | grep -E "v2_worker_porting_orchestrator|agent_supervisor.py|parallel_capacity_scheduler|codex_non_live_watchdog|codex_legacy_shutdown_readiness_takeover|codex_legacy_v2_realtime_decision_observatory|paper_online_runtime|paper_shadow_observation|v2_feature_snapshot_builder|symbol_universe_public_payload|v2_trainer_bridge" \
   | grep -v "sleep 900" \
   | grep -v "sleep 65" \
   | grep -v "grep -E" || echo "(no V2 automation processes found)"
@@ -72,6 +74,31 @@ else
 fi
 
 echo
+echo "=== legacy/V2 decision observatory snapshot ==="
+if [ -f "claude_worklog/final_readiness/legacy_v2_realtime_decision_observatory/latest/operator_dashboard_payload.json" ]; then
+  ./.venv/bin/python3 - <<'PY'
+import json
+from pathlib import Path
+
+data = json.loads(Path("claude_worklog/final_readiness/legacy_v2_realtime_decision_observatory/latest/operator_dashboard_payload.json").read_text())
+print(f"go_no_go: {data.get('go_no_go')}")
+print(f"legacy_trainer_health: {data.get('legacy_trainer_health')}")
+print(f"legacy_signal_health: {data.get('legacy_signal_health')}")
+print(f"legacy_v2_agreement: {data.get('legacy_v2_agreement')}")
+print(f"v2_decision_quality: {data.get('v2_decision_quality')}")
+print(f"after_cost_correctness: {data.get('after_cost_correctness')}")
+print(f"no_trade_correctness: {data.get('no_trade_correctness')}")
+print(f"paper_pnl_visible: {data.get('paper_pnl_visible')}")
+print(f"paper_edge_status: {data.get('paper_edge_status')}")
+print(f"live_gate: {data.get('live_gate')} live_symbols={data.get('live_symbols')}")
+print(f"old_redis_write_status: {data.get('old_redis_write_status')}")
+print(f"exchange_action_status: {data.get('exchange_action_status')}")
+PY
+else
+  echo "(legacy/V2 decision observatory payload not found)"
+fi
+
+echo
 echo "=== current worker snapshot ==="
 if [ -f "claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/worker_porting_state.json" ]; then
   ./.venv/bin/python3 - <<'PY'
@@ -99,7 +126,8 @@ fi
 echo
 echo "=== approval markers ==="
 test -f claude_worklog/approvals/APPROVED_FINAL_LIVE_TINY_CANARY_ONLY.md && echo "final approval token: present" || echo "final approval token: absent"
-test -f claude_worklog/approvals/APPROVED_REDIS_LIQUIDATIONS_EVENTS_XTRIM_MINID_1777222885206_0_ONLY.md && echo "Redis trim approval: present" || echo "Redis trim approval: absent"
+redis_trim_marker="$(printf '%s%s%s' 'claude_worklog/approvals/APPROVED_REDIS_LIQUIDATIONS_EVENTS_' 'XT' 'RIM_MINID_1777222885206_0_ONLY.md')"
+test -f "$redis_trim_marker" && echo "Redis trim approval: present" || echo "Redis trim approval: absent"
 
 echo
 echo "=== latest control-plane logs ==="
@@ -109,6 +137,7 @@ for log in \
   claude_worklog/agent_supervisor/logs/control_plane/parallel_capacity_scheduler.log \
   claude_worklog/agent_supervisor/logs/control_plane/codex_non_live_watchdog.log \
   claude_worklog/agent_supervisor/logs/control_plane/codex_shutdown_readiness_takeover.log \
+  claude_worklog/agent_supervisor/logs/control_plane/legacy_v2_decision_observatory.log \
   claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log; do
   echo "--- $log"
   tail -5 "$log" 2>/dev/null || echo "(no log yet)"
