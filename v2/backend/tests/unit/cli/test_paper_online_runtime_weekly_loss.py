@@ -382,6 +382,42 @@ def test_paper_outcome_model_opens_and_closes_non_live_position(
     assert close_lifecycle["open_position"] is None
 
 
+def test_runtime_payload_retains_last_closed_position_after_flat_blocked_tick(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    last_closed = {
+        "status": "CLOSED",
+        "symbol": "BTCUSDT",
+        "closed_at": "2026-05-13T07:31:00Z",
+        "realized_delta_usdt": -0.037409,
+    }
+    (runtime_dir / "paper_runtime_status.json").write_text(
+        json.dumps(
+            {
+                "paper_account": {"equity": 9950.802591, "realized_pnl": -49.197409},
+                "paper_loop": {"paper_event_count": 10},
+                "paper_position_lifecycle": {
+                    "status": "FLAT",
+                    "open_position": None,
+                    "last_closed_position": last_closed,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(paper_runtime, "LOCAL_RUNTIME_DIR", runtime_dir)
+    monkeypatch.setattr(paper_runtime, "fetch_market_snapshot", lambda symbol: _market())
+
+    payload, _ = paper_runtime.build_runtime_payload("BTCUSDT", 30)
+
+    assert payload["paper_position_lifecycle"]["last_closed_position"] == last_closed
+    assert payload["live_gate"] == "blocked_human_only"
+    assert payload["live_symbols"] == []
+
+
 def test_native_expected_move_below_paper_edge_threshold_still_blocks_fill(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

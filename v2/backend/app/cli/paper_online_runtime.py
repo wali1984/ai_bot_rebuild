@@ -923,6 +923,12 @@ def build_runtime_payload(symbol: str, interval: int) -> tuple[dict[str, Any], d
     previous_count = int(previous.get("paper_loop", {}).get("paper_event_count", 0) or 0)
     previous_equity = float(previous.get("paper_account", {}).get("equity", 10000.0) or 10000.0)
     previous_account = previous.get("paper_account") if isinstance(previous.get("paper_account"), dict) else {}
+    previous_lifecycle = previous.get("paper_position_lifecycle") if isinstance(previous.get("paper_position_lifecycle"), dict) else {}
+    previous_last_closed_position = (
+        previous_lifecycle.get("last_closed_position")
+        if isinstance(previous_lifecycle.get("last_closed_position"), dict)
+        else None
+    )
     previous_position = _open_position_from_previous(previous)
     generated_at = iso_now()
     runtime_online = market.freshness_state in {"CURRENT", "WARN"}
@@ -962,6 +968,8 @@ def build_runtime_payload(symbol: str, interval: int) -> tuple[dict[str, Any], d
             ledger_entry=ledger_entry,
             lineage=lineage,
         )
+    if previous_last_closed_position and not position_lifecycle.get("last_closed_position"):
+        position_lifecycle["last_closed_position"] = previous_last_closed_position
     risk_runtime_payload = build_risk_runtime_payload(
         generated_at=generated_at,
         lineage=lineage,
