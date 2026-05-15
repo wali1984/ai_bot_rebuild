@@ -26,7 +26,14 @@ cd "$ROOT"
 echo "=== V2 persistent automation services ==="
 if command -v systemctl >/dev/null 2>&1 && systemctl --user is-system-running >/dev/null 2>&1; then
   for unit in "${UNITS[@]}"; do
-    printf '%-55s %s\n' "$unit" "$(systemctl --user is-active "$unit" 2>/dev/null || true)"
+    state="$(systemctl --user is-active "$unit" 2>/dev/null || true)"
+    if [ "$unit" = "ai-bot-v2-paper-shadow-outcome-observer.service" ] && [ "$state" = "inactive" ]; then
+      timer_state="$(systemctl --user is-active ai-bot-v2-paper-shadow-outcome-observer.timer 2>/dev/null || true)"
+      if [ "$timer_state" = "active" ]; then
+        state="inactive_oneshot_timer_active"
+      fi
+    fi
+    printf '%-55s %s\n' "$unit" "$state"
   done
 else
   echo "SYSTEMD_USER_UNAVAILABLE_TMUX_FALLBACK"

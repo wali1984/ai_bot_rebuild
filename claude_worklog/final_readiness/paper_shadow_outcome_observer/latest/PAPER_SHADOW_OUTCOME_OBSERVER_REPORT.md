@@ -1,6 +1,6 @@
 # Paper Shadow Outcome Observer Report
 
-Generated: `2026-05-15T06:59:40Z`
+Generated: `2026-05-15T07:20:24Z`
 GO/NO-GO: `PAPER_SHADOW_OUTCOME_OBSERVER_READY_EDGE_PENDING_INSUFFICIENT_SAMPLE`
 Outcome status: `EDGE_PENDING_INSUFFICIENT_SAMPLE`
 
@@ -9,9 +9,9 @@ It never creates fills, charges fees, writes old Redis, calls exchanges, or chan
 
 ## Counts
 
-- observations_total: `1`
+- observations_total: `3`
 - completed_observations: `0`
-- pending_observations: `1`
+- pending_observations: `3`
 - no_trade_correct_count: `0`
 - false_block_count: `0`
 - minimum_sample_status: `INSUFFICIENT_SAMPLE`

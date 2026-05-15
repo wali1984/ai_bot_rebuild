@@ -170,3 +170,62 @@ def test_shadow_observer_keeps_insufficient_sample_without_future_prices(
     assert status["completed_observations"] == 0
     assert status["approves_live"] is False
     assert status["approves_legacy_shutdown"] is False
+
+
+def test_shadow_observer_rechecks_prior_pending_observations(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    prior_status = _write_json(
+        tmp_path / "prior_status.json",
+        {
+            "observations": [
+                {
+                    "observation_id": "shadow_prior",
+                    "event_id": "evt_prior",
+                    "intent_id": "intent_prior",
+                    "risk_decision_id": "risk_prior",
+                    "symbol": "BTCUSDT",
+                    "side": "long",
+                    "entry_reference_price": 100.0,
+                    "event_ts": "2026-01-01T00:00:00Z",
+                    "cost_bps": 6.0,
+                    "block_reason": "EDGE_AFTER_COSTS_MISSING_BLOCK",
+                }
+            ]
+        },
+    )
+    prices = _write_json(
+        tmp_path / "prices.json",
+        [
+            {
+                "symbol": "BTCUSDT",
+                "time": "2026-01-01T01:00:00Z",
+                "high": 100.01,
+                "low": 99.95,
+                "close": 100.0,
+            }
+        ],
+    )
+    empty_status = _write_json(tmp_path / "empty_status.json", {})
+    monkeypatch.setattr(worker, "PRIOR_STATUS_CANDIDATES", [prior_status])
+
+    status = worker.run_once(
+        worker.parse_args(
+            [
+                "--once",
+                "--worker-status-file",
+                str(empty_status),
+                "--paper-status-file",
+                str(empty_status),
+                "--price-samples-file",
+                str(prices),
+            ]
+        )
+    )
+
+    assert status["observations_total"] == 1
+    assert status["completed_observations"] == 1
+    assert status["outcome_status"] == "NO_TRADE_DECISIONS_CORRECT_SO_FAR"
+    assert status["no_trade_correct_count"] == 1
+    assert status["false_block_count"] == 0

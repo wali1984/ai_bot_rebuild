@@ -291,14 +291,25 @@ def build_paper_shadow_outcome_observer_status(
     paper_status = paper_status or {}
     now = now or dt.datetime.now(dt.timezone.utc)
     request_rows = [dict(row) for row in requests or []]
-    if not request_rows:
-        worker_request = _request_from_worker_status(worker_status)
-        if worker_request:
-            request_rows.append(worker_request)
-    if not request_rows:
-        runtime_request = _request_from_paper_runtime(paper_status)
-        if runtime_request:
-            request_rows.append(runtime_request)
+    worker_request = _request_from_worker_status(worker_status)
+    if worker_request:
+        request_rows.append(worker_request)
+    runtime_request = _request_from_paper_runtime(paper_status)
+    if runtime_request:
+        request_rows.append(runtime_request)
+    deduped_requests: dict[str, dict[str, Any]] = {}
+    for row in request_rows:
+        observation_id = _str(row.get("observation_id"))
+        identity = (
+            observation_id
+            or _str(row.get("intent_id"))
+            or _str(row.get("risk_decision_id"))
+            or _str(row.get("event_id"))
+        )
+        if not identity:
+            identity = f"request_{len(deduped_requests)}"
+        deduped_requests[identity] = row
+    request_rows = list(deduped_requests.values())[-500:]
     sample_rows = [dict(row) for row in price_samples or []]
     if not sample_rows:
         sample_rows = [dict(row) for row in _samples_from_paper_status(paper_status)]

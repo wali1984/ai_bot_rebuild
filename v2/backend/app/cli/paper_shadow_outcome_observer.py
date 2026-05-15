@@ -43,6 +43,11 @@ PAPER_STATUS_CANDIDATES = [
     V2_PUBLIC / "operator_runtime" / "paper_online" / "latest" / "paper_runtime_status.json",
     V2_RUNTIME / "paper_online" / "latest" / "paper_runtime_status.json",
 ]
+PRIOR_STATUS_CANDIDATES = [
+    LOCAL_STATUS_FILE,
+    PUBLIC_STATUS_FILE,
+    FINAL_STATUS_FILE,
+]
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -86,6 +91,17 @@ def _load_rows(path: Path | None) -> list[dict[str, Any]]:
     except (OSError, json.JSONDecodeError):
         return []
     return rows
+
+
+def _load_prior_observation_requests() -> list[dict[str, Any]]:
+    for path in PRIOR_STATUS_CANDIDATES:
+        payload = load_json(path)
+        if not isinstance(payload, dict):
+            continue
+        rows = payload.get("observations")
+        if isinstance(rows, list):
+            return [row for row in rows if isinstance(row, dict)]
+    return []
 
 
 def _go_no_go(status: dict[str, Any]) -> str:
@@ -153,10 +169,23 @@ def _report(status: dict[str, Any]) -> str:
 
 def run_once(args: argparse.Namespace | None = None) -> dict[str, Any]:
     args = args or parse_args(["--once"])
+    request_rows = _load_rows(args.requests_file)
+    if args.requests_file is None:
+        request_rows = _load_prior_observation_requests() + request_rows
+    worker_status = (
+        _load_dict(args.worker_status_file, PAPER_WORKER_CANDIDATES)
+        if args.requests_file is None or args.worker_status_file is not None
+        else {}
+    )
+    paper_status = (
+        _load_dict(args.paper_status_file, PAPER_STATUS_CANDIDATES)
+        if args.requests_file is None or args.paper_status_file is not None
+        else {}
+    )
     status = build_paper_shadow_outcome_observer_status(
-        worker_status=_load_dict(args.worker_status_file, PAPER_WORKER_CANDIDATES),
-        paper_status=_load_dict(args.paper_status_file, PAPER_STATUS_CANDIDATES),
-        requests=_load_rows(args.requests_file),
+        worker_status=worker_status,
+        paper_status=paper_status,
+        requests=request_rows,
         price_samples=_load_rows(args.price_samples_file),
     )
     if args.write:
