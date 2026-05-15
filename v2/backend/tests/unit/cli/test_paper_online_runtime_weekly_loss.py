@@ -454,7 +454,7 @@ def test_runtime_uses_last_closed_loss_for_loss_cooldown(
     last_closed = {
         "status": "CLOSED",
         "symbol": "BTCUSDT",
-        "closed_at": "2026-05-13T07:29:00Z",
+        "closed_at": "2026-05-13T06:45:00Z",
         "realized_delta_usdt": -0.031919,
     }
     (runtime_dir / "paper_runtime_status.json").write_text(
