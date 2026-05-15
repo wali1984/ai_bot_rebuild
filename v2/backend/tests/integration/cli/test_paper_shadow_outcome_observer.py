@@ -307,3 +307,57 @@ def test_shadow_observer_rechecks_prior_pending_observations(
     assert status["outcome_status"] == "NO_TRADE_DECISIONS_CORRECT_SO_FAR"
     assert status["no_trade_correct_count"] == 1
     assert status["false_block_count"] == 0
+
+
+def test_shadow_observer_preserves_prior_completed_observation_when_samples_roll_off(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    prior_status = _write_json(
+        tmp_path / "prior_status.json",
+        {
+            "observations": [
+                {
+                    "observation_id": "shadow_completed_false_block",
+                    "event_id": "evt_completed",
+                    "intent_id": "intent_completed",
+                    "risk_decision_id": "risk_completed",
+                    "symbol": "BTCUSDT",
+                    "side": "short",
+                    "entry_reference_price": 100.0,
+                    "event_ts": "2026-01-01T00:00:00Z",
+                    "expected_move_after_cost_bps": 2.0,
+                    "expected_move_source": "native_trainer_expected_move_bps",
+                    "cost_bps": 6.0,
+                    "block_reason": "expected_edge_below_costs",
+                    "completed": True,
+                    "outcome_status": "COMPLETED",
+                    "would_have_beaten_costs": True,
+                    "after_cost_correct": True,
+                    "no_trade_correct": False,
+                    "max_favorable_excursion_bps": 16.0,
+                    "max_adverse_excursion_bps": -2.0,
+                }
+            ]
+        },
+    )
+    empty_status = _write_json(tmp_path / "empty_status.json", {})
+    monkeypatch.setattr(worker, "PRIOR_STATUS_CANDIDATES", [prior_status])
+
+    status = worker.run_once(
+        worker.parse_args(
+            [
+                "--once",
+                "--worker-status-file",
+                str(empty_status),
+                "--paper-status-file",
+                str(empty_status),
+            ]
+        )
+    )
+
+    assert status["observations_total"] == 1
+    assert status["completed_observations"] == 1
+    assert status["false_block_count"] == 1
+    assert status["latest_observation"]["preserved_completed_outcome"] is True
+    assert status["outcome_status"] == "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED"

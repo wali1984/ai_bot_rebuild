@@ -361,10 +361,16 @@ def build_paper_shadow_outcome_observer_status(
     if not sample_rows:
         sample_rows = [dict(row) for row in _samples_from_paper_status(paper_status)]
 
-    observations = [
-        evaluate_observation_request(request, price_samples=sample_rows, now=now)
-        for request in request_rows
-    ]
+    observations = []
+    for request in request_rows:
+        evaluated = evaluate_observation_request(request, price_samples=sample_rows, now=now)
+        if request.get("completed") is True and evaluated.get("completed") is not True:
+            preserved = dict(request)
+            preserved["preserved_completed_outcome"] = True
+            preserved.setdefault("outcome_status", "COMPLETED")
+            observations.append(preserved)
+        else:
+            observations.append(evaluated)
     completed = [row for row in observations if row.get("completed") is True]
     pending = [row for row in observations if row.get("completed") is not True]
     false_blocks = [

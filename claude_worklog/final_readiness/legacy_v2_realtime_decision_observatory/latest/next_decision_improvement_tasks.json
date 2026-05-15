@@ -1,10 +1,10 @@
 {
   "approval_token_created": false,
-  "claude_task_ready": "claude_improve_expected_move_after_cost_coverage_from_shadow_false_blocks",
+  "claude_task_ready": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection",
   "does_not_approve_legacy_shutdown": true,
   "does_not_approve_live": true,
   "exchange_action_taken": false,
-  "generated_at": "2026-05-15T09:30:05Z",
+  "generated_at": "2026-05-15T10:00:52Z",
   "legacy_mutation_performed": false,
   "live_blocked": true,
   "live_gate": "blocked_human_only",
@@ -12,15 +12,15 @@
   "next_tasks": [
     {
       "priority": "P0",
-      "reason": "Shadow outcome observer found 26 blocked intents that beat costs; current false-block reasons show expected-move coverage/model review is required.",
-      "required_result": "Increase native or explicitly accepted expected_move_after_cost_bps coverage from trainer/feature evidence; do not use future outcome labels to permit fills and do not loosen the strict paper fill gate.",
-      "task_id": "claude_improve_expected_move_after_cost_coverage_from_shadow_false_blocks"
-    },
-    {
-      "priority": "P0",
       "reason": "Paper loss attribution found fee/slippage/churn loss and missing edge-after-cost evidence.",
       "required_result": "Confidence alone cannot permit paper fills; missing expected edge blocks and records shadow observation.",
       "task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
+    },
+    {
+      "priority": "P0",
+      "reason": "Per-fill trainer source and feature freshness are missing from paper events.",
+      "required_result": "Every intent/fill/block carries trainer_source and feature_freshness_state.",
+      "task_id": "claude_add_per_fill_trainer_source_and_feature_freshness"
     },
     {
       "priority": "P1",
@@ -43,21 +43,9 @@
     "paper_loss_attribution",
     "trainer_bridge",
     "paper_edge_recovery",
-    "paper_shadow_outcome_observer",
     "symbol_universe",
     "risk_gateway"
   ],
   "redis_trim_approval_created": false,
-  "shadow_false_block_count": 26,
-  "shadow_false_block_reason_counts": {
-    "confidence_below_canary_threshold": 11,
-    "deny_canary_profile_tightening": 4,
-    "deny_low_confidence": 2,
-    "expected_edge_below_costs": 8,
-    "missing_expected_move_after_costs": 1,
-    "paper_outcome_model_missing": 1,
-    "same_symbol_same_direction_cooldown": 4
-  },
-  "shadow_outcome_status": "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED",
   "worker_id": "v2_decision_improvement_recommender"
 }

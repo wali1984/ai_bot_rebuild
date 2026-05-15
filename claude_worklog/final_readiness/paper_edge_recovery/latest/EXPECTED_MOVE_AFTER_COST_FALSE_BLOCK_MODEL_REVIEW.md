@@ -1,6 +1,6 @@
 # Expected Move After Cost False-Block Model Review
 
-Generated: `2026-05-15T09:10:40Z`
+Generated: `2026-05-15T10:00:33Z`
 
 ## Decision
 
@@ -12,37 +12,37 @@ This does not approve live trading, canary trading, or legacy shutdown. Future s
 
 | Metric | Value |
 | --- | ---: |
-| candidate trade observations | 65 |
-| completed observations | 44 |
+| candidate trade observations | 90 |
+| completed observations | 43 |
+| pending observations | 47 |
+| preserved completed outcomes | 2 |
 | allowed paper fills | 0 |
-| false blocks that later beat costs | 14 |
-| no-trade correct count | 30 |
-| after-cost correct count | 14 |
+| false blocks that later beat costs | 15 |
+| no-trade correct count | 28 |
+| after-cost correct count | 15 |
 | sample status | PRELIMINARY_SAMPLE |
 
-Post-lifecycle paper runtime remains fail-closed: `47` observed events since `2026-05-15T08:47:22Z`, `0` fills, `0` fees, paper PnL still `-49.15`.
+Current paper runtime remains non-live: realized PnL `-49.197409`, open positions `0`, live gate `blocked_human_only`, live symbols `[]`.
 
 ## False-Block Attribution
-
-| Dimension | Count |
-| --- | ---: |
-| expected move present, model review required | 9 |
-| expected move source unknown | 6 |
-| historical missing expected move | 5 |
-| native expected move model review | 3 |
 
 False-block reason counts:
 
 | Reason | Count |
 | --- | ---: |
-| confidence_below_canary_threshold | 5 |
-| deny_low_confidence | 1 |
-| expected_edge_below_costs | 4 |
-| missing_expected_move_after_costs | 4 |
-| paper_outcome_model_missing | 1 |
-| same_symbol_same_direction_cooldown | 3 |
+| confidence_below_canary_threshold | 6 |
+| deny_canary_profile_tightening | 5 |
+| deny_low_confidence | 2 |
+| expected_edge_below_costs | 3 |
 
-The actionable gap is not permission to loosen the gate. It is native expected-move model calibration and coverage. Some blocked shorts later had enough favorable excursion to beat estimated costs, but several had missing expected-move evidence at decision time. That means V2 should improve trainer/feature-side expected move coverage and calibration, not trade from hindsight.
+False blocks by expected-move source:
+
+| Source | Count |
+| --- | ---: |
+| missing | 2 |
+| native_trainer_expected_move_bps | 13 |
+
+The actionable gap is model calibration and expected-move coverage. Several blocked signals later had enough favorable excursion to beat estimated costs, but this is hindsight evidence. V2 must improve trainer/feature-side expected move estimates available at decision time; it must not trade from future outcome labels.
 
 ## Current Safe Behavior
 
@@ -51,8 +51,8 @@ The actionable gap is not permission to loosen the gate. It is native expected-m
 - Missing trainer source and feature freshness are enforced by the paper edge gate.
 - `live_gate=blocked_human_only`.
 - `live_symbols=[]`.
-- No old Redis write or exchange action was observed.
+- No old Redis write or exchange action was observed in the current evidence packet.
 
 ## Next Action
 
-Keep observing blocked intents across 5m/15m/30m/1h horizons. The next implementation task is model-side expected-move coverage/calibration from native trainer and feature evidence, with tests proving future outcomes cannot authorize fills.
+improve native expected_move_after_cost coverage and calibration from trainer/feature evidence without loosening the strict paper fill gate

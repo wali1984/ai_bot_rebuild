@@ -1,15 +1,15 @@
 # Codex Review - Expected Move After Cost False-Block Model Improvement
 
 Result: PASS_WITH_EDGE_PENDING
-Generated: `2026-05-15T09:10:40Z`
 
-Codex took over after the Claude run stalled with zero stdout/stderr and no materialized files.
+Generated: `2026-05-15T10:00:33Z`
 
 ## Findings
 
-- Shadow outcome evidence shows `14` blocked intents later beat estimated costs, with `44` completed observations and `65` candidate observations.
+- Shadow outcome evidence shows `15` blocked intents later beat estimated costs, with `43` completed observations and `90` candidate observations.
+- `2` completed outcomes were preserved after the rolling candle window moved on; this prevents evidence regression.
 - These are model-review signals only. They do not permit fills from hindsight and do not prove positive paper edge.
-- The strict paper fill gate remains active: post-lifecycle events since `2026-05-15T08:47:22Z` show `47` events, `0` fills, `0` fees, and paper PnL flat at `-49.15`.
+- Current paper PnL remains `-49.197409` and post-filter edge remains unproven.
 - The current V2 paper status keeps top-level `live_gate=blocked_human_only` and `live_symbols=[]`.
 
 ## Required Next Work

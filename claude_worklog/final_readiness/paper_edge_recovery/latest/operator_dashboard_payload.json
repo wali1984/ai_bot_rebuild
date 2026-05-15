@@ -1,29 +1,142 @@
 {
+  "allowed_paper_fill_count": 0,
   "approves_canary": false,
   "approves_legacy_shutdown": false,
   "approves_live": false,
   "current_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
   "edge_proven": false,
   "edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
-  "final_approval_token": "absent",
   "expected_move_after_cost_model_review": {
+    "after_cost_correct_count": 15,
+    "allowed_paper_fill_count": 0,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "candidate_trade_count": 90,
     "classification": "EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_READY_EDGE_PENDING",
-    "false_block_count": 14,
-    "false_block_reason_counts": {
-      "confidence_below_canary_threshold": 5,
-      "deny_low_confidence": 1,
-      "expected_edge_below_costs": 4,
-      "missing_expected_move_after_costs": 4,
-      "paper_outcome_model_missing": 1,
-      "same_symbol_same_direction_cooldown": 3
+    "completed_observations": 43,
+    "does_not_permit_fills_from_future_outcomes": true,
+    "edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
+    "false_block_by_expected_move_source": {
+      "missing": 2,
+      "native_trainer_expected_move_bps": 13
     },
-    "sample_status": "PRELIMINARY_SAMPLE"
+    "false_block_by_side": {
+      "long": 2,
+      "short": 13
+    },
+    "false_block_by_symbol": {
+      "BTCUSDT": 15
+    },
+    "false_block_classification": {
+      "expected_move_present_model_review": 15,
+      "expected_move_source_unknown": 2,
+      "historical_missing_expected_move": 0,
+      "native_expected_move_model_review": 13
+    },
+    "false_block_count": 15,
+    "false_block_examples": [
+      {
+        "block_reason": "deny_canary_profile_tightening",
+        "cost_bps": 6.0,
+        "event_ts": "2026-05-15T08:51:49Z",
+        "expected_move_after_cost_bps": 1.84297881,
+        "expected_move_bps": 7.84297881,
+        "expected_move_source": "native_trainer_expected_move_bps",
+        "max_favorable_excursion_bps": 25.91194656,
+        "observation_id": "shadow_pei_paper_tick_1778835109389",
+        "side": "short",
+        "symbol": "BTCUSDT"
+      },
+      {
+        "block_reason": [
+          "confidence_below_canary_threshold",
+          "expected_edge_below_costs"
+        ],
+        "cost_bps": 6.0,
+        "event_ts": "2026-05-15T08:54:01Z",
+        "expected_move_after_cost_bps": -0.47848683,
+        "expected_move_bps": 5.52151317,
+        "expected_move_source": "native_trainer_expected_move_bps",
+        "max_favorable_excursion_bps": 27.94603473,
+        "observation_id": "shadow_pei_paper_tick_1778835241298",
+        "side": "short",
+        "symbol": "BTCUSDT"
+      },
+      {
+        "block_reason": [
+          "confidence_below_canary_threshold"
+        ],
+        "cost_bps": 6.0,
+        "event_ts": "2026-05-15T08:56:13Z",
+        "expected_move_after_cost_bps": 4.59938237,
+        "expected_move_bps": 10.59938237,
+        "expected_move_source": "native_trainer_expected_move_bps",
+        "max_favorable_excursion_bps": 29.72847168,
+        "observation_id": "shadow_pei_paper_tick_1778835373227",
+        "side": "short",
+        "symbol": "BTCUSDT"
+      },
+      {
+        "block_reason": "deny_low_confidence",
+        "cost_bps": 6.0,
+        "event_ts": "2026-05-15T09:08:07Z",
+        "expected_move_after_cost_bps": 0.2422036,
+        "expected_move_bps": 6.2422036,
+        "expected_move_source": "",
+        "max_favorable_excursion_bps": 11.0381443,
+        "observation_id": "shadow_pei_paper_tick_1778836087634",
+        "side": "short",
+        "symbol": "BTCUSDT"
+      },
+      {
+        "block_reason": "deny_canary_profile_tightening",
+        "cost_bps": 6.0,
+        "event_ts": "2026-05-15T09:10:19Z",
+        "expected_move_after_cost_bps": 1.3032585,
+        "expected_move_bps": 7.3032585,
+        "expected_move_source": "native_trainer_expected_move_bps",
+        "max_favorable_excursion_bps": 17.15348897,
+        "observation_id": "shadow_pei_paper_tick_1778836219579",
+        "side": "short",
+        "symbol": "BTCUSDT"
+      }
+    ],
+    "false_block_reason_counts": {
+      "confidence_below_canary_threshold": 6,
+      "deny_canary_profile_tightening": 5,
+      "deny_low_confidence": 2,
+      "expected_edge_below_costs": 3
+    },
+    "generated_at": "2026-05-15T10:00:33Z",
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "no_trade_correct_count": 28,
+    "outcome_status": "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED",
+    "pending_observations": 47,
+    "post_lifecycle_runtime": {
+      "blocked": 47,
+      "closed_positions": 0,
+      "events": 47,
+      "fees_usdt": null,
+      "fills": 0,
+      "latest_paper_pnl_usdt": -49.197409,
+      "open_position_count": 0,
+      "pnl_delta_usdt": 0.0
+    },
+    "preserved_completed_outcome_count": 2,
+    "required_next_action": "improve native expected_move_after_cost coverage and calibration from trainer/feature evidence without loosening the strict paper fill gate",
+    "sample_status": "PRELIMINARY_SAMPLE",
+    "task_id": "claude_improve_expected_move_after_cost_coverage_from_shadow_false_blocks"
   },
-  "generated_at": "2026-05-15T09:10:40Z",
+  "false_block_count": 15,
+  "final_approval_token": "absent",
+  "generated_at": "2026-05-15T10:00:33Z",
   "go_no_go": "V2_PAPER_EDGE_RECOVERY_READY_NO_UNSAFE_FILLS_EDGE_PENDING",
   "live_gate": "blocked_human_only",
   "live_symbols": [],
   "next_automatic_action": "improve native expected_move_after_cost coverage/calibration from trainer and feature evidence; do not loosen the strict paper fill gate",
+  "no_trade_correct_count": 28,
   "paper_fill_boundary_status": "HARD_GATE_PLUS_POSITION_LIFECYCLE_IMPLEMENTED",
   "paper_pnl": {
     "current_cumulative_paper_pnl_usdt": -49.15,
@@ -32,13 +145,13 @@
     "post_lifecycle_fills": 0,
     "post_lifecycle_pnl_delta_usdt": 0.0
   },
+  "redis_trim_approval": "absent",
   "remaining_blockers": [
     "POST_FILTER_POSITIVE_EDGE_NOT_PROVEN_INSUFFICIENT_POST_LIFECYCLE_SAMPLE",
     "EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_REQUIRED_FROM_SHADOW_FALSE_BLOCKS",
     "TRAINER_PARITY_DERIVED_EVIDENCE_OPERATOR_DECISION_STILL_OPEN",
     "TRADE_PERMISSION_UNKNOWN_REMAINS_LIVE_CANARY_BLOCKER"
   ],
-  "redis_trim_approval": "absent",
   "source_status_path": "claude_worklog/final_readiness/paper_edge_recovery/latest/paper_edge_recovery_status.json",
   "task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
 }

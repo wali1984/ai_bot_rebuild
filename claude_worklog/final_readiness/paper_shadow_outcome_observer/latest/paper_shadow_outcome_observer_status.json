@@ -1,153 +1,143 @@
 {
-  "after_cost_correct_count": 21,
+  "after_cost_correct_count": 15,
   "allowed_paper_fill_count": 0,
   "approval_token_created": false,
   "approves_canary": false,
   "approves_legacy_shutdown": false,
   "approves_live": false,
-  "blocked_shadow_count": 41,
-  "candidate_trade_count": 41,
-  "completed_observations": 36,
+  "blocked_shadow_count": 90,
+  "candidate_trade_count": 90,
+  "completed_observations": 43,
   "edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
   "exchange_action_taken": false,
   "false_block_classification": {
-    "expected_move_present_model_review": 7,
-    "expected_move_source_unknown": 7,
-    "historical_missing_expected_move": 14,
-    "native_expected_move_model_review": 0
+    "expected_move_present_model_review": 15,
+    "expected_move_source_unknown": 2,
+    "historical_missing_expected_move": 0,
+    "native_expected_move_model_review": 13
   },
-  "false_block_count": 21,
+  "false_block_count": 15,
   "false_block_examples": [
     {
-      "block_reason": [
-        "confidence_below_canary_threshold",
-        "missing_expected_move_after_costs"
-      ],
+      "block_reason": "deny_canary_profile_tightening",
       "cost_bps": 6.0,
-      "event_ts": "2026-05-15T07:19:37Z",
-      "expected_move_after_cost_bps": null,
-      "expected_move_bps": null,
-      "expected_move_source": "",
-      "max_favorable_excursion_bps": 19.50980076,
-      "observation_id": "shadow_pei_paper_tick_1778829577458",
+      "event_ts": "2026-05-15T08:51:49Z",
+      "expected_move_after_cost_bps": 1.84297881,
+      "expected_move_bps": 7.84297881,
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "max_favorable_excursion_bps": 25.91194656,
+      "observation_id": "shadow_pei_paper_tick_1778835109389",
       "side": "short",
       "symbol": "BTCUSDT"
     },
     {
       "block_reason": [
         "confidence_below_canary_threshold",
-        "missing_expected_move_after_costs"
+        "expected_edge_below_costs"
       ],
       "cost_bps": 6.0,
-      "event_ts": "2026-05-15T07:20:10Z",
-      "expected_move_after_cost_bps": null,
-      "expected_move_bps": null,
-      "expected_move_source": "",
-      "max_favorable_excursion_bps": 20.96934906,
-      "observation_id": "shadow_pei_paper_tick_1778829610447",
+      "event_ts": "2026-05-15T08:54:01Z",
+      "expected_move_after_cost_bps": -0.47848683,
+      "expected_move_bps": 5.52151317,
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "max_favorable_excursion_bps": 27.94603473,
+      "observation_id": "shadow_pei_paper_tick_1778835241298",
       "side": "short",
       "symbol": "BTCUSDT"
     },
     {
       "block_reason": [
-        "missing_expected_move_after_costs"
+        "confidence_below_canary_threshold"
       ],
       "cost_bps": 6.0,
-      "event_ts": "2026-05-15T07:21:49Z",
-      "expected_move_after_cost_bps": null,
-      "expected_move_bps": null,
-      "expected_move_source": "",
-      "max_favorable_excursion_bps": 7.42831674,
-      "observation_id": "shadow_pei_paper_tick_1778829709459",
-      "side": "long",
+      "event_ts": "2026-05-15T08:56:13Z",
+      "expected_move_after_cost_bps": 4.59938237,
+      "expected_move_bps": 10.59938237,
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "max_favorable_excursion_bps": 29.72847168,
+      "observation_id": "shadow_pei_paper_tick_1778835373227",
+      "side": "short",
       "symbol": "BTCUSDT"
     },
     {
-      "block_reason": [
-        "missing_expected_move_after_costs"
-      ],
+      "block_reason": "deny_low_confidence",
       "cost_bps": 6.0,
-      "event_ts": "2026-05-15T07:22:22Z",
-      "expected_move_after_cost_bps": null,
-      "expected_move_bps": null,
+      "event_ts": "2026-05-15T09:08:07Z",
+      "expected_move_after_cost_bps": 0.2422036,
+      "expected_move_bps": 6.2422036,
       "expected_move_source": "",
-      "max_favorable_excursion_bps": 8.69110907,
-      "observation_id": "shadow_pei_paper_tick_1778829742419",
-      "side": "long",
+      "max_favorable_excursion_bps": 11.0381443,
+      "observation_id": "shadow_pei_paper_tick_1778836087634",
+      "side": "short",
       "symbol": "BTCUSDT"
     },
     {
-      "block_reason": [
-        "missing_expected_move_after_costs"
-      ],
+      "block_reason": "deny_canary_profile_tightening",
       "cost_bps": 6.0,
-      "event_ts": "2026-05-15T07:31:43Z",
-      "expected_move_after_cost_bps": null,
-      "expected_move_bps": null,
-      "expected_move_source": "",
-      "max_favorable_excursion_bps": 20.7439367,
-      "observation_id": "shadow_pei_paper_tick_1778830303184",
+      "event_ts": "2026-05-15T09:10:19Z",
+      "expected_move_after_cost_bps": 1.3032585,
+      "expected_move_bps": 7.3032585,
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "max_favorable_excursion_bps": 17.15348897,
+      "observation_id": "shadow_pei_paper_tick_1778836219579",
       "side": "short",
       "symbol": "BTCUSDT"
     }
   ],
-  "false_block_missing_expected_move_count": 14,
-  "false_block_native_expected_move_count": 0,
+  "false_block_missing_expected_move_count": 0,
+  "false_block_native_expected_move_count": 13,
   "false_block_reason_counts": {
     "confidence_below_canary_threshold": 6,
-    "deny_low_confidence": 1,
-    "expected_edge_below_costs": 4,
-    "missing_expected_move_after_costs": 13,
-    "same_symbol_same_direction_cooldown": 3
+    "deny_canary_profile_tightening": 5,
+    "deny_low_confidence": 2,
+    "expected_edge_below_costs": 3
   },
-  "false_block_unknown_expected_move_source_count": 7,
-  "false_block_with_expected_move_count": 7,
-  "generated_at": "2026-05-15T08:21:20Z",
+  "false_block_unknown_expected_move_source_count": 2,
+  "false_block_with_expected_move_count": 15,
+  "generated_at": "2026-05-15T09:59:41Z",
   "latest_observation": {
     "after_cost_correct": "PENDING_OUTCOME",
-    "block_reason": [
-      "same_symbol_same_direction_cooldown"
-    ],
+    "block_reason": "deny_canary_profile_tightening",
     "completed": false,
     "cost_bps": 6.0,
-    "entry_reference_price": 80600.0,
-    "event_id": "paper_tick_1778833260826",
-    "event_ts": "2026-05-15T08:21:00Z",
-    "expected_move_after_cost_bps": 3.00618004,
-    "expected_move_bps": 9.00618004,
+    "entry_reference_price": 80431.5,
+    "event_id": "paper_tick_1778839164924",
+    "event_ts": "2026-05-15T09:59:24Z",
+    "expected_move_after_cost_bps": 6.49525476,
+    "expected_move_bps": 12.49525476,
     "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
     "expected_move_source": "native_trainer_expected_move_bps",
-    "feature_snapshot_id": "fs_paper_tick_1778833260826",
+    "feature_snapshot_id": "fs_paper_tick_1778839164924",
     "fee_charged_usdt": 0.0,
     "fill_allowed": false,
     "horizons": {
       "horizon_15m": {
-        "deadline": "2026-05-15T08:36:00Z",
+        "deadline": "2026-05-15T10:14:24Z",
         "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
       },
       "horizon_1h": {
-        "deadline": "2026-05-15T09:21:00Z",
+        "deadline": "2026-05-15T10:59:24Z",
         "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
       },
       "horizon_30m": {
-        "deadline": "2026-05-15T08:51:00Z",
+        "deadline": "2026-05-15T10:29:24Z",
         "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
       },
       "horizon_5m": {
-        "deadline": "2026-05-15T08:26:00Z",
+        "deadline": "2026-05-15T10:04:24Z",
         "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
       }
     },
-    "intent_id": "pei_paper_tick_1778833260826",
+    "intent_id": "pei_paper_tick_1778839164924",
     "max_adverse_excursion_bps": null,
     "max_favorable_excursion_bps": null,
     "no_trade_correct": "PENDING_OUTCOME",
-    "observation_id": "shadow_pei_paper_tick_1778833260826",
+    "observation_id": "shadow_pei_paper_tick_1778839164924",
     "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
     "paper_fill_recorded": false,
-    "prediction_id": "pred_paper_tick_1778833260826",
-    "risk_decision_id": "risk_paper_tick_1778833260826",
-    "side": "short",
+    "prediction_id": "pred_paper_tick_1778839164924",
+    "risk_decision_id": "risk_paper_tick_1778839164924",
+    "side": "long",
     "symbol": "BTCUSDT",
     "would_have_beaten_costs": "PENDING_OUTCOME"
   },
@@ -156,7 +146,7 @@
   "live_gate": "blocked_human_only",
   "live_symbols": [],
   "minimum_sample_status": "PRELIMINARY_SAMPLE",
-  "no_trade_correct_count": 15,
+  "no_trade_correct_count": 28,
   "observations": [
     {
       "after_cost_correct": "MISSING_EVIDENCE",
@@ -198,12 +188,12 @@
       "symbol": "BTCUSDT"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "confidence_below_canary_threshold",
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80677.4,
       "event_id": "paper_tick_1778829577458",
@@ -222,14 +212,7 @@
         },
         "horizon_1h": {
           "deadline": "2026-05-15T08:19:37Z",
-          "max_adverse_excursion_bps": -20.45182418,
-          "max_favorable_excursion_bps": 19.50980076,
-          "realized_return_bps": 11.36625623,
-          "sample_count": 29,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_30m": {
           "deadline": "2026-05-15T07:49:37Z",
@@ -241,25 +224,25 @@
         }
       },
       "intent_id": "pei_paper_tick_1778829577458",
-      "max_adverse_excursion_bps": -20.45182418,
-      "max_favorable_excursion_bps": 19.50980076,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778829577458",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778829577458",
       "risk_decision_id": "risk_paper_tick_1778829577458",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "confidence_below_canary_threshold",
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80689.2,
       "event_id": "paper_tick_1778829610447",
@@ -278,14 +261,7 @@
         },
         "horizon_1h": {
           "deadline": "2026-05-15T08:20:10Z",
-          "max_adverse_excursion_bps": -18.98643189,
-          "max_favorable_excursion_bps": 20.96934906,
-          "realized_return_bps": 11.06715645,
-          "sample_count": 30,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_30m": {
           "deadline": "2026-05-15T07:50:10Z",
@@ -297,24 +273,24 @@
         }
       },
       "intent_id": "pei_paper_tick_1778829610447",
-      "max_adverse_excursion_bps": -18.98643189,
-      "max_favorable_excursion_bps": 20.96934906,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778829610447",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778829610447",
       "risk_decision_id": "risk_paper_tick_1778829610447",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80772.0,
       "event_id": "paper_tick_1778829709459",
@@ -337,14 +313,7 @@
         },
         "horizon_30m": {
           "deadline": "2026-05-15T07:51:49Z",
-          "max_adverse_excursion_bps": 0.0,
-          "max_favorable_excursion_bps": 7.42831674,
-          "realized_return_bps": 7.41593622,
-          "sample_count": 1,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:26:49Z",
@@ -352,24 +321,24 @@
         }
       },
       "intent_id": "pei_paper_tick_1778829709459",
-      "max_adverse_excursion_bps": 0.0,
-      "max_favorable_excursion_bps": 7.42831674,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778829709459",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778829709459",
       "risk_decision_id": "risk_paper_tick_1778829709459",
       "side": "long",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80772.2,
       "event_id": "paper_tick_1778829742419",
@@ -392,14 +361,7 @@
         },
         "horizon_30m": {
           "deadline": "2026-05-15T07:52:22Z",
-          "max_adverse_excursion_bps": 0.0,
-          "max_favorable_excursion_bps": 8.69110907,
-          "realized_return_bps": 7.1930689,
-          "sample_count": 2,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:27:22Z",
@@ -407,24 +369,24 @@
         }
       },
       "intent_id": "pei_paper_tick_1778829742419",
-      "max_adverse_excursion_bps": 0.0,
-      "max_favorable_excursion_bps": 8.69110907,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778829742419",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778829742419",
       "risk_decision_id": "risk_paper_tick_1778829742419",
       "side": "long",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": false,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80885.8,
       "event_id": "paper_tick_1778829841293",
@@ -447,14 +409,7 @@
         },
         "horizon_30m": {
           "deadline": "2026-05-15T07:54:01Z",
-          "max_adverse_excursion_bps": -11.83149576,
-          "max_favorable_excursion_bps": 0.0,
-          "realized_return_bps": -11.83149576,
-          "sample_count": 4,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:29:01Z",
@@ -462,24 +417,24 @@
         }
       },
       "intent_id": "pei_paper_tick_1778829841293",
-      "max_adverse_excursion_bps": -11.83149576,
-      "max_favorable_excursion_bps": 0.0,
-      "no_trade_correct": true,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778829841293",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778829841293",
       "risk_decision_id": "risk_paper_tick_1778829841293",
       "side": "long",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": false
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": false,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80865.6,
       "event_id": "paper_tick_1778829940257",
@@ -502,14 +457,7 @@
         },
         "horizon_30m": {
           "deadline": "2026-05-15T07:55:40Z",
-          "max_adverse_excursion_bps": -10.89462021,
-          "max_favorable_excursion_bps": 0.0,
-          "realized_return_bps": -6.87560594,
-          "sample_count": 5,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:30:40Z",
@@ -517,24 +465,24 @@
         }
       },
       "intent_id": "pei_paper_tick_1778829940257",
-      "max_adverse_excursion_bps": -10.89462021,
-      "max_favorable_excursion_bps": 0.0,
-      "no_trade_correct": true,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778829940257",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778829940257",
       "risk_decision_id": "risk_paper_tick_1778829940257",
       "side": "long",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": false
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": false,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80882.4,
       "event_id": "paper_tick_1778829973256",
@@ -557,14 +505,7 @@
         },
         "horizon_30m": {
           "deadline": "2026-05-15T07:56:13Z",
-          "max_adverse_excursion_bps": -12.969447,
-          "max_favorable_excursion_bps": 0.0,
-          "realized_return_bps": -10.41017576,
-          "sample_count": 6,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:31:13Z",
@@ -572,24 +513,24 @@
         }
       },
       "intent_id": "pei_paper_tick_1778829973256",
-      "max_adverse_excursion_bps": -12.969447,
-      "max_favorable_excursion_bps": 0.0,
-      "no_trade_correct": true,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778829973256",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778829973256",
       "risk_decision_id": "risk_paper_tick_1778829973256",
       "side": "long",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": false
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": false,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80949.4,
       "event_id": "paper_tick_1778830072150",
@@ -612,14 +553,7 @@
         },
         "horizon_30m": {
           "deadline": "2026-05-15T07:57:52Z",
-          "max_adverse_excursion_bps": -21.23548785,
-          "max_favorable_excursion_bps": 0.0,
-          "realized_return_bps": -19.8148473,
-          "sample_count": 7,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:32:52Z",
@@ -627,24 +561,24 @@
         }
       },
       "intent_id": "pei_paper_tick_1778830072150",
-      "max_adverse_excursion_bps": -21.23548785,
-      "max_favorable_excursion_bps": 0.0,
-      "no_trade_correct": true,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778830072150",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778830072150",
       "risk_decision_id": "risk_paper_tick_1778830072150",
       "side": "long",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": false
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": false,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80948.7,
       "event_id": "paper_tick_1778830105150",
@@ -667,14 +601,7 @@
         },
         "horizon_30m": {
           "deadline": "2026-05-15T07:58:25Z",
-          "max_adverse_excursion_bps": -21.14919696,
-          "max_favorable_excursion_bps": 0.0,
-          "realized_return_bps": -20.97624792,
-          "sample_count": 8,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:33:25Z",
@@ -682,25 +609,25 @@
         }
       },
       "intent_id": "pei_paper_tick_1778830105150",
-      "max_adverse_excursion_bps": -21.14919696,
-      "max_favorable_excursion_bps": 0.0,
-      "no_trade_correct": true,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778830105150",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778830105150",
       "risk_decision_id": "risk_paper_tick_1778830105150",
       "side": "long",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": false
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": false,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "confidence_below_canary_threshold",
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80865.7,
       "event_id": "paper_tick_1778830204175",
@@ -723,14 +650,7 @@
         },
         "horizon_30m": {
           "deadline": "2026-05-15T08:00:04Z",
-          "max_adverse_excursion_bps": -15.54429134,
-          "max_favorable_excursion_bps": 0.0,
-          "realized_return_bps": -15.54429134,
-          "sample_count": 10,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:35:04Z",
@@ -738,24 +658,24 @@
         }
       },
       "intent_id": "pei_paper_tick_1778830204175",
-      "max_adverse_excursion_bps": -15.54429134,
-      "max_favorable_excursion_bps": 0.0,
-      "no_trade_correct": true,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778830204175",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778830204175",
       "risk_decision_id": "risk_paper_tick_1778830204175",
       "side": "long",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": false
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80842.9,
       "event_id": "paper_tick_1778830303184",
@@ -778,14 +698,7 @@
         },
         "horizon_30m": {
           "deadline": "2026-05-15T08:01:43Z",
-          "max_adverse_excursion_bps": 0.0,
-          "max_favorable_excursion_bps": 20.7439367,
-          "realized_return_bps": 20.7439367,
-          "sample_count": 11,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:36:43Z",
@@ -793,24 +706,24 @@
         }
       },
       "intent_id": "pei_paper_tick_1778830303184",
-      "max_adverse_excursion_bps": 0.0,
-      "max_favorable_excursion_bps": 20.7439367,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778830303184",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778830303184",
       "risk_decision_id": "risk_paper_tick_1778830303184",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80787.2,
       "event_id": "paper_tick_1778830369094",
@@ -833,14 +746,7 @@
         },
         "horizon_30m": {
           "deadline": "2026-05-15T08:02:49Z",
-          "max_adverse_excursion_bps": -6.83276559,
-          "max_favorable_excursion_bps": 17.49039452,
-          "realized_return_bps": 16.28970926,
-          "sample_count": 12,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:37:49Z",
@@ -848,24 +754,24 @@
         }
       },
       "intent_id": "pei_paper_tick_1778830369094",
-      "max_adverse_excursion_bps": -6.83276559,
-      "max_favorable_excursion_bps": 17.49039452,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778830369094",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778830369094",
       "risk_decision_id": "risk_paper_tick_1778830369094",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80753.0,
       "event_id": "paper_tick_1778830435108",
@@ -888,14 +794,7 @@
         },
         "horizon_30m": {
           "deadline": "2026-05-15T08:03:55Z",
-          "max_adverse_excursion_bps": -11.07079613,
-          "max_favorable_excursion_bps": 13.26266516,
-          "realized_return_bps": 6.92234344,
-          "sample_count": 13,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:38:55Z",
@@ -903,25 +802,25 @@
         }
       },
       "intent_id": "pei_paper_tick_1778830435108",
-      "max_adverse_excursion_bps": -11.07079613,
-      "max_favorable_excursion_bps": 13.26266516,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778830435108",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778830435108",
       "risk_decision_id": "risk_paper_tick_1778830435108",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "confidence_below_canary_threshold",
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80772.0,
       "event_id": "paper_tick_1778830567031",
@@ -936,14 +835,7 @@
       "horizons": {
         "horizon_15m": {
           "deadline": "2026-05-15T07:51:07Z",
-          "max_adverse_excursion_bps": -7.42831674,
-          "max_favorable_excursion_bps": 0.0,
-          "realized_return_bps": -7.41593622,
-          "sample_count": 1,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_1h": {
           "deadline": "2026-05-15T08:36:07Z",
@@ -951,14 +843,7 @@
         },
         "horizon_30m": {
           "deadline": "2026-05-15T08:06:07Z",
-          "max_adverse_excursion_bps": -8.71589165,
-          "max_favorable_excursion_bps": 15.61184569,
-          "realized_return_bps": 11.99673154,
-          "sample_count": 16,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:41:07Z",
@@ -966,24 +851,24 @@
         }
       },
       "intent_id": "pei_paper_tick_1778830567031",
-      "max_adverse_excursion_bps": -8.71589165,
-      "max_favorable_excursion_bps": 15.61184569,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778830567031",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778830567031",
       "risk_decision_id": "risk_paper_tick_1778830567031",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": false,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80745.1,
       "event_id": "paper_tick_1778830666218",
@@ -998,14 +883,7 @@
       "horizons": {
         "horizon_15m": {
           "deadline": "2026-05-15T07:52:46Z",
-          "max_adverse_excursion_bps": -12.05026683,
-          "max_favorable_excursion_bps": 0.0,
-          "realized_return_bps": -10.55172388,
-          "sample_count": 2,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_1h": {
           "deadline": "2026-05-15T08:37:46Z",
@@ -1013,14 +891,7 @@
         },
         "horizon_30m": {
           "deadline": "2026-05-15T08:07:46Z",
-          "max_adverse_excursion_bps": -12.05026683,
-          "max_favorable_excursion_bps": 12.28557522,
-          "realized_return_bps": 5.58547825,
-          "sample_count": 17,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:42:46Z",
@@ -1028,24 +899,24 @@
         }
       },
       "intent_id": "pei_paper_tick_1778830666218",
-      "max_adverse_excursion_bps": -12.05026683,
-      "max_favorable_excursion_bps": 12.28557522,
-      "no_trade_correct": true,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778830666218",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778830666218",
       "risk_decision_id": "risk_paper_tick_1778830666218",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": false
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80755.2,
       "event_id": "paper_tick_1778830798111",
@@ -1060,14 +931,7 @@
       "horizons": {
         "horizon_15m": {
           "deadline": "2026-05-15T07:54:58Z",
-          "max_adverse_excursion_bps": -10.79806625,
-          "max_favorable_excursion_bps": 0.0,
-          "realized_return_bps": -4.32170312,
-          "sample_count": 4,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_1h": {
           "deadline": "2026-05-15T08:39:58Z",
@@ -1075,14 +939,7 @@
         },
         "horizon_30m": {
           "deadline": "2026-05-15T08:09:58Z",
-          "max_adverse_excursion_bps": -10.79806625,
-          "max_favorable_excursion_bps": 13.53473213,
-          "realized_return_bps": 10.15414487,
-          "sample_count": 19,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:44:58Z",
@@ -1090,24 +947,24 @@
         }
       },
       "intent_id": "pei_paper_tick_1778830798111",
-      "max_adverse_excursion_bps": -10.79806625,
-      "max_favorable_excursion_bps": 13.53473213,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778830798111",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778830798111",
       "risk_decision_id": "risk_paper_tick_1778830798111",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80719.9,
       "event_id": "paper_tick_1778830897398",
@@ -1122,14 +979,7 @@
       "horizons": {
         "horizon_15m": {
           "deadline": "2026-05-15T07:56:37Z",
-          "max_adverse_excursion_bps": -15.17593555,
-          "max_favorable_excursion_bps": 0.0,
-          "realized_return_bps": -9.70021023,
-          "sample_count": 6,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_1h": {
           "deadline": "2026-05-15T08:41:37Z",
@@ -1137,14 +987,7 @@
         },
         "horizon_30m": {
           "deadline": "2026-05-15T08:11:37Z",
-          "max_adverse_excursion_bps": -15.17593555,
-          "max_favorable_excursion_bps": 11.80625843,
-          "realized_return_bps": 11.13727842,
-          "sample_count": 21,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:46:37Z",
@@ -1152,22 +995,22 @@
         }
       },
       "intent_id": "pei_paper_tick_1778830897398",
-      "max_adverse_excursion_bps": -15.17593555,
-      "max_favorable_excursion_bps": 11.80625843,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778830897398",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778830897398",
       "risk_decision_id": "risk_paper_tick_1778830897398",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": false,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": "deny_low_confidence",
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80805.1,
       "event_id": "paper_tick_1778831029473",
@@ -1182,14 +1025,7 @@
       "horizons": {
         "horizon_15m": {
           "deadline": "2026-05-15T07:58:49Z",
-          "max_adverse_excursion_bps": -3.41562599,
-          "max_favorable_excursion_bps": 4.61604527,
-          "realized_return_bps": -3.2423696,
-          "sample_count": 8,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_1h": {
           "deadline": "2026-05-15T08:43:49Z",
@@ -1197,14 +1033,7 @@
         },
         "horizon_30m": {
           "deadline": "2026-05-15T08:13:49Z",
-          "max_adverse_excursion_bps": -22.33769898,
-          "max_favorable_excursion_bps": 4.61604527,
-          "realized_return_bps": -19.21908394,
-          "sample_count": 23,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:48:49Z",
@@ -1212,25 +1041,25 @@
         }
       },
       "intent_id": "pei_paper_tick_1778831029473",
-      "max_adverse_excursion_bps": -22.33769898,
-      "max_favorable_excursion_bps": 4.61604527,
-      "no_trade_correct": true,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778831029473",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778831029473",
       "risk_decision_id": "risk_paper_tick_1778831029473",
       "side": "long",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": false
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "confidence_below_canary_threshold",
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80765.1,
       "event_id": "paper_tick_1778831161559",
@@ -1245,14 +1074,7 @@
       "horizons": {
         "horizon_15m": {
           "deadline": "2026-05-15T08:01:01Z",
-          "max_adverse_excursion_bps": -9.57096568,
-          "max_favorable_excursion_bps": 11.13104546,
-          "realized_return_bps": 11.13104546,
-          "sample_count": 11,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_1h": {
           "deadline": "2026-05-15T08:46:01Z",
@@ -1260,39 +1082,25 @@
         },
         "horizon_30m": {
           "deadline": "2026-05-15T08:16:01Z",
-          "max_adverse_excursion_bps": -9.57096568,
-          "max_favorable_excursion_bps": 20.42961626,
-          "realized_return_bps": 19.1914577,
-          "sample_count": 26,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:51:01Z",
-          "max_adverse_excursion_bps": -8.28328077,
-          "max_favorable_excursion_bps": 0.0,
-          "realized_return_bps": -8.27089919,
-          "sample_count": 1,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         }
       },
       "intent_id": "pei_paper_tick_1778831161559",
-      "max_adverse_excursion_bps": -9.57096568,
-      "max_favorable_excursion_bps": 20.42961626,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778831161559",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778831161559",
       "risk_decision_id": "risk_paper_tick_1778831161559",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
       "after_cost_correct": "MISSING_EVIDENCE",
@@ -1334,11 +1142,11 @@
       "symbol": "BTCUSDT"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80748.8,
       "event_id": "paper_tick_1778831326615",
@@ -1353,14 +1161,7 @@
       "horizons": {
         "horizon_15m": {
           "deadline": "2026-05-15T08:03:46Z",
-          "max_adverse_excursion_bps": -11.59150353,
-          "max_favorable_excursion_bps": 12.74322343,
-          "realized_return_bps": 6.40257193,
-          "sample_count": 13,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_1h": {
           "deadline": "2026-05-15T08:48:46Z",
@@ -1368,47 +1169,33 @@
         },
         "horizon_30m": {
           "deadline": "2026-05-15T08:18:46Z",
-          "max_adverse_excursion_bps": -11.59150353,
-          "max_favorable_excursion_bps": 28.3347864,
-          "realized_return_bps": 16.89189189,
-          "sample_count": 28,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:53:46Z",
-          "max_adverse_excursion_bps": -11.59150353,
-          "max_favorable_excursion_bps": 0.0,
-          "realized_return_bps": -6.73694222,
-          "sample_count": 3,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         }
       },
       "intent_id": "pei_paper_tick_1778831326615",
-      "max_adverse_excursion_bps": -11.59150353,
-      "max_favorable_excursion_bps": 28.3347864,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778831326615",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778831326615",
       "risk_decision_id": "risk_paper_tick_1778831326615",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": false,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "confidence_below_canary_threshold",
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80800.1,
       "event_id": "paper_tick_1778831392617",
@@ -1423,14 +1210,7 @@
       "horizons": {
         "horizon_15m": {
           "deadline": "2026-05-15T08:04:52Z",
-          "max_adverse_excursion_bps": -19.0841348,
-          "max_favorable_excursion_bps": 5.23514204,
-          "realized_return_bps": -17.35146367,
-          "sample_count": 14,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_1h": {
           "deadline": "2026-05-15T08:49:52Z",
@@ -1438,46 +1218,32 @@
         },
         "horizon_30m": {
           "deadline": "2026-05-15T08:19:52Z",
-          "max_adverse_excursion_bps": -34.66579868,
-          "max_favorable_excursion_bps": 5.23514204,
-          "realized_return_bps": -26.53462063,
-          "sample_count": 29,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:54:52Z",
-          "max_adverse_excursion_bps": -1.23762223,
-          "max_favorable_excursion_bps": 5.23514204,
-          "realized_return_bps": -1.23762223,
-          "sample_count": 4,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         }
       },
       "intent_id": "pei_paper_tick_1778831392617",
-      "max_adverse_excursion_bps": -34.66579868,
-      "max_favorable_excursion_bps": 5.23514204,
-      "no_trade_correct": true,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778831392617",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778831392617",
       "risk_decision_id": "risk_paper_tick_1778831392617",
       "side": "long",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": false
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": false,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80820.0,
       "event_id": "paper_tick_1778831524702",
@@ -1492,14 +1258,7 @@
       "horizons": {
         "horizon_15m": {
           "deadline": "2026-05-15T08:07:04Z",
-          "max_adverse_excursion_bps": -21.5416976,
-          "max_favorable_excursion_bps": 2.30141054,
-          "realized_return_bps": -14.84780995,
-          "sample_count": 15,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_1h": {
           "deadline": "2026-05-15T08:52:04Z",
@@ -1511,35 +1270,28 @@
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:57:04Z",
-          "max_adverse_excursion_bps": -5.25859936,
-          "max_favorable_excursion_bps": 2.30141054,
-          "realized_return_bps": -3.83568424,
-          "sample_count": 5,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         }
       },
       "intent_id": "pei_paper_tick_1778831524702",
-      "max_adverse_excursion_bps": -21.5416976,
-      "max_favorable_excursion_bps": 2.30141054,
-      "no_trade_correct": true,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778831524702",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778831524702",
       "risk_decision_id": "risk_paper_tick_1778831524702",
       "side": "long",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": false
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": false,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80834.6,
       "event_id": "paper_tick_1778831623745",
@@ -1554,14 +1306,7 @@
       "horizons": {
         "horizon_15m": {
           "deadline": "2026-05-15T08:08:43Z",
-          "max_adverse_excursion_bps": -23.34396409,
-          "max_favorable_excursion_bps": 0.0,
-          "realized_return_bps": -21.20379145,
-          "sample_count": 15,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_1h": {
           "deadline": "2026-05-15T08:53:43Z",
@@ -1573,36 +1318,29 @@
         },
         "horizon_5m": {
           "deadline": "2026-05-15T07:58:43Z",
-          "max_adverse_excursion_bps": -7.06380684,
-          "max_favorable_excursion_bps": 0.0,
-          "realized_return_bps": -6.89061367,
-          "sample_count": 5,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         }
       },
       "intent_id": "pei_paper_tick_1778831623745",
-      "max_adverse_excursion_bps": -23.34396409,
-      "max_favorable_excursion_bps": 0.0,
-      "no_trade_correct": true,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778831623745",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778831623745",
       "risk_decision_id": "risk_paper_tick_1778831623745",
       "side": "long",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": false
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": false,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "confidence_below_canary_threshold",
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80809.9,
       "event_id": "paper_tick_1778831755676",
@@ -1617,14 +1355,7 @@
       "horizons": {
         "horizon_15m": {
           "deadline": "2026-05-15T08:10:55Z",
-          "max_adverse_excursion_bps": -20.52966283,
-          "max_favorable_excursion_bps": 2.487319,
-          "realized_return_bps": -20.5172881,
-          "sample_count": 15,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_1h": {
           "deadline": "2026-05-15T08:55:55Z",
@@ -1636,36 +1367,29 @@
         },
         "horizon_5m": {
           "deadline": "2026-05-15T08:00:55Z",
-          "max_adverse_excursion_bps": -8.64993027,
-          "max_favorable_excursion_bps": 2.487319,
-          "realized_return_bps": -8.64993027,
-          "sample_count": 5,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         }
       },
       "intent_id": "pei_paper_tick_1778831755676",
-      "max_adverse_excursion_bps": -20.52966283,
-      "max_favorable_excursion_bps": 2.487319,
-      "no_trade_correct": true,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778831755676",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778831755676",
       "risk_decision_id": "risk_paper_tick_1778831755676",
       "side": "long",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": false
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "confidence_below_canary_threshold",
         "missing_expected_move_after_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80789.0,
       "event_id": "paper_tick_1778831887540",
@@ -1680,14 +1404,7 @@
       "horizons": {
         "horizon_15m": {
           "deadline": "2026-05-15T08:13:07Z",
-          "max_adverse_excursion_bps": -0.49511691,
-          "max_favorable_excursion_bps": 20.34930498,
-          "realized_return_bps": 17.23006845,
-          "sample_count": 15,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_1h": {
           "deadline": "2026-05-15T08:58:07Z",
@@ -1699,33 +1416,26 @@
         },
         "horizon_5m": {
           "deadline": "2026-05-15T08:03:07Z",
-          "max_adverse_excursion_bps": -0.49511691,
-          "max_favorable_excursion_bps": 17.71280744,
-          "realized_return_bps": 11.375311,
-          "sample_count": 5,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         }
       },
       "intent_id": "pei_paper_tick_1778831887540",
-      "max_adverse_excursion_bps": -0.49511691,
-      "max_favorable_excursion_bps": 20.34930498,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778831887540",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778831887540",
       "risk_decision_id": "risk_paper_tick_1778831887540",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": "deny_low_confidence",
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80782.8,
       "event_id": "paper_tick_1778831986485",
@@ -1740,14 +1450,7 @@
       "horizons": {
         "horizon_15m": {
           "deadline": "2026-05-15T08:14:46Z",
-          "max_adverse_excursion_bps": -1.26264502,
-          "max_favorable_excursion_bps": 19.58337666,
-          "realized_return_bps": 10.95530237,
-          "sample_count": 15,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_1h": {
           "deadline": "2026-05-15T08:59:46Z",
@@ -1759,35 +1462,28 @@
         },
         "horizon_5m": {
           "deadline": "2026-05-15T08:04:46Z",
-          "max_adverse_excursion_bps": -1.26264502,
-          "max_favorable_excursion_bps": 16.94667677,
-          "realized_return_bps": 15.21363459,
-          "sample_count": 5,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         }
       },
       "intent_id": "pei_paper_tick_1778831986485",
-      "max_adverse_excursion_bps": -1.26264502,
-      "max_favorable_excursion_bps": 19.58337666,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778831986485",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778831986485",
       "risk_decision_id": "risk_paper_tick_1778831986485",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "expected_edge_below_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80726.9,
       "event_id": "paper_tick_1778832078281",
@@ -1802,14 +1498,7 @@
       "horizons": {
         "horizon_15m": {
           "deadline": "2026-05-15T08:16:18Z",
-          "max_adverse_excursion_bps": 0.0,
-          "max_favorable_excursion_bps": 15.70727973,
-          "realized_return_bps": 14.46853527,
-          "sample_count": 15,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_1h": {
           "deadline": "2026-05-15T09:01:18Z",
@@ -1821,35 +1510,28 @@
         },
         "horizon_5m": {
           "deadline": "2026-05-15T08:06:18Z",
-          "max_adverse_excursion_bps": 0.0,
-          "max_favorable_excursion_bps": 10.03383011,
-          "realized_return_bps": 6.41669629,
-          "sample_count": 5,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         }
       },
       "intent_id": "pei_paper_tick_1778832078281",
-      "max_adverse_excursion_bps": 0.0,
-      "max_favorable_excursion_bps": 15.70727973,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778832078281",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778832078281",
       "risk_decision_id": "risk_paper_tick_1778832078281",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "expected_edge_below_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80702.2,
       "event_id": "paper_tick_1778832119523",
@@ -1864,14 +1546,7 @@
       "horizons": {
         "horizon_15m": {
           "deadline": "2026-05-15T08:16:59Z",
-          "max_adverse_excursion_bps": -0.9665164,
-          "max_favorable_excursion_bps": 12.65145188,
-          "realized_return_bps": 11.41232829,
-          "sample_count": 15,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_1h": {
           "deadline": "2026-05-15T09:01:59Z",
@@ -1883,35 +1558,28 @@
         },
         "horizon_5m": {
           "deadline": "2026-05-15T08:06:59Z",
-          "max_adverse_excursion_bps": -0.73108292,
-          "max_favorable_excursion_bps": 6.97626583,
-          "realized_return_bps": 3.35802494,
-          "sample_count": 5,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         }
       },
       "intent_id": "pei_paper_tick_1778832119523",
-      "max_adverse_excursion_bps": -0.9665164,
-      "max_favorable_excursion_bps": 12.65145188,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778832119523",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778832119523",
       "risk_decision_id": "risk_paper_tick_1778832119523",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "expected_edge_below_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80660.1,
       "event_id": "paper_tick_1778832152506",
@@ -1926,14 +1594,7 @@
       "horizons": {
         "horizon_15m": {
           "deadline": "2026-05-15T08:17:32Z",
-          "max_adverse_excursion_bps": -6.18645402,
-          "max_favorable_excursion_bps": 17.36918253,
-          "realized_return_bps": 12.76963455,
-          "sample_count": 15,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_1h": {
           "deadline": "2026-05-15T09:02:32Z",
@@ -1945,35 +1606,28 @@
         },
         "horizon_5m": {
           "deadline": "2026-05-15T08:07:32Z",
-          "max_adverse_excursion_bps": -5.95089766,
-          "max_favorable_excursion_bps": 1.53731523,
-          "realized_return_bps": -4.94668368,
-          "sample_count": 5,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         }
       },
       "intent_id": "pei_paper_tick_1778832152506",
-      "max_adverse_excursion_bps": -6.18645402,
-      "max_favorable_excursion_bps": 17.36918253,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778832152506",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778832152506",
       "risk_decision_id": "risk_paper_tick_1778832152506",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "same_symbol_same_direction_cooldown"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80681.3,
       "event_id": "paper_tick_1778832251487",
@@ -1988,14 +1642,7 @@
       "horizons": {
         "horizon_15m": {
           "deadline": "2026-05-15T08:19:11Z",
-          "max_adverse_excursion_bps": -3.55720594,
-          "max_favorable_excursion_bps": 19.99224108,
-          "realized_return_bps": 11.84909019,
-          "sample_count": 15,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_1h": {
           "deadline": "2026-05-15T09:04:11Z",
@@ -2007,35 +1654,28 @@
         },
         "horizon_5m": {
           "deadline": "2026-05-15T08:09:11Z",
-          "max_adverse_excursion_bps": -3.55720594,
-          "max_favorable_excursion_bps": 3.87946154,
-          "realized_return_bps": 1.00395011,
-          "sample_count": 5,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         }
       },
       "intent_id": "pei_paper_tick_1778832251487",
-      "max_adverse_excursion_bps": -3.55720594,
-      "max_favorable_excursion_bps": 19.99224108,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778832251487",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778832251487",
       "risk_decision_id": "risk_paper_tick_1778832251487",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "same_symbol_same_direction_cooldown"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80680.0,
       "event_id": "paper_tick_1778832350492",
@@ -2050,14 +1690,7 @@
       "horizons": {
         "horizon_15m": {
           "deadline": "2026-05-15T08:20:50Z",
-          "max_adverse_excursion_bps": -3.71839365,
-          "max_favorable_excursion_bps": 19.83143282,
-          "realized_return_bps": 9.92811106,
-          "sample_count": 15,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         },
         "horizon_1h": {
           "deadline": "2026-05-15T09:05:50Z",
@@ -2069,36 +1702,29 @@
         },
         "horizon_5m": {
           "deadline": "2026-05-15T08:10:50Z",
-          "max_adverse_excursion_bps": -3.71839365,
-          "max_favorable_excursion_bps": 4.46207238,
-          "realized_return_bps": 4.44967774,
-          "sample_count": 5,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         }
       },
       "intent_id": "pei_paper_tick_1778832350492",
-      "max_adverse_excursion_bps": -3.71839365,
-      "max_favorable_excursion_bps": 19.83143282,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778832350492",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778832350492",
       "risk_decision_id": "risk_paper_tick_1778832350492",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "confidence_below_canary_threshold",
         "same_symbol_same_direction_cooldown"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80700.0,
       "event_id": "paper_tick_1778832482410",
@@ -2125,36 +1751,29 @@
         },
         "horizon_5m": {
           "deadline": "2026-05-15T08:13:02Z",
-          "max_adverse_excursion_bps": 0.0,
-          "max_favorable_excursion_bps": 9.34324659,
-          "realized_return_bps": 6.22057001,
-          "sample_count": 5,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         }
       },
       "intent_id": "pei_paper_tick_1778832482410",
-      "max_adverse_excursion_bps": 0.0,
-      "max_favorable_excursion_bps": 9.34324659,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778832482410",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778832482410",
       "risk_decision_id": "risk_paper_tick_1778832482410",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": false,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "confidence_below_canary_threshold",
         "expected_edge_below_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80668.7,
       "event_id": "paper_tick_1778832581397",
@@ -2181,35 +1800,28 @@
         },
         "horizon_5m": {
           "deadline": "2026-05-15T08:14:41Z",
-          "max_adverse_excursion_bps": -3.17347373,
-          "max_favorable_excursion_bps": 5.46680435,
-          "realized_return_bps": -3.17347373,
-          "sample_count": 5,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": false
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         }
       },
       "intent_id": "pei_paper_tick_1778832581397",
-      "max_adverse_excursion_bps": -3.17347373,
-      "max_favorable_excursion_bps": 5.46680435,
-      "no_trade_correct": true,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778832581397",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778832581397",
       "risk_decision_id": "risk_paper_tick_1778832581397",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": false
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": true,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "expected_edge_below_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80636.0,
       "event_id": "paper_tick_1778832732863",
@@ -2236,35 +1848,28 @@
         },
         "horizon_5m": {
           "deadline": "2026-05-15T08:17:12Z",
-          "max_adverse_excursion_bps": -7.23002133,
-          "max_favorable_excursion_bps": 14.38563421,
-          "realized_return_bps": 9.78471154,
-          "sample_count": 5,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": true,
-          "would_have_hit_stop": true,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         }
       },
       "intent_id": "pei_paper_tick_1778832732863",
-      "max_adverse_excursion_bps": -7.23002133,
-      "max_favorable_excursion_bps": 14.38563421,
-      "no_trade_correct": false,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778832732863",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778832732863",
       "risk_decision_id": "risk_paper_tick_1778832732863",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": true
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": false,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "expected_edge_below_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80646.2,
       "event_id": "paper_tick_1778832831721",
@@ -2291,36 +1896,29 @@
         },
         "horizon_5m": {
           "deadline": "2026-05-15T08:18:51Z",
-          "max_adverse_excursion_bps": -5.96432318,
-          "max_favorable_excursion_bps": 15.64859845,
-          "realized_return_bps": 4.19114602,
-          "sample_count": 5,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         }
       },
       "intent_id": "pei_paper_tick_1778832831721",
-      "max_adverse_excursion_bps": -5.96432318,
-      "max_favorable_excursion_bps": 15.64859845,
-      "no_trade_correct": true,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778832831721",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778832831721",
       "risk_decision_id": "risk_paper_tick_1778832831721",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": false
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
-      "after_cost_correct": false,
+      "after_cost_correct": "PENDING_OUTCOME",
       "block_reason": [
         "confidence_below_canary_threshold",
         "expected_edge_below_costs"
       ],
-      "completed": true,
+      "completed": false,
       "cost_bps": 6.0,
       "entry_reference_price": 80638.8,
       "event_id": "paper_tick_1778832963685",
@@ -2347,28 +1945,21 @@
         },
         "horizon_5m": {
           "deadline": "2026-05-15T08:21:03Z",
-          "max_adverse_excursion_bps": 0.0,
-          "max_favorable_excursion_bps": 14.73236209,
-          "realized_return_bps": 4.82398052,
-          "sample_count": 4,
-          "status": "COMPLETED",
-          "would_have_beaten_costs": false,
-          "would_have_hit_stop": false,
-          "would_have_hit_take_profit": true
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
         }
       },
       "intent_id": "pei_paper_tick_1778832963685",
-      "max_adverse_excursion_bps": 0.0,
-      "max_favorable_excursion_bps": 14.73236209,
-      "no_trade_correct": true,
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
       "observation_id": "shadow_pei_paper_tick_1778832963685",
-      "outcome_status": "COMPLETED",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
       "paper_fill_recorded": false,
       "prediction_id": "pred_paper_tick_1778832963685",
       "risk_decision_id": "risk_paper_tick_1778832963685",
       "side": "short",
       "symbol": "BTCUSDT",
-      "would_have_beaten_costs": false
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     },
     {
       "after_cost_correct": "PENDING_OUTCOME",
@@ -2511,12 +2102,2743 @@
       "side": "short",
       "symbol": "BTCUSDT",
       "would_have_beaten_costs": "PENDING_OUTCOME"
+    },
+    {
+      "after_cost_correct": "PENDING_OUTCOME",
+      "block_reason": [
+        "same_symbol_same_direction_cooldown"
+      ],
+      "completed": false,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80581.5,
+      "event_id": "paper_tick_1778833396916",
+      "event_ts": "2026-05-15T08:23:16Z",
+      "expected_move_after_cost_bps": 1.14109894,
+      "expected_move_bps": 7.14109894,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778833396916",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T08:38:16Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T09:23:16Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T08:53:16Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T08:28:16Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778833396916",
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
+      "observation_id": "shadow_pei_paper_tick_1778833396916",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778833396916",
+      "risk_decision_id": "risk_paper_tick_1778833396916",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": "PENDING_OUTCOME"
+    },
+    {
+      "after_cost_correct": "PENDING_OUTCOME",
+      "block_reason": [
+        "confidence_below_canary_threshold"
+      ],
+      "completed": false,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80601.1,
+      "event_id": "paper_tick_1778833528717",
+      "event_ts": "2026-05-15T08:25:28Z",
+      "expected_move_after_cost_bps": 2.17467325,
+      "expected_move_bps": 8.17467325,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778833528717",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T08:40:28Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T09:25:28Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T08:55:28Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T08:30:28Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778833528717",
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
+      "observation_id": "shadow_pei_paper_tick_1778833528717",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778833528717",
+      "risk_decision_id": "risk_paper_tick_1778833528717",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": "PENDING_OUTCOME"
+    },
+    {
+      "after_cost_correct": "PENDING_OUTCOME",
+      "block_reason": [
+        "confidence_below_canary_threshold"
+      ],
+      "completed": false,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80567.5,
+      "event_id": "paper_tick_1778833660517",
+      "event_ts": "2026-05-15T08:27:40Z",
+      "expected_move_after_cost_bps": 1.02746764,
+      "expected_move_bps": 7.02746764,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778833660517",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T08:42:40Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T09:27:40Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T08:57:40Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T08:32:40Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778833660517",
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
+      "observation_id": "shadow_pei_paper_tick_1778833660517",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778833660517",
+      "risk_decision_id": "risk_paper_tick_1778833660517",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": "PENDING_OUTCOME"
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": "deny_canary_profile_tightening",
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80480.1,
+      "event_id": "paper_tick_1778833792317",
+      "event_ts": "2026-05-15T08:29:52Z",
+      "expected_move_after_cost_bps": 4.55195249,
+      "expected_move_bps": 10.55195249,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778833792317",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T08:44:52Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T09:29:52Z",
+          "max_adverse_excursion_bps": -8.44929368,
+          "max_favorable_excursion_bps": 0.0,
+          "realized_return_bps": -6.8588384,
+          "sample_count": 1,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T08:59:52Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T08:34:52Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778833792317",
+      "max_adverse_excursion_bps": -8.44929368,
+      "max_favorable_excursion_bps": 0.0,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778833792317",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778833792317",
+      "preserved_completed_outcome": true,
+      "risk_decision_id": "risk_paper_tick_1778833792317",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": [
+        "same_symbol_same_direction_cooldown"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80441.8,
+      "event_id": "paper_tick_1778833924242",
+      "event_ts": "2026-05-15T08:32:04Z",
+      "expected_move_after_cost_bps": 10.34294114,
+      "expected_move_bps": 16.34294114,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778833924242",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T08:47:04Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T09:32:04Z",
+          "max_adverse_excursion_bps": -15.5516162,
+          "max_favorable_excursion_bps": 0.0,
+          "realized_return_bps": -15.53918485,
+          "sample_count": 3,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:02:04Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T08:37:04Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778833924242",
+      "max_adverse_excursion_bps": -15.5516162,
+      "max_favorable_excursion_bps": 0.0,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778833924242",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778833924242",
+      "risk_decision_id": "risk_paper_tick_1778833924242",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": "deny_low_confidence",
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80519.9,
+      "event_id": "paper_tick_1778834045341",
+      "event_ts": "2026-05-15T08:34:05Z",
+      "expected_move_after_cost_bps": 15.27351924,
+      "expected_move_bps": 21.27351924,
+      "expected_move_coverage_status": "",
+      "expected_move_source": "",
+      "feature_snapshot_id": "fs_paper_tick_1778834045341",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T08:49:05Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T09:34:05Z",
+          "max_adverse_excursion_bps": -10.9538139,
+          "max_favorable_excursion_bps": 1.75111991,
+          "realized_return_bps": -7.47641266,
+          "sample_count": 5,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:04:05Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T08:39:05Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778834045341",
+      "max_adverse_excursion_bps": -10.9538139,
+      "max_favorable_excursion_bps": 1.75111991,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778834045341",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778834045341",
+      "risk_decision_id": "risk_paper_tick_1778834045341",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": [
+        "paper_outcome_model_missing"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80583.2,
+      "event_id": "paper_tick_1778834144347",
+      "event_ts": "2026-05-15T08:35:44Z",
+      "expected_move_after_cost_bps": 19.42130442,
+      "expected_move_bps": 25.42130442,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778834144347",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T08:50:44Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T09:35:44Z",
+          "max_adverse_excursion_bps": -9.6049797,
+          "max_favorable_excursion_bps": 3.08997409,
+          "realized_return_bps": -3.05274549,
+          "sample_count": 6,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:05:44Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T08:40:44Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778834144347",
+      "max_adverse_excursion_bps": -9.6049797,
+      "max_favorable_excursion_bps": 3.08997409,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778834144347",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778834144347",
+      "risk_decision_id": "risk_paper_tick_1778834144347",
+      "side": "long",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": [
+        "paper_outcome_model_missing"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80617.7,
+      "event_id": "paper_tick_1778834276205",
+      "event_ts": "2026-05-15T08:37:56Z",
+      "expected_move_after_cost_bps": 8.27338139,
+      "expected_move_bps": 14.27338139,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778834276205",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T08:52:56Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T09:37:56Z",
+          "max_adverse_excursion_bps": -14.59977151,
+          "max_favorable_excursion_bps": 0.0,
+          "realized_return_bps": -14.58736729,
+          "sample_count": 8,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:07:56Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T08:42:56Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778834276205",
+      "max_adverse_excursion_bps": -14.59977151,
+      "max_favorable_excursion_bps": 0.0,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778834276205",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778834276205",
+      "risk_decision_id": "risk_paper_tick_1778834276205",
+      "side": "long",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": [
+        "confidence_below_canary_threshold",
+        "paper_outcome_model_missing"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80595.8,
+      "event_id": "paper_tick_1778834408050",
+      "event_ts": "2026-05-15T08:40:08Z",
+      "expected_move_after_cost_bps": 4.05840051,
+      "expected_move_bps": 10.05840051,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778834408050",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T08:55:08Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T09:40:08Z",
+          "max_adverse_excursion_bps": -20.7579055,
+          "max_favorable_excursion_bps": 1.52613412,
+          "realized_return_bps": -20.7579055,
+          "sample_count": 11,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:10:08Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T08:45:08Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778834408050",
+      "max_adverse_excursion_bps": -20.7579055,
+      "max_favorable_excursion_bps": 1.52613412,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778834408050",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778834408050",
+      "risk_decision_id": "risk_paper_tick_1778834408050",
+      "side": "long",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": [
+        "paper_outcome_model_missing"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80629.3,
+      "event_id": "paper_tick_1778834506914",
+      "event_ts": "2026-05-15T08:41:46Z",
+      "expected_move_after_cost_bps": 0.75312582,
+      "expected_move_bps": 6.75312582,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778834506914",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T08:56:46Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T09:41:46Z",
+          "max_adverse_excursion_bps": -28.43879334,
+          "max_favorable_excursion_bps": 0.0,
+          "realized_return_bps": -24.58163472,
+          "sample_count": 12,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:11:46Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T08:46:46Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778834506914",
+      "max_adverse_excursion_bps": -28.43879334,
+      "max_favorable_excursion_bps": 0.0,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778834506914",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778834506914",
+      "risk_decision_id": "risk_paper_tick_1778834506914",
+      "side": "long",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": [
+        "paper_outcome_model_missing"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80678.0,
+      "event_id": "paper_tick_1778834638906",
+      "event_ts": "2026-05-15T08:43:58Z",
+      "expected_move_after_cost_bps": 2.21443018,
+      "expected_move_bps": 8.21443018,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778834638906",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T08:58:58Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T09:43:58Z",
+          "max_adverse_excursion_bps": -34.45796872,
+          "max_favorable_excursion_bps": 0.0,
+          "realized_return_bps": -33.45397754,
+          "sample_count": 14,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:13:58Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T08:48:58Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778834638906",
+      "max_adverse_excursion_bps": -34.45796872,
+      "max_favorable_excursion_bps": 0.0,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778834638906",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778834638906",
+      "risk_decision_id": "risk_paper_tick_1778834638906",
+      "side": "long",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": [
+        "confidence_below_canary_threshold",
+        "paper_outcome_model_missing"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80604.5,
+      "event_id": "paper_tick_1778834770983",
+      "event_ts": "2026-05-15T08:46:10Z",
+      "expected_move_after_cost_bps": 2.89468687,
+      "expected_move_bps": 8.89468687,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778834770983",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:01:10Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T09:46:10Z",
+          "max_adverse_excursion_bps": -30.29607528,
+          "max_favorable_excursion_bps": 0.44662519,
+          "realized_return_bps": -26.83473007,
+          "sample_count": 17,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:16:10Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T08:51:10Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778834770983",
+      "max_adverse_excursion_bps": -30.29607528,
+      "max_favorable_excursion_bps": 0.44662519,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778834770983",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778834770983",
+      "risk_decision_id": "risk_paper_tick_1778834770983",
+      "side": "long",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": "deny_low_confidence",
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80600.1,
+      "event_id": "paper_tick_1778834878547",
+      "event_ts": "2026-05-15T08:47:58Z",
+      "expected_move_after_cost_bps": 0.26973465,
+      "expected_move_bps": 6.26973465,
+      "expected_move_coverage_status": "",
+      "expected_move_source": "",
+      "feature_snapshot_id": "fs_paper_tick_1778834878547",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:02:58Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T09:47:58Z",
+          "max_adverse_excursion_bps": -29.75182413,
+          "max_favorable_excursion_bps": 0.9925546,
+          "realized_return_bps": -25.58309481,
+          "sample_count": 18,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:17:58Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T08:52:58Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778834878547",
+      "max_adverse_excursion_bps": -29.75182413,
+      "max_favorable_excursion_bps": 0.9925546,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778834878547",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778834878547",
+      "risk_decision_id": "risk_paper_tick_1778834878547",
+      "side": "long",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": [
+        "confidence_below_canary_threshold"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80607.8,
+      "event_id": "paper_tick_1778835010456",
+      "event_ts": "2026-05-15T08:50:10Z",
+      "expected_move_after_cost_bps": 2.15996022,
+      "expected_move_bps": 8.15996022,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778835010456",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:05:10Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T09:50:10Z",
+          "max_adverse_excursion_bps": -33.59476378,
+          "max_favorable_excursion_bps": 0.03721724,
+          "realized_return_bps": -33.22259136,
+          "sample_count": 21,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:20:10Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T08:55:10Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778835010456",
+      "max_adverse_excursion_bps": -33.59476378,
+      "max_favorable_excursion_bps": 0.03721724,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778835010456",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778835010456",
+      "risk_decision_id": "risk_paper_tick_1778835010456",
+      "side": "long",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": true,
+      "block_reason": "deny_canary_profile_tightening",
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80542.0,
+      "event_id": "paper_tick_1778835109389",
+      "event_ts": "2026-05-15T08:51:49Z",
+      "expected_move_after_cost_bps": 1.84297881,
+      "expected_move_bps": 7.84297881,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778835109389",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:06:49Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T09:51:49Z",
+          "max_adverse_excursion_bps": -8.20689826,
+          "max_favorable_excursion_bps": 25.91194656,
+          "realized_return_bps": 25.89953068,
+          "sample_count": 22,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": true,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:21:49Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T08:56:49Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778835109389",
+      "max_adverse_excursion_bps": -8.20689826,
+      "max_favorable_excursion_bps": 25.91194656,
+      "no_trade_correct": false,
+      "observation_id": "shadow_pei_paper_tick_1778835109389",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778835109389",
+      "risk_decision_id": "risk_paper_tick_1778835109389",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": true
+    },
+    {
+      "after_cost_correct": true,
+      "block_reason": [
+        "confidence_below_canary_threshold",
+        "expected_edge_below_costs"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80548.1,
+      "event_id": "paper_tick_1778835241298",
+      "event_ts": "2026-05-15T08:54:01Z",
+      "expected_move_after_cost_bps": -0.47848683,
+      "expected_move_bps": 5.52151317,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778835241298",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:09:01Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T09:54:01Z",
+          "max_adverse_excursion_bps": -7.44896528,
+          "max_favorable_excursion_bps": 27.94603473,
+          "realized_return_bps": 23.02971765,
+          "sample_count": 25,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": true,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:24:01Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T08:59:01Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778835241298",
+      "max_adverse_excursion_bps": -7.44896528,
+      "max_favorable_excursion_bps": 27.94603473,
+      "no_trade_correct": false,
+      "observation_id": "shadow_pei_paper_tick_1778835241298",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778835241298",
+      "risk_decision_id": "risk_paper_tick_1778835241298",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": true
+    },
+    {
+      "after_cost_correct": true,
+      "block_reason": [
+        "confidence_below_canary_threshold"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80562.5,
+      "event_id": "paper_tick_1778835373227",
+      "event_ts": "2026-05-15T08:56:13Z",
+      "expected_move_after_cost_bps": 4.59938237,
+      "expected_move_bps": 10.59938237,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778835373227",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:11:13Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T09:56:13Z",
+          "max_adverse_excursion_bps": -5.66020171,
+          "max_favorable_excursion_bps": 29.72847168,
+          "realized_return_bps": 16.28549263,
+          "sample_count": 27,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": true,
+          "would_have_hit_stop": false,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:26:13Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:01:13Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778835373227",
+      "max_adverse_excursion_bps": -5.66020171,
+      "max_favorable_excursion_bps": 29.72847168,
+      "no_trade_correct": false,
+      "observation_id": "shadow_pei_paper_tick_1778835373227",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778835373227",
+      "risk_decision_id": "risk_paper_tick_1778835373227",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": true
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": "deny_canary_profile_tightening",
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80629.8,
+      "event_id": "paper_tick_1778835468628",
+      "event_ts": "2026-05-15T08:57:48Z",
+      "expected_move_after_cost_bps": 0.9957751,
+      "expected_move_bps": 6.9957751,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778835468628",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:12:48Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T09:57:48Z",
+          "max_adverse_excursion_bps": -38.05044785,
+          "max_favorable_excursion_bps": 0.0,
+          "realized_return_bps": -26.19378939,
+          "sample_count": 28,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:27:48Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:02:48Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778835468628",
+      "max_adverse_excursion_bps": -38.05044785,
+      "max_favorable_excursion_bps": 0.0,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778835468628",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778835468628",
+      "risk_decision_id": "risk_paper_tick_1778835468628",
+      "side": "long",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": "deny_low_confidence",
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80601.8,
+      "event_id": "paper_tick_1778835596370",
+      "event_ts": "2026-05-15T08:59:56Z",
+      "expected_move_after_cost_bps": 3.60837821,
+      "expected_move_bps": 9.60837821,
+      "expected_move_coverage_status": "",
+      "expected_move_source": "",
+      "feature_snapshot_id": "fs_paper_tick_1778835596370",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:14:56Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T09:59:56Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:29:56Z",
+          "max_adverse_excursion_bps": -13.27513778,
+          "max_favorable_excursion_bps": 0.0,
+          "realized_return_bps": -8.25043609,
+          "sample_count": 1,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:04:56Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778835596370",
+      "max_adverse_excursion_bps": -13.27513778,
+      "max_favorable_excursion_bps": 0.0,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778835596370",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778835596370",
+      "preserved_completed_outcome": true,
+      "risk_decision_id": "risk_paper_tick_1778835596370",
+      "side": "long",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": [
+        "confidence_below_canary_threshold"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80592.9,
+      "event_id": "paper_tick_1778835722289",
+      "event_ts": "2026-05-15T09:02:02Z",
+      "expected_move_after_cost_bps": 2.20583511,
+      "expected_move_bps": 8.20583511,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778835722289",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:17:02Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:02:02Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:32:02Z",
+          "max_adverse_excursion_bps": 0.0,
+          "max_favorable_excursion_bps": 10.80740363,
+          "realized_return_bps": 3.23849868,
+          "sample_count": 3,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": false,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:07:02Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778835722289",
+      "max_adverse_excursion_bps": 0.0,
+      "max_favorable_excursion_bps": 10.80740363,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778835722289",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778835722289",
+      "risk_decision_id": "risk_paper_tick_1778835722289",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": "deny_canary_profile_tightening",
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80536.9,
+      "event_id": "paper_tick_1778835854250",
+      "event_ts": "2026-05-15T09:04:14Z",
+      "expected_move_after_cost_bps": 6.609137,
+      "expected_move_bps": 12.609137,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778835854250",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:19:14Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:04:14Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:34:14Z",
+          "max_adverse_excursion_bps": -8.84066807,
+          "max_favorable_excursion_bps": 3.86158394,
+          "realized_return_bps": -5.36400085,
+          "sample_count": 5,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:09:14Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778835854250",
+      "max_adverse_excursion_bps": -8.84066807,
+      "max_favorable_excursion_bps": 3.86158394,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778835854250",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778835854250",
+      "risk_decision_id": "risk_paper_tick_1778835854250",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": [
+        "expected_edge_below_costs"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80619.1,
+      "event_id": "paper_tick_1778835953335",
+      "event_ts": "2026-05-15T09:05:53Z",
+      "expected_move_after_cost_bps": -1.98574003,
+      "expected_move_bps": 4.01425997,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778835953335",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:20:53Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:05:53Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:35:53Z",
+          "max_adverse_excursion_bps": -14.05374161,
+          "max_favorable_excursion_bps": 0.0,
+          "realized_return_bps": -7.50442513,
+          "sample_count": 6,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:10:53Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778835953335",
+      "max_adverse_excursion_bps": -14.05374161,
+      "max_favorable_excursion_bps": 0.0,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778835953335",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778835953335",
+      "risk_decision_id": "risk_paper_tick_1778835953335",
+      "side": "long",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": true,
+      "block_reason": "deny_low_confidence",
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80538.9,
+      "event_id": "paper_tick_1778836087634",
+      "event_ts": "2026-05-15T09:08:07Z",
+      "expected_move_after_cost_bps": 0.2422036,
+      "expected_move_bps": 6.2422036,
+      "expected_move_coverage_status": "",
+      "expected_move_source": "",
+      "feature_snapshot_id": "fs_paper_tick_1778836087634",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:23:07Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:08:07Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:38:07Z",
+          "max_adverse_excursion_bps": -8.59212132,
+          "max_favorable_excursion_bps": 11.0381443,
+          "realized_return_bps": 7.94647059,
+          "sample_count": 9,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": true,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:13:07Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778836087634",
+      "max_adverse_excursion_bps": -8.59212132,
+      "max_favorable_excursion_bps": 11.0381443,
+      "no_trade_correct": false,
+      "observation_id": "shadow_pei_paper_tick_1778836087634",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778836087634",
+      "risk_decision_id": "risk_paper_tick_1778836087634",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": true
+    },
+    {
+      "after_cost_correct": true,
+      "block_reason": "deny_canary_profile_tightening",
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80566.7,
+      "event_id": "paper_tick_1778836219579",
+      "event_ts": "2026-05-15T09:10:19Z",
+      "expected_move_after_cost_bps": 1.3032585,
+      "expected_move_bps": 7.3032585,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778836219579",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:25:19Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:10:19Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:40:19Z",
+          "max_adverse_excursion_bps": -5.13859945,
+          "max_favorable_excursion_bps": 17.15348897,
+          "realized_return_bps": 17.15348897,
+          "sample_count": 11,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": true,
+          "would_have_hit_stop": false,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:15:19Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778836219579",
+      "max_adverse_excursion_bps": -5.13859945,
+      "max_favorable_excursion_bps": 17.15348897,
+      "no_trade_correct": false,
+      "observation_id": "shadow_pei_paper_tick_1778836219579",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778836219579",
+      "risk_decision_id": "risk_paper_tick_1778836219579",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": true
+    },
+    {
+      "after_cost_correct": true,
+      "block_reason": [
+        "confidence_below_canary_threshold"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80542.2,
+      "event_id": "paper_tick_1778836318528",
+      "event_ts": "2026-05-15T09:11:58Z",
+      "expected_move_after_cost_bps": 2.27777618,
+      "expected_move_bps": 8.27777618,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778836318528",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:26:58Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:11:58Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:41:58Z",
+          "max_adverse_excursion_bps": -8.18204618,
+          "max_favorable_excursion_bps": 17.65534093,
+          "realized_return_bps": 13.79401109,
+          "sample_count": 12,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": true,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:16:58Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778836318528",
+      "max_adverse_excursion_bps": -8.18204618,
+      "max_favorable_excursion_bps": 17.65534093,
+      "no_trade_correct": false,
+      "observation_id": "shadow_pei_paper_tick_1778836318528",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778836318528",
+      "risk_decision_id": "risk_paper_tick_1778836318528",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": true
+    },
+    {
+      "after_cost_correct": true,
+      "block_reason": [
+        "confidence_below_canary_threshold"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80549.0,
+      "event_id": "paper_tick_1778836450519",
+      "event_ts": "2026-05-15T09:14:10Z",
+      "expected_move_after_cost_bps": 3.03169098,
+      "expected_move_bps": 9.03169098,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778836450519",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:29:10Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:14:10Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:44:10Z",
+          "max_adverse_excursion_bps": -7.33714882,
+          "max_favorable_excursion_bps": 21.61417274,
+          "realized_return_bps": 20.54649965,
+          "sample_count": 15,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": true,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:19:10Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778836450519",
+      "max_adverse_excursion_bps": -7.33714882,
+      "max_favorable_excursion_bps": 21.61417274,
+      "no_trade_correct": false,
+      "observation_id": "shadow_pei_paper_tick_1778836450519",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778836450519",
+      "risk_decision_id": "risk_paper_tick_1778836450519",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": true
+    },
+    {
+      "after_cost_correct": true,
+      "block_reason": "deny_canary_profile_tightening",
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80511.2,
+      "event_id": "paper_tick_1778836582359",
+      "event_ts": "2026-05-15T09:16:22Z",
+      "expected_move_after_cost_bps": 5.15209192,
+      "expected_move_bps": 11.15209192,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778836582359",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:31:22Z",
+          "max_adverse_excursion_bps": -4.07396735,
+          "max_favorable_excursion_bps": 0.67071414,
+          "realized_return_bps": 0.67071414,
+          "sample_count": 2,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": false,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:16:22Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:46:22Z",
+          "max_adverse_excursion_bps": -12.03559256,
+          "max_favorable_excursion_bps": 18.74273393,
+          "realized_return_bps": 15.27737756,
+          "sample_count": 17,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": true,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:21:22Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778836582359",
+      "max_adverse_excursion_bps": -12.03559256,
+      "max_favorable_excursion_bps": 18.74273393,
+      "no_trade_correct": false,
+      "observation_id": "shadow_pei_paper_tick_1778836582359",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778836582359",
+      "risk_decision_id": "risk_paper_tick_1778836582359",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": true
+    },
+    {
+      "after_cost_correct": true,
+      "block_reason": "deny_low_confidence",
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80520.0,
+      "event_id": "paper_tick_1778836681223",
+      "event_ts": "2026-05-15T09:18:01Z",
+      "expected_move_after_cost_bps": 1.0149748,
+      "expected_move_bps": 7.0149748,
+      "expected_move_coverage_status": "",
+      "expected_move_source": "",
+      "feature_snapshot_id": "fs_paper_tick_1778836681223",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:33:01Z",
+          "max_adverse_excursion_bps": -1.76353701,
+          "max_favorable_excursion_bps": 9.79880775,
+          "realized_return_bps": 9.78638847,
+          "sample_count": 4,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": true,
+          "would_have_hit_stop": false,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:18:01Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:48:01Z",
+          "max_adverse_excursion_bps": -19.83358172,
+          "max_favorable_excursion_bps": 10.94138102,
+          "realized_return_bps": -16.70392449,
+          "sample_count": 19,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:23:01Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778836681223",
+      "max_adverse_excursion_bps": -19.83358172,
+      "max_favorable_excursion_bps": 10.94138102,
+      "no_trade_correct": false,
+      "observation_id": "shadow_pei_paper_tick_1778836681223",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778836681223",
+      "risk_decision_id": "risk_paper_tick_1778836681223",
+      "side": "long",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": true
+    },
+    {
+      "after_cost_correct": true,
+      "block_reason": [
+        "expected_edge_below_costs"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80476.0,
+      "event_id": "paper_tick_1778836813093",
+      "event_ts": "2026-05-15T09:20:13Z",
+      "expected_move_after_cost_bps": -1.36487862,
+      "expected_move_bps": 4.63512138,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778836813093",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:35:13Z",
+          "max_adverse_excursion_bps": -16.41483175,
+          "max_favorable_excursion_bps": 0.0,
+          "realized_return_bps": -10.26392962,
+          "sample_count": 6,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:20:13Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:50:13Z",
+          "max_adverse_excursion_bps": -16.41483175,
+          "max_favorable_excursion_bps": 17.27223023,
+          "realized_return_bps": 16.89944828,
+          "sample_count": 21,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": true,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:25:13Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778836813093",
+      "max_adverse_excursion_bps": -16.41483175,
+      "max_favorable_excursion_bps": 17.27223023,
+      "no_trade_correct": false,
+      "observation_id": "shadow_pei_paper_tick_1778836813093",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778836813093",
+      "risk_decision_id": "risk_paper_tick_1778836813093",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": true
+    },
+    {
+      "after_cost_correct": true,
+      "block_reason": [
+        "confidence_below_canary_threshold"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80490.8,
+      "event_id": "paper_tick_1778836911961",
+      "event_ts": "2026-05-15T09:21:51Z",
+      "expected_move_after_cost_bps": 0.6918616,
+      "expected_move_bps": 6.6918616,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778836911961",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:36:51Z",
+          "max_adverse_excursion_bps": -14.57309407,
+          "max_favorable_excursion_bps": 0.0,
+          "realized_return_bps": -9.15632594,
+          "sample_count": 7,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:21:51Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:51:51Z",
+          "max_adverse_excursion_bps": -14.57309407,
+          "max_favorable_excursion_bps": 19.56745367,
+          "realized_return_bps": 19.55502989,
+          "sample_count": 22,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": true,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:26:51Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778836911961",
+      "max_adverse_excursion_bps": -14.57309407,
+      "max_favorable_excursion_bps": 19.56745367,
+      "no_trade_correct": false,
+      "observation_id": "shadow_pei_paper_tick_1778836911961",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778836911961",
+      "risk_decision_id": "risk_paper_tick_1778836911961",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": true
+    },
+    {
+      "after_cost_correct": true,
+      "block_reason": "deny_canary_profile_tightening",
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80425.7,
+      "event_id": "paper_tick_1778837043825",
+      "event_ts": "2026-05-15T09:24:03Z",
+      "expected_move_after_cost_bps": 3.85954252,
+      "expected_move_bps": 9.85954252,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778837043825",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:39:03Z",
+          "max_adverse_excursion_bps": -22.67931768,
+          "max_favorable_excursion_bps": 0.0,
+          "realized_return_bps": -4.14046754,
+          "sample_count": 10,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:24:03Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:54:03Z",
+          "max_adverse_excursion_bps": -22.67931768,
+          "max_favorable_excursion_bps": 12.76955003,
+          "realized_return_bps": 7.8457508,
+          "sample_count": 25,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": true,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:29:03Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778837043825",
+      "max_adverse_excursion_bps": -22.67931768,
+      "max_favorable_excursion_bps": 12.76955003,
+      "no_trade_correct": false,
+      "observation_id": "shadow_pei_paper_tick_1778837043825",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778837043825",
+      "risk_decision_id": "risk_paper_tick_1778837043825",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": true
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": "deny_canary_profile_tightening",
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80430.5,
+      "event_id": "paper_tick_1778837175774",
+      "event_ts": "2026-05-15T09:26:15Z",
+      "expected_move_after_cost_bps": 4.25394635,
+      "expected_move_bps": 10.25394635,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778837175774",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:41:15Z",
+          "max_adverse_excursion_bps": -22.08117567,
+          "max_favorable_excursion_bps": 3.7920938,
+          "realized_return_bps": -0.07459857,
+          "sample_count": 12,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:26:15Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:56:15Z",
+          "max_adverse_excursion_bps": -22.08117567,
+          "max_favorable_excursion_bps": 13.36557649,
+          "realized_return_bps": -0.09946476,
+          "sample_count": 27,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:31:15Z",
+          "max_adverse_excursion_bps": -14.11156216,
+          "max_favorable_excursion_bps": 0.0,
+          "realized_return_bps": -9.36212009,
+          "sample_count": 2,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        }
+      },
+      "intent_id": "pei_paper_tick_1778837175774",
+      "max_adverse_excursion_bps": -22.08117567,
+      "max_favorable_excursion_bps": 13.36557649,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778837175774",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778837175774",
+      "risk_decision_id": "risk_paper_tick_1778837175774",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": true,
+      "block_reason": [
+        "confidence_below_canary_threshold"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80477.7,
+      "event_id": "paper_tick_1778837274763",
+      "event_ts": "2026-05-15T09:27:54Z",
+      "expected_move_after_cost_bps": 3.31808091,
+      "expected_move_bps": 9.31808091,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778837274763",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:42:54Z",
+          "max_adverse_excursion_bps": -9.65484849,
+          "max_favorable_excursion_bps": 16.20324637,
+          "realized_return_bps": -9.65484849,
+          "sample_count": 13,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:27:54Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T09:57:54Z",
+          "max_adverse_excursion_bps": -19.22271635,
+          "max_favorable_excursion_bps": 16.20324637,
+          "realized_return_bps": -7.34364923,
+          "sample_count": 28,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:32:54Z",
+          "max_adverse_excursion_bps": 0.0,
+          "max_favorable_excursion_bps": 11.08381577,
+          "realized_return_bps": 11.07138996,
+          "sample_count": 3,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": true,
+          "would_have_hit_stop": false,
+          "would_have_hit_take_profit": true
+        }
+      },
+      "intent_id": "pei_paper_tick_1778837274763",
+      "max_adverse_excursion_bps": -19.22271635,
+      "max_favorable_excursion_bps": 16.20324637,
+      "no_trade_correct": false,
+      "observation_id": "shadow_pei_paper_tick_1778837274763",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778837274763",
+      "risk_decision_id": "risk_paper_tick_1778837274763",
+      "side": "long",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": true
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": "deny_canary_profile_tightening",
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80524.9,
+      "event_id": "paper_tick_1778837406790",
+      "event_ts": "2026-05-15T09:30:06Z",
+      "expected_move_after_cost_bps": 5.90325033,
+      "expected_move_bps": 11.90325033,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778837406790",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:45:06Z",
+          "max_adverse_excursion_bps": -20.44088226,
+          "max_favorable_excursion_bps": 10.3322078,
+          "realized_return_bps": -14.26887832,
+          "sample_count": 15,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:30:06Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T10:00:06Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:35:06Z",
+          "max_adverse_excursion_bps": -2.37193713,
+          "max_favorable_excursion_bps": 10.3322078,
+          "realized_return_bps": 4.1850409,
+          "sample_count": 5,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": false,
+          "would_have_hit_take_profit": true
+        }
+      },
+      "intent_id": "pei_paper_tick_1778837406790",
+      "max_adverse_excursion_bps": -20.44088226,
+      "max_favorable_excursion_bps": 10.3322078,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778837406790",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778837406790",
+      "risk_decision_id": "risk_paper_tick_1778837406790",
+      "side": "long",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": [
+        "confidence_below_canary_threshold",
+        "same_symbol_same_direction_cooldown",
+        "expected_edge_below_costs"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80514.0,
+      "event_id": "paper_tick_1778837538851",
+      "event_ts": "2026-05-15T09:32:18Z",
+      "expected_move_after_cost_bps": -0.15990025,
+      "expected_move_bps": 5.84009975,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778837538851",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:47:18Z",
+          "max_adverse_excursion_bps": -19.08984773,
+          "max_favorable_excursion_bps": 11.6874084,
+          "realized_return_bps": -14.91666046,
+          "sample_count": 15,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:32:18Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T10:02:18Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:37:18Z",
+          "max_adverse_excursion_bps": -1.73882803,
+          "max_favorable_excursion_bps": 11.6874084,
+          "realized_return_bps": -1.72640783,
+          "sample_count": 5,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": false,
+          "would_have_hit_take_profit": true
+        }
+      },
+      "intent_id": "pei_paper_tick_1778837538851",
+      "max_adverse_excursion_bps": -19.08984773,
+      "max_favorable_excursion_bps": 11.6874084,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778837538851",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778837538851",
+      "risk_decision_id": "risk_paper_tick_1778837538851",
+      "side": "long",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": [
+        "same_symbol_same_direction_cooldown",
+        "expected_edge_below_costs"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80598.9,
+      "event_id": "paper_tick_1778837637810",
+      "event_ts": "2026-05-15T09:33:57Z",
+      "expected_move_after_cost_bps": -1.09225488,
+      "expected_move_bps": 4.90774512,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778837637810",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:48:57Z",
+          "max_adverse_excursion_bps": -29.60338168,
+          "max_favorable_excursion_bps": 1.14145478,
+          "realized_return_bps": -26.47678814,
+          "sample_count": 15,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:33:57Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T10:03:57Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:38:57Z",
+          "max_adverse_excursion_bps": -18.47419754,
+          "max_favorable_excursion_bps": 1.14145478,
+          "realized_return_bps": -15.38482535,
+          "sample_count": 5,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        }
+      },
+      "intent_id": "pei_paper_tick_1778837637810",
+      "max_adverse_excursion_bps": -29.60338168,
+      "max_favorable_excursion_bps": 1.14145478,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778837637810",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778837637810",
+      "risk_decision_id": "risk_paper_tick_1778837637810",
+      "side": "long",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": "deny_canary_profile_tightening",
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80558.6,
+      "event_id": "paper_tick_1778837769760",
+      "event_ts": "2026-05-15T09:36:09Z",
+      "expected_move_after_cost_bps": 4.89586238,
+      "expected_move_bps": 10.89586238,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778837769760",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:51:09Z",
+          "max_adverse_excursion_bps": -27.96721889,
+          "max_favorable_excursion_bps": 0.74479944,
+          "realized_return_bps": -27.95480557,
+          "sample_count": 15,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:36:09Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T10:06:09Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:41:09Z",
+          "max_adverse_excursion_bps": -19.68753181,
+          "max_favorable_excursion_bps": 0.74479944,
+          "realized_return_bps": -15.82698806,
+          "sample_count": 5,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        }
+      },
+      "intent_id": "pei_paper_tick_1778837769760",
+      "max_adverse_excursion_bps": -27.96721889,
+      "max_favorable_excursion_bps": 0.74479944,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778837769760",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778837769760",
+      "risk_decision_id": "risk_paper_tick_1778837769760",
+      "side": "long",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": true,
+      "block_reason": "deny_canary_profile_tightening",
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80456.2,
+      "event_id": "paper_tick_1778837901666",
+      "event_ts": "2026-05-15T09:38:21Z",
+      "expected_move_after_cost_bps": 2.8282108,
+      "expected_move_bps": 8.8282108,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778837901666",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:53:21Z",
+          "max_adverse_excursion_bps": -2.33667511,
+          "max_favorable_excursion_bps": 16.55559174,
+          "realized_return_bps": 12.25511521,
+          "sample_count": 15,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": true,
+          "would_have_hit_stop": false,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:38:21Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T10:08:21Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:43:21Z",
+          "max_adverse_excursion_bps": -2.33667511,
+          "max_favorable_excursion_bps": 6.98516708,
+          "realized_return_bps": 5.97840813,
+          "sample_count": 5,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": false,
+          "would_have_hit_take_profit": true
+        }
+      },
+      "intent_id": "pei_paper_tick_1778837901666",
+      "max_adverse_excursion_bps": -2.33667511,
+      "max_favorable_excursion_bps": 16.55559174,
+      "no_trade_correct": false,
+      "observation_id": "shadow_pei_paper_tick_1778837901666",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778837901666",
+      "risk_decision_id": "risk_paper_tick_1778837901666",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": true
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": [
+        "expected_edge_below_costs"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80453.0,
+      "event_id": "paper_tick_1778838000578",
+      "event_ts": "2026-05-15T09:40:00Z",
+      "expected_move_after_cost_bps": -0.06208717,
+      "expected_move_bps": 5.93791283,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778838000578",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:55:00Z",
+          "max_adverse_excursion_bps": 0.0,
+          "max_favorable_excursion_bps": 16.15850248,
+          "realized_return_bps": 4.90969883,
+          "sample_count": 15,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": false,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:40:00Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T10:10:00Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:45:00Z",
+          "max_adverse_excursion_bps": 0.0,
+          "max_favorable_excursion_bps": 11.52225523,
+          "realized_return_bps": 5.34473544,
+          "sample_count": 5,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": false,
+          "would_have_hit_take_profit": true
+        }
+      },
+      "intent_id": "pei_paper_tick_1778838000578",
+      "max_adverse_excursion_bps": 0.0,
+      "max_favorable_excursion_bps": 16.15850248,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778838000578",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778838000578",
+      "risk_decision_id": "risk_paper_tick_1778838000578",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": [
+        "expected_edge_below_costs"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80428.6,
+      "event_id": "paper_tick_1778838127621",
+      "event_ts": "2026-05-15T09:42:07Z",
+      "expected_move_after_cost_bps": -0.47176989,
+      "expected_move_bps": 5.52823011,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778838127621",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:57:07Z",
+          "max_adverse_excursion_bps": -4.41385278,
+          "max_favorable_excursion_bps": 13.12965786,
+          "realized_return_bps": 1.24333881,
+          "sample_count": 15,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": false,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:42:07Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T10:12:07Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:47:07Z",
+          "max_adverse_excursion_bps": -0.36056826,
+          "max_favorable_excursion_bps": 8.49200409,
+          "realized_return_bps": 4.31438568,
+          "sample_count": 5,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": false,
+          "would_have_hit_take_profit": true
+        }
+      },
+      "intent_id": "pei_paper_tick_1778838127621",
+      "max_adverse_excursion_bps": -4.41385278,
+      "max_favorable_excursion_bps": 13.12965786,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778838127621",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778838127621",
+      "risk_decision_id": "risk_paper_tick_1778838127621",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": "deny_canary_profile_tightening",
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80400.0,
+      "event_id": "paper_tick_1778838259541",
+      "event_ts": "2026-05-15T09:44:19Z",
+      "expected_move_after_cost_bps": 5.72752885,
+      "expected_move_bps": 11.72752885,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778838259541",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T09:59:19Z",
+          "max_adverse_excursion_bps": -7.97263682,
+          "max_favorable_excursion_bps": 9.57711443,
+          "realized_return_bps": -3.91791045,
+          "sample_count": 15,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": true
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:44:19Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T10:14:19Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:49:19Z",
+          "max_adverse_excursion_bps": -3.91791045,
+          "max_favorable_excursion_bps": 4.93781095,
+          "realized_return_bps": 0.92039801,
+          "sample_count": 5,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": false,
+          "would_have_hit_take_profit": false
+        }
+      },
+      "intent_id": "pei_paper_tick_1778838259541",
+      "max_adverse_excursion_bps": -7.97263682,
+      "max_favorable_excursion_bps": 9.57711443,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778838259541",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778838259541",
+      "risk_decision_id": "risk_paper_tick_1778838259541",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": true,
+      "block_reason": [
+        "expected_edge_below_costs"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80404.0,
+      "event_id": "paper_tick_1778838358542",
+      "event_ts": "2026-05-15T09:45:58Z",
+      "expected_move_after_cost_bps": -1.57199769,
+      "expected_move_bps": 4.42800231,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778838358542",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T10:00:58Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:45:58Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T10:15:58Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:50:58Z",
+          "max_adverse_excursion_bps": -3.42022785,
+          "max_favorable_excursion_bps": 8.33291876,
+          "realized_return_bps": 7.95980299,
+          "sample_count": 5,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": true,
+          "would_have_hit_stop": false,
+          "would_have_hit_take_profit": true
+        }
+      },
+      "intent_id": "pei_paper_tick_1778838358542",
+      "max_adverse_excursion_bps": -3.42022785,
+      "max_favorable_excursion_bps": 8.33291876,
+      "no_trade_correct": false,
+      "observation_id": "shadow_pei_paper_tick_1778838358542",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778838358542",
+      "risk_decision_id": "risk_paper_tick_1778838358542",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": true
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": [
+        "expected_edge_below_costs"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80394.0,
+      "event_id": "paper_tick_1778838490658",
+      "event_ts": "2026-05-15T09:48:10Z",
+      "expected_move_after_cost_bps": -1.28894388,
+      "expected_move_bps": 4.71105612,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778838490658",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T10:03:10Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:48:10Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T10:18:10Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:53:10Z",
+          "max_adverse_excursion_bps": -0.74632435,
+          "max_favorable_excursion_bps": 8.83150484,
+          "realized_return_bps": 4.52770107,
+          "sample_count": 5,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": false,
+          "would_have_hit_take_profit": true
+        }
+      },
+      "intent_id": "pei_paper_tick_1778838490658",
+      "max_adverse_excursion_bps": -0.74632435,
+      "max_favorable_excursion_bps": 8.83150484,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778838490658",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778838490658",
+      "risk_decision_id": "risk_paper_tick_1778838490658",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": [
+        "expected_edge_below_costs"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80345.6,
+      "event_id": "paper_tick_1778838622714",
+      "event_ts": "2026-05-15T09:50:22Z",
+      "expected_move_after_cost_bps": -0.81457008,
+      "expected_move_bps": 5.18542992,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778838622714",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T10:05:22Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:50:22Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T10:20:22Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:55:22Z",
+          "max_adverse_excursion_bps": -11.17671658,
+          "max_favorable_excursion_bps": 2.81284849,
+          "realized_return_bps": -8.45099172,
+          "sample_count": 5,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        }
+      },
+      "intent_id": "pei_paper_tick_1778838622714",
+      "max_adverse_excursion_bps": -11.17671658,
+      "max_favorable_excursion_bps": 2.81284849,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778838622714",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778838622714",
+      "risk_decision_id": "risk_paper_tick_1778838622714",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": "deny_canary_profile_tightening",
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80333.3,
+      "event_id": "paper_tick_1778838721711",
+      "event_ts": "2026-05-15T09:52:01Z",
+      "expected_move_after_cost_bps": 0.58003872,
+      "expected_move_bps": 6.58003872,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778838721711",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T10:07:01Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:52:01Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T10:22:01Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:57:01Z",
+          "max_adverse_excursion_bps": -16.28216443,
+          "max_favorable_excursion_bps": 0.0,
+          "realized_return_bps": -10.61826167,
+          "sample_count": 5,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        }
+      },
+      "intent_id": "pei_paper_tick_1778838721711",
+      "max_adverse_excursion_bps": -16.28216443,
+      "max_favorable_excursion_bps": 0.0,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778838721711",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778838721711",
+      "risk_decision_id": "risk_paper_tick_1778838721711",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": false,
+      "block_reason": [
+        "expected_edge_below_costs"
+      ],
+      "completed": true,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80351.4,
+      "event_id": "paper_tick_1778838853610",
+      "event_ts": "2026-05-15T09:54:13Z",
+      "expected_move_after_cost_bps": -0.82945876,
+      "expected_move_bps": 5.17054124,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778838853610",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T10:09:13Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:54:13Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T10:24:13Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T09:59:13Z",
+          "max_adverse_excursion_bps": -14.02589127,
+          "max_favorable_excursion_bps": 0.97073604,
+          "realized_return_bps": -9.96871243,
+          "sample_count": 5,
+          "status": "COMPLETED",
+          "would_have_beaten_costs": false,
+          "would_have_hit_stop": true,
+          "would_have_hit_take_profit": false
+        }
+      },
+      "intent_id": "pei_paper_tick_1778838853610",
+      "max_adverse_excursion_bps": -14.02589127,
+      "max_favorable_excursion_bps": 0.97073604,
+      "no_trade_correct": true,
+      "observation_id": "shadow_pei_paper_tick_1778838853610",
+      "outcome_status": "COMPLETED",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778838853610",
+      "risk_decision_id": "risk_paper_tick_1778838853610",
+      "side": "short",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": false
+    },
+    {
+      "after_cost_correct": "MISSING_EVIDENCE",
+      "block_reason": "deny_stale_market_feed",
+      "completed": false,
+      "cost_bps": 6.0,
+      "entry_reference_price": null,
+      "event_id": "paper_tick_1778838959420",
+      "event_ts": "2026-05-15T09:55:59Z",
+      "expected_move_after_cost_bps": -0.35145421,
+      "expected_move_bps": 5.64854579,
+      "expected_move_coverage_status": "",
+      "expected_move_source": "",
+      "feature_snapshot_id": "fs_paper_tick_1778838959420",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "status": "MISSING_EVIDENCE_CANNOT_OBSERVE"
+        },
+        "horizon_1h": {
+          "status": "MISSING_EVIDENCE_CANNOT_OBSERVE"
+        },
+        "horizon_30m": {
+          "status": "MISSING_EVIDENCE_CANNOT_OBSERVE"
+        },
+        "horizon_5m": {
+          "status": "MISSING_EVIDENCE_CANNOT_OBSERVE"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778838959420",
+      "no_trade_correct": "MISSING_EVIDENCE",
+      "observation_id": "shadow_pei_paper_tick_1778838959420",
+      "outcome_status": "MISSING_EVIDENCE_CANNOT_OBSERVE",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778838959420",
+      "risk_decision_id": "risk_paper_tick_1778838959420",
+      "side": "hold",
+      "symbol": "BTCUSDT"
+    },
+    {
+      "after_cost_correct": "PENDING_OUTCOME",
+      "block_reason": "deny_canary_profile_tightening",
+      "completed": false,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80418.6,
+      "event_id": "paper_tick_1778839098961",
+      "event_ts": "2026-05-15T09:58:18Z",
+      "expected_move_after_cost_bps": 4.57674496,
+      "expected_move_bps": 10.57674496,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778839098961",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T10:13:18Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:58:18Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T10:28:18Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T10:03:18Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778839098961",
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
+      "observation_id": "shadow_pei_paper_tick_1778839098961",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778839098961",
+      "risk_decision_id": "risk_paper_tick_1778839098961",
+      "side": "long",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": "PENDING_OUTCOME"
+    },
+    {
+      "after_cost_correct": "PENDING_OUTCOME",
+      "block_reason": "deny_canary_profile_tightening",
+      "completed": false,
+      "cost_bps": 6.0,
+      "entry_reference_price": 80431.5,
+      "event_id": "paper_tick_1778839164924",
+      "event_ts": "2026-05-15T09:59:24Z",
+      "expected_move_after_cost_bps": 6.49525476,
+      "expected_move_bps": 12.49525476,
+      "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_snapshot_id": "fs_paper_tick_1778839164924",
+      "fee_charged_usdt": 0.0,
+      "fill_allowed": false,
+      "horizons": {
+        "horizon_15m": {
+          "deadline": "2026-05-15T10:14:24Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_1h": {
+          "deadline": "2026-05-15T10:59:24Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_30m": {
+          "deadline": "2026-05-15T10:29:24Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        },
+        "horizon_5m": {
+          "deadline": "2026-05-15T10:04:24Z",
+          "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
+        }
+      },
+      "intent_id": "pei_paper_tick_1778839164924",
+      "max_adverse_excursion_bps": null,
+      "max_favorable_excursion_bps": null,
+      "no_trade_correct": "PENDING_OUTCOME",
+      "observation_id": "shadow_pei_paper_tick_1778839164924",
+      "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
+      "paper_fill_recorded": false,
+      "prediction_id": "pred_paper_tick_1778839164924",
+      "risk_decision_id": "risk_paper_tick_1778839164924",
+      "side": "long",
+      "symbol": "BTCUSDT",
+      "would_have_beaten_costs": "PENDING_OUTCOME"
     }
   ],
-  "observations_total": 41,
+  "observations_total": 90,
   "old_redis_write_performed": false,
   "outcome_status": "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED",
-  "pending_observations": 5,
+  "pending_observations": 47,
   "recommended_next_action": "EXPECTED_MOVE_MODEL_REVIEW_REQUIRED_KEEP_FILL_GATE_STRICT",
   "redis_trim_approval_created": false,
   "sample_count": 30,
