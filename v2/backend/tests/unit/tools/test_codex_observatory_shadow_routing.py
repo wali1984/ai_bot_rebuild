@@ -28,6 +28,12 @@ def test_observatory_routes_shadow_outcome_status_to_recommender(monkeypatch) ->
         "live_gate": "blocked_human_only",
         "live_symbols": [],
     }
+    protective_behavior_status = {
+        "go_no_go": "LEGACY_PROTECTIVE_BEHAVIOR_TO_V2_PAPER_MAP_READY_EDGE_PENDING",
+        "remaining_protective_behavior_gaps": ["minimum_hold_time"],
+        "live_gate": "blocked_human_only",
+        "live_symbols": [],
+    }
     captured: dict[str, Any] = {}
 
     def load_first(paths: list[Path]) -> dict[str, Any]:
@@ -35,6 +41,8 @@ def test_observatory_routes_shadow_outcome_status_to_recommender(monkeypatch) ->
             return shadow_status
         if any("paper_shadow_outcome_learning" in str(path) for path in paths):
             return shadow_learning_status
+        if any("protective_behavior_mapping_status.json" in str(path) for path in paths):
+            return protective_behavior_status
         if any("current_recommendation.json" in str(path) for path in paths):
             return {"current_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE"}
         return {}
@@ -42,6 +50,7 @@ def test_observatory_routes_shadow_outcome_status_to_recommender(monkeypatch) ->
     def recommendations(**kwargs: Any) -> dict[str, Any]:
         captured["shadow_outcome_status"] = kwargs["shadow_outcome_status"]
         captured["shadow_learning_status"] = kwargs["shadow_learning_status"]
+        captured["protective_behavior_status"] = kwargs["protective_behavior_status"]
         return {
             "generated_at": "2026-05-15T00:00:00Z",
             "next_tasks": [
@@ -92,6 +101,7 @@ def test_observatory_routes_shadow_outcome_status_to_recommender(monkeypatch) ->
 
     assert captured["shadow_outcome_status"] == shadow_status
     assert captured["shadow_learning_status"] == shadow_learning_status
+    assert captured["protective_behavior_status"] == protective_behavior_status
     assert dashboard["paper_shadow_false_block_count"] == 15
     assert (
         dashboard["paper_shadow_outcome_observer_status"]

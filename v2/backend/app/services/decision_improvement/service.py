@@ -22,12 +22,14 @@ def build_decision_improvement_recommendations(
     paper_edge_status: Mapping[str, Any] | None = None,
     shadow_outcome_status: Mapping[str, Any] | None = None,
     shadow_learning_status: Mapping[str, Any] | None = None,
+    protective_behavior_status: Mapping[str, Any] | None = None,
     symbol_status: Mapping[str, Any] | None = None,
     risk_status: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     shadow_outcome_status = shadow_outcome_status or {}
     shadow_learning_status = shadow_learning_status or {}
     paper_edge_status = paper_edge_status or {}
+    protective_behavior_status = protective_behavior_status or {}
     false_block_count = int(shadow_outcome_status.get("false_block_count") or 0)
     resolved_controls = set(paper_edge_status.get("resolved_controls") or [])
     expected_move_review = (
@@ -46,6 +48,17 @@ def build_decision_improvement_recommendations(
         == "SHADOW_OUTCOME_LEARNING_READY_EDGE_PENDING"
         or shadow_learning_status.get("learning_status")
         == "SHADOW_OUTCOME_LEARNING_READY_EDGE_PENDING"
+    )
+    protective_map_ready = (
+        protective_behavior_status.get("go_no_go")
+        == "LEGACY_PROTECTIVE_BEHAVIOR_TO_V2_PAPER_MAP_READY_EDGE_PENDING"
+        or protective_behavior_status.get("mapping_status")
+        == "READY_EDGE_PENDING_WITH_EXPLICIT_GAPS"
+    )
+    remaining_protective_gaps = list(
+        protective_behavior_status.get("remaining_protective_behavior_gaps")
+        or protective_behavior_status.get("remaining_gaps")
+        or []
     )
     core_edge_controls = {
         "missing_expected_move_after_cost_bps_blocks_fill",
@@ -73,14 +86,30 @@ def build_decision_improvement_recommendations(
                 "required_result": "Blocked intents collect 5m/15m/30m/1h after-cost outcomes without paper fees.",
             }
         )
-    tasks.append(
-        {
-            "task_id": "claude_map_legacy_protective_behaviors_to_v2_paper",
-            "priority": "P1",
-            "reason": "Legacy closure includes churn, lifecycle, TP/stop, reduce-only, and adaptive gate behavior not silently droppable.",
-            "required_result": "Each protective behavior is implemented in paper-only form or emitted as an explicit blocker.",
-        }
-    )
+    if not protective_map_ready:
+        tasks.append(
+            {
+                "task_id": "claude_map_legacy_protective_behaviors_to_v2_paper",
+                "priority": "P1",
+                "reason": "Legacy closure includes churn, lifecycle, TP/stop, reduce-only, and adaptive gate behavior not silently droppable.",
+                "required_result": "Each protective behavior is implemented in paper-only form or emitted as an explicit blocker.",
+            }
+        )
+    elif remaining_protective_gaps:
+        tasks.append(
+            {
+                "task_id": "claude_implement_v2_paper_remaining_protective_behavior_gaps",
+                "priority": "P1",
+                "reason": (
+                    "The legacy protective behavior map is complete and explicitly carries remaining paper-only gaps: "
+                    + ", ".join(remaining_protective_gaps)
+                ),
+                "required_result": (
+                    "Implement paper-only equivalents or keep exact explicit blockers with tests and no live, "
+                    "old Redis, exchange, leverage, or margin mutation."
+                ),
+            }
+        )
     if not {
         "missing_trainer_source_blocks_fill",
         "missing_feature_freshness_state_blocks_fill",
@@ -127,6 +156,9 @@ def build_decision_improvement_recommendations(
         "shadow_outcome_status": shadow_outcome_status.get("outcome_status"),
         "shadow_learning_status": shadow_learning_status.get("go_no_go")
         or shadow_learning_status.get("learning_status"),
+        "protective_behavior_mapping_status": protective_behavior_status.get("go_no_go")
+        or protective_behavior_status.get("mapping_status"),
+        "remaining_protective_behavior_gaps": remaining_protective_gaps,
         "shadow_false_block_count": false_block_count,
         "shadow_false_block_reason_counts": shadow_outcome_status.get("false_block_reason_counts") or {},
         "next_tasks": tasks,

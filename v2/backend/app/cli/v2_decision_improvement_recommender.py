@@ -60,6 +60,21 @@ SHADOW_LEARNING_CANDIDATES = [
     / "latest"
     / "operator_dashboard_payload.json",
 ]
+PROTECTIVE_BEHAVIOR_CANDIDATES = [
+    REPO_ROOT
+    / "claude_worklog"
+    / "final_readiness"
+    / "paper_edge_recovery"
+    / "latest"
+    / "protective_behavior_mapping_status.json",
+    REPO_ROOT
+    / "claude_worklog"
+    / "final_readiness"
+    / "paper_edge_recovery"
+    / "latest"
+    / "legacy_protective_behavior_to_v2_paper_map.json",
+    V2_PUBLIC / "paper_edge_recovery" / "latest" / "operator_dashboard_payload.json",
+]
 SYMBOL_CANDIDATES = [
     V2_PUBLIC / "operator_runtime" / "symbol_universe" / "latest" / "symbol_universe_status.json",
 ]
@@ -112,6 +127,7 @@ def run_once(args: argparse.Namespace | None = None) -> dict[str, Any]:
         paper_edge_status=_load(PAPER_EDGE_CANDIDATES),
         shadow_outcome_status=_load(SHADOW_OUTCOME_CANDIDATES),
         shadow_learning_status=_load(SHADOW_LEARNING_CANDIDATES),
+        protective_behavior_status=_load(PROTECTIVE_BEHAVIOR_CANDIDATES),
         symbol_status=_load(SYMBOL_CANDIDATES),
         risk_status=_load(RISK_CANDIDATES),
     )

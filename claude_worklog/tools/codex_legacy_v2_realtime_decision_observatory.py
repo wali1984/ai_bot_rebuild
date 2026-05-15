@@ -119,6 +119,21 @@ def _payload_paths() -> dict[str, list[Path]]:
             / "latest"
             / "operator_dashboard_payload.json",
         ],
+        "protective_behavior": [
+            REPO_ROOT
+            / "claude_worklog"
+            / "final_readiness"
+            / "paper_edge_recovery"
+            / "latest"
+            / "protective_behavior_mapping_status.json",
+            REPO_ROOT
+            / "claude_worklog"
+            / "final_readiness"
+            / "paper_edge_recovery"
+            / "latest"
+            / "legacy_protective_behavior_to_v2_paper_map.json",
+            public / "paper_edge_recovery" / "latest" / "operator_dashboard_payload.json",
+        ],
         "shutdown": [
             REPO_ROOT
             / "claude_worklog"
@@ -238,6 +253,7 @@ def run_once(*, dry_run: bool = False) -> dict[str, Any]:
     paper_edge = _load_first(paths["paper_edge"])
     paper_shadow_outcome = _load_first(paths["paper_shadow_outcome"])
     paper_shadow_outcome_learning = _load_first(paths["paper_shadow_outcome_learning"])
+    protective_behavior = _load_first(paths["protective_behavior"])
     shutdown = _load_first(paths["shutdown"])
 
     legacy = build_legacy_runtime_observer_status()
@@ -266,6 +282,7 @@ def run_once(*, dry_run: bool = False) -> dict[str, Any]:
         paper_edge_status=paper_edge,
         shadow_outcome_status=paper_shadow_outcome,
         shadow_learning_status=paper_shadow_outcome_learning,
+        protective_behavior_status=protective_behavior,
         symbol_status=symbol,
         risk_status=risk,
     )
@@ -283,6 +300,7 @@ def run_once(*, dry_run: bool = False) -> dict[str, Any]:
             paper_exec,
             paper_shadow_outcome,
             paper_shadow_outcome_learning,
+            protective_behavior,
         ]
     )
     go_no_go = (
