@@ -1,0 +1,39 @@
+{
+  "agent": "codex",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/paper_expected_move_coverage/latest/codex_review/"
+  ],
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "forbidden": [
+    "legacy_mutation",
+    "old_redis_write",
+    "exchange_action",
+    "leverage_change",
+    "margin_mode_change",
+    "live_gate_unlock",
+    "approval_token_creation",
+    "redis_trim_approval_creation",
+    "future_outcome_label_used_for_entry_gate",
+    "unvalidated_proxy_edge_used_for_fill_permission",
+    "paper_edge_proven_without_post_filter_net_fills",
+    "live_readiness_implied"
+  ],
+  "lane": "shutdown_readiness_review",
+  "live_gate": "blocked_human_only",
+  "managed_by": "codex_shadow_outcome_monitor",
+  "max_attempts": 1,
+  "prompt": "Review PAPER_EXPECTED_MOVE_AFTER_COST_COVERAGE_REMEDIATION_READY. Fail if missing expected_move_after_cost_bps can permit fills, future shadow outcomes are used as fill permission, unvalidated proxy edge can permit fills, live readiness is implied, old Redis writes appear, exchange mutation appears, live_gate changes, or live_symbols is not []. Verify tests and JSON outputs. Emit CODEX_REVIEW.md and CODEX_GO_NO_GO.md.",
+  "required_output_files": [
+    "claude_worklog/final_readiness/paper_expected_move_coverage/latest/codex_review/CODEX_REVIEW.md",
+    "claude_worklog/final_readiness/paper_expected_move_coverage/latest/codex_review/CODEX_GO_NO_GO.md"
+  ],
+  "risk_level": "L1",
+  "status": "pending",
+  "task_id": "codex_review_claude_improve_expected_move_after_cost_coverage_from_shadow_false_blocks",
+  "task_timeout_seconds": 1200
+}

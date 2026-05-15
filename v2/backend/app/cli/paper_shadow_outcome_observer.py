@@ -126,8 +126,10 @@ def _dashboard(status: dict[str, Any]) -> dict[str, Any]:
         "completed_observations": status.get("completed_observations"),
         "pending_observations": status.get("pending_observations"),
         "false_block_count": status.get("false_block_count"),
+        "false_block_reason_counts": status.get("false_block_reason_counts"),
         "no_trade_correct_count": status.get("no_trade_correct_count"),
         "minimum_sample_status": status.get("minimum_sample_status"),
+        "recommended_next_action": status.get("recommended_next_action"),
         "latest_observation": status.get("latest_observation"),
         "approves_live": False,
         "approves_canary": False,
@@ -158,11 +160,13 @@ def _report(status: dict[str, Any]) -> str:
             f"- pending_observations: `{status.get('pending_observations')}`",
             f"- no_trade_correct_count: `{status.get('no_trade_correct_count')}`",
             f"- false_block_count: `{status.get('false_block_count')}`",
+            f"- false_block_reason_counts: `{status.get('false_block_reason_counts')}`",
             f"- minimum_sample_status: `{status.get('minimum_sample_status')}`",
+            f"- recommended_next_action: `{status.get('recommended_next_action')}`",
             "",
             "## Decision",
             "",
-            "Positive paper edge remains unproven until qualified post-filter fills or enough completed shadow observations show after-cost correctness. Live remains blocked.",
+            "Positive paper edge remains unproven until qualified post-filter fills or enough completed shadow observations show after-cost correctness. If false blocks appear, keep the fill gate strict and repair expected-move coverage instead of allowing missing-edge fills. Live remains blocked.",
         ]
     )
 

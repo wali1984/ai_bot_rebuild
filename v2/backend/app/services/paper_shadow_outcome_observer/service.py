@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from collections import Counter
 from typing import Any, Iterable, Mapping
 
 from v2.backend.app.services.legacy_v2_observatory_common import (
@@ -279,6 +280,14 @@ def _samples_from_paper_status(paper_status: Mapping[str, Any]) -> list[Mapping[
     return []
 
 
+def _reason_items(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value if str(item)]
+    if value in (None, ""):
+        return []
+    return [str(value)]
+
+
 def build_paper_shadow_outcome_observer_status(
     *,
     worker_status: Mapping[str, Any] | None = None,
@@ -326,6 +335,9 @@ def build_paper_shadow_outcome_observer_status(
     no_trade_correct = [
         row for row in completed if row.get("no_trade_correct") is True
     ]
+    false_block_reason_counts: Counter[str] = Counter()
+    for row in false_blocks:
+        false_block_reason_counts.update(_reason_items(row.get("block_reason")))
     if not observations:
         outcome_status = "EDGE_PENDING_INSUFFICIENT_SAMPLE"
     elif not completed:
@@ -334,6 +346,11 @@ def build_paper_shadow_outcome_observer_status(
         outcome_status = "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED"
     else:
         outcome_status = "NO_TRADE_DECISIONS_CORRECT_SO_FAR"
+    recommended_next_action = (
+        "EXPECTED_MOVE_MODEL_REVIEW_REQUIRED_KEEP_FILL_GATE_STRICT"
+        if false_blocks
+        else "CONTINUE_SHADOW_OUTCOME_OBSERVATION"
+    )
 
     status = {
         "worker_id": "paper_shadow_outcome_observer",
@@ -341,11 +358,28 @@ def build_paper_shadow_outcome_observer_status(
         "outcome_status": outcome_status,
         "edge_status": "EDGE_PENDING_INSUFFICIENT_SAMPLE"
         if outcome_status == "EDGE_PENDING_INSUFFICIENT_SAMPLE"
+        else "EDGE_PENDING_MODEL_REVIEW_REQUIRED"
+        if false_blocks
         else "SHADOW_OUTCOME_OBSERVING",
         "observations_total": len(observations),
         "completed_observations": len(completed),
         "pending_observations": len(pending),
         "false_block_count": len(false_blocks),
+        "false_block_reason_counts": dict(sorted(false_block_reason_counts.items())),
+        "false_block_examples": [
+            {
+                "observation_id": row.get("observation_id"),
+                "symbol": row.get("symbol"),
+                "side": row.get("side"),
+                "event_ts": row.get("event_ts"),
+                "cost_bps": row.get("cost_bps"),
+                "expected_move_bps": row.get("expected_move_bps"),
+                "expected_move_after_cost_bps": row.get("expected_move_after_cost_bps"),
+                "block_reason": row.get("block_reason"),
+                "max_favorable_excursion_bps": row.get("max_favorable_excursion_bps"),
+            }
+            for row in false_blocks[:5]
+        ],
         "no_trade_correct_count": len(no_trade_correct),
         "after_cost_correct_count": len(false_blocks),
         "candidate_trade_count": len(observations),
@@ -357,6 +391,7 @@ def build_paper_shadow_outcome_observer_status(
         "minimum_sample_status": "INSUFFICIENT_SAMPLE"
         if len(completed) < 20
         else "PRELIMINARY_SAMPLE",
+        "recommended_next_action": recommended_next_action,
         "approves_live": False,
         "approves_canary": False,
         "approves_legacy_shutdown": False,

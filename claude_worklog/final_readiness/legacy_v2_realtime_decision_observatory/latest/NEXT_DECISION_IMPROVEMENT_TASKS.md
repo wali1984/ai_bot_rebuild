@@ -1,8 +1,14 @@
 # Next Decision Improvement Tasks
 
-Generated: `2026-05-15T04:24:38Z`
+Generated: `2026-05-15T07:32:58Z`
 
-This queue is V2 paper/shadow only and does not approve live trading or legacy shutdown.
+This file does not approve live trading or legacy shutdown.
+
+## claude_improve_expected_move_after_cost_coverage_from_shadow_false_blocks
+
+- priority: `P0`
+- reason: Shadow outcome observer found 2 blocked intents that beat costs; current false-block reasons show expected-move coverage/model review is required.
+- required result: Increase native or explicitly accepted expected_move_after_cost_bps coverage from trainer/feature evidence; do not use future outcome labels to permit fills and do not loosen the strict paper fill gate.
 
 ## claude_v2_paper_edge_recovery_and_cost_aware_trade_selection
 

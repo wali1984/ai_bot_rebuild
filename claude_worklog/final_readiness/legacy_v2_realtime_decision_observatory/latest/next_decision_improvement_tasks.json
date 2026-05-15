@@ -1,15 +1,21 @@
 {
   "approval_token_created": false,
-  "claude_task_ready": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection",
+  "claude_task_ready": "claude_improve_expected_move_after_cost_coverage_from_shadow_false_blocks",
   "does_not_approve_legacy_shutdown": true,
   "does_not_approve_live": true,
   "exchange_action_taken": false,
-  "generated_at": "2026-05-15T04:24:38Z",
+  "generated_at": "2026-05-15T07:32:58Z",
   "legacy_mutation_performed": false,
   "live_blocked": true,
   "live_gate": "blocked_human_only",
   "live_symbols": [],
   "next_tasks": [
+    {
+      "priority": "P0",
+      "reason": "Shadow outcome observer found 2 blocked intents that beat costs; current false-block reasons show expected-move coverage/model review is required.",
+      "required_result": "Increase native or explicitly accepted expected_move_after_cost_bps coverage from trainer/feature evidence; do not use future outcome labels to permit fills and do not loosen the strict paper fill gate.",
+      "task_id": "claude_improve_expected_move_after_cost_coverage_from_shadow_false_blocks"
+    },
     {
       "priority": "P0",
       "reason": "Paper loss attribution found fee/slippage/churn loss and missing edge-after-cost evidence.",
@@ -43,9 +49,15 @@
     "paper_loss_attribution",
     "trainer_bridge",
     "paper_edge_recovery",
+    "paper_shadow_outcome_observer",
     "symbol_universe",
     "risk_gateway"
   ],
   "redis_trim_approval_created": false,
+  "shadow_false_block_count": 2,
+  "shadow_false_block_reason_counts": {
+    "missing_expected_move_after_costs": 2
+  },
+  "shadow_outcome_status": "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED",
   "worker_id": "v2_decision_improvement_recommender"
 }

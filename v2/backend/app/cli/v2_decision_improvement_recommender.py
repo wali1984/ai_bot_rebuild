@@ -35,6 +35,19 @@ TRAINER_CANDIDATES = [
 PAPER_EDGE_CANDIDATES = [
     REPO_ROOT / "claude_worklog" / "final_readiness" / "paper_edge_recovery" / "latest" / "paper_edge_recovery_status.json",
 ]
+SHADOW_OUTCOME_CANDIDATES = [
+    V2_PUBLIC
+    / "operator_runtime"
+    / "paper_shadow_outcome_observer"
+    / "latest"
+    / "paper_shadow_outcome_observer_status.json",
+    REPO_ROOT
+    / "claude_worklog"
+    / "final_readiness"
+    / "paper_shadow_outcome_observer"
+    / "latest"
+    / "paper_shadow_outcome_observer_status.json",
+]
 SYMBOL_CANDIDATES = [
     V2_PUBLIC / "operator_runtime" / "symbol_universe" / "latest" / "symbol_universe_status.json",
 ]
@@ -85,6 +98,7 @@ def run_once(args: argparse.Namespace | None = None) -> dict[str, Any]:
         paper_loss_status=_load(PAPER_LOSS_CANDIDATES),
         trainer_status=_load(TRAINER_CANDIDATES),
         paper_edge_status=_load(PAPER_EDGE_CANDIDATES),
+        shadow_outcome_status=_load(SHADOW_OUTCOME_CANDIDATES),
         symbol_status=_load(SYMBOL_CANDIDATES),
         risk_status=_load(RISK_CANDIDATES),
     )

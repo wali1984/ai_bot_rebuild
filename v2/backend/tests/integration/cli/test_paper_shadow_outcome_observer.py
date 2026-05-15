@@ -139,6 +139,8 @@ def test_shadow_observer_flags_false_block_when_blocked_intent_beats_costs(
     assert status["false_block_count"] == 1
     assert status["no_trade_correct_count"] == 0
     assert status["latest_observation"]["would_have_beaten_costs"] is True
+    assert status["false_block_reason_counts"] == {"CONFIDENCE_TOO_LOW_BLOCK": 1}
+    assert status["recommended_next_action"] == "EXPECTED_MOVE_MODEL_REVIEW_REQUIRED_KEEP_FILL_GATE_STRICT"
 
 
 def test_shadow_observer_keeps_insufficient_sample_without_future_prices(
@@ -170,6 +172,7 @@ def test_shadow_observer_keeps_insufficient_sample_without_future_prices(
     assert status["completed_observations"] == 0
     assert status["approves_live"] is False
     assert status["approves_legacy_shutdown"] is False
+    assert status["recommended_next_action"] == "CONTINUE_SHADOW_OUTCOME_OBSERVATION"
 
 
 def test_shadow_observer_rechecks_prior_pending_observations(
