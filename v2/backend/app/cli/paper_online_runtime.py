@@ -40,6 +40,15 @@ TRAINER_BRIDGE_STATUS_FILE = (
     / "latest"
     / "v2_trainer_bridge_status.json"
 )
+PAPER_SHADOW_OUTCOME_STATUS_FILE = (
+    V2_ROOT
+    / "frontend"
+    / "public"
+    / "operator_runtime"
+    / "paper_shadow_outcome_observer"
+    / "latest"
+    / "paper_shadow_outcome_observer_status.json"
+)
 WEEKLY_LOSS_LIMIT_USDT = -250.0
 DAILY_LOSS_LIMIT_USDT = -75.0
 PAPER_TIGHTENING_MIN_CONFIDENCE = 0.75
@@ -493,6 +502,35 @@ def _paper_outcome_model_contract() -> tuple[dict[str, Any], list[str]]:
     )
 
 
+def _expected_move_model_review_contract() -> tuple[dict[str, Any], list[str]]:
+    payload = _read_json_file(PAPER_SHADOW_OUTCOME_STATUS_FILE)
+    false_block_count = int(payload.get("false_block_count") or 0)
+    outcome_status = str(payload.get("outcome_status") or "")
+    edge_status = str(payload.get("edge_status") or "")
+    model_review_required = (
+        false_block_count > 0
+        and (
+            outcome_status == "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED"
+            or edge_status == "EDGE_PENDING_MODEL_REVIEW_REQUIRED"
+        )
+    )
+    blockers = ["expected_move_model_review_required"] if model_review_required else []
+    return (
+        {
+            "status": "MODEL_REVIEW_REQUIRED_SHADOW_ONLY" if model_review_required else "READY",
+            "source": "paper_shadow_outcome_observer",
+            "false_block_count": false_block_count,
+            "outcome_status": outcome_status or "MISSING_EVIDENCE",
+            "edge_status": edge_status or "MISSING_EVIDENCE",
+            "paper_fill_allowed": not model_review_required,
+            "uses_future_outcome_labels_for_entry": False,
+            "live_gate": LIVE_GATE_STATUS,
+            "live_symbols": [],
+        },
+        blockers,
+    )
+
+
 def apply_paper_tightening_gate(
     lineage: dict[str, Any],
     *,
@@ -613,19 +651,35 @@ def apply_paper_tightening_gate(
     }
     paper_outcome_model, paper_outcome_model_blockers = _paper_outcome_model_contract()
     risk["paper_outcome_model"] = paper_outcome_model
-    if gate.get("blockers") or paper_edge_gate.get("blockers") or paper_outcome_model_blockers:
+    expected_move_model_review, expected_move_model_review_blockers = _expected_move_model_review_contract()
+    risk["expected_move_model_review"] = expected_move_model_review
+    if (
+        gate.get("blockers")
+        or paper_edge_gate.get("blockers")
+        or paper_outcome_model_blockers
+        or expected_move_model_review_blockers
+    ):
         risk["risk_action"] = "deny"
         risk["risk_result"] = "BLOCKED"
         risk["risk_reason_code"] = (
             "deny_paper_outcome_model_missing"
-            if paper_outcome_model_blockers and not gate.get("blockers") and not paper_edge_gate.get("blockers")
+            if paper_outcome_model_blockers
+            and not gate.get("blockers")
+            and not paper_edge_gate.get("blockers")
+            and not expected_move_model_review_blockers
+            else "deny_expected_move_model_review"
+            if expected_move_model_review_blockers
+            and not gate.get("blockers")
+            and not paper_edge_gate.get("blockers")
             else "deny_canary_profile_tightening"
         )
         risk["canary_profile_tightening_blockers"] = [
             *list(gate.get("blockers") or []),
             *paper_outcome_model_blockers,
+            *expected_move_model_review_blockers,
         ]
         risk["paper_outcome_model_blockers"] = paper_outcome_model_blockers
+        risk["expected_move_model_review_blockers"] = expected_move_model_review_blockers
         required = list(risk.get("required_blocks_checked") or [])
         if "canary_profile_tightening" not in required:
             required.append("canary_profile_tightening")
@@ -633,6 +687,8 @@ def apply_paper_tightening_gate(
             required.append("paper_edge_scoring")
         if "paper_outcome_model" not in required:
             required.append("paper_outcome_model")
+        if "expected_move_model_review" not in required:
+            required.append("expected_move_model_review")
         risk["required_blocks_checked"] = required
         intent["intent_action"] = "paper_noop_blocked"
         intent["exchange_order_allowed"] = False

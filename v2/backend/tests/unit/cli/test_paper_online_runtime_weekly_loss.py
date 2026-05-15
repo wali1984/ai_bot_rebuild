@@ -33,6 +33,11 @@ def _isolate_trainer_bridge_status(tmp_path: Path, monkeypatch: pytest.MonkeyPat
         "TRAINER_BRIDGE_STATUS_FILE",
         tmp_path / "missing_v2_trainer_bridge_status.json",
     )
+    monkeypatch.setattr(
+        paper_runtime,
+        "PAPER_SHADOW_OUTCOME_STATUS_FILE",
+        tmp_path / "missing_paper_shadow_outcome_observer_status.json",
+    )
 
 
 def _market() -> MarketSnapshot:
@@ -230,6 +235,73 @@ def test_native_trainer_bridge_expected_move_flows_to_paper_gate(
     )
     assert gated["risk_decision"]["canary_profile_tightening"]["expected_move_bps"] == 20.0
     assert gated["risk_decision"]["canary_profile_tightening"]["safe_for_live"] is False
+
+
+def test_expected_move_model_review_forces_shadow_only_even_when_edge_passes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bridge_status = tmp_path / "v2_trainer_bridge_status.json"
+    shadow_status = tmp_path / "paper_shadow_outcome_observer_status.json"
+    monkeypatch.setattr(paper_runtime, "TRAINER_BRIDGE_STATUS_FILE", bridge_status)
+    monkeypatch.setattr(paper_runtime, "PAPER_SHADOW_OUTCOME_STATUS_FILE", shadow_status)
+    bridge_status.write_text(
+        json.dumps(
+            {
+                "prediction_symbol": "BTCUSDT",
+                "prediction_timeframe": "1m",
+                "prediction_id": "legacy_redis_pred_unit",
+                "prediction_source_type": "LEGACY_HYBRID_TRAINER_REDIS_READONLY",
+                "trainer_parity_status": "BLOCKS_LEGACY_SHUTDOWN",
+                "model_version": "legacy_hybrid_trainer_live_legacy",
+                "checkpoint_id": "legacy_live_checkpoint_unit",
+                "expected_move_bps": 24.0,
+                "expected_move_source": "native_legacy_trainer_price_target",
+                "expected_move_evidence_mode": "NATIVE_FIELD_PRESENT",
+                "live_gate": "blocked_human_only",
+                "live_symbols": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    shadow_status.write_text(
+        json.dumps(
+            {
+                "outcome_status": "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED",
+                "edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
+                "false_block_count": 3,
+                "live_gate": "blocked_human_only",
+                "live_symbols": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    market = _market()
+    feature = build_feature_snapshot(market, "tick_unit")
+    prediction = build_trainer_prediction(feature, "tick_unit")
+    prediction["confidence_calibrated"] = 0.82
+    lineage = build_signal_lineage(
+        tick_id="tick_unit",
+        generated_at="2026-05-13T07:30:00Z",
+        feature_snapshot=feature,
+        prediction=prediction,
+        market=market,
+    )
+
+    gated = apply_paper_tightening_gate(
+        lineage,
+        generated_at="2026-05-13T07:30:00Z",
+        recent_events=[],
+        now_ms=1_778_648_401_000,
+    )
+
+    assert gated["risk_decision"]["paper_edge_gate"]["fill_allowed"] is True
+    assert gated["risk_decision"]["risk_action"] == "deny"
+    assert gated["risk_decision"]["risk_reason_code"] == "deny_expected_move_model_review"
+    assert "expected_move_model_review_required" in gated["risk_decision"]["canary_profile_tightening_blockers"]
+    assert gated["risk_decision"]["expected_move_model_review"]["paper_fill_allowed"] is False
+    assert gated["risk_decision"]["expected_move_model_review"]["uses_future_outcome_labels_for_entry"] is False
+    assert gated["execution_intent"]["exchange_order_allowed"] is False
 
 
 def test_native_expected_move_shadows_when_paper_outcome_model_is_missing(
