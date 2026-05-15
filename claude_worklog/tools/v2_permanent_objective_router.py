@@ -34,7 +34,7 @@ ROOT = Path(__file__).resolve().parents[2]
 BLOCKER_MATRIX = ROOT / "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/blocker_matrix.json"
 OBSERVATORY = ROOT / "v2/frontend/public/operator_runtime/legacy_v2_decision_comparator/latest/legacy_v2_decision_comparator_status.json"
 PAPER_EDGE_PAYLOAD = ROOT / "v2/frontend/public/paper_edge_recovery/latest/operator_dashboard_payload.json"
-PAPER_SHADOW_OUTCOME = ROOT / "v2/frontend/public/paper_shadow_outcome_observer/latest/operator_dashboard_payload.json"
+PAPER_SHADOW_OUTCOME = ROOT / "v2/frontend/public/operator_runtime/paper_shadow_outcome_observer/latest/paper_shadow_outcome_observer_status.json"
 EXPECTED_MOVE_REVIEW = ROOT / "v2/frontend/public/expected_move_model_review/latest/operator_dashboard_payload.json"
 PARITY_MATRIX = ROOT / "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/v2_parity_gap_matrix.json"
 NEXT_REMEDIATION = ROOT / "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/next_remediation_tasks_for_claude.json"
@@ -74,6 +74,21 @@ def read_json(path: Path) -> dict[str, Any] | list[Any] | None:
         return json.loads(path.read_text())
     except Exception:
         return None
+
+
+def _as_int(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _review_current_enough(*, reviewed: int, current: int) -> bool:
+    if current <= reviewed:
+        return True
+    drift = current - reviewed
+    tolerance = max(10, int(max(reviewed, 1) * 0.25))
+    return drift <= tolerance
 
 
 def write_json(path: Path, data: Any) -> None:
@@ -140,11 +155,23 @@ def classify_blockers(inputs: dict[str, Any]) -> list[dict[str, Any]]:
         })
 
     em = inputs.get("expected_move_review", {}) or {}
-    if em.get("outcome_status") == "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED":
+    shadow = inputs.get("paper_shadow_outcome", {}) or {}
+    reviewed_false_blocks = _as_int(em.get("false_block_count"))
+    current_false_blocks = _as_int(shadow.get("false_block_count"))
+    review_current_enough = _review_current_enough(
+        reviewed=reviewed_false_blocks,
+        current=current_false_blocks,
+    )
+    if em.get("outcome_status") == "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED" or not review_current_enough:
+        review_state = "current" if review_current_enough else "stale_against_shadow_observer"
         rows.append({
             "id": "EXPECTED_MOVE_MODEL_REVIEW_INCOMPLETE",
             "category": "P0_SHUTDOWN_BLOCKER",
-            "evidence": f"expected_move_review.go_no_go={em.get('go_no_go')} outcome={em.get('outcome_status')}",
+            "evidence": (
+                f"expected_move_review.go_no_go={em.get('go_no_go')} outcome={em.get('outcome_status')} "
+                f"review_state={review_state} reviewed_false_blocks={reviewed_false_blocks} "
+                f"current_false_blocks={current_false_blocks}"
+            ),
             "remediation_task_id": "claude_v2_expected_move_model_review_and_false_block_calibration",
             "source": "expected_move_model_review",
         })

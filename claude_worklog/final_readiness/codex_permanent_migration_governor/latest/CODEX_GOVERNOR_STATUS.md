@@ -1,21 +1,20 @@
 # Codex Permanent Migration Governor Status
 
-Generated: `2026-05-15T18:03:35Z`
+Generated: `2026-05-15T19:50:02Z`
 
 GO/NO-GO: `CODEX_PERMANENT_SHUTDOWN_AND_MIGRATION_GOVERNOR_READY`
 
-Mode: no new script/service was created because the operator explicitly requested this be run here. Existing takeover and observatory services remain active.
+Mode: no new service was installed. Existing takeover and observatory services remain active.
 
 ## Simple Status
 
 - Are we live? **No.** `live_gate=blocked_human_only`, `live_symbols=[]`.
-- Are we paper/shadow? **Yes**, V2 paper/shadow only with a strict expected-edge gate.
-- Can legacy be shut down? **No.** Current recommendation: `BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE`.
+- Can legacy be shut down? **No.** `BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE`.
 - Main P0 blocker: `PAPER_EDGE_UNPROVEN`.
-- Shadow observations: `273` completed, `107` false blocks, `166` no-trade correct.
+- Shadow observations: `324` completed, `126` false blocks, `198` no-trade correct.
 - Expected-move review: `V2_EXPECTED_MOVE_MODEL_REVIEW_READY_KEEP_GATE_STRICT` with action `KEEP_GATE_STRICT`.
-- Active stale public payloads: `0`.
-- Next action: `{'blocker_id': 'PAPER_EDGE_UNPROVEN', 'follow_up': 'continue observing blocked paper intents over 5m/15m/30m/1h horizons; do not loosen fill gate or claim positive edge without completed after-cost evidence', 'kind': 'monitor_shadow_outcome_observer', 'task_id': 'paper_shadow_outcome_observer'}`.
+- Expected-move review freshness: reviewed false blocks `95`, current false blocks `126`, current=`False`.
+- Next action: `{'kind': 'refresh_expected_move_model_review_from_shadow_observer', 'task_id': 'claude_v2_expected_move_model_review_and_false_block_calibration', 'blocker_id': 'PAPER_EDGE_UNPROVEN', 'follow_up': 'current shadow false blocks exceed reviewed sample; rerun expected-move review, keep strict fill gate, do not loosen thresholds or claim positive edge'}`.
 
 ## Safety
 

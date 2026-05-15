@@ -34,7 +34,10 @@ SOURCES: dict[str, Path | tuple[Path, ...]] = {
     ),
     "v2_symbol_universe": REPO_ROOT / "v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json",
     "paper_edge_recovery": REPO_ROOT / "v2/frontend/public/paper_edge_recovery/latest/operator_dashboard_payload.json",
-    "paper_shadow_outcome_observer": REPO_ROOT / "v2/frontend/public/paper_shadow_outcome_observer/latest/operator_dashboard_payload.json",
+    "paper_shadow_outcome_observer": (
+        REPO_ROOT / "v2/frontend/public/operator_runtime/paper_shadow_outcome_observer/latest/paper_shadow_outcome_observer_status.json",
+        REPO_ROOT / "v2/frontend/public/paper_shadow_outcome_observer/latest/operator_dashboard_payload.json",
+    ),
     "expected_move_model_review": REPO_ROOT / "v2/frontend/public/expected_move_model_review/latest/operator_dashboard_payload.json",
     "v2_trainer_bridge": REPO_ROOT / "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json",
     "legacy_v2_realtime_decision_observatory": REPO_ROOT / "v2/frontend/public/operator_runtime/legacy_v2_decision_comparator/latest/legacy_v2_decision_comparator_status.json",
@@ -116,11 +119,27 @@ def _safe(payload: Any, key: str, default: Any = None) -> Any:
     return default
 
 
+def _as_int(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _review_current_enough(*, reviewed: int, current: int) -> bool:
+    if current <= reviewed:
+        return True
+    drift = current - reviewed
+    tolerance = max(10, int(max(reviewed, 1) * 0.25))
+    return drift <= tolerance
+
+
 def derive_simple_summary(payloads: dict[str, Any]) -> dict[str, Any]:
     """Plain-English summary the frontend renders on every page."""
     em = payloads.get("expected_move_model_review") or {}
     tb = payloads.get("v2_trainer_bridge") or {}
     paper = payloads.get("paper_edge_recovery") or {}
+    shadow = payloads.get("paper_shadow_outcome_observer") or {}
     shutdown = payloads.get("codex_shutdown_readiness_takeover") or {}
     router = payloads.get("permanent_migration_router") or {}
 
@@ -130,6 +149,12 @@ def derive_simple_summary(payloads: dict[str, Any]) -> dict[str, Any]:
 
     paper_edge_status = em.get("edge_status") or "EDGE_PENDING_MODEL_REVIEW_REQUIRED"
     trainer_parity_status = tb.get("trainer_parity_status") or em.get("trainer_parity_status") or "BLOCKS_LEGACY_SHUTDOWN"
+    reviewed_false_blocks = _as_int(em.get("false_block_count"))
+    current_false_blocks = _as_int(shadow.get("false_block_count"))
+    expected_move_review_current = _review_current_enough(
+        reviewed=reviewed_false_blocks,
+        current=current_false_blocks,
+    )
 
     blockers_simple: list[str] = []
     if "EDGE_PENDING" in str(paper_edge_status):
@@ -140,6 +165,10 @@ def derive_simple_summary(payloads: dict[str, Any]) -> dict[str, Any]:
         blockers_simple.append("Legacy shutdown is blocked until parity is proven.")
     if router and router.get("routing", {}).get("p0_blockers_remaining", 0) > 0:
         blockers_simple.append("There are P0 runtime blockers still open.")
+    if not expected_move_review_current:
+        blockers_simple.append(
+            "Expected-move review is behind the latest shadow outcomes; keep the strict gate until a fresh review passes."
+        )
 
     blockers_technical = []
     selected = (router or {}).get("routing", {}).get("selected_blocker") or {}
@@ -150,6 +179,17 @@ def derive_simple_summary(payloads: dict[str, Any]) -> dict[str, Any]:
             "remediation_task_id": selected.get("remediation_task_id"),
             "source": selected.get("source"),
             "evidence": selected.get("evidence"),
+        })
+    if not expected_move_review_current:
+        blockers_technical.append({
+            "id": "EXPECTED_MOVE_MODEL_REVIEW_STALE_AGAINST_SHADOW_OUTCOMES",
+            "category": "P0_SHUTDOWN_BLOCKER",
+            "remediation_task_id": "claude_v2_expected_move_model_review_and_false_block_calibration",
+            "source": "frontend_truth_payload_builder",
+            "evidence": (
+                f"reviewed_false_blocks={reviewed_false_blocks}; "
+                f"current_false_blocks={current_false_blocks}"
+            ),
         })
 
     active_claude_task = (router or {}).get("routing", {}).get("next_task_id") or "n/a"
@@ -168,6 +208,9 @@ def derive_simple_summary(payloads: dict[str, Any]) -> dict[str, Any]:
         "next_fix": active_claude_task,
         "blockers_simple": blockers_simple,
         "blockers_technical": blockers_technical,
+        "expected_move_review_current": expected_move_review_current,
+        "expected_move_reviewed_false_block_count": reviewed_false_blocks,
+        "shadow_current_false_block_count": current_false_blocks,
     }
 
 
@@ -177,8 +220,15 @@ def page_cards(payloads: dict[str, Any], status: dict[str, str]) -> list[dict[st
         return status.get(name, "MISSING_EVIDENCE")
 
     em = payloads.get("expected_move_model_review") or {}
+    shadow = payloads.get("paper_shadow_outcome_observer") or {}
     paper = payloads.get("paper_edge_recovery") or {}
     tb = payloads.get("v2_trainer_bridge") or {}
+    reviewed_false_blocks = _as_int(em.get("false_block_count"))
+    current_false_blocks = _as_int(shadow.get("false_block_count"))
+    expected_move_review_current = _review_current_enough(
+        reviewed=reviewed_false_blocks,
+        current=current_false_blocks,
+    )
 
     cards = [
         {
@@ -222,7 +272,12 @@ def page_cards(payloads: dict[str, Any], status: dict[str, str]) -> list[dict[st
             "id": "admin.paper_edge",
             "title": "Paper Edge",
             "color": "yellow",
-            "summary": f"{em.get('edge_status', 'EDGE_PENDING_MODEL_REVIEW_REQUIRED')}; false_block_count={em.get('false_block_count')}",
+            "summary": (
+                f"{em.get('edge_status', 'EDGE_PENDING_MODEL_REVIEW_REQUIRED')}; "
+                f"reviewed_false_blocks={reviewed_false_blocks}; "
+                f"current_false_blocks={current_false_blocks}; "
+                f"review_current={expected_move_review_current}"
+            ),
             "why_it_matters": "Until paper proves it can beat fees, the bot is not allowed to trade live.",
             "what_needs_to_happen_next": "Run the false-block calibration replay until a safe threshold candidate appears.",
             "evidence_paths": [
@@ -333,6 +388,9 @@ def build_payload() -> dict[str, Any]:
         "next_fix": summary["next_fix"],
         "blockers_simple": summary["blockers_simple"],
         "blockers_technical": summary["blockers_technical"],
+        "expected_move_review_current": summary["expected_move_review_current"],
+        "expected_move_reviewed_false_block_count": summary["expected_move_reviewed_false_block_count"],
+        "shadow_current_false_block_count": summary["shadow_current_false_block_count"],
         "page_cards": cards,
         "stale_payloads": stale,
         "missing_payloads": missing,

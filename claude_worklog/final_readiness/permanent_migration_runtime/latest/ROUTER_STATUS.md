@@ -1,6 +1,6 @@
 # V2 Permanent Objective Router Status
 
-Generated: `2026-05-15T17:50:55+00:00`
+Generated: `2026-05-15T19:49:11+00:00`
 Live gate: `blocked_human_only`
 Live symbols: `[]`
 Final approval token: `absent`
@@ -15,7 +15,7 @@ Final approval token: `absent`
 
 ## Routing summary
 
-- P0 blockers remaining: `8`
+- P0 blockers remaining: `9`
 - P1 blockers remaining: `0`
 - P2 blockers (always blocked until P0/P1 clear): `3`
 - Safety guard: `ok` (safe=True)
@@ -32,6 +32,7 @@ Final approval token: `absent`
 - `OBSERVATORY_LEGACY_SIGNALS_STALE_SOURCE_LIMITED` (INFO_ONLY) from `codex_shutdown_readiness_takeover` -> task `None`
 - `OBSERVATORY_DECISION_QUALITY_INSUFFICIENT_SAMPLE` (INFO_ONLY) from `codex_shutdown_readiness_takeover` -> task `None`
 - `TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY` (OPERATOR_DECISION_REQUIRED) from `codex_shutdown_readiness_takeover` -> task `claude_remediate_account_position_monitor_shutdown_parity`
+- `FRESHNESS_GUARD_BLOCKED_ON_STALE_PUBLIC_ARTIFACTS` (P0_SHUTDOWN_BLOCKER) from `codex_shutdown_readiness_takeover` -> task `claude_audit_stale_public_payloads_and_freshness_guard`
 - `EXPECTED_MOVE_MODEL_REVIEW_INCOMPLETE` (P0_SHUTDOWN_BLOCKER) from `expected_move_model_review` -> task `claude_v2_expected_move_model_review_and_false_block_calibration`
 - `TRAINER_PARITY_INCOMPLETE` (P0_SHUTDOWN_BLOCKER) from `v2_trainer_bridge` -> task `claude_port_v2_trainer_bridge_full_legacy_parity`
 - `PARITY_MATRIX_NO_FULLY_MIGRATED` (P0_SHUTDOWN_BLOCKER) from `legacy_rl_risk_trainer_trader_closure` -> task `claude_resolve_parity_matrix_gaps`
