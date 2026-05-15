@@ -1,35 +1,94 @@
 {
   "accepted_as_legacy_hybrid_prediction": true,
+  "action_probability_evidence": [
+    {
+      "name": "ppo_action_OPEN_LONG_probability",
+      "source": "legacy_log:PPO_DECISION_RAW.top1",
+      "value": 0.491
+    },
+    {
+      "name": "ppo_action_HOLD_probability",
+      "source": "legacy_log:PPO_DECISION_RAW.top2",
+      "value": 0.4301
+    }
+  ],
   "binance_usdm_confirmed_symbols": [
     "BTCUSDT",
     "ETHUSDT",
     "SOLUSDT"
   ],
-  "calibrated_confidence": 0.918,
+  "calibrated_confidence": 0.6399,
   "checkpoint_evidence_status": "PRESENT",
-  "checkpoint_id": "legacy_live_checkpoint_1778800941",
+  "checkpoint_id": "legacy_live_checkpoint_1778804343",
   "coinank_symbols_directly_tradable": false,
   "coinank_tradability_policy": "CoinAnk-only symbols remain intelligence candidates until Binance USD-M confirmation exists.",
-  "confidence_calibrated": 0.918,
-  "confidence_raw": 0.918,
+  "confidence_calibrated": 0.6399,
+  "confidence_calibration_mode": "DERIVED_FROM_LEGACY_LOG",
+  "confidence_raw": 0.6399,
   "current_gate_state": "blocked_human_only",
+  "derived_feature_snapshot_link": {
+    "age_delta_seconds": 6,
+    "classification": "DERIVED_FROM_LEGACY_LOG",
+    "feature_snapshot_symbol": "BTCUSDT",
+    "feature_snapshot_timeframe": "1m",
+    "freshness_matches": true,
+    "linked": false,
+    "linked_feature_snapshot_id": "",
+    "mode": "DERIVED_FROM_LEGACY_LOG",
+    "prediction_symbol": "ALICEUSDT",
+    "prediction_timeframe": "4h",
+    "source_prediction_id": "legacy_log_pred_29a01e9395760d8d35a2",
+    "symbol_scope_matches": false,
+    "timeframe_matches": false
+  },
   "discovered_symbols": [
+    "1000FLOKIUSDT",
+    "1000SHIBUSDT",
     "ALICEUSDT",
+    "ASTERUSDT",
+    "AUCTIONUSDT",
+    "AVNTUSDT",
+    "BANKUSDT",
+    "BARDUSDT",
     "BTCUSDT",
     "COINANK_ONLY_USDT",
     "ETHUSDT",
     "FARTCOINUSDT",
     "KUCOIN_ONLY_USDT",
-    "SOLUSDT"
+    "LINKUSDT",
+    "LTCUSDT",
+    "PENGUUSDT",
+    "PIPPINUSDT",
+    "RAVEUSDT",
+    "RIVERUSDT",
+    "SOLUSDT",
+    "UNIUSDT",
+    "WIFUSDT",
+    "XRPUSDT"
   ],
   "dynamic_discovered_symbols": [
+    "1000FLOKIUSDT",
+    "1000SHIBUSDT",
     "ALICEUSDT",
+    "ASTERUSDT",
+    "AUCTIONUSDT",
+    "AVNTUSDT",
+    "BANKUSDT",
+    "BARDUSDT",
     "BTCUSDT",
     "COINANK_ONLY_USDT",
     "ETHUSDT",
     "FARTCOINUSDT",
     "KUCOIN_ONLY_USDT",
-    "SOLUSDT"
+    "LINKUSDT",
+    "PENGUUSDT",
+    "PIPPINUSDT",
+    "RAVEUSDT",
+    "RIVERUSDT",
+    "SOLUSDT",
+    "UNIUSDT",
+    "WIFUSDT",
+    "XRPUSDT"
   ],
   "dynamic_symbol_sources": [
     "binance_futures",
@@ -45,26 +104,35 @@
   ],
   "exchange_action_taken": false,
   "fail_closed": true,
+  "feature_attribution_status": "INCOMPLETE_ATTRIBUTION",
   "feature_snapshot_dependency_status": "PRESENT",
-  "feature_snapshot_id": "legacy_log_feature_ETHUSDT_1h_1778801060",
+  "feature_snapshot_id": "legacy_log_feature_ALICEUSDT_4h_1778804486",
+  "feature_snapshot_id_classification": "DERIVED_FROM_LEGACY_LOG",
+  "feature_snapshot_link_mode": "DERIVED_FROM_LEGACY_LOG",
   "feature_snapshot_trainer_readiness_signal": "READY",
-  "freshness_seconds": 0,
+  "field_classification": {
+    "confidence_calibration": "DERIVED_FROM_LEGACY_LOG",
+    "feature_attribution": "INCOMPLETE_ATTRIBUTION",
+    "feature_snapshot_id": "DERIVED_FROM_LEGACY_LOG"
+  },
+  "freshness_seconds": 1,
+  "generated_at": "2026-05-15T00:21:27Z",
   "gpu_runtime": {
     "gpu_state": "GPU_EVIDENCE_PRESENT",
     "gpus": [
       {
-        "gpu_util_pct": 8.0,
+        "gpu_util_pct": 71.0,
         "memory_total_mb": 16303.0,
-        "memory_used_mb": 1614.0,
+        "memory_used_mb": 2048.0,
         "name": "NVIDIA GeForce RTX 5080",
-        "temperature_c": 51.0
+        "temperature_c": 57.0
       }
     ]
   },
   "gpu_state": "GPU_EVIDENCE_PRESENT",
-  "last_prediction_ts": "2026-05-14T23:24:20Z",
-  "last_run_ts": "2026-05-14T23:24:20Z",
-  "latest_prediction_timestamp": "2026-05-14T23:24:20Z",
+  "last_prediction_ts": "2026-05-15T00:21:26Z",
+  "last_run_ts": "2026-05-15T00:21:27Z",
+  "latest_prediction_timestamp": "2026-05-15T00:21:26Z",
   "legacy_active_symbol_source": "legacy_reference/config.py SYMBOLS via SymbolUniverseService",
   "legacy_active_symbols": [
     "1000BONKUSDT",
@@ -173,10 +241,10 @@
   "live_symbols": [],
   "missing_feature_flags": [],
   "missing_runtime_evidence": true,
-  "model_checkpoint_id": "legacy_live_checkpoint_1778800941",
+  "model_checkpoint_id": "legacy_live_checkpoint_1778804343",
   "model_version": "legacy_hybrid_trainer_live_legacy",
   "observed_symbols": [
-    "ETHUSDT"
+    "ALICEUSDT"
   ],
   "old_redis_write_performed": false,
   "paper_symbols": [
@@ -186,10 +254,31 @@
   "prediction_candidates_seen": [
     {
       "accepted_as_legacy_hybrid_prediction": true,
-      "calibrated_confidence": 0.918,
-      "checkpoint_id": "legacy_live_checkpoint_1778800941",
-      "feature_snapshot_id": "legacy_log_feature_ETHUSDT_1h_1778801060",
-      "latest_prediction_timestamp": "2026-05-14T23:24:20Z",
+      "action_probability_evidence": [
+        {
+          "name": "ppo_action_OPEN_LONG_probability",
+          "source": "legacy_log:PPO_DECISION_RAW.top1",
+          "value": 0.491
+        },
+        {
+          "name": "ppo_action_HOLD_probability",
+          "source": "legacy_log:PPO_DECISION_RAW.top2",
+          "value": 0.4301
+        }
+      ],
+      "calibrated_confidence": 0.6399,
+      "checkpoint_id": "legacy_live_checkpoint_1778804343",
+      "confidence_calibration_mode": "DERIVED_FROM_LEGACY_LOG",
+      "feature_attribution_status": "INCOMPLETE_ATTRIBUTION",
+      "feature_snapshot_id": "legacy_log_feature_ALICEUSDT_4h_1778804486",
+      "feature_snapshot_id_classification": "DERIVED_FROM_LEGACY_LOG",
+      "feature_snapshot_link_mode": "DERIVED_FROM_LEGACY_LOG",
+      "field_classification": {
+        "confidence_calibration": "DERIVED_FROM_LEGACY_LOG",
+        "feature_attribution": "INCOMPLETE_ATTRIBUTION",
+        "feature_snapshot_id": "DERIVED_FROM_LEGACY_LOG"
+      },
+      "latest_prediction_timestamp": "2026-05-15T00:21:26Z",
       "lineage_derivation_warnings": [
         "feature_snapshot_id_bridge_derived_from_legacy_log_line",
         "confidence_calibrated_bridge_derived_from_ppo_conf",
@@ -197,54 +286,76 @@
         "top_negative_features_absent_from_legacy_log_line"
       ],
       "missing_prediction_fields": [],
-      "model_checkpoint_id": "legacy_live_checkpoint_1778800941",
+      "model_checkpoint_id": "legacy_live_checkpoint_1778804343",
       "model_version": "legacy_hybrid_trainer_live_legacy",
-      "prediction_age_seconds": 0,
+      "prediction_age_seconds": 1,
       "prediction_evidence_status": "LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT",
-      "prediction_id": "legacy_log_pred_95d2cc641a9d335a11ca",
+      "prediction_id": "legacy_log_pred_29a01e9395760d8d35a2",
       "prediction_source_path": "legacy_readonly:/home/wali/Desktop/AI BOT/.logs/hybrid_trainer.log",
       "prediction_source_type": "LEGACY_HYBRID_TRAINER_LOG_READONLY",
-      "raw_confidence": 0.918,
+      "raw_confidence": 0.6399,
       "raw_prediction_payload": {
-        "checkpoint_id": "legacy_live_checkpoint_1778800941",
-        "confidence_calibrated": 0.918,
-        "confidence_raw": 0.918,
-        "feature_snapshot_id": "legacy_log_feature_ETHUSDT_1h_1778801060",
-        "generated_at": "2026-05-14T23:24:20Z",
+        "action_probability_evidence": [
+          {
+            "name": "ppo_action_OPEN_LONG_probability",
+            "source": "legacy_log:PPO_DECISION_RAW.top1",
+            "value": 0.491
+          },
+          {
+            "name": "ppo_action_HOLD_probability",
+            "source": "legacy_log:PPO_DECISION_RAW.top2",
+            "value": 0.4301
+          }
+        ],
+        "checkpoint_id": "legacy_live_checkpoint_1778804343",
+        "confidence_calibrated": 0.6399,
+        "confidence_calibration_mode": "DERIVED_FROM_LEGACY_LOG",
+        "confidence_raw": 0.6399,
+        "feature_attribution_status": "INCOMPLETE_ATTRIBUTION",
+        "feature_snapshot_id": "legacy_log_feature_ALICEUSDT_4h_1778804486",
+        "feature_snapshot_id_classification": "DERIVED_FROM_LEGACY_LOG",
+        "feature_snapshot_link_mode": "DERIVED_FROM_LEGACY_LOG",
+        "field_classification": {
+          "confidence_calibration": "DERIVED_FROM_LEGACY_LOG",
+          "feature_attribution": "INCOMPLETE_ATTRIBUTION",
+          "feature_snapshot_id": "DERIVED_FROM_LEGACY_LOG"
+        },
+        "generated_at": "2026-05-15T00:21:26Z",
         "lineage_derivation_warnings": [
           "feature_snapshot_id_bridge_derived_from_legacy_log_line",
           "confidence_calibrated_bridge_derived_from_ppo_conf",
           "top_features_are_action_probability_evidence_not_full_feature_attribution",
           "top_negative_features_absent_from_legacy_log_line"
         ],
-        "model_checkpoint": "legacy_live_checkpoint_1778800941",
+        "model_checkpoint": "legacy_live_checkpoint_1778804343",
         "model_version": "legacy_hybrid_trainer_live_legacy",
-        "prediction_id": "legacy_log_pred_95d2cc641a9d335a11ca",
+        "prediction_id": "legacy_log_pred_29a01e9395760d8d35a2",
         "raw_model_output": {
           "account": "primary",
           "action": "OPEN_LONG",
           "action_id": "1",
-          "evidence_line_sha256": "95d2cc641a9d335a11cacbc8fda8a0fc78cf5088f32a9c293a17da96898c1cf9",
-          "top1": "0.9345",
+          "action_probability_evidence": [
+            {
+              "name": "ppo_action_OPEN_LONG_probability",
+              "source": "legacy_log:PPO_DECISION_RAW.top1",
+              "value": 0.491
+            },
+            {
+              "name": "ppo_action_HOLD_probability",
+              "source": "legacy_log:PPO_DECISION_RAW.top2",
+              "value": 0.4301
+            }
+          ],
+          "evidence_line_sha256": "29a01e9395760d8d35a2b3e3e4f6590166dafb8c131521461ab2f6f671ebe870",
+          "top1": "0.4910",
           "top1_id": "1",
-          "top2": "0.0397",
-          "top2_id": "3"
+          "top2": "0.4301",
+          "top2_id": "0"
         },
         "source_type": "LEGACY_HYBRID_TRAINER_LOG_READONLY",
-        "symbol": "ETHUSDT",
-        "timeframe": "1h",
-        "top_features": [
-          {
-            "name": "ppo_action_OPEN_LONG_probability",
-            "source": "legacy_log:PPO_DECISION_RAW.top1",
-            "value": 0.9345
-          },
-          {
-            "name": "ppo_action_CLOSE_LONG_probability",
-            "source": "legacy_log:PPO_DECISION_RAW.top2",
-            "value": 0.0397
-          }
-        ],
+        "symbol": "ALICEUSDT",
+        "timeframe": "4h",
+        "top_features": [],
         "trainer_full_parity_blockers": [
           "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED",
           "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
@@ -252,46 +363,43 @@
         ]
       },
       "top_negative_features": [],
-      "top_positive_features": [
-        {
-          "name": "ppo_action_OPEN_LONG_probability",
-          "source": "legacy_log:PPO_DECISION_RAW.top1",
-          "value": 0.9345
-        },
-        {
-          "name": "ppo_action_CLOSE_LONG_probability",
-          "source": "legacy_log:PPO_DECISION_RAW.top2",
-          "value": 0.0397
-        }
-      ],
+      "top_positive_features": [],
       "trainer_full_parity_blockers": [
-        "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED",
         "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
-        "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE"
+        "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
+        "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED"
       ]
     }
   ],
   "prediction_evidence_status": "LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT",
-  "prediction_id": "legacy_log_pred_95d2cc641a9d335a11ca",
+  "prediction_id": "legacy_log_pred_29a01e9395760d8d35a2",
   "prediction_source_path": "legacy_readonly:/home/wali/Desktop/AI BOT/.logs/hybrid_trainer.log",
   "prediction_source_type": "LEGACY_HYBRID_TRAINER_LOG_READONLY",
   "predictions_emitted_total": 1,
-  "raw_confidence": 0.918,
+  "raw_confidence": 0.6399,
   "rejected_prediction_sources": [],
+  "remaining_parity_gaps": [
+    "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
+    "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
+    "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED"
+  ],
   "runtime_evidence_status": "LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT",
   "source_feature_snapshot": {
     "feature_categories_present": [
       "price",
       "liquidity"
     ],
-    "feature_snapshot_age_seconds": 46,
-    "feature_snapshot_generated_ts": "2026-05-14T23:23:34Z",
-    "feature_snapshot_id": "feature_snapshot_f144cec5d8a289c23e6797c5",
+    "feature_snapshot_age_seconds": 7,
+    "feature_snapshot_generated_ts": "2026-05-15T00:21:20Z",
+    "feature_snapshot_id": "feature_snapshot_72e7efa75db1a4d4a60cd99e",
     "feature_snapshot_path": "v2/frontend/public/operator_runtime/v2_feature_snapshot_builder/latest/v2_feature_snapshot_builder_status.json",
     "feature_snapshot_status": "PRESENT",
+    "feature_snapshot_symbol": "BTCUSDT",
+    "feature_snapshot_timeframe": "1m",
     "missing_feature_flags": [],
     "stale_feature_flags": [],
-    "trainer_readiness_signal": "READY"
+    "trainer_readiness_signal": "READY",
+    "unused_feature_flags": []
   },
   "stale_feature_flags": [],
   "subprocess_invocation": "not_started_by_bridge",
@@ -315,20 +423,62 @@
   "symbol_universe_contract": "SYMBOL_UNIVERSE_CONTRACT_REQUIRED",
   "symbol_universe_public_payload_path": "v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json",
   "symbol_universe_public_payload_status": "PRESENT",
+  "symbol_universe_scope": {
+    "binance_usdm_confirmed_symbols": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT"
+    ],
+    "legacy_active_symbols": [
+      "1000BONKUSDT",
+      "1000FLOKIUSDT",
+      "1000PEPEUSDT",
+      "1000SHIBUSDT",
+      "ALICEUSDT",
+      "ASTERUSDT",
+      "AUCTIONUSDT",
+      "AVNTUSDT",
+      "BANKUSDT",
+      "BARDUSDT",
+      "BTCUSDT",
+      "DOGEUSDT",
+      "ETHUSDT",
+      "FARTCOINUSDT",
+      "HIGHUSDT",
+      "LINKUSDT",
+      "LTCUSDT",
+      "PENGUUSDT",
+      "PIPPINUSDT",
+      "RAVEUSDT",
+      "RIVERUSDT",
+      "SOLUSDT",
+      "UNIUSDT",
+      "WIFUSDT",
+      "XRPUSDT"
+    ],
+    "live_blocked_symbols": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT"
+    ],
+    "live_symbols": [],
+    "observed_symbols": [
+      "ALICEUSDT"
+    ],
+    "paper_symbols": [
+      "BTCUSDT"
+    ],
+    "passive_monitor_all_discovered_symbols": true,
+    "trade_all_discovered_symbols": false,
+    "train_all_discovered_symbols": false,
+    "training_symbols": [
+      "BTCUSDT",
+      "ETHUSDT"
+    ]
+  },
   "symbol_universe_source_path": "v2/backend/app/services/symbol_universe/service.py",
   "top_negative_features": [],
-  "top_positive_features": [
-    {
-      "name": "ppo_action_OPEN_LONG_probability",
-      "source": "legacy_log:PPO_DECISION_RAW.top1",
-      "value": 0.9345
-    },
-    {
-      "name": "ppo_action_CLOSE_LONG_probability",
-      "source": "legacy_log:PPO_DECISION_RAW.top2",
-      "value": 0.0397
-    }
-  ],
+  "top_positive_features": [],
   "trade_all_discovered_symbols": false,
   "train_all_discovered_symbols": false,
   "trainer_full_parity_blockers": [
@@ -338,9 +488,10 @@
   ],
   "trainer_mode": "PARITY_BRIDGE",
   "trainer_mode_one_of_PARITY_BRIDGE_V2_NATIVE": "PARITY_BRIDGE",
+  "trainer_parity_status": "BLOCKS_LEGACY_SHUTDOWN",
   "trainer_process_count": 1,
   "trainer_process_sample": [
-    "48623   48621   89643 81.6  3.2 python3 -u -m rl.hybrid_trainer --mode hybrid --epochs 1000 --batch-size 64"
+    "48623   48621   93071 81.5  3.5 python3 -u -m rl.hybrid_trainer --mode hybrid --epochs 1000 --batch-size 64"
   ],
   "trainer_process_state": "RUNNING_READONLY_OBSERVED",
   "trainer_readiness": "BLOCKED",

@@ -27,8 +27,12 @@ from v2.backend.app.services.trainer_bridge.service import (
     LIVE_GATE_STATUS,
     MISSING_RUNTIME_EVIDENCE,
     WRAPPER_NOT_LEGACY_HYBRID_PARITY,
+    BLOCKS_LEGACY_SHUTDOWN,
+    DERIVED_FEATURE_SNAPSHOT_LINK,
+    NATIVE_FIELD_PRESENT,
     detect_gpu_state,
     detect_trainer_process,
+    derived_feature_snapshot_link,
     evaluate_feature_snapshot,
     find_current_prediction,
     inspect_legacy_trainer_source,
@@ -259,6 +263,7 @@ def build_status() -> Dict[str, Any]:
         repo_root=REPO_ROOT,
         extra_payloads=extra_prediction_payloads,
     )
+    feature_link = derived_feature_snapshot_link(prediction, feature)
     process = detect_trainer_process()
     gpu = detect_gpu_state()
     accepted_prediction = bool(prediction.get("accepted_as_legacy_hybrid_prediction"))
@@ -282,6 +287,15 @@ def build_status() -> Dict[str, Any]:
         blockers.append("STALE_FEATURE_FLAGS")
     for item in prediction.get("trainer_full_parity_blockers") or []:
         blockers.append(str(item))
+    remaining_parity_gaps = sorted(set(blockers))
+    feature_snapshot_link_mode = str(prediction.get("feature_snapshot_link_mode") or "")
+    resolved_feature_snapshot_id = prediction.get("feature_snapshot_id") or feature.get("feature_snapshot_id", "")
+    if prediction.get("prediction_source_type") == "LEGACY_HYBRID_TRAINER_LOG_READONLY":
+        feature_snapshot_link_mode = str(feature_link.get("mode") or feature_snapshot_link_mode)
+        if feature_link.get("linked") and feature_link.get("linked_feature_snapshot_id"):
+            resolved_feature_snapshot_id = feature_link["linked_feature_snapshot_id"]
+    trainer_parity_status = BLOCKS_LEGACY_SHUTDOWN if remaining_parity_gaps else NATIVE_FIELD_PRESENT
+    symbol_scope = build_symbol_scope(observed_symbols=[observed_symbol] if observed_symbol else [])
 
     runtime_status = LEGACY_HYBRID_TRAINER_PRESENT if legacy.get("legacy_binary_state") == "PRESENT" else MISSING_RUNTIME_EVIDENCE
     if accepted_prediction and prediction.get("prediction_evidence_status"):
@@ -291,9 +305,11 @@ def build_status() -> Dict[str, Any]:
     elif prediction.get("prediction_evidence_status") == WRAPPER_NOT_LEGACY_HYBRID_PARITY:
         runtime_status = WRAPPER_NOT_LEGACY_HYBRID_PARITY
 
+    run_ts = utc_now()
     status: Dict[str, Any] = {
         "worker_id": WORKER_ID,
-        "last_run_ts": utc_now(),
+        "last_run_ts": run_ts,
+        "generated_at": run_ts,
         "trainer_mode_one_of_PARITY_BRIDGE_V2_NATIVE": "PARITY_BRIDGE",
         "trainer_mode": "PARITY_BRIDGE",
         "legacy_binary_state": legacy.get("legacy_binary_state", "MISSING"),
@@ -318,7 +334,10 @@ def build_status() -> Dict[str, Any]:
         "freshness_seconds": prediction.get("prediction_age_seconds"),
         "predictions_emitted_total": 1 if accepted_prediction else 0,
         "prediction_id": prediction.get("prediction_id", ""),
-        "feature_snapshot_id": prediction.get("feature_snapshot_id") or feature.get("feature_snapshot_id", ""),
+        "feature_snapshot_id": resolved_feature_snapshot_id,
+        "feature_snapshot_link_mode": feature_snapshot_link_mode,
+        "feature_snapshot_id_classification": prediction.get("feature_snapshot_id_classification", ""),
+        "derived_feature_snapshot_link": feature_link,
         "model_version": prediction.get("model_version", ""),
         "model_checkpoint_id": prediction.get("model_checkpoint_id", ""),
         "checkpoint_id": prediction.get("checkpoint_id") or prediction.get("model_checkpoint_id", ""),
@@ -327,13 +346,31 @@ def build_status() -> Dict[str, Any]:
         "calibrated_confidence": prediction.get("calibrated_confidence"),
         "confidence_raw": prediction.get("raw_confidence"),
         "confidence_calibrated": prediction.get("calibrated_confidence"),
+        "confidence_calibration_mode": prediction.get("confidence_calibration_mode", ""),
+        "feature_attribution_status": prediction.get("feature_attribution_status", ""),
+        "field_classification": prediction.get("field_classification", {}),
         "top_positive_features": prediction.get("top_positive_features", []),
         "top_negative_features": prediction.get("top_negative_features", []),
+        "action_probability_evidence": prediction.get("action_probability_evidence", []),
         "missing_feature_flags": feature.get("missing_feature_flags", []),
         "stale_feature_flags": feature.get("stale_feature_flags", []),
-        "unused_feature_flags": [],
+        "unused_feature_flags": feature.get("unused_feature_flags", []),
         "lineage_derivation_warnings": prediction.get("lineage_derivation_warnings", []),
         "trainer_full_parity_blockers": sorted(set(map(str, prediction.get("trainer_full_parity_blockers") or []))),
+        "remaining_parity_gaps": remaining_parity_gaps,
+        "trainer_parity_status": trainer_parity_status,
+        "symbol_universe_scope": {
+            "legacy_active_symbols": symbol_scope.get("legacy_active_symbols", []),
+            "observed_symbols": symbol_scope.get("observed_symbols", []),
+            "training_symbols": symbol_scope.get("training_symbols", []),
+            "paper_symbols": symbol_scope.get("paper_symbols", []),
+            "live_symbols": symbol_scope.get("live_symbols", []),
+            "live_blocked_symbols": symbol_scope.get("live_blocked_symbols", []),
+            "binance_usdm_confirmed_symbols": symbol_scope.get("binance_usdm_confirmed_symbols", []),
+            "train_all_discovered_symbols": symbol_scope.get("train_all_discovered_symbols", False),
+            "trade_all_discovered_symbols": symbol_scope.get("trade_all_discovered_symbols", False),
+            "passive_monitor_all_discovered_symbols": symbol_scope.get("passive_monitor_all_discovered_symbols", True),
+        },
         "legacy_readonly_log_bridge": {
             "status": "PRESENT" if legacy_log_payload else "MISSING_OR_UNPARSEABLE",
             "log_path": str(LEGACY_READONLY_TRAINER_LOG),
@@ -354,7 +391,7 @@ def build_status() -> Dict[str, Any]:
             if not item.get("accepted_as_legacy_hybrid_prediction")
         ],
         "source_feature_snapshot": feature,
-        "error_blocker_state": sorted(set(blockers)),
+        "error_blocker_state": remaining_parity_gaps,
         "fail_closed": bool(blockers),
         "missing_runtime_evidence": bool(blockers),
         "live_gate": LIVE_GATE_STATUS,
@@ -366,7 +403,7 @@ def build_status() -> Dict[str, Any]:
         "subprocess_invocation": "not_started_by_bridge",
         "legacy_state_dirs_writable_by_bridge": False,
     }
-    status.update(build_symbol_scope(observed_symbols=[observed_symbol] if observed_symbol else []))
+    status.update(symbol_scope)
     return status
 
 

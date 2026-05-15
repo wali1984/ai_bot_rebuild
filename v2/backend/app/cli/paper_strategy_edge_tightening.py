@@ -38,6 +38,7 @@ FINAL_DIR = REPO_ROOT / "claude_worklog" / "final_readiness" / "paper_strategy_e
 PUBLIC_DIR = REPO_ROOT / "v2" / "frontend" / "public" / "paper_strategy_edge_tightening" / "latest"
 PAPER_DIR = REPO_ROOT / "v2" / "runtime" / "paper_online" / "latest"
 PUBLIC_RUNTIME_DIR = REPO_ROOT / "v2" / "frontend" / "public" / "operator_runtime"
+ACCOUNT_MONITOR_STATUS = PUBLIC_RUNTIME_DIR / "v2_account_position_monitor" / "latest" / "v2_account_position_monitor_status.json"
 
 
 def _iso_now() -> str:
@@ -341,6 +342,72 @@ def build_blockers_status(account: dict[str, Any], trade: dict[str, Any], margin
     }
 
 
+def _account_monitor_age_seconds(now: datetime, monitor: dict[str, Any]) -> int | None:
+    timestamp = _parse_ts(monitor.get("last_run_ts") or monitor.get("generated_at"))
+    if timestamp is None:
+        return None
+    return max(0, int((now - timestamp).total_seconds()))
+
+
+def account_evidence_from_active_monitor(now: datetime, monitor: dict[str, Any]) -> dict[str, Any] | None:
+    if not monitor:
+        return None
+    age = _account_monitor_age_seconds(now, monitor)
+    if age is None or age > 300:
+        return None
+    runtime_status = str(monitor.get("runtime_evidence_status") or "")
+    if runtime_status == "MISSING_CREDENTIALS":
+        return {
+            "generated_at": _iso_now(),
+            "account_evidence_status": "READONLY_ACCOUNT_EVIDENCE_MISSING",
+            "classifications": [
+                "READONLY_ACCOUNT_EVIDENCE_MISSING",
+                "MISSING_CREDENTIALS",
+                "READONLY_KEY_STATUS_UNKNOWN",
+                "EVIDENCE_PROVIDER_REQUIRED",
+            ],
+            "exchange": "Binance USD-M",
+            "account_mode": "MISSING_EVIDENCE",
+            "can_read_balance": False,
+            "can_read_positions": False,
+            "can_read_open_orders_readonly": False,
+            "key_present_redacted": False,
+            "key_permissions_known": False,
+            "generated_at_source": monitor.get("last_run_ts"),
+            "source_path": str(ACCOUNT_MONITOR_STATUS.relative_to(REPO_ROOT)),
+            "age_seconds": age,
+            "missing_fields": [
+                "credentials",
+                "balance_read",
+                "position_read",
+                "open_orders_read",
+                "key_status_known",
+            ],
+            "safety_notes": "Fresh V2 account monitor evidence. Credentials are absent; no exchange endpoint was called and live remains blocked.",
+            "canary_blocker": True,
+        }
+    if monitor.get("account_state_one_of_FRESH_STALE_MISSING") == "FRESH":
+        return {
+            "generated_at": _iso_now(),
+            "account_evidence_status": "READONLY_ACCOUNT_EVIDENCE_PRESENT",
+            "classifications": ["READONLY_ACCOUNT_EVIDENCE_PRESENT"],
+            "exchange": "Binance USD-M",
+            "account_mode": monitor.get("account_snapshot", {}).get("account_mode") or "MISSING_EVIDENCE",
+            "can_read_balance": True,
+            "can_read_positions": True,
+            "can_read_open_orders_readonly": False,
+            "key_present_redacted": True,
+            "key_permissions_known": monitor.get("trade_permission_status") != "TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY",
+            "generated_at_source": monitor.get("last_run_ts"),
+            "source_path": str(ACCOUNT_MONITOR_STATUS.relative_to(REPO_ROOT)),
+            "age_seconds": age,
+            "missing_fields": [],
+            "safety_notes": "Fresh V2 account monitor evidence. This does not imply live approval.",
+            "canary_blocker": False,
+        }
+    return None
+
+
 def build_canary_readiness(
     continuation: dict[str, Any],
     root: dict[str, Any],
@@ -374,6 +441,7 @@ def build_payloads() -> dict[str, dict[str, Any]]:
     observation = _read_json(PUBLIC_RUNTIME_DIR / "paper_shadow_observation" / "latest" / "paper_shadow_observation_status.json")
     events = _read_jsonl(PAPER_DIR / "paper_events.jsonl")
     readonly_payload = _read_json(REPO_ROOT / "claude_worklog" / "final_readiness" / "readonly_market_exchange_data_plane" / "latest" / "operator_dashboard_payload.json")
+    account_monitor = _read_json(ACCOUNT_MONITOR_STATUS)
     risk_runtime = _read_json(PUBLIC_RUNTIME_DIR / "paper_online" / "latest" / "risk_runtime_payload.json")
     processes = process_lines()
     recent_rows = recent_executed_signals()
@@ -381,7 +449,7 @@ def build_payloads() -> dict[str, dict[str, Any]]:
     root = build_root_cause(observation, events)
     proposal = build_tightening_proposal()
     evaluation = build_tightened_evaluation(now, events)
-    account = build_account_evidence(now, readonly_payload)
+    account = account_evidence_from_active_monitor(now, account_monitor) or build_account_evidence(now, readonly_payload)
     trade = build_trade_permission_evidence(account, readonly_payload)
     margin = build_margin_leverage_evidence(risk_runtime, recent_rows)
     margin["classifications"] = [

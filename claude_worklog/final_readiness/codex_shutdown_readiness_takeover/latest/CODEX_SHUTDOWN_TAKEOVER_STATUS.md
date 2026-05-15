@@ -1,6 +1,6 @@
 # CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP
 
-As of: 2026-05-15T00:01:03Z
+As of: 2026-05-15T00:21:13Z
 
 Loop marker: `CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP_READY`
 Shutdown recommendation: `BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE`
@@ -21,15 +21,10 @@ Legacy shutdown remains blocked because required parity, edge, dependency, or sa
 - `PAPER_PNL_NEGATIVE_BLOCKS_CANARY` [P0_SHUTDOWN_BLOCKER]: paper_runtime: paper_realized_pnl_negative; remediation=`claude_replay_paper_edge_repair_from_legacy_trainer_output`
 - `PAPER_EDGE_UNPROVEN` [P0_SHUTDOWN_BLOCKER]: paper_runtime: current_paper_intent_blocked_or_unfilled; remediation=`claude_replay_paper_edge_repair_from_legacy_trainer_output`
 - `TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY` [P0_SHUTDOWN_BLOCKER]: trade_permission: trade_permission_readonly_unknown; remediation=`claude_remediate_account_position_monitor_shutdown_parity`
-- `READONLY_ACCOUNT_EVIDENCE_STALE` [P0_SHUTDOWN_BLOCKER]: trade_permission: readonly_account_evidence_stale; remediation=`claude_remediate_account_position_monitor_shutdown_parity`
-- `FRESHNESS_GUARD_BLOCKED_ON_STALE_PUBLIC_ARTIFACTS` [P0_SHUTDOWN_BLOCKER]: stale public latest JSON count=2; remediation=`claude_audit_stale_public_payloads_and_freshness_guard`
 
 ## Next action
 
-- kind: `dispatch_claude_remediation`
-- task_id: `claude_v2_trainer_lineage_attribution_parity_remediation`
-- descriptor: `claude_worklog/agent_supervisor/tasks/claude_v2_trainer_lineage_attribution_parity_remediation.json`
-- blocker: `LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED`
+- kind: `monitor_only_no_dispatchable_blocker`
 
 ## Evidence snapshot
 
@@ -40,7 +35,7 @@ Legacy shutdown remains blocked because required parity, edge, dependency, or sa
 - paper runtime: `fresh`, PnL=`-49.12`, action=`None`
 - trainer bridge: `LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT`, accepted=`True`
 - trade permission: `TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY`
-- symbol universe age seconds: `44`, live_symbols=`[]`
+- symbol universe age seconds: `53`, live_symbols=`[]`
 
 ## Hard constraints held
 

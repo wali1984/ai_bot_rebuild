@@ -1,5 +1,5 @@
 {
-  "as_of_utc": "2026-05-15T00:01:03Z",
+  "as_of_utc": "2026-05-15T00:21:13Z",
   "blockers": [
     {
       "category": "P0_SHUTDOWN_BLOCKER",
@@ -36,24 +36,12 @@
       "evidence": "trade_permission: trade_permission_readonly_unknown",
       "id": "TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY",
       "remediation_task_id": "claude_remediate_account_position_monitor_shutdown_parity"
-    },
-    {
-      "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "trade_permission: readonly_account_evidence_stale",
-      "id": "READONLY_ACCOUNT_EVIDENCE_STALE",
-      "remediation_task_id": "claude_remediate_account_position_monitor_shutdown_parity"
-    },
-    {
-      "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "stale public latest JSON count=2",
-      "id": "FRESHNESS_GUARD_BLOCKED_ON_STALE_PUBLIC_ARTIFACTS",
-      "remediation_task_id": "claude_audit_stale_public_payloads_and_freshness_guard"
     }
   ],
   "counts": {
     "INFO_ONLY": 0,
     "OPERATOR_DECISION_REQUIRED": 0,
-    "P0_SHUTDOWN_BLOCKER": 8,
+    "P0_SHUTDOWN_BLOCKER": 6,
     "P1_SHUTDOWN_SUPPORT": 0,
     "P2_LIVE_ONLY_BLOCKED": 0
   },

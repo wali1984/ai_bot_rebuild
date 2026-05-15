@@ -27,9 +27,14 @@ from v2.backend.app.services.symbol_universe.service import (
     SYMBOL_SELECTION_SCORE_FACTORS,
 )
 from v2.backend.app.services.trainer_bridge.service import (
+    BLOCKS_LEGACY_SHUTDOWN,
+    DERIVED_FEATURE_SNAPSHOT_LINK,
+    DERIVED_FROM_LEGACY_LOG,
+    INCOMPLETE_ATTRIBUTION,
     LEGACY_EXPECTED_SHA256,
     LEGACY_HYBRID_TRAINER_PREDICTION_PRESENT,
     LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT,
+    NATIVE_FIELD_PRESENT,
     WRAPPER_NOT_LEGACY_HYBRID_PARITY,
     inspect_legacy_trainer_source,
     utc_now,
@@ -88,17 +93,37 @@ def _route_worker_io(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[st
     }
 
 
-def _write_ready_feature(path: Path, *, missing: list[str] | None = None, stale: list[str] | None = None) -> None:
+def _write_ready_feature(
+    path: Path,
+    *,
+    missing: list[str] | None = None,
+    stale: list[str] | None = None,
+    unused: list[str] | None = None,
+    symbol: str = "BTCUSDT",
+    timeframe: str = "1m",
+) -> None:
+    snapshot_ts = utc_now()
     path.write_text(
         json.dumps(
             {
                 "worker_id": "v2_feature_snapshot_builder",
                 "last_snapshot_id": "feature_snapshot_test_001",
-                "last_snapshot_ts": utc_now(),
+                "last_snapshot_ts": snapshot_ts,
                 "trainer_readiness": "READY",
                 "missing_features": missing or [],
                 "stale_features": stale or [],
+                "unused_features": unused or [],
                 "feature_categories_present": ["price", "liquidity", "open_interest", "funding", "technical"],
+                "snapshot": {
+                    "feature_snapshot_id": "feature_snapshot_test_001",
+                    "generated_ts": snapshot_ts,
+                    "legacy_symbol": symbol,
+                    "timeframe": timeframe,
+                    "missing_features": missing or [],
+                    "stale_features": stale or [],
+                    "unused_features": unused or [],
+                    "confidence_input_ready": True,
+                },
             }
         )
     )
@@ -241,16 +266,58 @@ def test_current_legacy_log_prediction_supersedes_wrapper_but_keeps_full_parity_
     assert status["checkpoint_evidence_status"] == "PRESENT"
     assert status["confidence_raw"] == pytest.approx(0.8611)
     assert status["confidence_calibrated"] == pytest.approx(0.8611)
-    assert status["top_positive_features"][0]["name"] == "ppo_action_OPEN_LONG_probability"
+    assert status["confidence_calibration_mode"] == DERIVED_FROM_LEGACY_LOG
+    assert status["feature_snapshot_link_mode"] == DERIVED_FROM_LEGACY_LOG
+    assert status["field_classification"]["feature_snapshot_id"] == DERIVED_FROM_LEGACY_LOG
+    assert status["field_classification"]["confidence_calibration"] == DERIVED_FROM_LEGACY_LOG
+    assert status["field_classification"]["feature_attribution"] == INCOMPLETE_ATTRIBUTION
+    assert status["feature_attribution_status"] == INCOMPLETE_ATTRIBUTION
+    assert status["top_positive_features"] == []
+    assert status["top_negative_features"] == []
+    assert status["action_probability_evidence"][0]["name"] == "ppo_action_OPEN_LONG_probability"
     assert status["trainer_readiness"] == "BLOCKED"
+    assert status["trainer_parity_status"] == BLOCKS_LEGACY_SHUTDOWN
     assert status["fail_closed"] is True
     assert WRAPPER_NOT_LEGACY_HYBRID_PARITY not in status["error_blocker_state"]
+    assert "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED" in status["remaining_parity_gaps"]
+    assert "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED" in status["remaining_parity_gaps"]
     assert "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE" in status["error_blocker_state"]
     assert "top_negative_features_absent_from_legacy_log_line" in status["lineage_derivation_warnings"]
     assert status["legacy_readonly_log_bridge"]["status"] == "PRESENT"
     assert status["live_gate"] == "blocked_human_only"
     assert status["exchange_action_taken"] is False
     assert status["old_redis_write_performed"] is False
+
+
+def test_legacy_log_feature_snapshot_link_is_labeled_derived_when_v2_snapshot_matches(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths = _route_worker_io(tmp_path, monkeypatch)
+    legacy_log = tmp_path / "hybrid_trainer.log"
+    checkpoint_metadata = tmp_path / "checkpoint_metadata_latest.json"
+    monkeypatch.setattr(worker, "LEGACY_READONLY_TRAINER_LOG", legacy_log)
+    monkeypatch.setattr(worker, "LEGACY_READONLY_CHECKPOINT_METADATA", checkpoint_metadata)
+    _write_ready_feature(paths["feature"], symbol="ALICEUSDT", timeframe="4h")
+    _write_scope(paths["scope"])
+    legacy_ts = datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
+    legacy_log.write_text(
+        f"{legacy_ts} - INFO - hybrid_trainer - "
+        "PPO_DECISION_RAW | account=primary | symbol=ALICEUSDT | tf=4h | "
+        "action_id=1 | action=OPEN_LONG | ppo_conf=0.8611 | top1=0.8026 | "
+        "top2=0.0938 | top1_id=1 | top2_id=2\n"
+    )
+    checkpoint_metadata.write_text(json.dumps({"timestamp": 1778800487}))
+
+    status = run_once(parse_args(["--once"]))
+
+    assert status["feature_snapshot_id"] == "feature_snapshot_test_001"
+    assert status["feature_snapshot_link_mode"] == DERIVED_FEATURE_SNAPSHOT_LINK
+    assert status["derived_feature_snapshot_link"]["linked"] is True
+    assert status["derived_feature_snapshot_link"]["classification"] == DERIVED_FROM_LEGACY_LOG
+    assert status["field_classification"]["feature_snapshot_id"] == DERIVED_FROM_LEGACY_LOG
+    assert "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED" in status["remaining_parity_gaps"]
+    assert status["trainer_parity_status"] == BLOCKS_LEGACY_SHUTDOWN
 
 
 def test_accepted_legacy_hybrid_prediction_maps_required_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -270,9 +337,16 @@ def test_accepted_legacy_hybrid_prediction_maps_required_fields(tmp_path: Path, 
     assert status["checkpoint_evidence_status"] == "PRESENT"
     assert status["raw_confidence"] == pytest.approx(0.71)
     assert status["calibrated_confidence"] == pytest.approx(0.64)
+    assert status["confidence_calibration_mode"] == NATIVE_FIELD_PRESENT
+    assert status["feature_snapshot_link_mode"] == NATIVE_FIELD_PRESENT
+    assert status["field_classification"]["feature_snapshot_id"] == NATIVE_FIELD_PRESENT
+    assert status["field_classification"]["confidence_calibration"] == NATIVE_FIELD_PRESENT
+    assert status["field_classification"]["feature_attribution"] == NATIVE_FIELD_PRESENT
     assert status["top_positive_features"][0]["name"] == "funding"
     assert status["top_negative_features"][0]["name"] == "spread"
     assert status["trainer_readiness"] == "READY"
+    assert status["trainer_parity_status"] == NATIVE_FIELD_PRESENT
+    assert status["remaining_parity_gaps"] == []
     assert status["fail_closed"] is False
     written = json.loads((paths["public"] / f"{WORKER_ID}_status.json").read_text())
     assert written["worker_id"] == WORKER_ID
@@ -309,7 +383,7 @@ def test_stale_prediction_is_not_accepted(tmp_path: Path, monkeypatch: pytest.Mo
 
 def test_feature_missing_and_stale_flags_propagate_and_block(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     paths = _route_worker_io(tmp_path, monkeypatch)
-    _write_ready_feature(paths["feature"], missing=["oi_delta"], stale=["funding_rate"])
+    _write_ready_feature(paths["feature"], missing=["oi_delta"], stale=["funding_rate"], unused=["legacy_unused_rsi"])
     _write_scope(paths["scope"])
     paths["prediction"].write_text(json.dumps(_legacy_prediction()))
 
@@ -318,6 +392,7 @@ def test_feature_missing_and_stale_flags_propagate_and_block(tmp_path: Path, mon
     assert status["accepted_as_legacy_hybrid_prediction"] is True
     assert status["missing_feature_flags"] == ["oi_delta"]
     assert status["stale_feature_flags"] == ["funding_rate"]
+    assert status["unused_feature_flags"] == ["legacy_unused_rsi"]
     assert status["feature_snapshot_trainer_readiness_signal"] == "READY"
     assert status["trainer_readiness"] == "BLOCKED"
     assert "MISSING_FEATURE_FLAGS" in status["error_blocker_state"]

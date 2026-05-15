@@ -1,34 +1,67 @@
 {
-  "worker_id": "v2_coinank_and_liquidation_bridge",
-  "task_id": "claude_port_v2_coinank_and_liquidation_bridge_from_legacy_baseline",
-  "generated_at": "2026-05-13T01:30:00Z",
-  "last_run_ts": "2026-05-13T01:30:00Z",
-  "source": "V2_COINANK_AND_LIQUIDATION_BRIDGE",
-  "live_gate": "blocked_human_only",
-  "live_gate_status": "blocked_human_only",
+  "binance_force_ws_owner": {
+    "baseline_path": "v2/legacy_preserved/startup_baseline/ingest/live_binance_liquidations.py",
+    "legacy_function": "consume_force_orders",
+    "legacy_stream_url": "wss://fstream.binance.com/stream?streams=!forceOrder@arr",
+    "missing_api_blocker_when_unbound": "binance_force_order_ws_owner_unbound",
+    "v2_bridge_mode": "in_memory_event_intake_only",
+    "v2_owner": "separate_v2_ws_worker"
+  },
   "current_gate_state": "blocked_human_only",
-  "liquidations_persisted_total": 0,
+  "cycle_id": 1,
+  "destructive_redis_mutation_by_codex": false,
+  "duration_ms": 0,
+  "endpoint_freshness_ms": {
+    "funding_rate_avg": 0,
+    "global_aggregator": 1778803937025,
+    "long_short_ratio": 0,
+    "total_oi": 0
+  },
+  "exchange_actions_by_codex": false,
+  "freshness_seconds": 0,
   "funding_freshness": -1,
-  "oi_freshness": -1,
-  "long_short_freshness": -1,
-  "freshness_seconds": -1,
-  "missing_api_blockers": [
-    {
-      "category": "v2_unified_features_empty",
-      "detail": "no unified-feature input on initial seed; V2 worker does not read legacy Redis",
-      "ts": 1778639400000
-    },
-    {
-      "category": "binance_force_order_ws_owner_unbound",
-      "detail": "no binance force_order events provided; WS owner=separate_v2_ws_worker",
-      "ts": 1778639400000
-    },
-    {
-      "category": "v2_liquidation_event_source_empty",
-      "detail": "no coinank liquidation_orders source available this cycle",
-      "ts": 1778639400000
-    }
+  "generated_at": "2026-05-15T00:12:17Z",
+  "global_11_key_contract": [
+    "features:global_coinank:total_oi:latest",
+    "features:global_coinank:total_volume:latest",
+    "features:global_coinank:total_liquidations:latest",
+    "features:global_coinank:long_short_ratio:latest",
+    "features:global_coinank:funding_rate_avg:latest",
+    "features:global_coinank:btc_dominance:latest",
+    "features:global_coinank:eth_dominance:latest",
+    "features:global_coinank:alt_season_index:latest",
+    "features:global_coinank:fear_greed:latest",
+    "features:global_coinank:market_sentiment:latest",
+    "features:global_coinank:volatility_index:latest"
   ],
+  "global_aggregate_result": {
+    "alt_season_index": 0.0,
+    "btc_dominance": 0.0,
+    "eth_dominance": 0.0,
+    "fear_greed": 0.0,
+    "funding_rate_avg": 0.0,
+    "long_short_ratio": 0.0,
+    "market_sentiment": 0.0,
+    "n_symbols_observed": 0,
+    "total_liquidations": 0.0,
+    "total_oi": 0.0,
+    "total_volume": 0.0,
+    "v2_keys_written": [
+      "v2:coinank:global:total_oi:latest",
+      "v2:coinank:global:total_volume:latest",
+      "v2:coinank:global:total_liquidations:latest",
+      "v2:coinank:global:long_short_ratio:latest",
+      "v2:coinank:global:funding_rate_avg:latest",
+      "v2:coinank:global:btc_dominance:latest",
+      "v2:coinank:global:eth_dominance:latest",
+      "v2:coinank:global:alt_season_index:latest",
+      "v2:coinank:global:fear_greed:latest",
+      "v2:coinank:global:market_sentiment:latest",
+      "v2:coinank:global:volatility_index:latest"
+    ],
+    "volatility_index": 0.0
+  },
+  "last_run_ts": "2026-05-15T00:12:17Z",
   "legacy_baseline_source_paths": [
     "v2/legacy_preserved/startup_baseline/ingest/liquidation_bridge.py",
     "v2/legacy_preserved/startup_baseline/ingest/liquidation_levels_engine.py",
@@ -58,68 +91,61 @@
       "sha256": "1f85c4532e4829aa99ddadbd6a5cd2325ef9e5c4012208eb05876c1b0187eeae"
     }
   ],
-  "legacy_source_file_hash": "cd13dab55c0906c379e4116102c05f960908dd28d6b6e883ca76347cd1f144c8",
-  "manual_redis_mutation_by_codex": false,
-  "destructive_redis_mutation_by_codex": false,
-  "exchange_actions_by_codex": false,
   "legacy_execution_code_touched": false,
-  "required_tfs": ["5m", "15m", "30m", "1h", "4h", "1d"],
-  "plan3_interval_limits": {
-    "1m": 7, "3m": 15, "5m": 30, "15m": 60, "30m": 120,
-    "1h": 180, "2h": 180, "4h": 360, "6h": 360, "8h": 360,
-    "12h": 360, "1d": 360, "1w": 360, "1M": 360
-  },
-  "global_11_key_contract": [
-    "features:global_coinank:total_oi:latest",
-    "features:global_coinank:total_volume:latest",
-    "features:global_coinank:total_liquidations:latest",
-    "features:global_coinank:long_short_ratio:latest",
-    "features:global_coinank:funding_rate_avg:latest",
-    "features:global_coinank:btc_dominance:latest",
-    "features:global_coinank:eth_dominance:latest",
-    "features:global_coinank:alt_season_index:latest",
-    "features:global_coinank:fear_greed:latest",
-    "features:global_coinank:market_sentiment:latest",
-    "features:global_coinank:volatility_index:latest"
+  "legacy_source_file_hash": "cd13dab55c0906c379e4116102c05f960908dd28d6b6e883ca76347cd1f144c8",
+  "liquidations_persisted_total": 0,
+  "live_gate": "blocked_human_only",
+  "live_gate_status": "blocked_human_only",
+  "long_short_freshness": -1,
+  "manual_redis_mutation_by_codex": false,
+  "missing_api_blockers": [
+    {
+      "category": "v2_unified_features_empty",
+      "detail": "no unified-feature input \u2014 V2 worker does not read legacy Redis",
+      "ts": 1778803937025
+    },
+    {
+      "category": "v2_liquidation_event_source_empty",
+      "detail": "no coinank liquidation_orders source available this cycle",
+      "ts": 1778803937025
+    },
+    {
+      "category": "binance_force_order_ws_owner_unbound",
+      "detail": "no binance force_order events provided; WS owner=separate_v2_ws_worker",
+      "ts": 1778803937025
+    }
   ],
-  "binance_force_ws_owner": {
-    "legacy_function": "consume_force_orders",
-    "baseline_path": "v2/legacy_preserved/startup_baseline/ingest/live_binance_liquidations.py",
-    "legacy_stream_url": "wss://fstream.binance.com/stream?streams=!forceOrder@arr",
-    "v2_bridge_mode": "in_memory_event_intake_only",
-    "v2_owner": "separate_v2_ws_worker",
-    "missing_api_blocker_when_unbound": "binance_force_order_ws_owner_unbound"
+  "oi_freshness": -1,
+  "plan3_interval_limits": {
+    "12h": 360,
+    "15m": 60,
+    "1M": 360,
+    "1d": 360,
+    "1h": 180,
+    "1m": 7,
+    "1w": 360,
+    "2h": 180,
+    "30m": 120,
+    "3m": 15,
+    "4h": 360,
+    "5m": 30,
+    "6h": 360,
+    "8h": 360
   },
-  "cycle_id": 1,
-  "duration_ms": 0,
-  "endpoint_freshness_ms": {},
-  "symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"],
-  "tf": "15m",
-  "global_aggregate_result": {
-    "total_oi": 0.0,
-    "total_volume": 0.0,
-    "total_liquidations": 0.0,
-    "long_short_ratio": 0.0,
-    "funding_rate_avg": 0.0,
-    "btc_dominance": 0.0,
-    "eth_dominance": 0.0,
-    "alt_season_index": 0.0,
-    "fear_greed": 0.0,
-    "market_sentiment": 0.0,
-    "volatility_index": 0.0,
-    "n_symbols_observed": 0,
-    "v2_keys_written": [
-      "v2:coinank:global:total_oi:latest",
-      "v2:coinank:global:total_volume:latest",
-      "v2:coinank:global:total_liquidations:latest",
-      "v2:coinank:global:long_short_ratio:latest",
-      "v2:coinank:global:funding_rate_avg:latest",
-      "v2:coinank:global:btc_dominance:latest",
-      "v2:coinank:global:eth_dominance:latest",
-      "v2:coinank:global:alt_season_index:latest",
-      "v2:coinank:global:fear_greed:latest",
-      "v2:coinank:global:market_sentiment:latest",
-      "v2:coinank:global:volatility_index:latest"
-    ]
-  }
+  "required_tfs": [
+    "5m",
+    "15m",
+    "30m",
+    "1h",
+    "4h",
+    "1d"
+  ],
+  "source": "V2_COINANK_AND_LIQUIDATION_BRIDGE",
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+  ],
+  "tf": "1m",
+  "worker_id": "v2_coinank_and_liquidation_bridge"
 }

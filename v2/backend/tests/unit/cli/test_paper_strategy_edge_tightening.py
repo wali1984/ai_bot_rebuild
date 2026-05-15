@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from v2.backend.app.cli.paper_strategy_edge_tightening import (
+    account_evidence_from_active_monitor,
     build_root_cause,
     build_tightened_evaluation,
 )
@@ -68,3 +69,29 @@ def test_tightened_evaluation_can_allow_high_confidence_with_edge_before_cooldow
 
     assert result["tightened_allowed_fills"] == 1
     assert result["tightened_blocked_fills"] == 1
+
+
+def test_active_account_monitor_missing_credentials_is_current_missing_not_stale() -> None:
+    now = datetime(2026, 5, 15, 0, 15, tzinfo=timezone.utc)
+    monitor = {
+        "last_run_ts": "2026-05-15T00:14:30Z",
+        "runtime_evidence_status": "MISSING_CREDENTIALS",
+    }
+
+    result = account_evidence_from_active_monitor(now, monitor)
+
+    assert result is not None
+    assert result["account_evidence_status"] == "READONLY_ACCOUNT_EVIDENCE_MISSING"
+    assert "READONLY_ACCOUNT_EVIDENCE_STALE" not in result["classifications"]
+    assert "MISSING_CREDENTIALS" in result["classifications"]
+    assert result["canary_blocker"] is True
+
+
+def test_active_account_monitor_stale_is_not_promoted() -> None:
+    now = datetime(2026, 5, 15, 0, 15, tzinfo=timezone.utc)
+    monitor = {
+        "last_run_ts": "2026-05-15T00:00:00Z",
+        "runtime_evidence_status": "MISSING_CREDENTIALS",
+    }
+
+    assert account_evidence_from_active_monitor(now, monitor) is None

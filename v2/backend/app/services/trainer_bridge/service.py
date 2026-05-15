@@ -62,6 +62,13 @@ ACTION_NAME_BY_ID = {
     "6": "REDUCE_SHORT",
 }
 LEGACY_LOG_TAIL_BYTES = 2 * 1024 * 1024
+NATIVE_FIELD_PRESENT = "NATIVE_FIELD_PRESENT"
+DERIVED_FROM_LEGACY_LOG = "DERIVED_FROM_LEGACY_LOG"
+MISSING_EVIDENCE = "MISSING_EVIDENCE"
+INCOMPLETE_ATTRIBUTION = "INCOMPLETE_ATTRIBUTION"
+ACCEPTED_FOR_PAPER_ONLY = "ACCEPTED_FOR_PAPER_ONLY"
+BLOCKS_LEGACY_SHUTDOWN = "BLOCKS_LEGACY_SHUTDOWN"
+DERIVED_FEATURE_SNAPSHOT_LINK = "derived_feature_snapshot_link"
 
 
 def utc_now() -> str:
@@ -168,7 +175,7 @@ def legacy_log_prediction_payload(
     confidence_raw = float(match.group("ppo_conf"))
     top1_id = match.group("top1_id").strip()
     top2_id = match.group("top2_id").strip()
-    top_features = [
+    action_probability_evidence = [
         {
             "name": f"ppo_action_{ACTION_NAME_BY_ID.get(top1_id, top1_id)}_probability",
             "value": float(match.group("top1")),
@@ -193,7 +200,17 @@ def legacy_log_prediction_payload(
         "confidence_calibrated": confidence_raw,
         "symbol": symbol,
         "timeframe": timeframe,
-        "top_features": top_features,
+        "top_features": [],
+        "action_probability_evidence": action_probability_evidence,
+        "feature_snapshot_link_mode": DERIVED_FROM_LEGACY_LOG,
+        "feature_snapshot_id_classification": DERIVED_FROM_LEGACY_LOG,
+        "confidence_calibration_mode": DERIVED_FROM_LEGACY_LOG,
+        "feature_attribution_status": INCOMPLETE_ATTRIBUTION,
+        "field_classification": {
+            "feature_snapshot_id": DERIVED_FROM_LEGACY_LOG,
+            "confidence_calibration": DERIVED_FROM_LEGACY_LOG,
+            "feature_attribution": INCOMPLETE_ATTRIBUTION,
+        },
         "raw_model_output": {
             "account": match.group("account").strip(),
             "action": action,
@@ -202,6 +219,7 @@ def legacy_log_prediction_payload(
             "top2": match.group("top2"),
             "top1_id": top1_id,
             "top2_id": top2_id,
+            "action_probability_evidence": action_probability_evidence,
             "evidence_line_sha256": digest,
         },
         "lineage_derivation_warnings": [
@@ -409,6 +427,37 @@ def _prediction_missing_fields(payload: Mapping[str, Any]) -> List[str]:
     return missing
 
 
+def _has_feature_attribution(payload: Mapping[str, Any]) -> bool:
+    top_features = payload.get("top_features")
+    if not isinstance(top_features, list) or not top_features:
+        return False
+    for item in top_features:
+        if not isinstance(item, Mapping):
+            return False
+        if not item.get("name"):
+            return False
+        if _to_float(item.get("value")) is None:
+            return False
+    return True
+
+
+def _field_classification(payload: Mapping[str, Any], *, is_legacy_log_evidence: bool) -> Dict[str, str]:
+    explicit = payload.get("field_classification")
+    if isinstance(explicit, Mapping):
+        return {
+            "feature_snapshot_id": str(explicit.get("feature_snapshot_id") or MISSING_EVIDENCE),
+            "confidence_calibration": str(explicit.get("confidence_calibration") or MISSING_EVIDENCE),
+            "feature_attribution": str(explicit.get("feature_attribution") or MISSING_EVIDENCE),
+        }
+    return {
+        "feature_snapshot_id": DERIVED_FROM_LEGACY_LOG if is_legacy_log_evidence else NATIVE_FIELD_PRESENT,
+        "confidence_calibration": DERIVED_FROM_LEGACY_LOG if is_legacy_log_evidence else NATIVE_FIELD_PRESENT,
+        "feature_attribution": INCOMPLETE_ATTRIBUTION
+        if is_legacy_log_evidence or not _has_feature_attribution(payload)
+        else NATIVE_FIELD_PRESENT,
+    }
+
+
 def evaluate_prediction_payload(payload: Mapping[str, Any], source_path: str) -> Dict[str, Any]:
     source_type = str(payload.get("source_type") or payload.get("trainer_state") or "").upper()
     checkpoint = str(payload.get("model_checkpoint") or payload.get("model_checkpoint_id") or "")
@@ -424,6 +473,13 @@ def evaluate_prediction_payload(payload: Mapping[str, Any], source_path: str) ->
     )
     parity_blockers = list(payload.get("trainer_full_parity_blockers") or [])
     is_legacy_log_evidence = source_type == "LEGACY_HYBRID_TRAINER_LOG_READONLY"
+    field_classification = _field_classification(payload, is_legacy_log_evidence=is_legacy_log_evidence)
+    if (
+        field_classification["feature_attribution"] == INCOMPLETE_ATTRIBUTION
+        and "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE" not in parity_blockers
+        and is_legacy_log_evidence
+    ):
+        parity_blockers.append("LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE")
     if is_wrapper:
         accepted = False
         status = WRAPPER_NOT_LEGACY_HYBRID_PARITY
@@ -448,12 +504,25 @@ def evaluate_prediction_payload(payload: Mapping[str, Any], source_path: str) ->
     raw_conf = payload.get("confidence_raw", payload.get("confidence"))
     calibrated_conf = payload.get("confidence_calibrated", payload.get("calibrated_confidence"))
     top_features = payload.get("top_features") if isinstance(payload.get("top_features"), list) else []
-    top_positive = [
-        item for item in top_features if isinstance(item, dict) and _to_float(item.get("value")) is not None and float(item.get("value")) >= 0
-    ][:5]
-    top_negative = [
-        item for item in top_features if isinstance(item, dict) and _to_float(item.get("value")) is not None and float(item.get("value")) < 0
-    ][:5]
+    feature_attribution_is_native = field_classification["feature_attribution"] == NATIVE_FIELD_PRESENT
+    top_positive = (
+        [
+            item
+            for item in top_features
+            if isinstance(item, dict) and _to_float(item.get("value")) is not None and float(item.get("value")) >= 0
+        ][:5]
+        if feature_attribution_is_native
+        else []
+    )
+    top_negative = (
+        [
+            item
+            for item in top_features
+            if isinstance(item, dict) and _to_float(item.get("value")) is not None and float(item.get("value")) < 0
+        ][:5]
+        if feature_attribution_is_native
+        else []
+    )
     return {
         "accepted_as_legacy_hybrid_prediction": accepted,
         "prediction_evidence_status": status,
@@ -470,10 +539,19 @@ def evaluate_prediction_payload(payload: Mapping[str, Any], source_path: str) ->
         "calibrated_confidence": calibrated_conf,
         "top_positive_features": top_positive,
         "top_negative_features": top_negative,
+        "action_probability_evidence": list(payload.get("action_probability_evidence") or []),
+        "feature_snapshot_link_mode": payload.get("feature_snapshot_link_mode")
+        or field_classification["feature_snapshot_id"],
+        "feature_snapshot_id_classification": field_classification["feature_snapshot_id"],
+        "confidence_calibration_mode": payload.get("confidence_calibration_mode")
+        or field_classification["confidence_calibration"],
+        "feature_attribution_status": payload.get("feature_attribution_status")
+        or field_classification["feature_attribution"],
+        "field_classification": field_classification,
         "raw_prediction_payload": dict(payload),
         "missing_prediction_fields": missing,
         "lineage_derivation_warnings": list(payload.get("lineage_derivation_warnings") or []),
-        "trainer_full_parity_blockers": parity_blockers,
+        "trainer_full_parity_blockers": sorted(set(map(str, parity_blockers))),
     }
 
 
@@ -524,6 +602,16 @@ def find_current_prediction(
     }
 
 
+def _legacy_symbol_from_canonical(value: Any) -> str:
+    text = str(value or "").strip().upper()
+    if text.startswith("BINANCE-USDM-") and text.endswith("-PERP"):
+        inner = text.removeprefix("BINANCE-USDM-").removesuffix("-PERP")
+        parts = [part for part in inner.split("-") if part]
+        if len(parts) >= 2:
+            return "".join(parts)
+    return text
+
+
 def evaluate_feature_snapshot(path: Path, *, repo_root: Path) -> Dict[str, Any]:
     data = load_json(path)
     if not isinstance(data, Mapping):
@@ -536,18 +624,68 @@ def evaluate_feature_snapshot(path: Path, *, repo_root: Path) -> Dict[str, Any]:
             "trainer_readiness_signal": "MISSING",
         }
     snapshot = data.get("snapshot") if isinstance(data.get("snapshot"), Mapping) else {}
+    feature_ts = data.get("last_snapshot_ts") or snapshot.get("generated_ts") or ""
     try:
         rel = str(path.relative_to(repo_root))
     except ValueError:
         rel = str(path)
+    legacy_symbol = (
+        str(snapshot.get("legacy_symbol") or "").strip().upper()
+        or _legacy_symbol_from_canonical(snapshot.get("canonical_symbol_id"))
+    )
     return {
         "feature_snapshot_status": "PRESENT",
         "feature_snapshot_id": data.get("last_snapshot_id") or snapshot.get("feature_snapshot_id") or "",
         "feature_snapshot_path": rel,
-        "feature_snapshot_generated_ts": data.get("last_snapshot_ts") or snapshot.get("generated_ts") or "",
-        "feature_snapshot_age_seconds": age_seconds(data.get("last_snapshot_ts") or snapshot.get("generated_ts")),
+        "feature_snapshot_generated_ts": feature_ts,
+        "feature_snapshot_age_seconds": age_seconds(feature_ts),
+        "feature_snapshot_symbol": legacy_symbol,
+        "feature_snapshot_timeframe": str(snapshot.get("timeframe") or data.get("timeframe") or "").strip(),
         "missing_feature_flags": list(data.get("missing_features") or snapshot.get("missing_features") or []),
         "stale_feature_flags": list(data.get("stale_features") or snapshot.get("stale_features") or []),
+        "unused_feature_flags": list(data.get("unused_features") or snapshot.get("unused_features") or []),
         "trainer_readiness_signal": data.get("trainer_readiness") or snapshot.get("confidence_input_ready") or "UNKNOWN",
         "feature_categories_present": list(data.get("feature_categories_present") or []),
+    }
+
+
+def derived_feature_snapshot_link(
+    prediction: Mapping[str, Any],
+    feature: Mapping[str, Any],
+    *,
+    max_age_seconds: int = MAX_PREDICTION_AGE_SECONDS,
+) -> Dict[str, Any]:
+    raw = prediction.get("raw_prediction_payload") if isinstance(prediction.get("raw_prediction_payload"), Mapping) else {}
+    prediction_symbol = str(raw.get("symbol") or "").strip().upper()
+    prediction_timeframe = str(raw.get("timeframe") or "").strip()
+    feature_symbol = str(feature.get("feature_snapshot_symbol") or "").strip().upper()
+    feature_timeframe = str(feature.get("feature_snapshot_timeframe") or "").strip()
+    prediction_ts = parse_ts(prediction.get("latest_prediction_timestamp"))
+    feature_ts = parse_ts(feature.get("feature_snapshot_generated_ts"))
+    age_delta_seconds: Optional[int] = None
+    if prediction_ts and feature_ts:
+        age_delta_seconds = abs(int((prediction_ts - feature_ts).total_seconds()))
+    symbol_scope_matches = bool(prediction_symbol and feature_symbol and prediction_symbol == feature_symbol)
+    timeframe_matches = bool(prediction_timeframe and feature_timeframe and prediction_timeframe == feature_timeframe)
+    freshness_matches = age_delta_seconds is not None and age_delta_seconds <= max_age_seconds
+    linked = (
+        bool(feature.get("feature_snapshot_id"))
+        and symbol_scope_matches
+        and timeframe_matches
+        and freshness_matches
+    )
+    return {
+        "mode": DERIVED_FEATURE_SNAPSHOT_LINK if linked else DERIVED_FROM_LEGACY_LOG,
+        "linked": linked,
+        "linked_feature_snapshot_id": feature.get("feature_snapshot_id") if linked else "",
+        "source_prediction_id": prediction.get("prediction_id") or "",
+        "prediction_symbol": prediction_symbol,
+        "feature_snapshot_symbol": feature_symbol,
+        "prediction_timeframe": prediction_timeframe,
+        "feature_snapshot_timeframe": feature_timeframe,
+        "age_delta_seconds": age_delta_seconds,
+        "symbol_scope_matches": symbol_scope_matches,
+        "timeframe_matches": timeframe_matches,
+        "freshness_matches": freshness_matches,
+        "classification": DERIVED_FROM_LEGACY_LOG,
     }

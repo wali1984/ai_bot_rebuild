@@ -1,0 +1,25 @@
+{
+  "as_of_utc": "2026-05-15T00:10:24Z",
+  "codex_takeover_reason": "supervised_claude_task_stalled_zero_stdout_zero_stderr_no_artifacts",
+  "confidence_calibration_mode": "DERIVED_FROM_LEGACY_LOG",
+  "feature_attribution_status": "INCOMPLETE_ATTRIBUTION",
+  "feature_snapshot_id_classification": "DERIVED_FROM_LEGACY_LOG",
+  "feature_snapshot_link_mode": "DERIVED_FROM_LEGACY_LOG",
+  "final_approval_token": "absent",
+  "go_no_go": "V2_TRAINER_LINEAGE_ATTRIBUTION_PARITY_BLOCKED",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "old_redis_write_status": "absent",
+  "exchange_action_status": "absent",
+  "remaining_parity_gaps": [
+    "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED",
+    "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
+    "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE"
+  ],
+  "task_id": "claude_v2_trainer_lineage_attribution_parity_remediation",
+  "trainer_lineage_attribution_status": "BLOCKED",
+  "trainer_parity_status": "BLOCKS_LEGACY_SHUTDOWN",
+  "validation": {
+    "targeted_pytest": "11 passed"
+  }
+}
