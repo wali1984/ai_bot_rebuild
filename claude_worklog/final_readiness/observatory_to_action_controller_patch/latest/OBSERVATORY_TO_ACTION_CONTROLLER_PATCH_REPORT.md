@@ -1,6 +1,6 @@
 # Observatory To Action Controller Patch
 
-Generated: `2026-05-15T05:13:45Z`
+Generated: `2026-05-15T09:25:29Z`
 
 This patch makes observatory findings actionable. It does not approve live trading, canary trading, or legacy shutdown.
 
@@ -11,16 +11,16 @@ This patch makes observatory findings actionable. It does not approve live tradi
 - legacy signals: `STALE`
 - signal comparison classification: `MISSING_EVIDENCE_CANNOT_COMPARE`
 - V2 decision quality: `EDGE_PENDING_INSUFFICIENT_SAMPLE`
-- paper edge: `EDGE_PENDING`
-- post-filter interpretation: `POST_FILTER_NO_UNSAFE_FILLS_EDGE_PENDING`
+- paper edge: `EDGE_PENDING_MODEL_REVIEW_REQUIRED`
+- post-filter interpretation: `EDGE_PENDING_MODEL_REVIEW_REQUIRED`
 - trainer parity: `BLOCKS_LEGACY_SHUTDOWN`
 - trainer gaps: `['LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED', 'LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE', 'LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED']`
 
 ## Action Routing
 
-- next action: `wait_for_claude_remediation`
-- next task: `claude_v2_paper_edge_recovery_and_cost_aware_trade_selection`
-- paper edge recovery status: `running`
+- next action: `monitor_shadow_outcome_observer`
+- next task: `paper_shadow_outcome_observer`
+- paper edge recovery status: `completed`
 - trainer full parity status: `human_attention_required`
 - trainer derived/native packet status: `superseded_by_evidence`
 

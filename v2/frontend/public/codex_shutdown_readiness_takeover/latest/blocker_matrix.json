@@ -1,5 +1,5 @@
 {
-  "as_of_utc": "2026-05-15T09:20:50Z",
+  "as_of_utc": "2026-05-15T09:25:29Z",
   "blockers": [
     {
       "category": "OPERATOR_DECISION_REQUIRED",
@@ -26,14 +26,14 @@
       "remediation_task_id": "claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet"
     },
     {
-      "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "paper_runtime: paper_realized_pnl_negative",
+      "category": "P2_LIVE_ONLY_BLOCKED",
+      "evidence": "paper_runtime: paper_realized_pnl_negative; cumulative loss is pre-filter/historical while post_filter_pnl_delta=0.0 and post_filter_safety=POST_FILTER_NO_UNSAFE_FILLS",
       "id": "PAPER_PNL_NEGATIVE_BLOCKS_CANARY",
       "remediation_task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "paper_runtime: current_paper_intent_blocked_or_unfilled",
+      "evidence": "post_filter_edge_pending: no unsafe post-filter fills observed, but zero fills means positive edge is not proven; shadow_outcome=BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED completed=44 pending=28",
       "id": "PAPER_EDGE_UNPROVEN",
       "remediation_task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
     },
@@ -57,9 +57,9 @@
   "counts": {
     "INFO_ONLY": 2,
     "OPERATOR_DECISION_REQUIRED": 4,
-    "P0_SHUTDOWN_BLOCKER": 2,
+    "P0_SHUTDOWN_BLOCKER": 1,
     "P1_SHUTDOWN_SUPPORT": 0,
-    "P2_LIVE_ONLY_BLOCKED": 0
+    "P2_LIVE_ONLY_BLOCKED": 1
   },
   "current_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE"
 }

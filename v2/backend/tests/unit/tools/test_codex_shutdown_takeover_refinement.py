@@ -97,6 +97,49 @@ def test_post_filter_historical_pnl_is_live_only_while_edge_stays_blocking():
     assert any("positive edge is not proven" in item["evidence"] for item in edge_blockers)
 
 
+def test_outcome_guard_overrides_stale_pre_outcome_post_filter_fields(tmp_path, monkeypatch):
+    controller = _load_controller()
+    status_path = tmp_path / "paper_edge_post_filter_observation_status.json"
+    status_path.write_text(
+        """
+{
+  "classification": "POST_FILTER_EDGE_PENDING",
+  "cumulative_paper_pnl_usdt_pre_plus_post": -49.15,
+  "generated_at": "2026-05-15T08:36:30Z",
+  "outcome_guard_fills": 0,
+  "outcome_guard_pnl_delta_usdt": 0.0,
+  "outcome_guard_start_utc": "2026-05-15T08:32:56Z",
+  "outcome_guard_unsafe_fills": 0,
+  "post_filter_fees_usdt": 0.03,
+  "post_filter_realized_pnl_delta_usdt": -0.03,
+  "post_filter_safety_classification": "POST_CANARY_FILTER_HAD_ONE_SOURCE_LIMITED_UNSAFE_FILL",
+  "post_filter_simulated_fills": 3,
+  "post_outcome_model_guard": {
+    "blocked": 2,
+    "events": 2,
+    "fees_usdt": 0.0,
+    "fills": 0,
+    "pnl_delta_usdt": 0.0,
+    "safety_classification": "NO_FEE_BLEED_SHADOW_OBSERVE_ONLY",
+    "unsafe_fills": 0
+  }
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(controller, "PAPER_POST_FILTER", status_path)
+
+    evidence = controller.paper_post_filter_evidence()
+
+    assert evidence["outcome_guard_active"] is True
+    assert evidence["post_filter_safety_classification"] == "POST_FILTER_NO_UNSAFE_FILLS"
+    assert evidence["post_filter_simulated_fills"] == 0
+    assert evidence["post_filter_realized_pnl_delta_usdt"] == 0.0
+    assert evidence["no_unsafe_fills"] is True
+    assert evidence["historical_negative_pnl_isolated"] is True
+    assert evidence["paper_only_interpretation"] == "POST_FILTER_NO_UNSAFE_FILLS_EDGE_PENDING"
+
+
 def test_trade_permission_unknown_requires_operator_decision_for_paper_only():
     controller = _load_controller()
     blockers = controller.collect_blockers(_base_evidence())

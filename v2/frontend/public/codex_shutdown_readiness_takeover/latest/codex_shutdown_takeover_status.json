@@ -1,5 +1,5 @@
 {
-  "as_of_utc": "2026-05-15T09:20:50Z",
+  "as_of_utc": "2026-05-15T09:25:29Z",
   "blockers": [
     {
       "category": "OPERATOR_DECISION_REQUIRED",
@@ -26,14 +26,14 @@
       "remediation_task_id": "claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet"
     },
     {
-      "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "paper_runtime: paper_realized_pnl_negative",
+      "category": "P2_LIVE_ONLY_BLOCKED",
+      "evidence": "paper_runtime: paper_realized_pnl_negative; cumulative loss is pre-filter/historical while post_filter_pnl_delta=0.0 and post_filter_safety=POST_FILTER_NO_UNSAFE_FILLS",
       "id": "PAPER_PNL_NEGATIVE_BLOCKS_CANARY",
       "remediation_task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "paper_runtime: current_paper_intent_blocked_or_unfilled",
+      "evidence": "post_filter_edge_pending: no unsafe post-filter fills observed, but zero fills means positive edge is not proven; shadow_outcome=BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED completed=44 pending=28",
       "id": "PAPER_EDGE_UNPROVEN",
       "remediation_task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
     },
@@ -63,14 +63,14 @@
     "never_write_old_redis": true
   },
   "evidence": {
-    "as_of_utc": "2026-05-15T09:20:50Z",
+    "as_of_utc": "2026-05-15T09:25:29Z",
     "canonical_inputs": {
       "missing": [
         "v2/frontend/public/operator_runtime/v2_symbol_universe/latest/symbol_universe_status.json"
       ],
       "records": [
         {
-          "age_seconds": 118250,
+          "age_seconds": 118529,
           "exists": true,
           "generated_at": "2026-05-14T00:30:00Z",
           "path": "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/operator_dashboard_payload.json",
@@ -119,37 +119,37 @@
           "valid_json": true
         },
         {
-          "age_seconds": 29,
+          "age_seconds": 68,
           "exists": true,
-          "generated_at": "2026-05-15T09:20:21Z",
+          "generated_at": "2026-05-15T09:24:21Z",
           "path": "claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/worker_porting_state.json",
           "valid_json": true
         },
         {
-          "age_seconds": 29,
+          "age_seconds": 68,
           "exists": true,
-          "generated_at": "2026-05-15T09:20:21Z",
+          "generated_at": "2026-05-15T09:24:21Z",
           "path": "claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/operator_dashboard_payload.json",
           "valid_json": true
         },
         {
-          "age_seconds": 4,
+          "age_seconds": 20,
           "exists": true,
-          "generated_at": "2026-05-15T09:20:46Z",
+          "generated_at": "2026-05-15T09:25:09Z",
           "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
           "valid_json": true
         },
         {
-          "age_seconds": 9,
+          "age_seconds": 48,
           "exists": true,
-          "generated_at": "2026-05-15T09:20:41Z",
+          "generated_at": "2026-05-15T09:24:41Z",
           "path": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
           "valid_json": true
         },
         {
-          "age_seconds": 9,
+          "age_seconds": 48,
           "exists": true,
-          "generated_at": "2026-05-15T09:20:41Z",
+          "generated_at": "2026-05-15T09:24:41Z",
           "path": "v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json",
           "valid_json": true
         },
@@ -161,9 +161,9 @@
           "valid_json": false
         },
         {
-          "age_seconds": 42,
+          "age_seconds": 20,
           "exists": true,
-          "generated_at": "2026-05-15T09:20:08Z",
+          "generated_at": "2026-05-15T09:25:09Z",
           "path": "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json",
           "valid_json": true
         },
@@ -175,7 +175,7 @@
           "valid_json": true
         },
         {
-          "age_seconds": 88,
+          "age_seconds": 367,
           "exists": true,
           "generated_at": "2026-05-15T09:19:22Z",
           "path": "v2/frontend/public/operator_runtime/coinank_market_intelligence/latest/coinank_market_intelligence_status.json",
@@ -333,7 +333,7 @@
     "git_dirty_summary": {
       "buckets": {
         "agent_supervisor_state": 0,
-        "runtime_or_dashboard_artifact": 431,
+        "runtime_or_dashboard_artifact": 428,
         "source_or_tooling": 6,
         "unknown": 10
       },
@@ -379,15 +379,15 @@
           "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json",
           "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json",
           "claude_worklog/final_readiness/codex_independent_v2_support/latest/PUBLIC_PAYLOAD_FRESHNESS_GUARD_REPORT.md",
-          "claude_worklog/final_readiness/codex_independent_v2_support/latest/public_payload_freshness_guard.json"
+          "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/CODEX_SHUTDOWN_TAKEOVER_STATUS.md"
         ],
         "source_or_tooling": [
           "claude_worklog/tools/build_active_autonomous_dispatch_packet.py",
-          "v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py",
+          "claude_worklog/tools/codex_legacy_shutdown_readiness_takeover.py",
           "v2/backend/app/domain/risk_gateway/__init__.py",
           "v2/backend/app/domain/risk_gateway/record.py",
-          "v2/backend/tests/integration/cli/test_v2_coinank_and_liquidation_bridge.py",
-          "v2/backend/tests/unit/domain/risk_gateway/test_public_surface.py"
+          "v2/backend/tests/unit/domain/risk_gateway/test_public_surface.py",
+          "v2/backend/tests/unit/tools/test_codex_shutdown_takeover_refinement.py"
         ],
         "unknown": [
           ".claude/settings.local.json",
@@ -402,7 +402,7 @@
           "claude_worklog/final_readiness/tonight_v2_live_like_paper_shadow_and_canary_preflight/"
         ]
       },
-      "total_dirty": 447
+      "total_dirty": 444
     },
     "observatory": {
       "blockers": [
@@ -411,7 +411,7 @@
         "observatory_legacy_signals_stale"
       ],
       "edge_action_required": true,
-      "generated_at": "2026-05-15T09:20:50Z",
+      "generated_at": "2026-05-15T09:24:50Z",
       "go_no_go": "CODEX_LEGACY_V2_REALTIME_DECISION_OBSERVATORY_READY",
       "legacy_signal_comparison_classification": "MISSING_EVIDENCE_CANNOT_COMPARE",
       "legacy_signal_health": "STALE",
@@ -434,7 +434,7 @@
       "v2_decision_quality": "EDGE_PENDING_INSUFFICIENT_SAMPLE"
     },
     "paper_edge": {
-      "age_seconds": 32791,
+      "age_seconds": 33071,
       "blocked_intents": 1810,
       "blockers": [
         "blocked_intents_present"
@@ -454,7 +454,7 @@
       "simulated_fills": 2269
     },
     "paper_edge_recovery": {
-      "age_seconds": 610,
+      "age_seconds": 890,
       "blockers": [
         "paper_positive_edge_not_proven"
       ],
@@ -472,41 +472,46 @@
       "status": "fresh"
     },
     "paper_post_filter": {
-      "age_seconds": 2660,
+      "age_seconds": 2940,
       "approves_legacy_shutdown": false,
       "approves_live": false,
       "blockers": [],
       "classification": "POST_FILTER_EDGE_PENDING",
       "cumulative_paper_pnl_usdt_pre_plus_post": -49.15,
       "generated_at": "2026-05-15T08:36:30Z",
-      "historical_negative_pnl_isolated": false,
-      "no_unsafe_fills": false,
-      "paper_only_interpretation": "POST_FILTER_EDGE_PENDING",
+      "historical_negative_pnl_isolated": true,
+      "no_unsafe_fills": true,
+      "outcome_guard_active": true,
+      "outcome_guard_fills": 0,
+      "outcome_guard_pnl_delta_usdt": 0.0,
+      "outcome_guard_start_utc": "2026-05-15T08:32:56Z",
+      "outcome_guard_unsafe_fills": 0,
+      "paper_only_interpretation": "POST_FILTER_NO_UNSAFE_FILLS_EDGE_PENDING",
       "path": "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/paper_edge_post_filter_observation_status.json",
       "positive_edge_proven": false,
-      "post_filter_allowed_intents": 3,
+      "post_filter_allowed_intents": 2,
       "post_filter_blocked_intents_1h": null,
       "post_filter_blocked_intents_6h_window": null,
       "post_filter_churn_events": 0,
-      "post_filter_fees_usdt": 0.03,
-      "post_filter_realized_pnl_delta_usdt": -0.03,
-      "post_filter_safety_classification": "POST_CANARY_FILTER_HAD_ONE_SOURCE_LIMITED_UNSAFE_FILL",
-      "post_filter_simulated_fills": 3,
+      "post_filter_fees_usdt": 0.0,
+      "post_filter_realized_pnl_delta_usdt": 0.0,
+      "post_filter_safety_classification": "POST_FILTER_NO_UNSAFE_FILLS",
+      "post_filter_simulated_fills": 0,
       "post_filter_window_end_utc": "2026-05-15T08:36:17Z",
       "post_filter_window_seconds": 35731,
       "post_filter_window_start_utc": "2026-05-14T22:40:46Z",
       "status": "stale_or_missing",
-      "zero_fill_observation": false
+      "zero_fill_observation": true
     },
     "paper_runtime": {
-      "age_seconds": 4,
+      "age_seconds": 21,
       "blockers": [
         "paper_realized_pnl_negative",
         "current_paper_intent_blocked_or_unfilled"
       ],
       "fill_count": null,
       "fills_last_hour": null,
-      "generated_at": "2026-05-15T09:20:46Z",
+      "generated_at": "2026-05-15T09:25:09Z",
       "latest_fill_price": null,
       "latest_paper_action": null,
       "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
@@ -516,25 +521,25 @@
       "unrealized_pnl": 0.0
     },
     "paper_shadow": {
-      "age_seconds": 9,
+      "age_seconds": 49,
       "blockers": [],
-      "generated_at": "2026-05-15T09:20:41Z",
+      "generated_at": "2026-05-15T09:24:41Z",
       "path": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
       "status": "fresh"
     },
     "paper_shadow_outcome": {
-      "age_seconds": 28,
+      "age_seconds": 67,
       "blockers": [],
       "completed_observations": 44,
       "edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
-      "false_block_count": 19,
-      "generated_at": "2026-05-15T09:20:22Z",
+      "false_block_count": 23,
+      "generated_at": "2026-05-15T09:24:23Z",
       "minimum_sample_status": "PRELIMINARY_SAMPLE",
-      "no_trade_correct_count": 25,
-      "observations_total": 70,
+      "no_trade_correct_count": 21,
+      "observations_total": 72,
       "outcome_status": "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED",
       "path": "v2/frontend/public/operator_runtime/paper_shadow_outcome_observer/latest/paper_shadow_outcome_observer_status.json",
-      "pending_observations": 26,
+      "pending_observations": 28,
       "status": "fresh"
     },
     "public_freshness": {
@@ -543,241 +548,241 @@
       "non_current_reference_stale_count": 241,
       "non_current_reference_stale_preview": [
         {
-          "age_seconds": 40913,
+          "age_seconds": 41193,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/CODEX_ACCOUNT_PERMISSION_AND_SOAK_REVIEW.json"
         },
         {
-          "age_seconds": 40913,
+          "age_seconds": 41193,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/canary_readiness_after_account_evidence.json"
         },
         {
-          "age_seconds": 40913,
+          "age_seconds": 41193,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/margin_leverage_evidence.json"
         },
         {
-          "age_seconds": 40913,
+          "age_seconds": 41193,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 40913,
+          "age_seconds": 41193,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/p0_p1_migration_account_evidence_progress.json"
         },
         {
-          "age_seconds": 40913,
+          "age_seconds": 41193,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/paper_shadow_monitor_continuation.json"
         },
         {
-          "age_seconds": 40913,
+          "age_seconds": 41193,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/paper_shadow_soak_reconciliation.json"
         },
         {
-          "age_seconds": 40913,
+          "age_seconds": 41193,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/readonly_account_evidence.json"
         },
         {
-          "age_seconds": 40913,
+          "age_seconds": 41193,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/trade_permission_evidence.json"
         },
         {
-          "age_seconds": 40913,
+          "age_seconds": 41193,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/trainer_trader_monitor_continuation_status.json"
         },
         {
-          "age_seconds": 40913,
+          "age_seconds": 41193,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/weekly_loss_gate_runtime_proof.json"
         },
         {
-          "age_seconds": 208735,
+          "age_seconds": 209014,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-12T23:21:55.367925+00:00",
           "path": "v2/frontend/public/active_autonomous_dispatch/latest/claude_idle_and_dispatch_diagnostic.json"
         },
         {
-          "age_seconds": 208735,
+          "age_seconds": 209014,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-12T23:21:55.367925+00:00",
           "path": "v2/frontend/public/active_autonomous_dispatch/latest/codex_parallel_dispatch_state.json"
         },
         {
-          "age_seconds": 208735,
+          "age_seconds": 209014,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-12T23:21:55.367925+00:00",
           "path": "v2/frontend/public/active_autonomous_dispatch/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 208735,
+          "age_seconds": 209014,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-12T23:21:55.367925+00:00",
           "path": "v2/frontend/public/active_autonomous_dispatch/latest/primary_dispatch_state.json"
         },
         {
-          "age_seconds": 17520,
+          "age_seconds": 17799,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-15T04:28:50.650980+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/always_on_runtime_state.json"
         },
         {
-          "age_seconds": 133373,
+          "age_seconds": 133652,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-13T20:17:57.782874+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/automation_utilization_status.json"
         },
         {
-          "age_seconds": 17520,
+          "age_seconds": 17799,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-15T04:28:50.598661+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/git_dirty_state.json"
         },
         {
-          "age_seconds": 17520,
+          "age_seconds": 17799,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-15T04:28:50.650980+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 17520,
+          "age_seconds": 17799,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-15T04:28:50.653917+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json"
         },
         {
-          "age_seconds": 484117,
+          "age_seconds": 484396,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-09T18:52:13.154032+00:00",
           "path": "v2/frontend/public/automation_liveness/latest/dashboard_069_liveness_payload.json"
         },
         {
-          "age_seconds": 484040,
+          "age_seconds": 484319,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-09T18:53:30.424067+00:00",
           "path": "v2/frontend/public/automation_liveness/latest/dashboard_liveness_payload.json"
         },
         {
-          "age_seconds": 214427,
+          "age_seconds": 214706,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-12T21:47:03.651686+00:00",
           "path": "v2/frontend/public/autonomous_governor/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 381196,
+          "age_seconds": 381475,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-10T23:27:34.157556+00:00",
           "path": "v2/frontend/public/autonomous_governor_manual_replacement/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 478367,
+          "age_seconds": 478647,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-09T20:28:03.005904+00:00",
           "path": "v2/frontend/public/autonomous_live_readiness_builder/latest/autonomous_builder_status.json"
         },
         {
-          "age_seconds": 214833,
+          "age_seconds": 215112,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-12T21:40:17.796346+00:00",
           "path": "v2/frontend/public/claude_automation_non_drift_governor_lock/latest/non_drift_governor_status.json"
         },
         {
-          "age_seconds": 214833,
+          "age_seconds": 215112,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-12T21:40:17.796346+00:00",
           "path": "v2/frontend/public/claude_automation_non_drift_governor_lock/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 214833,
+          "age_seconds": 215112,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-12T21:40:17.796346+00:00",
           "path": "v2/frontend/public/claude_automation_non_drift_governor_lock/latest/primary_objective_lock.json"
         },
         {
-          "age_seconds": 358420,
+          "age_seconds": 358699,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-11T05:47:10.135832+00:00",
           "path": "v2/frontend/public/claude_codex_rate_limit_handoff/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 295869,
+          "age_seconds": 296149,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-11T19:09:41-04:00",
           "path": "v2/frontend/public/claude_design_full_visual_implementation/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 351292,
+          "age_seconds": 351571,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-11T07:45:58.228145+00:00",
           "path": "v2/frontend/public/claude_primary_handoff/latest/WORKER_ROUTING_STATE.json"
         },
         {
-          "age_seconds": 351292,
+          "age_seconds": 351571,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-11T07:45:58.228145+00:00",
           "path": "v2/frontend/public/claude_primary_handoff/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 389074,
+          "age_seconds": 389353,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-10T21:16:16.250972+00:00",
           "path": "v2/frontend/public/claude_rate_limit_codex_takeover/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 302246,
+          "age_seconds": 302526,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-11T21:23:24Z",
           "path": "v2/frontend/public/codex_design_handoff_review_protocol/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 125600,
+          "age_seconds": 125880,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-13T22:27:30Z",
           "path": "v2/frontend/public/codex_env_repo_parity/latest/env_dependency_parity.json"
         },
         {
-          "age_seconds": 125460,
+          "age_seconds": 125740,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-13T22:29:50Z",
           "path": "v2/frontend/public/codex_env_repo_parity/latest/legacy_v2_function_gap.json"
         },
         {
-          "age_seconds": 125460,
+          "age_seconds": 125740,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-13T22:29:50Z",
           "path": "v2/frontend/public/codex_env_repo_parity/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 82383,
+          "age_seconds": 82663,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T10:27:47Z",
           "path": "v2/frontend/public/codex_independent_v2_support/latest/account_permission_contract_status.json"
         },
         {
-          "age_seconds": 82840,
+          "age_seconds": 83120,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T10:20:10Z",
           "path": "v2/frontend/public/codex_independent_v2_support/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 129751,
+          "age_seconds": 130031,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-13T21:18:19Z",
           "path": "v2/frontend/public/codex_independent_v2_support/latest/paper_shadow_metrics_analysis.json"
@@ -796,7 +801,7 @@
       "human_attention_required_count": 4,
       "next_pending_task": "recurring_monitor_legacy_trainer_runtime",
       "non_drift_selected_task": "recurring_monitor_legacy_trainer_runtime",
-      "queue_generated_at": "2026-05-15T09:20:37.266711+00:00",
+      "queue_generated_at": "2026-05-15T09:25:09.248634+00:00",
       "queue_status_path": "claude_worklog/agent_supervisor/status/queue_status.json"
     },
     "risk_gateway_tests": {
@@ -945,9 +950,9 @@
       ]
     },
     "symbol_universe": {
-      "age_seconds": 9,
+      "age_seconds": 49,
       "blockers": [],
-      "generated_at": "2026-05-15T09:20:41Z",
+      "generated_at": "2026-05-15T09:24:41Z",
       "live_gate": "blocked_human_only",
       "live_symbols": [],
       "paper_symbols": [
@@ -963,7 +968,7 @@
       "account_monitor_fail_closed": true,
       "account_monitor_readonly_no_mutation": true,
       "account_position_path": "v2/frontend/public/operator_runtime/v2_account_position_monitor/latest/v2_account_position_monitor_status.json",
-      "age_seconds": 32789,
+      "age_seconds": 33069,
       "blockers": [
         "trade_permission_readonly_unknown"
       ],
@@ -991,21 +996,21 @@
     },
     "trainer_bridge": {
       "accepted_as_legacy_hybrid_prediction": true,
-      "age_seconds": 42,
+      "age_seconds": 21,
       "blockers": [
         "legacy_log_confidence_calibration_derived",
         "legacy_log_feature_attribution_incomplete",
         "legacy_log_feature_snapshot_id_derived"
       ],
-      "checkpoint_id": "legacy_live_checkpoint_1778836794",
-      "generated_at": "2026-05-15T09:20:08Z",
+      "checkpoint_id": "legacy_live_checkpoint_1778837089",
+      "generated_at": "2026-05-15T09:25:09Z",
       "lineage_derivation_warnings": [
         "feature_snapshot_id_bridge_derived_from_legacy_redis_prediction_hash",
         "confidence_calibrated_bridge_derived_from_legacy_prediction_confidence",
         "top_features_absent_from_legacy_prediction_hash",
         "top_negative_features_absent_from_legacy_prediction_hash"
       ],
-      "model_checkpoint_id": "legacy_live_checkpoint_1778836794",
+      "model_checkpoint_id": "legacy_live_checkpoint_1778837089",
       "model_version": "legacy_hybrid_trainer_live_legacy",
       "path": "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json",
       "prediction_evidence_status": "LEGACY_HYBRID_TRAINER_PREDICTION_PRESENT",
@@ -1182,8 +1187,8 @@
       }
     },
     "worker_porting": {
-      "age_seconds": 29,
-      "as_of_utc": "2026-05-15T09:20:21Z",
+      "age_seconds": 69,
+      "as_of_utc": "2026-05-15T09:24:21Z",
       "blocked_workers": [],
       "blockers": [
         "legacy_baseline_backfill_required"

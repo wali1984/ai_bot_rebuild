@@ -773,6 +773,27 @@ def paper_post_filter_evidence() -> Dict[str, Any]:
     post_filter_pnl = payload.get("post_filter_realized_pnl_delta_usdt")
     post_filter_fees = payload.get("post_filter_fees_usdt")
     post_filter_churn = payload.get("post_filter_churn_events")
+    outcome_guard = payload.get("post_outcome_model_guard") if isinstance(payload.get("post_outcome_model_guard"), dict) else {}
+    outcome_guard_fills = payload.get("outcome_guard_fills", outcome_guard.get("fills"))
+    outcome_guard_pnl = payload.get("outcome_guard_pnl_delta_usdt", outcome_guard.get("pnl_delta_usdt"))
+    outcome_guard_fees = outcome_guard.get("fees_usdt")
+    outcome_guard_unsafe = payload.get("outcome_guard_unsafe_fills", outcome_guard.get("unsafe_fills"))
+    outcome_guard_events = outcome_guard.get("events")
+    outcome_guard_active = (
+        payload.get("outcome_guard_start_utc") is not None
+        or outcome_guard_fills is not None
+        or outcome_guard_events is not None
+    )
+    if outcome_guard_active:
+        post_filter_fills = outcome_guard_fills
+        post_filter_allowed = outcome_guard_events
+        post_filter_pnl = outcome_guard_pnl
+        post_filter_fees = outcome_guard_fees
+        post_filter_churn = outcome_guard_unsafe
+        if outcome_guard_unsafe == 0 and (outcome_guard_fees in (None, 0, 0.0)):
+            safety_classification = "POST_FILTER_NO_UNSAFE_FILLS"
+        elif outcome_guard.get("safety_classification"):
+            safety_classification = str(outcome_guard["safety_classification"])
     cumulative_pnl = payload.get("cumulative_paper_pnl_usdt_pre_plus_post")
     blocked_1h = payload.get("post_filter_blocked_intents_1h")
     blocked_6h = payload.get("post_filter_blocked_intents_6h_window")
@@ -784,7 +805,11 @@ def paper_post_filter_evidence() -> Dict[str, Any]:
             and post_filter_churn == 0
         )
     )
-    zero_fill_observation = post_filter_fills == 0 and (blocked_1h or blocked_6h)
+    zero_fill_observation = post_filter_fills == 0 and (
+        blocked_1h
+        or blocked_6h
+        or (outcome_guard_active and outcome_guard_events)
+    )
     positive_edge_proven = classification == "POST_FILTER_POSITIVE_EDGE_PROVEN" and payload.get("paper_edge_positive_proven") is True
     historical_negative_pnl_isolated = (
         isinstance(cumulative_pnl, (int, float))
@@ -820,6 +845,11 @@ def paper_post_filter_evidence() -> Dict[str, Any]:
         "post_filter_blocked_intents_6h_window": blocked_6h,
         "post_filter_fees_usdt": post_filter_fees,
         "post_filter_churn_events": post_filter_churn,
+        "outcome_guard_active": outcome_guard_active,
+        "outcome_guard_start_utc": payload.get("outcome_guard_start_utc") or outcome_guard.get("start_utc"),
+        "outcome_guard_fills": outcome_guard_fills,
+        "outcome_guard_pnl_delta_usdt": outcome_guard_pnl,
+        "outcome_guard_unsafe_fills": outcome_guard_unsafe,
         "no_unsafe_fills": no_unsafe_fills,
         "zero_fill_observation": bool(zero_fill_observation),
         "positive_edge_proven": positive_edge_proven,
