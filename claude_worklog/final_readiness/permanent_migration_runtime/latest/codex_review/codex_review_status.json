@@ -1,0 +1,52 @@
+{
+  "active_controller_services_verified": [
+    "ai-bot-v2-codex-shutdown-readiness-takeover",
+    "ai-bot-v2-readonly-decision-observatory",
+    "ai-bot-v2-agent-supervisor",
+    "ai-bot-v2-paper-online-runtime",
+    "ai-bot-v2-paper-shadow-observation",
+    "ai-bot-v2-symbol-universe-publisher",
+    "ai-bot-v2-trainer-bridge"
+  ],
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "blocking_findings": [],
+  "fixes_applied": [
+    "frontend_truth_payload_builder_operator_truth_path_fallback",
+    "permanent_migration_report_router_active_state_wording"
+  ],
+  "generated_utc": "2026-05-15T18:21:58+00:00",
+  "go_no_go": "CODEX_REVIEW_PERMANENT_MIGRATION_FIX_AND_FRONTEND_RUNTIME_PASS",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "nonblocking_findings": [
+    "permanent_objective_router_files_exist_but_systemd_units_not_installed_or_active",
+    "frontend_truth_operator_truth_payload_path_was_corrected",
+    "forbidden_word_scan_matches_router_denylist_task_ids_only"
+  ],
+  "router_systemd": {
+    "controller_decision": "KEEP_EXISTING_CODEX_TAKEOVER_AS_ACTIVE_CONTROLLER",
+    "service_is_active": false,
+    "service_is_enabled": "not-found",
+    "service_unit_found": false,
+    "timer_is_active": false,
+    "timer_is_enabled": "not-found",
+    "timer_unit_found": false
+  },
+  "scope": "control_layer_and_frontend_truth_only",
+  "shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
+  "validation": {
+    "build_operator_truth": "pass",
+    "forbidden_mutation_scan_scoped": "pass_denylist_terms_only_no_callable_mutation_path",
+    "git_diff_check_scoped": "pass",
+    "json_validation": "pass",
+    "npm_build": "pass",
+    "npm_typecheck": "pass",
+    "py_compile": "pass",
+    "pytest_expected_move_review": "9_passed_with_repo_root_pythonpath",
+    "secret_scan_scoped": "pass",
+    "sync_proof_artifacts": "pass"
+  }
+}

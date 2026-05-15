@@ -8,6 +8,7 @@ export async function gotoAs(page: Page, path: string, role: Role): Promise<void
 }
 
 export const ADMIN_PAGE_PATHS = [
+  '/admin/permanent-migration',
   '/admin/mission-control',
   '/admin/monitor-center',
   '/admin/coverage-system-atlas',
@@ -62,6 +63,7 @@ export const REVIEWER_ONLY_ADMIN_PATHS = [
 ] as const;
 
 export const VIEWER_VISIBLE_ADMIN_PATHS = [
+  '/admin/permanent-migration',
   '/admin/mission-control',
   '/admin/monitor-center',
   '/admin/trainer-prediction-monitor',

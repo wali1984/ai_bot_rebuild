@@ -165,7 +165,13 @@ import loginMeta from './login/meta';
 import loginRbac from './login/rbac';
 import loginRoute from './login/route';
 
+import PermanentMigrationPage from './permanent-migration';
+import permanentMigrationMeta from './permanent-migration/meta';
+import permanentMigrationRbac from './permanent-migration/rbac';
+import permanentMigrationRoute from './permanent-migration/route';
+
 export const PAGES: ReadonlyArray<PageModule> = [
+  { meta: permanentMigrationMeta, rbac: permanentMigrationRbac, route: permanentMigrationRoute, Component: PermanentMigrationPage },
   { meta: missionControlMeta, rbac: missionControlRbac, route: missionControlRoute, Component: MissionControlPage },
   { meta: monitorCenterMeta, rbac: monitorCenterRbac, route: monitorCenterRoute, Component: MonitorCenterPage },
   { meta: coverageSystemAtlasMeta, rbac: coverageSystemAtlasRbac, route: coverageSystemAtlasRoute, Component: CoverageSystemAtlasPage },
