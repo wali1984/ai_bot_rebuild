@@ -1,0 +1,62 @@
+{
+  "agent": "claude",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/paper_edge_recovery/latest/",
+    "v2/backend/app/composition/paper_edge_scoring/",
+    "v2/backend/app/cli/",
+    "v2/backend/tests/",
+    "v2/frontend/public/paper_edge_recovery/latest/",
+    "v2/frontend/public/operator_runtime/paper_shadow_outcome_observer/latest/",
+    "v2/frontend/public/operator_runtime/paper_online/latest/",
+    "claude_worklog/final_readiness/paper_loss_attribution/latest/",
+    "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/",
+    "claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/",
+    "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/"
+  ],
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**",
+    "requirements/**"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "forbidden": [
+    "legacy_mutation",
+    "old_redis_write",
+    "exchange_action",
+    "leverage_change",
+    "margin_mode_change",
+    "live_gate_unlock",
+    "approval_token_creation",
+    "redis_trim_approval_creation",
+    "confidence_only_fill_permission",
+    "expected_move_after_costs_missing_fill_permission",
+    "trainer_source_missing_fill_permission",
+    "feature_freshness_missing_fill_permission",
+    "symbol_not_paper_eligible_fill_permission",
+    "paper_edge_proven_with_zero_fills",
+    "pre_filter_loss_hidden",
+    "loss_report_caveats_hidden",
+    "legacy_protective_behavior_silently_dropped"
+  ],
+  "lane": "shutdown_readiness_remediation",
+  "live_gate": "blocked_human_only",
+  "managed_by": "codex_legacy_shutdown_readiness_takeover",
+  "max_attempts": 1,
+  "prompt": "You are Claude running under the AI BOT REBUILD supervisor.\nScope: write only inside /home/wali/Desktop/AI BOT REBUILD. Read the legacy bot tree only as reference evidence. Use BEGIN_FILE blocks for every file you change; do not attempt direct filesystem writes from headless mode. Do not mutate legacy files, old Redis, exchange state, leverage, margin mode, or live trading. Do not create final approval or Redis trim approval tokens. Keep live_gate=blocked_human_only and live_symbols=[] in all payloads.\n\nTask: Implement V2_PAPER_EDGE_RECOVERY_AND_COST_AWARE_TRADE_SELECTION_READY.\n\nPurpose: The paper loss attribution proved that V2 pre-filter paper loss came from high-churn fills with no proven edge after fees/slippage. Gross PnL was approximately flat before fees, explicit fees and slippage drove the loss, and the highest confidence bucket still lost money. Post-filter unsafe fills are now stopped, but positive edge is unproven. Change V2 paper trade selection so no paper fill can happen unless expected move after costs, trainer source, feature freshness, cooldown, churn, Symbol Universe, and risk gates all pass. This is V2 paper/shadow only; do not approve live, canary, or legacy shutdown.\n\nKnown evidence to preserve honestly: cumulative paper PnL about -49.12; source-limited prior baseline about -26.37; observed pre-filter loss about -22.75; post-filter PnL delta 0.0; post-filter fills 0; post-filter unsafe fills 0; explicit booked fees pre-filter 22.69; estimated slippage pre-filter 11.345; gross PnL if fees added back about -0.06; 0.75_plus confidence bucket lost about -12.79; per-fill trainer source missing; per-fill feature freshness missing; edge-after-costs missing for pre-filter allowed fills. Read the paper loss attribution packet before changing behavior.\n\nPhase A - Extend paper event schema. Patch V2 paper execution and paper shadow event schema so every intent, blocked intent, and fill records: event_id, symbol, side, timeframe, intent_id, prediction_id, feature_snapshot_id, trainer_source, trainer_bridge_status, model_version, checkpoint_id, confidence_raw, confidence_calibrated, confidence_bucket, expected_move_bps, expected_move_after_cost_bps, fee_bps, spread_bps, slippage_bps, funding_risk_bps, edge_score, feature_freshness_state, stale_feature_flags, missing_feature_flags, symbol_universe_state, paper_symbol_allowed, risk_decision_id, risk_reason, block_reason, fill_allowed, fill_rejected_reason, live_gate, and live_symbols. Missing trainer source, missing feature freshness, missing expected_move_after_cost_bps, confidence-only permission, non-empty live_symbols, or live_gate != blocked_human_only must block fills.\n\nCreate v2/backend/app/composition/paper_edge_scoring/ and v2/backend/tests/unit/composition/test_paper_edge_scoring.py. Implement cost-aware scoring: expected_move_after_cost_bps = predicted_move_bps - fee_bps - spread_bps - slippage_bps - funding_risk_bps. Hard gate defaults: expected_move_after_cost_bps >= 8 bps, confidence_calibrated >= 0.70, feature_freshness_state == CURRENT, trainer_source in accepted set, symbol in paper_symbols, live_symbols == [], cooldown clear, flip/churn clear, and risk gate allows paper. If any fail, do not fill, write blocked intent, and write shadow observation request. Output classifications include EDGE_AFTER_COSTS_PASS, EDGE_AFTER_COSTS_MISSING_BLOCK, EDGE_AFTER_COSTS_NEGATIVE_BLOCK, TRAINER_SOURCE_MISSING_BLOCK, FEATURE_FRESHNESS_MISSING_BLOCK, FEATURE_STALE_BLOCK, CONFIDENCE_TOO_LOW_BLOCK, COOLDOWN_BLOCK, FLIP_CHURN_BLOCK, SYMBOL_NOT_PAPER_ELIGIBLE_BLOCK, and RISK_GATE_BLOCK.\n\nPhase C - Shadow outcome observations for blocked intents. Create v2/backend/app/cli/paper_shadow_outcome_observer.py, v2/backend/tests/integration/cli/test_paper_shadow_outcome_observer.py, and v2/frontend/public/operator_runtime/paper_shadow_outcome_observer/latest/paper_shadow_outcome_observer_status.json. Blocked intents should record symbol, side, entry_reference_price, event_ts, horizon_5m, horizon_15m, horizon_30m, expected_move_bps when available, expected_move_after_cost_bps when available, and block_reason. Later observations should compute max favorable excursion, max adverse excursion, realized horizon return, would_have_beaten_costs, would_have_hit_stop, and would_have_hit_take_profit. This must not charge paper fees or create fills.\n\nPhase D - Pre-filter loss replay and threshold tuning. Create v2/backend/app/cli/paper_edge_threshold_replay.py. Replay pre-filter paper JSONL and test min_expected_move_after_cost_bps values 4, 6, 8, 10, 12, 15; min_confidence values 0.58, 0.65, 0.70, 0.75; cooldown seconds; flip/churn windows; and max fills per symbol per hour. Output simulated fill count, simulated fee, simulated PnL, blocked count, win rate, profit factor, edge coverage, and no-trade classification. If all thresholds block all fills, classify NO_TRADE_EDGE_NOT_FOUND, not failure. Do not optimize to fake live readiness.\n\nPhase E - Restore legacy protective behavior in paper-only form. Map preserved legacy behavior from trading/churn_prevention.py, trading/lifecycle_controller.py, trading/exit_coordinator.py, trading/dynamic_tp_engine.py, trading/dynamic_adaptive_stops.py, trading/stealth_stops.py, trading/fee_ratio_gate.py, trading/adaptive_edge_gate.py, risk/reduce_only_latch.py, risk/intelligent_close_guard.py, risk/microstructure_toxicity.py, risk/adaptive_gate.py, rl/churn_veto.py, rl/minimum_hold_time.py, and rl/fee_ratio_reward_shaping.py. Add V2 paper-only equivalents or explicit blockers for minimum hold time, same-side cooldown, flip cooldown, fee-ratio gate, adaptive edge gate, dynamic TP simulation, dynamic stop simulation, stealth stop simulation, reduce-only protection, and churn veto. Codex must fail if any behavior is silently dropped.\n\nPhase F - Paper payload and dashboard output. Update v2/frontend/public/paper_edge_recovery/latest/operator_dashboard_payload.json and claude_worklog/final_readiness/paper_edge_recovery/latest/operator_dashboard_payload.json with cumulative PnL, pre-filter PnL, post-filter PnL, post-filter fills, post-filter unsafe fills, edge status, no-trade status, threshold replay best safe profile, blocked intent counts, shadow observations pending, trainer source coverage, feature freshness coverage, edge-after-costs coverage, remaining blockers, live_gate, and live_symbols.\n\nValidation required: py_compile, unit/integration tests, JSON validation, frontend build/typecheck/sync when affected, secret scan, forbidden-action scan, final approval token absent, Redis trim approval absent, old Redis write absence, exchange action absence. Do not mark positive edge proven unless post-filter fills exist and produce positive net after fees/slippage.\n\nOutput required files exactly:\nBEGIN_FILE: claude_worklog/final_readiness/paper_edge_recovery/latest/GO_NO_GO.md\nV2_PAPER_EDGE_RECOVERY_BLOCKED\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/paper_edge_recovery/latest/V2_PAPER_EDGE_RECOVERY_AND_COST_AWARE_TRADE_SELECTION_REPORT.md\n...implementation report, evidence, tests, safety status, and honest remaining blockers...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/paper_edge_recovery/latest/paper_edge_recovery_status.json\n{\"task_id\":\"claude_v2_paper_edge_recovery_and_cost_aware_trade_selection\",\"live_gate\":\"blocked_human_only\",\"live_symbols\":[],\"approves_live\":false,\"approves_legacy_shutdown\":false}\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/paper_edge_recovery/latest/PAPER_EDGE_THRESHOLD_REPLAY_REPORT.md\n...threshold replay report...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/paper_edge_recovery/latest/paper_edge_threshold_replay.json\n{\"task_id\":\"paper_edge_threshold_replay\",\"classification\":\"NO_TRADE_EDGE_NOT_FOUND_OR_PROFILE_READY\"}\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/paper_edge_recovery/latest/LEGACY_PROTECTIVE_BEHAVIOR_TO_V2_PAPER_MAP.md\n...SHA-cited legacy protective behavior mapping and V2 paper equivalent/blocker for each behavior...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/paper_edge_recovery/latest/legacy_protective_behavior_to_v2_paper_map.json\n{\"task_id\":\"legacy_protective_behavior_to_v2_paper_map\",\"behaviors\":[]}\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/paper_edge_recovery/latest/operator_dashboard_payload.json\n{\"live_gate\":\"blocked_human_only\",\"live_symbols\":[],\"edge_status\":\"EDGE_PENDING\"}\nEND_FILE\n\nBEGIN_FILE: v2/frontend/public/paper_edge_recovery/latest/operator_dashboard_payload.json\n{\"live_gate\":\"blocked_human_only\",\"live_symbols\":[],\"edge_status\":\"EDGE_PENDING\"}\nEND_FILE\n\nGO_NO_GO.md must contain exactly one of: V2_PAPER_EDGE_RECOVERY_READY_NO_UNSAFE_FILLS_EDGE_PENDING, V2_PAPER_EDGE_RECOVERY_READY_POSITIVE_EDGE_PROVEN, V2_PAPER_EDGE_RECOVERY_BLOCKED_EDGE_NOT_FOUND, or V2_PAPER_EDGE_RECOVERY_BLOCKED. Use READY_POSITIVE_EDGE_PROVEN only with positive post-filter net fill evidence.\n",
+  "required_output_files": [
+    "claude_worklog/final_readiness/paper_edge_recovery/latest/GO_NO_GO.md",
+    "claude_worklog/final_readiness/paper_edge_recovery/latest/V2_PAPER_EDGE_RECOVERY_AND_COST_AWARE_TRADE_SELECTION_REPORT.md",
+    "claude_worklog/final_readiness/paper_edge_recovery/latest/paper_edge_recovery_status.json",
+    "claude_worklog/final_readiness/paper_edge_recovery/latest/PAPER_EDGE_THRESHOLD_REPLAY_REPORT.md",
+    "claude_worklog/final_readiness/paper_edge_recovery/latest/paper_edge_threshold_replay.json",
+    "claude_worklog/final_readiness/paper_edge_recovery/latest/LEGACY_PROTECTIVE_BEHAVIOR_TO_V2_PAPER_MAP.md",
+    "claude_worklog/final_readiness/paper_edge_recovery/latest/legacy_protective_behavior_to_v2_paper_map.json",
+    "claude_worklog/final_readiness/paper_edge_recovery/latest/operator_dashboard_payload.json",
+    "v2/frontend/public/paper_edge_recovery/latest/operator_dashboard_payload.json"
+  ],
+  "risk_level": "L2",
+  "status": "pending",
+  "task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection",
+  "task_timeout_seconds": 2400
+}

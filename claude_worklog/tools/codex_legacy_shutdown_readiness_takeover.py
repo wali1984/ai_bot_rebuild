@@ -109,6 +109,8 @@ TRAINER_DERIVED_ACCEPTANCE_TASK_ID = "claude_v2_trainer_derived_evidence_accepta
 TRAINER_DERIVED_ACCEPTANCE_REVIEW_ID = "codex_review_v2_trainer_derived_evidence_acceptance_or_native_parity_packet"
 PAPER_EDGE_POST_FILTER_TASK_ID = "paper_edge_post_filter_observation_window"
 PAPER_EDGE_POST_FILTER_REVIEW_ID = "codex_review_paper_edge_post_filter_observation_window"
+PAPER_EDGE_RECOVERY_TASK_ID = "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
+PAPER_EDGE_RECOVERY_REVIEW_ID = "codex_review_v2_paper_edge_recovery_and_cost_aware_trade_selection"
 TRAINER_LINEAGE_ATTRIBUTION_BLOCKERS = {
     "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED",
     "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
@@ -146,6 +148,7 @@ REMEDIATION_PRIORITY = [
     "claude_audit_stale_public_payloads_and_freshness_guard",
     "claude_replay_paper_edge_repair_from_legacy_trainer_output",
     PAPER_EDGE_POST_FILTER_TASK_ID,
+    PAPER_EDGE_RECOVERY_TASK_ID,
 ]
 
 TEMPLATE_TASKS = [
@@ -158,6 +161,7 @@ TEMPLATE_TASKS = [
     "claude_port_v2_signal_publisher_from_legacy_schema",
     "claude_audit_stale_public_payloads_and_freshness_guard",
     PAPER_EDGE_POST_FILTER_TASK_ID,
+    PAPER_EDGE_RECOVERY_TASK_ID,
 ]
 
 CODEX_REVIEW_IDS = {
@@ -170,6 +174,7 @@ CODEX_REVIEW_IDS = {
     "claude_port_v2_signal_publisher_from_legacy_schema": "codex_review_v2_signal_publisher_legacy_schema_parity",
     "claude_audit_stale_public_payloads_and_freshness_guard": "codex_review_public_payload_freshness_shutdown_readiness",
     PAPER_EDGE_POST_FILTER_TASK_ID: PAPER_EDGE_POST_FILTER_REVIEW_ID,
+    PAPER_EDGE_RECOVERY_TASK_ID: PAPER_EDGE_RECOVERY_REVIEW_ID,
 }
 
 
@@ -1135,11 +1140,12 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
 
     paper = evidence["paper_runtime"]
     post_filter = evidence.get("paper_post_filter", {})
-    paper_task_id = (
-        PAPER_EDGE_POST_FILTER_TASK_ID
-        if codex_passed("claude_replay_paper_edge_repair_from_legacy_trainer_output")
-        else "claude_replay_paper_edge_repair_from_legacy_trainer_output"
-    )
+    if not codex_passed("claude_replay_paper_edge_repair_from_legacy_trainer_output"):
+        paper_task_id = "claude_replay_paper_edge_repair_from_legacy_trainer_output"
+    elif not codex_passed(PAPER_EDGE_POST_FILTER_TASK_ID):
+        paper_task_id = PAPER_EDGE_POST_FILTER_TASK_ID
+    else:
+        paper_task_id = PAPER_EDGE_RECOVERY_TASK_ID
     for item in paper.get("blockers", []):
         if item == "paper_realized_pnl_negative":
             bid = "PAPER_PNL_NEGATIVE_BLOCKS_CANARY"
@@ -1279,6 +1285,8 @@ def task_output_dir(task_id: str) -> Path:
         return ROOT / "claude_worklog/final_readiness/trainer_derived_evidence_acceptance/latest"
     if task_id == PAPER_EDGE_POST_FILTER_TASK_ID:
         return ROOT / "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest"
+    if task_id == PAPER_EDGE_RECOVERY_TASK_ID:
+        return ROOT / "claude_worklog/final_readiness/paper_edge_recovery/latest"
     return OUT / "claude_tasks" / task_id
 
 
@@ -1293,6 +1301,8 @@ def codex_output_dir(task_id: str) -> Path:
         return ROOT / "claude_worklog/final_readiness/trainer_derived_evidence_acceptance/latest/codex_review"
     if task_id == PAPER_EDGE_POST_FILTER_TASK_ID:
         return ROOT / "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/codex_review"
+    if task_id == PAPER_EDGE_RECOVERY_TASK_ID:
+        return ROOT / "claude_worklog/final_readiness/paper_edge_recovery/latest/codex_review"
     return OUT / "codex_reviews" / review_task_id_for(task_id)
 
 
@@ -1312,7 +1322,7 @@ def claude_prompt(task_id: str) -> str:
     if task_id == TRAINER_LINEAGE_ATTRIBUTION_TASK_ID:
         return (
             common
-            + "Task: Build V2_TRAINER_LINEAGE_ATTRIBUTION_PARITY_REMEDIATION_READY honestly. "
+            + "Task: Implement V2_TRAINER_LINEAGE_ATTRIBUTION_PARITY_REMEDIATION_READY honestly. "
             "The V2 trainer bridge has legacy hybrid trainer log evidence, checkpoint evidence, and validated CUDA/GPU dependency evidence, "
             "but shutdown remains blocked by LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED, "
             "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED, and LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE. "
@@ -1355,7 +1365,7 @@ def claude_prompt(task_id: str) -> str:
     if task_id == TRAINER_DERIVED_ACCEPTANCE_TASK_ID:
         return (
             common
-            + "Task: Build V2_TRAINER_DERIVED_EVIDENCE_ACCEPTANCE_OR_NATIVE_PARITY_PACKET_READY. "
+            + "Task: Implement V2_TRAINER_DERIVED_EVIDENCE_ACCEPTANCE_OR_NATIVE_PARITY_PACKET_READY. "
             "The trainer bridge is no longer blocked by WRAPPER_NOT_LEGACY_HYBRID_PARITY, but shutdown remains blocked because "
             "feature_snapshot_id and confidence calibration are derived from legacy logs and feature attribution is incomplete. "
             "Determine whether native legacy or V2 trainer evidence can be produced. If native evidence is unavailable, create an "
@@ -1422,6 +1432,98 @@ def claude_prompt(task_id: str) -> str:
             "BEGIN_FILE: v2/frontend/public/paper_edge_post_filter_observation_window/latest/operator_dashboard_payload.json\n"
             "{\"live_gate\":\"blocked_human_only\",\"live_symbols\":[],\"classification\":\"POST_FILTER_EDGE_PENDING\"}\n"
             "END_FILE\n"
+        )
+    if task_id == PAPER_EDGE_RECOVERY_TASK_ID:
+        return (
+            common
+            + "Task: Implement V2_PAPER_EDGE_RECOVERY_AND_COST_AWARE_TRADE_SELECTION_READY.\n\n"
+            "Purpose: The paper loss attribution proved that V2 pre-filter paper loss came from high-churn fills with no proven edge "
+            "after fees/slippage. Gross PnL was approximately flat before fees, explicit fees and slippage drove the loss, and the "
+            "highest confidence bucket still lost money. Post-filter unsafe fills are now stopped, but positive edge is unproven. "
+            "Change V2 paper trade selection so no paper fill can happen unless expected move after costs, trainer source, feature "
+            "freshness, cooldown, churn, Symbol Universe, and risk gates all pass. This is V2 paper/shadow only; do not approve live, "
+            "canary, or legacy shutdown.\n\n"
+            "Known evidence to preserve honestly: cumulative paper PnL about -49.12; source-limited prior baseline about -26.37; "
+            "observed pre-filter loss about -22.75; post-filter PnL delta 0.0; post-filter fills 0; post-filter unsafe fills 0; "
+            "explicit booked fees pre-filter 22.69; estimated slippage pre-filter 11.345; gross PnL if fees added back about -0.06; "
+            "0.75_plus confidence bucket lost about -12.79; per-fill trainer source missing; per-fill feature freshness missing; "
+            "edge-after-costs missing for pre-filter allowed fills. Read the paper loss attribution packet before changing behavior.\n\n"
+            "Phase A - Extend paper event schema. Patch V2 paper execution and paper shadow event schema so every intent, blocked intent, "
+            "and fill records: event_id, symbol, side, timeframe, intent_id, prediction_id, feature_snapshot_id, trainer_source, "
+            "trainer_bridge_status, model_version, checkpoint_id, confidence_raw, confidence_calibrated, confidence_bucket, "
+            "expected_move_bps, expected_move_after_cost_bps, fee_bps, spread_bps, slippage_bps, funding_risk_bps, edge_score, "
+            "feature_freshness_state, stale_feature_flags, missing_feature_flags, symbol_universe_state, paper_symbol_allowed, "
+            "risk_decision_id, risk_reason, block_reason, fill_allowed, fill_rejected_reason, live_gate, and live_symbols. Missing "
+            "trainer source, missing feature freshness, missing expected_move_after_cost_bps, confidence-only permission, non-empty "
+            "live_symbols, or live_gate != blocked_human_only must block fills.\n\n"
+            "Create v2/backend/app/composition/paper_edge_scoring/ and v2/backend/tests/unit/composition/test_paper_edge_scoring.py. "
+            "Implement cost-aware scoring: expected_move_after_cost_bps = predicted_move_bps - fee_bps - spread_bps - slippage_bps - "
+            "funding_risk_bps. Hard gate defaults: expected_move_after_cost_bps >= 8 bps, confidence_calibrated >= 0.70, "
+            "feature_freshness_state == CURRENT, trainer_source in accepted set, symbol in paper_symbols, live_symbols == [], cooldown "
+            "clear, flip/churn clear, and risk gate allows paper. If any fail, do not fill, write blocked intent, and write shadow "
+            "observation request. Output classifications include EDGE_AFTER_COSTS_PASS, EDGE_AFTER_COSTS_MISSING_BLOCK, "
+            "EDGE_AFTER_COSTS_NEGATIVE_BLOCK, TRAINER_SOURCE_MISSING_BLOCK, FEATURE_FRESHNESS_MISSING_BLOCK, FEATURE_STALE_BLOCK, "
+            "CONFIDENCE_TOO_LOW_BLOCK, COOLDOWN_BLOCK, FLIP_CHURN_BLOCK, SYMBOL_NOT_PAPER_ELIGIBLE_BLOCK, and RISK_GATE_BLOCK.\n\n"
+            "Phase C - Shadow outcome observations for blocked intents. Create v2/backend/app/cli/paper_shadow_outcome_observer.py, "
+            "v2/backend/tests/integration/cli/test_paper_shadow_outcome_observer.py, and "
+            "v2/frontend/public/operator_runtime/paper_shadow_outcome_observer/latest/paper_shadow_outcome_observer_status.json. "
+            "Blocked intents should record symbol, side, entry_reference_price, event_ts, horizon_5m, horizon_15m, horizon_30m, "
+            "expected_move_bps when available, expected_move_after_cost_bps when available, and block_reason. Later observations should "
+            "compute max favorable excursion, max adverse excursion, realized horizon return, would_have_beaten_costs, "
+            "would_have_hit_stop, and would_have_hit_take_profit. This must not charge paper fees or create fills.\n\n"
+            "Phase D - Pre-filter loss replay and threshold tuning. Create v2/backend/app/cli/paper_edge_threshold_replay.py. Replay "
+            "pre-filter paper JSONL and test min_expected_move_after_cost_bps values 4, 6, 8, 10, 12, 15; min_confidence values 0.58, "
+            "0.65, 0.70, 0.75; cooldown seconds; flip/churn windows; and max fills per symbol per hour. Output simulated fill count, "
+            "simulated fee, simulated PnL, blocked count, win rate, profit factor, edge coverage, and no-trade classification. If all "
+            "thresholds block all fills, classify NO_TRADE_EDGE_NOT_FOUND, not failure. Do not optimize to fake live readiness.\n\n"
+            "Phase E - Restore legacy protective behavior in paper-only form. Map preserved legacy behavior from trading/churn_prevention.py, "
+            "trading/lifecycle_controller.py, trading/exit_coordinator.py, trading/dynamic_tp_engine.py, trading/dynamic_adaptive_stops.py, "
+            "trading/stealth_stops.py, trading/fee_ratio_gate.py, trading/adaptive_edge_gate.py, risk/reduce_only_latch.py, "
+            "risk/intelligent_close_guard.py, risk/microstructure_toxicity.py, risk/adaptive_gate.py, rl/churn_veto.py, "
+            "rl/minimum_hold_time.py, and rl/fee_ratio_reward_shaping.py. Add V2 paper-only equivalents or explicit blockers for "
+            "minimum hold time, same-side cooldown, flip cooldown, fee-ratio gate, adaptive edge gate, dynamic TP simulation, dynamic "
+            "stop simulation, stealth stop simulation, reduce-only protection, and churn veto. Codex must fail if any behavior is "
+            "silently dropped.\n\n"
+            "Phase F - Paper payload and dashboard output. Update v2/frontend/public/paper_edge_recovery/latest/operator_dashboard_payload.json "
+            "and claude_worklog/final_readiness/paper_edge_recovery/latest/operator_dashboard_payload.json with cumulative PnL, pre-filter "
+            "PnL, post-filter PnL, post-filter fills, post-filter unsafe fills, edge status, no-trade status, threshold replay best safe "
+            "profile, blocked intent counts, shadow observations pending, trainer source coverage, feature freshness coverage, "
+            "edge-after-costs coverage, remaining blockers, live_gate, and live_symbols.\n\n"
+            "Validation required: py_compile, unit/integration tests, JSON validation, frontend build/typecheck/sync when affected, secret "
+            "scan, forbidden-action scan, final approval token absent, Redis trim approval absent, old Redis write absence, exchange action "
+            "absence. Do not mark positive edge proven unless post-filter fills exist and produce positive net after fees/slippage.\n\n"
+            "Output required files exactly:\n"
+            f"BEGIN_FILE: {out}/GO_NO_GO.md\n"
+            "V2_PAPER_EDGE_RECOVERY_BLOCKED\n"
+            "END_FILE\n\n"
+            f"BEGIN_FILE: {out}/V2_PAPER_EDGE_RECOVERY_AND_COST_AWARE_TRADE_SELECTION_REPORT.md\n"
+            "...implementation report, evidence, tests, safety status, and honest remaining blockers...\n"
+            "END_FILE\n\n"
+            f"BEGIN_FILE: {out}/paper_edge_recovery_status.json\n"
+            "{\"task_id\":\"claude_v2_paper_edge_recovery_and_cost_aware_trade_selection\","
+            "\"live_gate\":\"blocked_human_only\",\"live_symbols\":[],\"approves_live\":false,\"approves_legacy_shutdown\":false}\n"
+            "END_FILE\n\n"
+            f"BEGIN_FILE: {out}/PAPER_EDGE_THRESHOLD_REPLAY_REPORT.md\n"
+            "...threshold replay report...\n"
+            "END_FILE\n\n"
+            f"BEGIN_FILE: {out}/paper_edge_threshold_replay.json\n"
+            "{\"task_id\":\"paper_edge_threshold_replay\",\"classification\":\"NO_TRADE_EDGE_NOT_FOUND_OR_PROFILE_READY\"}\n"
+            "END_FILE\n\n"
+            f"BEGIN_FILE: {out}/LEGACY_PROTECTIVE_BEHAVIOR_TO_V2_PAPER_MAP.md\n"
+            "...SHA-cited legacy protective behavior mapping and V2 paper equivalent/blocker for each behavior...\n"
+            "END_FILE\n\n"
+            f"BEGIN_FILE: {out}/legacy_protective_behavior_to_v2_paper_map.json\n"
+            "{\"task_id\":\"legacy_protective_behavior_to_v2_paper_map\",\"behaviors\":[]}\n"
+            "END_FILE\n\n"
+            f"BEGIN_FILE: {out}/operator_dashboard_payload.json\n"
+            "{\"live_gate\":\"blocked_human_only\",\"live_symbols\":[],\"edge_status\":\"EDGE_PENDING\"}\n"
+            "END_FILE\n\n"
+            "BEGIN_FILE: v2/frontend/public/paper_edge_recovery/latest/operator_dashboard_payload.json\n"
+            "{\"live_gate\":\"blocked_human_only\",\"live_symbols\":[],\"edge_status\":\"EDGE_PENDING\"}\n"
+            "END_FILE\n\n"
+            "GO_NO_GO.md must contain exactly one of: V2_PAPER_EDGE_RECOVERY_READY_NO_UNSAFE_FILLS_EDGE_PENDING, "
+            "V2_PAPER_EDGE_RECOVERY_READY_POSITIVE_EDGE_PROVEN, V2_PAPER_EDGE_RECOVERY_BLOCKED_EDGE_NOT_FOUND, or "
+            "V2_PAPER_EDGE_RECOVERY_BLOCKED. Use READY_POSITIVE_EDGE_PROVEN only with positive post-filter net fill evidence.\n"
         )
     if task_id == "claude_resolve_remaining_unresolved_local_imports":
         body = (
@@ -1659,6 +1761,66 @@ def claude_task_descriptor(task_id: str) -> Dict[str, Any]:
             "max_attempts": 2,
             "prompt": claude_prompt(task_id),
         }
+    if task_id == PAPER_EDGE_RECOVERY_TASK_ID:
+        allowed = [
+            out + "/",
+            "v2/backend/app/composition/paper_edge_scoring/",
+            "v2/backend/app/cli/",
+            "v2/backend/tests/",
+            "v2/frontend/public/paper_edge_recovery/latest/",
+            "v2/frontend/public/operator_runtime/paper_shadow_outcome_observer/latest/",
+            "v2/frontend/public/operator_runtime/paper_online/latest/",
+            "claude_worklog/final_readiness/paper_loss_attribution/latest/",
+            "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/",
+            "claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/",
+            rel(CLOSURE_DIR) + "/",
+        ]
+        return {
+            "task_id": task_id,
+            "agent": "claude",
+            "risk_level": "L2",
+            "live_gate": LIVE_GATE,
+            "status": "pending",
+            "cwd": str(ROOT),
+            "emit_files": True,
+            "lane": "shutdown_readiness_remediation",
+            "managed_by": "codex_legacy_shutdown_readiness_takeover",
+            "allowed_paths": ["v2/**", "claude_worklog/**", "requirements/**"],
+            "forbidden": [
+                "legacy_mutation",
+                "old_redis_write",
+                "exchange_action",
+                "leverage_change",
+                "margin_mode_change",
+                "live_gate_unlock",
+                "approval_token_creation",
+                "redis_trim_approval_creation",
+                "confidence_only_fill_permission",
+                "expected_move_after_costs_missing_fill_permission",
+                "trainer_source_missing_fill_permission",
+                "feature_freshness_missing_fill_permission",
+                "symbol_not_paper_eligible_fill_permission",
+                "paper_edge_proven_with_zero_fills",
+                "pre_filter_loss_hidden",
+                "loss_report_caveats_hidden",
+                "legacy_protective_behavior_silently_dropped",
+            ],
+            "allowed_output_prefixes": allowed,
+            "required_output_files": [
+                f"{out}/GO_NO_GO.md",
+                f"{out}/V2_PAPER_EDGE_RECOVERY_AND_COST_AWARE_TRADE_SELECTION_REPORT.md",
+                f"{out}/paper_edge_recovery_status.json",
+                f"{out}/PAPER_EDGE_THRESHOLD_REPLAY_REPORT.md",
+                f"{out}/paper_edge_threshold_replay.json",
+                f"{out}/LEGACY_PROTECTIVE_BEHAVIOR_TO_V2_PAPER_MAP.md",
+                f"{out}/legacy_protective_behavior_to_v2_paper_map.json",
+                f"{out}/operator_dashboard_payload.json",
+                "v2/frontend/public/paper_edge_recovery/latest/operator_dashboard_payload.json",
+            ],
+            "task_timeout_seconds": 2400,
+            "max_attempts": 1,
+            "prompt": claude_prompt(task_id),
+        }
     return {
         "task_id": task_id,
         "agent": "claude",
@@ -1778,6 +1940,44 @@ def codex_review_descriptor(task_id: str) -> Dict[str, Any]:
             "Fail if old negative PnL is mislabeled as post-filter PnL, paper edge is marked proven without post-filter evidence, live readiness is implied, "
             "shutdown is recommended, old Redis write evidence appears, exchange mutation evidence appears, approval tokens appear, live_symbols is non-empty, "
             "or GO_NO_GO.md does not contain exactly one allowed post-filter classification.\n\n"
+            "Emit exactly two BEGIN_FILE blocks:\n"
+            f"BEGIN_FILE: {out}/CODEX_REVIEW.md\n...findings with PASS/FAIL rationale...\nEND_FILE\n\n"
+            f"BEGIN_FILE: {out}/CODEX_GO_NO_GO.md\n{fail_token}\nEND_FILE\n"
+            f"Use {pass_token} instead only if every review condition passes.\n"
+        )
+        return {
+            "task_id": review_id,
+            "agent": "codex",
+            "risk_level": "L1",
+            "live_gate": LIVE_GATE,
+            "status": "pending",
+            "cwd": str(ROOT),
+            "emit_files": True,
+            "lane": "shutdown_readiness_remediation",
+            "managed_by": "codex_legacy_shutdown_readiness_takeover",
+            "allowed_output_prefixes": [out + "/"],
+            "required_output_files": [f"{out}/CODEX_REVIEW.md", f"{out}/CODEX_GO_NO_GO.md"],
+            "depends_on": [task_id],
+            "task_timeout_seconds": 1200,
+            "max_attempts": 1,
+            "prompt": prompt,
+        }
+    if task_id == PAPER_EDGE_RECOVERY_TASK_ID:
+        pass_token = upper_token(task_id, "CODEX_PASS")
+        fail_token = upper_token(task_id, "CODEX_FAIL")
+        prompt = (
+            "You are Codex running the paper-edge recovery and cost-aware trade-selection review. "
+            "Review Claude outputs, V2 source/tests, paper loss attribution, paper post-filter observation, paper runtime/shadow payloads, "
+            "and current shutdown controller state. Do not modify source files. Do not mutate legacy, old Redis, exchange state, leverage, "
+            "margin mode, or live trading. Keep live_gate=blocked_human_only and live_symbols=[].\n\n"
+            "Fail if confidence alone can allow a fill; expected_move_after_cost_bps missing can allow a fill; trainer source missing can "
+            "allow a fill; feature freshness missing can allow a fill; symbol not in paper_symbols can allow a fill; old Redis write appears; "
+            "exchange mutation appears; live gate changes; live_symbols is not []; paper edge is marked proven with zero fills; old pre-filter "
+            "PnL is hidden; loss report caveats are hidden; legacy protective behaviors are silently dropped; GO_NO_GO.md contains a token "
+            "outside the allowed set; or positive edge is claimed without positive post-filter net-after-cost fill evidence.\n\n"
+            "Allowed GO_NO_GO tokens: V2_PAPER_EDGE_RECOVERY_READY_NO_UNSAFE_FILLS_EDGE_PENDING, "
+            "V2_PAPER_EDGE_RECOVERY_READY_POSITIVE_EDGE_PROVEN, V2_PAPER_EDGE_RECOVERY_BLOCKED_EDGE_NOT_FOUND, "
+            "V2_PAPER_EDGE_RECOVERY_BLOCKED. Passing review does not approve live, canary, or legacy shutdown.\n\n"
             "Emit exactly two BEGIN_FILE blocks:\n"
             f"BEGIN_FILE: {out}/CODEX_REVIEW.md\n...findings with PASS/FAIL rationale...\nEND_FILE\n\n"
             f"BEGIN_FILE: {out}/CODEX_GO_NO_GO.md\n{fail_token}\nEND_FILE\n"
