@@ -5,7 +5,7 @@
     "final_approval_token": "absent",
     "redis_trim_approval": "absent"
   },
-  "as_of_utc": "2026-05-15T11:02:37Z",
+  "as_of_utc": "2026-05-15T11:04:38Z",
   "blocked_intent_count": 1810,
   "blocker_count": 8,
   "blocker_counts": {
@@ -76,8 +76,8 @@
   "git_dirty_classification": {
     "buckets": {
       "agent_supervisor_state": 0,
-      "runtime_or_dashboard_artifact": 428,
-      "source_or_tooling": 5,
+      "runtime_or_dashboard_artifact": 432,
+      "source_or_tooling": 4,
       "unknown": 10
     },
     "preview": {
@@ -126,7 +126,6 @@
       ],
       "source_or_tooling": [
         "claude_worklog/tools/build_active_autonomous_dispatch_packet.py",
-        "claude_worklog/tools/codex_legacy_shutdown_readiness_takeover.py",
         "v2/backend/app/domain/risk_gateway/__init__.py",
         "v2/backend/app/domain/risk_gateway/record.py",
         "v2/backend/tests/unit/domain/risk_gateway/test_public_surface.py"
@@ -144,7 +143,7 @@
         "claude_worklog/final_readiness/tonight_v2_live_like_paper_shadow_and_canary_preflight/"
       ]
     },
-    "total_dirty": 443
+    "total_dirty": 446
   },
   "go_no_go": "CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP_READY",
   "last_commit": "0df8a9c4 Full rl/risk/trader/services/utils dependency closure audit",
@@ -155,7 +154,7 @@
       "observatory_legacy_signals_stale"
     ],
     "edge_action_required": true,
-    "generated_at": "2026-05-15T11:02:29Z",
+    "generated_at": "2026-05-15T11:04:29Z",
     "go_no_go": "CODEX_LEGACY_V2_REALTIME_DECISION_OBSERVATORY_READY",
     "legacy_signal_comparison_classification": "MISSING_EVIDENCE_CANNOT_COMPARE",
     "legacy_signal_health": "STALE",
@@ -163,10 +162,10 @@
     "legacy_v2_agreement": "LEGACY_SIGNAL_MISSING_V2_PRESENT",
     "minimum_sample_policy": "EDGE_PENDING_INSUFFICIENT_SAMPLE cannot claim 99% correctness",
     "paper_edge_pending": true,
-    "paper_edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
+    "paper_edge_status": "EDGE_PENDING_POSITION_OPEN",
     "paper_pnl_visible": -49.186177,
     "path": "claude_worklog/final_readiness/legacy_v2_realtime_decision_observatory/latest/operator_dashboard_payload.json",
-    "post_filter_fill_interpretation": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
+    "post_filter_fill_interpretation": "EDGE_PENDING_POSITION_OPEN",
     "status": "present",
     "trainer_action_required": true,
     "trainer_parity_gaps": [
@@ -198,7 +197,7 @@
     "approves_live": false,
     "exchange_action_status": "absent",
     "final_approval_token": "absent",
-    "generated_at": "2026-05-15T11:02:37Z",
+    "generated_at": "2026-05-15T11:04:38Z",
     "go_no_go": "OBSERVATORY_TO_ACTION_CONTROLLER_PATCH_READY",
     "legacy_signal_comparison_classification": "MISSING_EVIDENCE_CANNOT_COMPARE",
     "legacy_signal_health": "STALE",
@@ -218,8 +217,8 @@
     "paper_edge_recovery_review_status": "completed",
     "paper_edge_recovery_review_task_id": "codex_review_v2_paper_edge_recovery_and_cost_aware_trade_selection",
     "paper_edge_recovery_task_status": "completed",
-    "paper_edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
-    "post_filter_fill_interpretation": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
+    "paper_edge_status": "EDGE_PENDING_POSITION_OPEN",
+    "post_filter_fill_interpretation": "EDGE_PENDING_POSITION_OPEN",
     "redis_trim_approval": "absent",
     "shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
     "task_id": "observatory_to_action_controller_patch",
@@ -247,7 +246,7 @@
     "post_filter_realized_pnl_delta_usdt": -0.066177
   },
   "paper_post_filter_observation": {
-    "age_seconds": 8767,
+    "age_seconds": 8888,
     "approves_legacy_shutdown": false,
     "approves_live": false,
     "blockers": [],
@@ -282,9 +281,9 @@
     "zero_fill_observation": false
   },
   "paper_shadow_freshness": {
-    "age_seconds": 49,
+    "age_seconds": 50,
     "blockers": [],
-    "generated_at": "2026-05-15T11:01:48Z",
+    "generated_at": "2026-05-15T11:03:48Z",
     "path": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
     "status": "fresh"
   },
@@ -382,7 +381,7 @@
   "symbol_universe": {
     "age_seconds": 53,
     "blockers": [],
-    "generated_at": "2026-05-15T11:01:44Z",
+    "generated_at": "2026-05-15T11:03:45Z",
     "live_gate": "blocked_human_only",
     "live_symbols": [],
     "paper_symbols": [
@@ -397,7 +396,7 @@
   "symbol_universe_freshness": {
     "age_seconds": 53,
     "blockers": [],
-    "generated_at": "2026-05-15T11:01:44Z",
+    "generated_at": "2026-05-15T11:03:45Z",
     "live_gate": "blocked_human_only",
     "live_symbols": [],
     "paper_symbols": [
@@ -524,21 +523,21 @@
   },
   "trainer_parity_state": {
     "accepted_as_legacy_hybrid_prediction": true,
-    "age_seconds": 13,
+    "age_seconds": 14,
     "blockers": [
       "legacy_log_confidence_calibration_derived",
       "legacy_log_feature_attribution_incomplete",
       "legacy_log_feature_snapshot_id_derived"
     ],
-    "checkpoint_id": "legacy_live_checkpoint_1778842846",
-    "generated_at": "2026-05-15T11:02:24Z",
+    "checkpoint_id": "legacy_live_checkpoint_1778842995",
+    "generated_at": "2026-05-15T11:04:24Z",
     "lineage_derivation_warnings": [
       "feature_snapshot_id_bridge_derived_from_legacy_redis_prediction_hash",
       "confidence_calibrated_bridge_derived_from_legacy_prediction_confidence",
       "top_features_absent_from_legacy_prediction_hash",
       "top_negative_features_absent_from_legacy_prediction_hash"
     ],
-    "model_checkpoint_id": "legacy_live_checkpoint_1778842846",
+    "model_checkpoint_id": "legacy_live_checkpoint_1778842995",
     "model_version": "legacy_hybrid_trainer_live_legacy",
     "path": "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json",
     "prediction_evidence_status": "LEGACY_HYBRID_TRAINER_PREDICTION_PRESENT",
