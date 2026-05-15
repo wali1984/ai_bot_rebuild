@@ -68,7 +68,12 @@ PAPER_FILTER_TEST_NOW_MS = 1_778_700_000_000
 # ----------------------------------------------------------------------
 
 
-def _route_writes_to(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[str, Path]:
+def _route_writes_to(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    with_symbol_universe: bool = True,
+) -> Dict[str, Path]:
     public_dir = tmp_path / "public"
     local_dir = tmp_path / "local"
     worker_dir = tmp_path / "worker"
@@ -78,11 +83,25 @@ def _route_writes_to(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[st
     monkeypatch.setattr(worker, "PUBLIC_STATUS_FILE", public_dir / f"{WORKER_ID}_status.json")
     monkeypatch.setattr(worker, "LOCAL_STATUS_FILE", local_dir / f"{WORKER_ID}_status.json")
     monkeypatch.setattr(worker, "WORKER_STATUS_FILE", worker_dir / f"{WORKER_ID}_status.json")
-    # Block any real public-symbol-universe or risk-gateway payload from leaking in:
+    symbol_universe_path = tmp_path / "symbol_universe_status.json"
+    if with_symbol_universe:
+        symbol_universe_path.write_text(
+            json.dumps(
+                {
+                    "paper_symbols": ["BTCUSDT"],
+                    "training_symbols": ["BTCUSDT"],
+                    "legacy_active_symbols": LEGACY_ACTIVE_SYMBOLS_25,
+                    "live_symbols": [],
+                    "live_blocked_symbols": ["BTCUSDT"],
+                    "binance_usdm_confirmed_symbols": ["BTCUSDT"],
+                }
+            )
+        )
+    # Block any real public risk-gateway payload from leaking in:
     monkeypatch.setattr(
         worker,
         "SYMBOL_UNIVERSE_PUBLIC_PAYLOAD_CANDIDATES",
-        [tmp_path / "no_such_symbol_universe_payload.json"],
+        [symbol_universe_path if with_symbol_universe else tmp_path / "no_such_symbol_universe_payload.json"],
     )
     monkeypatch.setattr(
         worker,
@@ -122,9 +141,22 @@ def _risk_decision_dict(
         "signal_generated_at_ms": risk_decision_ts_ms,
         "feature_snapshot_generated_at_ms": risk_decision_ts_ms,
         "expected_move_bps": 14.0,
+        "expected_move_after_cost_bps": 8.0,
         "fee_bps": 4.0,
+        "spread_bps": 0.0,
         "slippage_bps": 2.0,
+        "funding_risk_bps": 0.0,
         "funding_bps": 0.0,
+        "trainer_source": "LEGACY_HYBRID_TRAINER_LOG_READONLY",
+        "trainer_bridge_status": "LEGACY_HYBRID_TRAINER_LOG_READONLY",
+        "model_version": "legacy_hybrid_readonly",
+        "checkpoint_id": "checkpoint_readonly",
+        "confidence_raw": 0.82,
+        "confidence_bucket": "0.75_plus",
+        "timeframe": "1m",
+        "feature_freshness_state": "CURRENT",
+        "stale_feature_flags": [],
+        "missing_feature_flags": [],
         "recent_paper_events": [],
     }
 
@@ -259,6 +291,23 @@ def _assert_paper_filter_denial(status: Dict[str, Any], reason: str) -> None:
     assert status["paper_filter_safe_for_live"] is False
 
 
+def _assert_paper_edge_denial(status: Dict[str, Any], reason: str) -> None:
+    assert status["ledger_action"] == "denied_by_paper_edge_gate"
+    assert status["ledger_reason_code"] == reason
+    assert status["paper_edge_gate_classification"] == reason
+    assert reason in status["paper_edge_gate_blockers"]
+    assert status["fills_recorded_total"] == 0
+    assert status["fills_processed_total"] == 0
+    assert status["simulated_fill"]["fill_recorded"] is False
+    assert status["denials_recorded_total"] == 1
+    assert status["denials_breakdown"]["deny_paper_edge_gate"] == 1
+    assert status["fill_allowed"] is False
+    assert status["fill_rejected_reason"] == reason
+    assert status["shadow_observation_request"]["block_reason"] == reason
+    assert status["live_gate"] == "blocked_human_only"
+    assert status["live_symbols"] == []
+
+
 def test_paper_filter_denies_low_confidence_allow(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -274,7 +323,7 @@ def test_paper_filter_denies_low_confidence_allow(
 
     status = run_once(parse_args(["--once", "--decision-file", str(decision_path)]))
 
-    _assert_paper_filter_denial(status, "confidence_below_canary_threshold")
+    _assert_paper_edge_denial(status, "CONFIDENCE_TOO_LOW_BLOCK")
 
 
 def test_paper_filter_denies_same_symbol_cooldown(
@@ -342,12 +391,83 @@ def test_paper_filter_denies_expected_edge_below_costs(
         input_decision_reason_code="proceed_long",
     )
     decision["expected_move_bps"] = 5.0
+    decision["expected_move_after_cost_bps"] = 3.0
     decision_path = _write_decision_file(tmp_path, decision)
 
     status = run_once(parse_args(["--once", "--decision-file", str(decision_path)]))
 
-    _assert_paper_filter_denial(status, "expected_edge_below_costs")
-    assert status["paper_filter_estimated_cost_bps"] == pytest.approx(6.0)
+    _assert_paper_edge_denial(status, "EDGE_AFTER_COSTS_NEGATIVE_BLOCK")
+
+
+def test_missing_expected_move_after_cost_blocks_fill(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _route_writes_to(tmp_path, monkeypatch)
+    decision = _risk_decision_dict(
+        risk_action="allow",
+        risk_reason_code="allow_proceed_long",
+        input_decision_action="open_long",
+        input_decision_reason_code="proceed_long",
+    )
+    decision.pop("expected_move_after_cost_bps")
+    decision_path = _write_decision_file(tmp_path, decision)
+
+    status = run_once(parse_args(["--once", "--decision-file", str(decision_path)]))
+
+    _assert_paper_edge_denial(status, "EDGE_AFTER_COSTS_MISSING_BLOCK")
+
+
+def test_missing_trainer_source_blocks_fill(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _route_writes_to(tmp_path, monkeypatch)
+    decision = _risk_decision_dict(
+        risk_action="allow",
+        risk_reason_code="allow_proceed_long",
+        input_decision_action="open_long",
+        input_decision_reason_code="proceed_long",
+    )
+    decision.pop("trainer_source")
+    decision_path = _write_decision_file(tmp_path, decision)
+
+    status = run_once(parse_args(["--once", "--decision-file", str(decision_path)]))
+
+    _assert_paper_edge_denial(status, "TRAINER_SOURCE_MISSING_BLOCK")
+
+
+def test_missing_feature_freshness_blocks_fill(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _route_writes_to(tmp_path, monkeypatch)
+    decision = _risk_decision_dict(
+        risk_action="allow",
+        risk_reason_code="allow_proceed_long",
+        input_decision_action="open_long",
+        input_decision_reason_code="proceed_long",
+    )
+    decision.pop("feature_freshness_state")
+    decision_path = _write_decision_file(tmp_path, decision)
+
+    status = run_once(parse_args(["--once", "--decision-file", str(decision_path)]))
+
+    _assert_paper_edge_denial(status, "FEATURE_FRESHNESS_MISSING_BLOCK")
+
+
+def test_symbol_not_in_paper_symbols_blocks_fill(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _route_writes_to(tmp_path, monkeypatch, with_symbol_universe=False)
+    decision = _risk_decision_dict(
+        risk_action="allow",
+        risk_reason_code="allow_proceed_long",
+        input_decision_action="open_long",
+        input_decision_reason_code="proceed_long",
+    )
+    decision_path = _write_decision_file(tmp_path, decision)
+
+    status = run_once(parse_args(["--once", "--decision-file", str(decision_path)]))
+
+    _assert_paper_edge_denial(status, "SYMBOL_NOT_PAPER_ELIGIBLE_BLOCK")
 
 
 # ----------------------------------------------------------------------
@@ -578,7 +698,7 @@ def test_gate_always_blocked_invariant(
 def test_symbol_universe_contract_required(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _route_writes_to(tmp_path, monkeypatch)
+    _route_writes_to(tmp_path, monkeypatch, with_symbol_universe=False)
     decision_path = _write_decision_file(
         tmp_path,
         _risk_decision_dict(
@@ -712,9 +832,17 @@ def test_bridge_format_from_risk_gateway_status_accepted(
         "signal_generated_at_ms": PAPER_FILTER_TEST_NOW_MS - 1_000,
         "feature_snapshot_generated_at_ms": PAPER_FILTER_TEST_NOW_MS - 1_000,
         "expected_move_bps": 14.0,
+        "expected_move_after_cost_bps": 8.0,
         "fee_bps": 4.0,
+        "spread_bps": 0.0,
         "slippage_bps": 2.0,
+        "funding_risk_bps": 0.0,
         "funding_bps": 0.0,
+        "trainer_source": "LEGACY_HYBRID_TRAINER_LOG_READONLY",
+        "trainer_bridge_status": "LEGACY_HYBRID_TRAINER_LOG_READONLY",
+        "feature_freshness_state": "CURRENT",
+        "stale_feature_flags": [],
+        "missing_feature_flags": [],
     }
     decision_path = _write_decision_file(tmp_path, bridge, name="bridge.json")
     args = parse_args(["--once", "--decision-file", str(decision_path)])

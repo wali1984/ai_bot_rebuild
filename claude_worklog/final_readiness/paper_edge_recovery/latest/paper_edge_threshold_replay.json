@@ -1,19 +1,37 @@
 {
-  "task_id": "paper_edge_threshold_replay",
-  "generated_at": "2026-05-14T00:00:00Z",
-  "classification": "NO_TRADE_EDGE_NOT_FOUND_OR_PROFILE_READY",
-  "run_status": "THRESHOLD_REPLAY_NOT_YET_RUN",
-  "edge_proven": false,
-  "approves_live": false,
   "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "classification": "THRESHOLD_REPLAY_NOT_YET_RUN_SOURCE_LIMITED",
+  "edge_proven": false,
+  "generated_at": "2026-05-15T05:39:50Z",
+  "input_data_pointer": {
+    "new_worker_enforces_missing_fields_before_fill": true,
+    "old_prefilter_missing_fields": [
+      "trainer_source",
+      "feature_freshness_state",
+      "expected_move_after_cost_bps"
+    ],
+    "paper_events_jsonl": "v2/runtime/paper_online/latest/paper_events.jsonl"
+  },
   "live_gate": "blocked_human_only",
   "live_symbols": [],
+  "results": [],
+  "run_status": "NOT_YET_RUN",
   "spec": {
-    "min_expected_move_after_cost_bps_grid": [4, 6, 8, 10, 12, 15],
-    "min_confidence_grid": [0.58, 0.65, 0.70, 0.75],
-    "cooldown_seconds_grid": "configurable_per_run",
-    "flip_churn_window_seconds_grid": "configurable_per_run",
-    "max_fills_per_symbol_per_hour_grid": "configurable_per_run",
+    "min_confidence_grid": [
+      0.58,
+      0.65,
+      0.7,
+      0.75
+    ],
+    "min_expected_move_after_cost_bps_grid": [
+      4,
+      6,
+      8,
+      10,
+      12,
+      15
+    ],
     "per_combination_output_schema": [
       "min_expected_move_after_cost_bps",
       "min_confidence",
@@ -30,23 +48,5 @@
       "no_trade_classification"
     ]
   },
-  "honesty_rules": [
-    "if_all_combinations_block_all_fills_classification_is_NO_TRADE_EDGE_NOT_FOUND",
-    "zero_fills_must_never_be_called_PROFILE_READY",
-    "must_not_consume_legacy_AI_BOT_data",
-    "must_not_write_to_old_redis",
-    "must_not_emit_approval_token_or_trim_approval",
-    "must_preserve_live_gate_blocked_human_only_and_live_symbols_empty"
-  ],
-  "input_data_pointer": {
-    "paper_events_jsonl": "v2/runtime/paper_online/latest/paper_events.jsonl",
-    "lines_at_audit": 4474,
-    "missing_fields_blocking_quantitative_replay": [
-      "trainer_source",
-      "feature_freshness_state",
-      "expected_move_after_cost_bps",
-      "predicted_move_bps"
-    ]
-  },
-  "results": []
+  "task_id": "paper_edge_threshold_replay"
 }

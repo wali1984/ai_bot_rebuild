@@ -1,0 +1,37 @@
+"""Cost-aware V2 paper edge scoring.
+
+The scorer is pure and V2-local. It never talks to Redis, exchanges, or
+legacy runtime processes.
+"""
+
+from .runtime import (
+    EDGE_AFTER_COSTS_MISSING_BLOCK,
+    EDGE_AFTER_COSTS_NEGATIVE_BLOCK,
+    EDGE_AFTER_COSTS_PASS,
+    CONFIDENCE_TOO_LOW_BLOCK,
+    COOLDOWN_BLOCK,
+    FEATURE_FRESHNESS_MISSING_BLOCK,
+    FEATURE_STALE_BLOCK,
+    FLIP_CHURN_BLOCK,
+    RISK_GATE_BLOCK,
+    SYMBOL_NOT_PAPER_ELIGIBLE_BLOCK,
+    TRAINER_SOURCE_MISSING_BLOCK,
+    PaperEdgeScoringConfig,
+    score_paper_edge,
+)
+
+__all__ = [
+    "EDGE_AFTER_COSTS_MISSING_BLOCK",
+    "EDGE_AFTER_COSTS_NEGATIVE_BLOCK",
+    "EDGE_AFTER_COSTS_PASS",
+    "CONFIDENCE_TOO_LOW_BLOCK",
+    "COOLDOWN_BLOCK",
+    "FEATURE_FRESHNESS_MISSING_BLOCK",
+    "FEATURE_STALE_BLOCK",
+    "FLIP_CHURN_BLOCK",
+    "RISK_GATE_BLOCK",
+    "SYMBOL_NOT_PAPER_ELIGIBLE_BLOCK",
+    "TRAINER_SOURCE_MISSING_BLOCK",
+    "PaperEdgeScoringConfig",
+    "score_paper_edge",
+]
