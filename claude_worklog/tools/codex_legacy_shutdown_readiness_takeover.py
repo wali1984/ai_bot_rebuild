@@ -55,6 +55,7 @@ PAPER_SHADOW_OUTCOME = ROOT / "v2/frontend/public/operator_runtime/paper_shadow_
 PAPER_EDGE = ROOT / "claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/paper_shadow_24h_continuation.json"
 PAPER_EDGE_RECOVERY_STATUS = ROOT / "claude_worklog/final_readiness/paper_edge_recovery/latest/paper_edge_recovery_status.json"
 PAPER_POST_FILTER = ROOT / "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/paper_edge_post_filter_observation_status.json"
+PAPER_LOSS_ATTRIBUTION = ROOT / "claude_worklog/final_readiness/paper_loss_attribution/latest/paper_loss_attribution_status.json"
 TRADE_PERMISSION = ROOT / "claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/account_permission_margin_blockers_status.json"
 TRAINER_BRIDGE = ROOT / "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json"
 TRAINER_DERIVED_ACCEPTANCE_DIR = ROOT / "claude_worklog/final_readiness/trainer_derived_evidence_acceptance/latest"
@@ -812,6 +813,44 @@ def paper_post_filter_evidence() -> Dict[str, Any]:
         elif outcome_guard.get("safety_classification"):
             safety_classification = str(outcome_guard["safety_classification"])
     cumulative_pnl = payload.get("cumulative_paper_pnl_usdt_pre_plus_post")
+    loss_payload = read_json(PAPER_LOSS_ATTRIBUTION)
+    loss_override_active = False
+    loss_generated_at = None
+    loss_post_filter_event_delta = None
+    if isinstance(loss_payload, dict):
+        loss_generated_at = loss_payload.get("generated_at")
+        loss_post = loss_payload.get("post_filter_event_detail")
+        loss_waterfall = loss_payload.get("pnl_waterfall")
+        loss_classification = loss_payload.get("post_filter_classification")
+        if isinstance(loss_post, dict):
+            loss_generated = parse_utc(loss_generated_at)
+            post_filter_generated = parse_utc(generated_at)
+            loss_is_newer = loss_generated is not None and (
+                post_filter_generated is None or loss_generated >= post_filter_generated
+            )
+            if loss_is_newer and any(
+                loss_post.get(key) is not None
+                for key in ("fill_count", "cumulative_pnl_delta_usdt", "fee_usdt")
+            ):
+                loss_override_active = True
+                post_filter_fills = loss_post.get("fill_count", post_filter_fills)
+                post_filter_allowed = loss_post.get("fill_count", post_filter_allowed)
+                loss_post_filter_event_delta = loss_post.get("cumulative_pnl_delta_usdt")
+                if isinstance(loss_waterfall, dict):
+                    cumulative_pnl = loss_waterfall.get("current_cumulative_paper_pnl_usdt", cumulative_pnl)
+                    post_filter_pnl = loss_waterfall.get("post_filter_pnl_delta_usdt", post_filter_pnl)
+                elif loss_post_filter_event_delta is not None:
+                    post_filter_pnl = loss_post_filter_event_delta
+                post_filter_fees = loss_post.get("fee_usdt", post_filter_fees)
+                blocker_distribution = loss_post.get("canary_profile_tightening_blocker_distribution")
+                if isinstance(blocker_distribution, dict):
+                    post_filter_churn = blocker_distribution.get("flip_churn_cooldown", post_filter_churn)
+                if isinstance(loss_classification, dict):
+                    classification = str(loss_classification.get("classification") or classification)
+                    safety_classification = str(
+                        loss_classification.get("post_filter_safety_classification")
+                        or safety_classification
+                    )
     blocked_1h = payload.get("post_filter_blocked_intents_1h")
     blocked_6h = payload.get("post_filter_blocked_intents_6h_window")
     no_unsafe_fills = (
@@ -867,6 +906,9 @@ def paper_post_filter_evidence() -> Dict[str, Any]:
         "outcome_guard_fills": outcome_guard_fills,
         "outcome_guard_pnl_delta_usdt": outcome_guard_pnl,
         "outcome_guard_unsafe_fills": outcome_guard_unsafe,
+        "paper_loss_attribution_override_active": loss_override_active,
+        "paper_loss_attribution_generated_at": loss_generated_at,
+        "paper_loss_attribution_post_filter_event_delta_usdt": loss_post_filter_event_delta,
         "no_unsafe_fills": no_unsafe_fills,
         "zero_fill_observation": bool(zero_fill_observation),
         "positive_edge_proven": positive_edge_proven,
@@ -2771,6 +2813,10 @@ def dashboard_payload(state: Dict[str, Any]) -> Dict[str, Any]:
             "historical_negative_pnl_isolated": post_filter.get("historical_negative_pnl_isolated"),
             "post_filter_no_unsafe_fills": post_filter.get("no_unsafe_fills"),
             "paper_edge_positive_proven": post_filter.get("positive_edge_proven"),
+            "paper_loss_attribution_override_active": post_filter.get("paper_loss_attribution_override_active"),
+            "paper_loss_attribution_post_filter_event_delta_usdt": post_filter.get(
+                "paper_loss_attribution_post_filter_event_delta_usdt"
+            ),
         },
         "trainer_parity_state": evidence["trainer_bridge"],
         "trainer_derived_acceptance": evidence.get("trainer_derived_acceptance", {}),
@@ -2822,6 +2868,11 @@ def paper_post_filter_public_payload(state: Dict[str, Any]) -> Dict[str, Any]:
         "post_filter_no_unsafe_fills": post_filter.get("no_unsafe_fills"),
         "paper_edge_positive_proven": post_filter.get("positive_edge_proven"),
         "historical_negative_pnl_isolated": post_filter.get("historical_negative_pnl_isolated"),
+        "paper_loss_attribution_override_active": post_filter.get("paper_loss_attribution_override_active"),
+        "paper_loss_attribution_generated_at": post_filter.get("paper_loss_attribution_generated_at"),
+        "paper_loss_attribution_post_filter_event_delta_usdt": post_filter.get(
+            "paper_loss_attribution_post_filter_event_delta_usdt"
+        ),
         "final_approval_token": state["final_approval_token"],
         "redis_trim_approval": state["redis_trim_approval"],
         "approves_live": False,
