@@ -4,16 +4,16 @@
   "approves_live": false,
   "blocking_findings": [],
   "evidence": {
-    "completed_observations": 58,
+    "completed_observations": 237,
     "edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
-    "false_block_count": 9,
-    "no_trade_correct_count": 49,
-    "observations_total": 106,
+    "false_block_count": 91,
+    "no_trade_correct_count": 146,
+    "observations_total": 292,
     "outcome_status": "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED",
-    "pending_observations": 48
+    "pending_observations": 55
   },
   "findings": [],
-  "generated_at": "2026-05-15T10:32:40Z",
+  "generated_at": "2026-05-15T16:39:45Z",
   "go_no_go": "CODEX_REVIEW_SHADOW_OUTCOME_LEARNING_FOR_BLOCKED_INTENTS_PASS",
   "review_status": "PASS",
   "reviewed_task": "claude_add_shadow_outcome_learning_for_blocked_intents",

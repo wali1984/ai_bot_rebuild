@@ -1,6 +1,6 @@
 # CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP
 
-As of: 2026-05-15T11:04:38Z
+As of: 2026-05-15T16:47:21Z
 
 Loop marker: `CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP_READY`
 Shutdown recommendation: `BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE`
@@ -15,20 +15,16 @@ Legacy shutdown remains blocked because required parity, edge, dependency, or sa
 
 ## Blockers
 
-- `LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED` [OPERATOR_DECISION_REQUIRED]: trainer_bridge: legacy_log_confidence_calibration_derived; native trainer evidence was not found and TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_PACKET requires explicit operator acceptance for V2 paper-only shutdown evaluation; live/canary remain blocked; remediation=`claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet`
-- `LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE` [OPERATOR_DECISION_REQUIRED]: trainer_bridge: legacy_log_feature_attribution_incomplete; native trainer evidence was not found and TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_PACKET requires explicit operator acceptance for V2 paper-only shutdown evaluation; live/canary remain blocked; remediation=`claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet`
-- `LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED` [OPERATOR_DECISION_REQUIRED]: trainer_bridge: legacy_log_feature_snapshot_id_derived; native trainer evidence was not found and TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_PACKET requires explicit operator acceptance for V2 paper-only shutdown evaluation; live/canary remain blocked; remediation=`claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet`
-- `PAPER_PNL_NEGATIVE_BLOCKS_CANARY` [P2_LIVE_ONLY_BLOCKED]: paper_runtime: paper_realized_pnl_negative; negative cumulative PnL blocks live/canary, while paper-only shutdown remains blocked separately by PAPER_EDGE_UNPROVEN until post-filter outcomes prove positive edge; post_filter_pnl_delta=-0.066177; remediation=`claude_v2_paper_edge_recovery_and_cost_aware_trade_selection`
-- `PAPER_EDGE_UNPROVEN` [P0_SHUTDOWN_BLOCKER]: paper_runtime: paper_position_outcome_pending; remediation=`claude_v2_paper_edge_recovery_and_cost_aware_trade_selection`
-- `OBSERVATORY_LEGACY_SIGNALS_STALE_SOURCE_LIMITED` [INFO_ONLY]: observatory: legacy signals are stale; classify comparison as MISSING_EVIDENCE_CANNOT_COMPARE and do not invent outcomes
-- `OBSERVATORY_DECISION_QUALITY_INSUFFICIENT_SAMPLE` [INFO_ONLY]: observatory: insufficient acted-trade sample; keep no-trade/outcome observation active and do not claim 99% correctness
-- `TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY` [OPERATOR_DECISION_REQUIRED]: trade_permission: trade_permission_readonly_unknown; account monitor is fail-closed/read-only with no exchange mutation, so this blocks live/canary and requires explicit operator decision for paper-only shutdown; remediation=`claude_remediate_account_position_monitor_shutdown_parity`
+- `LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED` [P0_SHUTDOWN_BLOCKER]: trainer_bridge: legacy_log_confidence_calibration_derived; remediation=`claude_v2_trainer_lineage_attribution_parity_remediation`
+- `LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE` [P0_SHUTDOWN_BLOCKER]: trainer_bridge: legacy_log_feature_attribution_incomplete; remediation=`claude_v2_trainer_lineage_attribution_parity_remediation`
+- `LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED` [P0_SHUTDOWN_BLOCKER]: trainer_bridge: legacy_log_feature_snapshot_id_derived; remediation=`claude_v2_trainer_lineage_attribution_parity_remediation`
+- `PAPER_PNL_NEGATIVE_BLOCKS_CANARY` [P0_SHUTDOWN_BLOCKER]: paper_runtime: paper_realized_pnl_negative; remediation=`claude_replay_paper_edge_repair_from_legacy_trainer_output`
+- `PAPER_EDGE_UNPROVEN` [P0_SHUTDOWN_BLOCKER]: paper_runtime: current_paper_intent_blocked_or_unfilled; remediation=`claude_replay_paper_edge_repair_from_legacy_trainer_output`
+- `TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY` [P0_SHUTDOWN_BLOCKER]: trade_permission: trade_permission_readonly_unknown; remediation=`claude_remediate_account_position_monitor_shutdown_parity`
 
 ## Next action
 
-- kind: `monitor_shadow_outcome_observer`
-- task_id: `paper_shadow_outcome_observer`
-- blocker: `PAPER_EDGE_UNPROVEN`
+- kind: `monitor_only_no_dispatchable_blocker`
 
 ## Evidence snapshot
 
@@ -36,12 +32,10 @@ Legacy shutdown remains blocked because required parity, edge, dependency, or sa
 - copied full-closure files: `250`
 - binary blobs inventoried only: `139`
 - Redis users / exchange API users / config importers: `49` / `43` / `100`
-- paper runtime: `fresh`, PnL=`-49.196177`, action=`PAPER_POSITION_HELD`
-- post-filter paper: `POST_FILTER_EDGE_PENDING`, delta=`-0.066177`, fills=`5`, no_unsafe_fills=`False`
+- paper runtime: `fresh`, PnL=`-49.345535`, action=`None`
 - trainer bridge: `LEGACY_HYBRID_TRAINER_PREDICTION_PRESENT`, accepted=`True`
-- trainer derived evidence: `V2_TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_REQUIRED`, operator_acceptance_required=`True`
-- trade permission: `TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY`, paper_only=`OPERATOR_DECISION_REQUIRED`, live_canary=`P2_LIVE_ONLY_BLOCKED`
-- symbol universe age seconds: `53`, live_symbols=`[]`
+- trade permission: `TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY`
+- symbol universe age seconds: `23`, live_symbols=`[]`
 
 ## Hard constraints held
 

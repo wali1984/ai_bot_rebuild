@@ -1,6 +1,6 @@
 # Shadow Outcome Learning For Blocked Intents
 
-Generated: `2026-05-15T10:31:51Z`
+Generated: `2026-05-15T16:39:20Z`
 
 GO/NO-GO: `SHADOW_OUTCOME_LEARNING_READY_EDGE_PENDING`
 
@@ -10,13 +10,13 @@ The blocked-intent shadow outcome layer is ready for continued paper/shadow lear
 
 ## Current Evidence
 
-- observations_total: `106`
-- completed_observations: `58`
-- pending_observations: `48`
-- no_trade_correct_count: `49`
-- false_block_count: `9`
-- false_block_classification: `{'expected_move_present_model_review': 9, 'expected_move_source_unknown': 1, 'historical_missing_expected_move': 0, 'native_expected_move_model_review': 8}`
-- false_block_reason_counts: `{'confidence_below_canary_threshold': 3, 'deny_canary_profile_tightening': 4, 'deny_low_confidence': 1, 'expected_edge_below_costs': 1, 'same_symbol_same_direction_cooldown': 1}`
+- observations_total: `292`
+- completed_observations: `237`
+- pending_observations: `55`
+- no_trade_correct_count: `146`
+- false_block_count: `91`
+- false_block_classification: `{'expected_move_present_model_review': 90, 'expected_move_source_unknown': 4, 'historical_missing_expected_move': 1, 'native_expected_move_model_review': 86}`
+- false_block_reason_counts: `{'confidence_below_canary_threshold': 31, 'deny_canary_profile_tightening': 7, 'deny_low_confidence': 4, 'expected_edge_below_costs': 43, 'expected_move_model_review_required': 2, 'flip_churn_cooldown': 1, 'loss_cooldown_active': 63, 'missing_expected_move_after_costs': 1, 'same_symbol_same_direction_cooldown': 8}`
 - minimum_sample_status: `PRELIMINARY_SAMPLE`
 - recommended_next_action: `EXPECTED_MOVE_MODEL_REVIEW_REQUIRED_KEEP_FILL_GATE_STRICT`
 
@@ -48,4 +48,3 @@ The blocked-intent shadow outcome layer is ready for continued paper/shadow lear
 - JSON validation: PASS
 - high-confidence secret scan: PASS; only the literal validation key `secret_scan` was matched.
 - forbidden mutation scan: PASS; matches were textual forbidden-list/status labels, not mutation calls.
-

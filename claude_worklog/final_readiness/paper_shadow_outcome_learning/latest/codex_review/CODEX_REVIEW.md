@@ -1,10 +1,20 @@
 # Codex Review: Shadow Outcome Learning For Blocked Intents
 
-Generated: `2026-05-15T10:32:40Z`
+Generated: `2026-05-15T16:39:45Z`
 
 GO/NO-GO: `CODEX_REVIEW_SHADOW_OUTCOME_LEARNING_FOR_BLOCKED_INTENTS_PASS`
 
 No blocking findings.
+
+Current evidence reviewed:
+
+- observations_total: `292`
+- completed_observations: `237`
+- pending_observations: `55`
+- no_trade_correct_count: `146`
+- false_block_count: `91`
+- edge_status: `EDGE_PENDING_MODEL_REVIEW_REQUIRED`
+- outcome_status: `BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED`
 
 Verified invariants:
 

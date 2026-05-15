@@ -86,7 +86,7 @@ def test_completed_expected_move_review_is_not_requeued_for_historical_false_blo
     assert status["live_symbols"] == []
 
 
-def test_stale_expected_move_review_is_requeued_for_new_false_blocks() -> None:
+def test_small_expected_move_review_sample_drift_does_not_requeue_completed_review() -> None:
     status = build_decision_improvement_recommendations(
         scoreboard_status={},
         paper_edge_status={
@@ -110,12 +110,43 @@ def test_stale_expected_move_review_is_requeued_for_new_false_blocks() -> None:
         },
     )
 
+    task_ids = [task["task_id"] for task in status["next_tasks"]]
+    assert "claude_improve_expected_move_after_cost_coverage_from_shadow_false_blocks" not in task_ids
+    assert status["shadow_false_block_count"] == 18
+    assert status["live_gate"] == "blocked_human_only"
+    assert status["live_symbols"] == []
+
+
+def test_material_expected_move_review_sample_drift_is_requeued() -> None:
+    status = build_decision_improvement_recommendations(
+        scoreboard_status={},
+        paper_edge_status={
+            "resolved_controls": [
+                "missing_expected_move_after_cost_bps_blocks_fill",
+                "missing_trainer_source_blocks_fill",
+                "missing_feature_freshness_state_blocks_fill",
+                "symbol_not_in_paper_symbols_blocks_fill",
+                "confidence_alone_cannot_allow_fill",
+            ],
+            "paper_pnl": {
+                "expected_move_after_cost_false_block_model_review": {
+                    "classification": "EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_READY_EDGE_PENDING",
+                    "false_block_count": 14,
+                }
+            },
+        },
+        shadow_outcome_status={
+            "false_block_count": 40,
+            "outcome_status": "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED",
+        },
+    )
+
     assert (
         status["claude_task_ready"]
         == "claude_improve_expected_move_after_cost_coverage_from_shadow_false_blocks"
     )
     assert status["next_tasks"][0]["priority"] == "P0"
-    assert status["shadow_false_block_count"] == 18
+    assert status["shadow_false_block_count"] == 40
     assert status["live_gate"] == "blocked_human_only"
     assert status["live_symbols"] == []
 

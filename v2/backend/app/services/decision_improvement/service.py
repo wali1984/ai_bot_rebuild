@@ -14,6 +14,22 @@ def _nested_get(payload: Mapping[str, Any], *keys: str) -> Any:
     return current
 
 
+def _reviewed_false_block_count_is_current_enough(*, reviewed: int, current: int) -> bool:
+    """Avoid routing churn when a live observer adds a few samples after review.
+
+    The false-block observer is continuously updated, so a completed model-review
+    packet can be one or two samples behind immediately after it is written. That
+    should keep monitoring active, not requeue the same implementation task every
+    loop. A materially larger drift still requires a fresh review.
+    """
+
+    if current <= reviewed:
+        return True
+    drift = current - reviewed
+    tolerance = max(10, int(max(reviewed, 1) * 0.25))
+    return drift <= tolerance
+
+
 def build_decision_improvement_recommendations(
     *,
     scoreboard_status: Mapping[str, Any],
@@ -45,7 +61,10 @@ def build_decision_improvement_recommendations(
             or expected_move_review.get("remediation_status")
             == "PAPER_EXPECTED_MOVE_COVERAGE_REMEDIATION_READY"
         )
-        and reviewed_false_block_count >= false_block_count
+        and _reviewed_false_block_count_is_current_enough(
+            reviewed=reviewed_false_block_count,
+            current=false_block_count,
+        )
     )
     shadow_learning_ready = (
         shadow_learning_status.get("go_no_go")

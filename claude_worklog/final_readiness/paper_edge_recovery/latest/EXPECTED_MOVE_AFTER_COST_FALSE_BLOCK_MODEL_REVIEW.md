@@ -1,60 +1,31 @@
-# Expected Move After Cost False-Block Model Review
+# Expected Move After-Cost False-Block Model Review
 
-Generated: `2026-05-15T11:18:55Z`
+Generated: `2026-05-15T16:43:11Z`
 
-## Decision
+Classification: `EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_READY_EDGE_PENDING`
 
-`EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_READY_EDGE_PENDING`
-
-This does not approve live trading, canary trading, or legacy shutdown. Future shadow outcomes are model-review evidence only; they must not be used to permit current fills.
+This packet keeps the strict paper fill gate active. Shadow outcomes are model-review evidence only; they do not authorize current fills, live trading, canary trading, or legacy shutdown.
 
 ## Current Evidence
 
-| Metric | Value |
-| --- | ---: |
-| candidate trade observations | 131 |
-| completed observations | 80 |
-| pending observations | 51 |
-| allowed paper fills | 0 |
-| false blocks that later beat costs | 19 |
-| no-trade correct count | 61 |
-| after-cost correct count | 19 |
-| sample status | PRELIMINARY_SAMPLE |
+- candidate_trade_count: `293`
+- completed_observations: `238`
+- pending_observations: `55`
+- false_block_count: `91`
+- no_trade_correct_count: `147`
+- false_block_classification: `{'expected_move_present_model_review': 90, 'expected_move_source_unknown': 4, 'historical_missing_expected_move': 1, 'native_expected_move_model_review': 86}`
+- false_block_reason_counts: `{'confidence_below_canary_threshold': 31, 'deny_canary_profile_tightening': 7, 'deny_low_confidence': 4, 'expected_edge_below_costs': 43, 'expected_move_model_review_required': 2, 'flip_churn_cooldown': 1, 'loss_cooldown_active': 63, 'missing_expected_move_after_costs': 1, 'same_symbol_same_direction_cooldown': 8}`
+- false_block_by_symbol: `{'BTCUSDT': 91}`
+- false_block_by_side: `{'short': 61, 'long': 30}`
+- false_block_by_expected_move_source: `{'native_trainer_expected_move_bps': 86, 'unknown_or_blank_source': 4, 'missing': 1}`
 
-Current paper runtime remains non-live: realized PnL `-49.228096`, open positions `0`, live gate `blocked_human_only`, live symbols `[]`.
+## Safety
 
-## False-Block Attribution
+- future_shadow_outcomes_used_as_entry_signal: `false`
+- allowed_paper_fill_count_from_this_review: `0`
+- live_gate: `blocked_human_only`
+- live_symbols: `[]`
 
-False-block reason counts:
+## Required Next Action
 
-| Reason | Count |
-| --- | ---: |
-| confidence_below_canary_threshold | 7 |
-| deny_canary_profile_tightening | 7 |
-| deny_low_confidence | 1 |
-| expected_edge_below_costs | 5 |
-| same_symbol_same_direction_cooldown | 3 |
-
-False blocks by expected-move source:
-
-| Source | Count |
-| --- | ---: |
-| missing_expected_move | 0 |
-| native_trainer_expected_move_bps | 18 |
-| unknown_or_blank_source | 1 |
-
-
-The actionable gap is expected-move calibration and coverage from evidence available at decision time. Several blocked signals later had enough favorable excursion to beat estimated costs, but that is hindsight evidence. V2 must not use future outcome labels to authorize current fills.
-
-## Current Safe Behavior
-
-- Missing or low expected move after costs still blocks paper fills.
-- Low confidence still blocks paper fills.
-- Missing trainer source and feature freshness are enforced by the paper edge gate.
-- `live_gate=blocked_human_only`.
-- `live_symbols=[]`.
-- No old Redis write or exchange action was observed in the current evidence packet.
-
-## Next Action
-
-improve native expected_move_after_cost coverage and calibration from trainer/feature evidence without loosening the strict paper fill gate
+Keep V2 paper/shadow running with the fill gate fail-closed while the expected-move model is calibrated from native trainer and feature evidence. Do not lower thresholds or use hindsight labels as fill permission.
