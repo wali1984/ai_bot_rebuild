@@ -9,6 +9,7 @@ UNITS=(
   ai-bot-v2-codex-watchdog.service
   ai-bot-v2-codex-shutdown-readiness-takeover.service
   ai-bot-v2-readonly-decision-observatory.service
+  ai-bot-v2-paper-shadow-outcome-observer.service
   ai-bot-v2-paper-online-runtime.service
   ai-bot-v2-paper-shadow-observation.service
   ai-bot-v2-feature-snapshot-builder.service
@@ -17,6 +18,7 @@ UNITS=(
   ai-bot-v2-automation-liveness-watchdog.timer
   ai-bot-v2-codex-shutdown-readiness-takeover.timer
   ai-bot-v2-readonly-decision-observatory.timer
+  ai-bot-v2-paper-shadow-outcome-observer.timer
 )
 
 cd "$ROOT"
@@ -33,7 +35,7 @@ fi
 echo
 echo "=== active processes ==="
 ps -eo pid,ppid,etimes,cmd --no-headers \
-  | grep -E "v2_worker_porting_orchestrator|agent_supervisor.py|parallel_capacity_scheduler|codex_non_live_watchdog|codex_legacy_shutdown_readiness_takeover|codex_legacy_v2_realtime_decision_observatory|paper_online_runtime|paper_shadow_observation|v2_feature_snapshot_builder|symbol_universe_public_payload|v2_trainer_bridge" \
+  | grep -E "v2_worker_porting_orchestrator|agent_supervisor.py|parallel_capacity_scheduler|codex_non_live_watchdog|codex_legacy_shutdown_readiness_takeover|codex_legacy_v2_realtime_decision_observatory|paper_shadow_outcome_observer|paper_online_runtime|paper_shadow_observation|v2_feature_snapshot_builder|symbol_universe_public_payload|v2_trainer_bridge" \
   | grep -v "sleep 900" \
   | grep -v "sleep 65" \
   | grep -v "grep -E" || echo "(no V2 automation processes found)"

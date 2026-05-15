@@ -51,6 +51,7 @@ CLOSURE_FULL_MANIFEST = CLOSURE_DIR / "full_runtime_copied_source_manifest.json"
 
 PAPER_RUNTIME = ROOT / "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json"
 PAPER_SHADOW = ROOT / "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json"
+PAPER_SHADOW_OUTCOME = ROOT / "v2/frontend/public/operator_runtime/paper_shadow_outcome_observer/latest/paper_shadow_outcome_observer_status.json"
 PAPER_EDGE = ROOT / "claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/paper_shadow_24h_continuation.json"
 PAPER_POST_FILTER = ROOT / "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/paper_edge_post_filter_observation_status.json"
 TRADE_PERMISSION = ROOT / "claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/account_permission_margin_blockers_status.json"
@@ -82,6 +83,7 @@ ACTIVE_PUBLIC_FRESHNESS_PREFIXES = (
     "operator_runtime/coinank_market_intelligence/latest/",
     "operator_runtime/paper_online/latest/",
     "operator_runtime/paper_shadow_observation/latest/",
+    "operator_runtime/paper_shadow_outcome_observer/latest/",
     "operator_runtime/symbol_universe/latest/",
     "operator_runtime/v2_account_position_monitor/latest/",
     "operator_runtime/v2_execution_ledger_worker/latest/",
@@ -139,6 +141,7 @@ SERVICE_UNITS = [
 TIMER_UNITS = [
     "ai-bot-v2-codex-shutdown-readiness-takeover.timer",
     "ai-bot-v2-readonly-decision-observatory.timer",
+    "ai-bot-v2-paper-shadow-outcome-observer.timer",
 ]
 
 REMEDIATION_PRIORITY = [
@@ -690,6 +693,40 @@ def paper_shadow_evidence() -> Dict[str, Any]:
     }
 
 
+def paper_shadow_outcome_evidence() -> Dict[str, Any]:
+    payload = read_json(PAPER_SHADOW_OUTCOME)
+    if not isinstance(payload, dict) or not payload:
+        return {
+            "path": rel(PAPER_SHADOW_OUTCOME),
+            "status": "missing",
+            "outcome_status": "MISSING_EVIDENCE",
+            "blockers": ["paper_shadow_outcome_observer_missing"],
+        }
+    generated_at = payload.get("generated_at")
+    age = age_seconds(generated_at)
+    outcome_status = str(payload.get("outcome_status") or "")
+    blockers: List[str] = []
+    if age is None or age > 300:
+        blockers.append("paper_shadow_outcome_observer_stale")
+    if outcome_status in {"", "MISSING_EVIDENCE"}:
+        blockers.append("paper_shadow_outcome_observer_missing")
+    return {
+        "path": rel(PAPER_SHADOW_OUTCOME),
+        "generated_at": generated_at,
+        "age_seconds": age,
+        "status": "fresh" if age is not None and age <= 300 else "stale",
+        "outcome_status": outcome_status,
+        "edge_status": payload.get("edge_status"),
+        "observations_total": payload.get("observations_total"),
+        "completed_observations": payload.get("completed_observations"),
+        "pending_observations": payload.get("pending_observations"),
+        "false_block_count": payload.get("false_block_count"),
+        "no_trade_correct_count": payload.get("no_trade_correct_count"),
+        "minimum_sample_status": payload.get("minimum_sample_status"),
+        "blockers": blockers,
+    }
+
+
 def paper_post_filter_evidence() -> Dict[str, Any]:
     payload = read_json(PAPER_POST_FILTER)
     if not isinstance(payload, dict) or not payload:
@@ -1237,6 +1274,7 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
 
     paper = evidence["paper_runtime"]
     post_filter = evidence.get("paper_post_filter", {})
+    shadow_outcome = evidence.get("paper_shadow_outcome", {})
     if not codex_passed("claude_replay_paper_edge_repair_from_legacy_trainer_output"):
         paper_task_id = "claude_replay_paper_edge_repair_from_legacy_trainer_output"
     elif not codex_passed(PAPER_EDGE_POST_FILTER_TASK_ID):
@@ -1262,7 +1300,10 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
         elif bid == "PAPER_EDGE_UNPROVEN" and post_filter.get("no_unsafe_fills") and not post_filter.get("positive_edge_proven"):
             evidence_text = (
                 "post_filter_edge_pending: no unsafe post-filter fills observed, but zero fills means "
-                "positive edge is not proven"
+                "positive edge is not proven; "
+                f"shadow_outcome={shadow_outcome.get('outcome_status') or 'missing'} "
+                f"completed={shadow_outcome.get('completed_observations')} "
+                f"pending={shadow_outcome.get('pending_observations')}"
             )
         blockers.append(blocker(bid, category, evidence_text, paper_task_id))
 
@@ -1285,9 +1326,21 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
         elif bid == "PAPER_EDGE_UNPROVEN" and post_filter.get("no_unsafe_fills") and not post_filter.get("positive_edge_proven"):
             evidence_text = (
                 "paper_edge: post-filter no unsafe fills, but edge remains pending because "
-                "there are no positive post-filter fill outcomes"
+                "there are no positive post-filter fill outcomes; "
+                f"shadow_outcome={shadow_outcome.get('outcome_status') or 'missing'} "
+                f"completed={shadow_outcome.get('completed_observations')} "
+                f"pending={shadow_outcome.get('pending_observations')}"
             )
         blockers.append(blocker(bid, category, evidence_text, paper_task_id))
+
+    if shadow_outcome.get("blockers"):
+        blockers.append(
+            blocker(
+                "PAPER_SHADOW_OUTCOME_OBSERVER_STALE_OR_MISSING",
+                "P0_SHUTDOWN_BLOCKER",
+                "paper_shadow_outcome_observer: " + ", ".join(map(str, shadow_outcome.get("blockers") or [])),
+            )
+        )
 
     observatory = evidence.get("observatory", {})
     if observatory.get("edge_action_required") and not codex_passed(PAPER_EDGE_RECOVERY_TASK_ID):
@@ -2387,6 +2440,18 @@ def select_next_action(blockers: List[Dict[str, Any]], dry_run: bool) -> Dict[st
                 "blocker_id": item["id"],
             }
         continue
+    if any(
+        item.get("id") == "PAPER_EDGE_UNPROVEN"
+        and codex_passed(PAPER_EDGE_RECOVERY_TASK_ID)
+        for item in blockers
+    ):
+        return {
+            "kind": "monitor_shadow_outcome_observer",
+            "task_id": "paper_shadow_outcome_observer",
+            "blocker_id": "PAPER_EDGE_UNPROVEN",
+            "follow_up": "continue observing blocked paper intents over 5m/15m/30m/1h horizons; do not loosen fill gate or claim positive edge without completed after-cost evidence",
+        }
+
     decision_blockers = [
         item for item in blockers if item.get("category") == "OPERATOR_DECISION_REQUIRED"
     ]
@@ -2429,6 +2494,7 @@ def build_evidence(no_service_remediation: bool) -> Dict[str, Any]:
         "trainer_external_packages": package_profile(),
         "paper_runtime": paper_runtime_evidence(),
         "paper_shadow": paper_shadow_evidence(),
+        "paper_shadow_outcome": paper_shadow_outcome_evidence(),
         "paper_edge": paper_edge_evidence(),
         "paper_post_filter": paper_post_filter_evidence(),
         "observatory": observatory_evidence(),
