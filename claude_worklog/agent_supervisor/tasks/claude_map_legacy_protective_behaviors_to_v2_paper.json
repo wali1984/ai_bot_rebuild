@@ -1,0 +1,35 @@
+{
+  "agent": "claude",
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**",
+    "requirements/**"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "forbidden": [
+    "legacy_mutation",
+    "old_redis_write",
+    "exchange_action",
+    "leverage_change",
+    "margin_mode_change",
+    "live_gate_unlock",
+    "approval_token_creation",
+    "redis_trim_approval_creation",
+    "dropping_legacy_behavior_silently",
+    "paper_edge_proven_without_positive_net_post_filter_fills"
+  ],
+  "lane": "shutdown_readiness_remediation",
+  "live_gate": "blocked_human_only",
+  "managed_by": "codex_legacy_shutdown_readiness_takeover",
+  "prompt": "Task: Map preserved legacy protective behavior to V2 paper-only controls or explicit blockers.\n\nHard constraints: Work only inside /home/wali/Desktop/AI BOT REBUILD. Do not modify /home/wali/Desktop/AI BOT. Do not write old Redis. Do not place, cancel, or modify exchange orders. Do not change leverage or margin mode. Do not enable live. Do not create final approval or Redis trim approval tokens. Keep live_gate=blocked_human_only and live_symbols=[]. Legacy files are read-only evidence.\n\nInputs to inspect read-only in the preserved full runtime closure where present: trading/churn_prevention.py, trading/lifecycle_controller.py, trading/exit_coordinator.py, trading/dynamic_tp_engine.py, trading/dynamic_adaptive_stops.py, trading/stealth_stops.py, trading/fee_ratio_gate.py, trading/adaptive_edge_gate.py, risk/reduce_only_latch.py, risk/intelligent_close_guard.py, risk/microstructure_toxicity.py, risk/adaptive_gate.py, rl/churn_veto.py, rl/minimum_hold_time.py, rl/fee_ratio_reward_shaping.py. Also inspect current V2 paper_edge_scoring, paper_online_runtime, risk gateway, and paper edge recovery evidence.\n\nRequired work:\n1. Build a legacy-to-V2 paper behavior matrix for minimum hold time, same-side cooldown, flip cooldown, fee-ratio gate, adaptive edge gate, dynamic TP simulation, dynamic stop simulation, stealth stop simulation, reduce-only protection, and churn veto.\n2. For each behavior, classify as IMPLEMENTED_IN_V2_PAPER, EXPLICIT_BLOCKER, NOT_REQUIRED_FOR_PAPER_ONLY_WITH_REASON, or OPERATOR_DECISION_REQUIRED. Do not silently drop behavior.\n3. If a small safe code/test fix is needed, implement V2-only and fail-closed. Otherwise produce the mapping packet without runtime churn.\n4. Verify strict paper fill gating still requires expected_move_after_cost_bps, accepted trainer_source, CURRENT feature freshness, paper symbol eligibility, confidence threshold, cooldown/churn checks, and risk gateway allow.\n5. Add or extend tests only where needed to prevent silent behavior drops.\n6. Update paper edge recovery/dashboard payloads with remaining protective behavior blockers and live safety fields.\n7. Create Codex review marker codex_review_legacy_protective_behaviors_to_v2_paper.\n\nRequired outputs:\n- claude_worklog/final_readiness/paper_edge_recovery/latest/LEGACY_PROTECTIVE_BEHAVIOR_TO_V2_PAPER_MAP.md\n- claude_worklog/final_readiness/paper_edge_recovery/latest/legacy_protective_behavior_to_v2_paper_map.json\n- claude_worklog/final_readiness/paper_edge_recovery/latest/protective_behavior_mapping_status.json\n- v2/frontend/public/paper_edge_recovery/latest/operator_dashboard_payload.json\n\nGO/NO-GO must be one of:\n- LEGACY_PROTECTIVE_BEHAVIOR_TO_V2_PAPER_MAP_READY_EDGE_PENDING\n- LEGACY_PROTECTIVE_BEHAVIOR_TO_V2_PAPER_MAP_BLOCKED_GAPS_REMAIN\n- LEGACY_PROTECTIVE_BEHAVIOR_TO_V2_PAPER_MAP_BLOCKED_SAFETY_REGRESSION\n\nValidation required: py_compile, targeted tests, JSON validation, secret scan, forbidden mutation scan. Do not claim live-ready, canary-ready, positive edge, or legacy shutdown readiness.",
+  "required_output_files": [
+    "claude_worklog/final_readiness/paper_edge_recovery/latest/LEGACY_PROTECTIVE_BEHAVIOR_TO_V2_PAPER_MAP.md",
+    "claude_worklog/final_readiness/paper_edge_recovery/latest/legacy_protective_behavior_to_v2_paper_map.json",
+    "claude_worklog/final_readiness/paper_edge_recovery/latest/protective_behavior_mapping_status.json",
+    "v2/frontend/public/paper_edge_recovery/latest/operator_dashboard_payload.json"
+  ],
+  "risk_level": "L2",
+  "status": "pending",
+  "task_id": "claude_map_legacy_protective_behaviors_to_v2_paper",
+  "task_timeout_seconds": 2400
+}
