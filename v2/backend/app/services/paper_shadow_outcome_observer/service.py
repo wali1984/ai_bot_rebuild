@@ -116,6 +116,8 @@ def evaluate_observation_request(
         "event_ts": request.get("event_ts"),
         "expected_move_bps": _num(request.get("expected_move_bps")),
         "expected_move_after_cost_bps": expected_after_cost,
+        "expected_move_source": _str(request.get("expected_move_source")),
+        "expected_move_coverage_status": _str(request.get("expected_move_coverage_status")),
         "cost_bps": cost_bps,
         "block_reason": request.get("block_reason"),
         "fill_allowed": False,
@@ -223,6 +225,8 @@ def _request_from_worker_status(worker_status: Mapping[str, Any]) -> dict[str, A
             "spread_bps",
             "slippage_bps",
             "funding_risk_bps",
+            "expected_move_source",
+            "expected_move_coverage_status",
         ):
             enriched.setdefault(key, worker_status.get(key))
         return enriched
@@ -276,6 +280,10 @@ def _request_from_paper_runtime(paper_status: Mapping[str, Any]) -> dict[str, An
         "event_ts": risk.get("generated_at") or last_event.get("generated_at"),
         "expected_move_bps": expected_move_bps,
         "expected_move_after_cost_bps": expected_after_cost,
+        "expected_move_source": risk.get("expected_move_source")
+        or nested_get(risk, "expected_move_coverage.expected_move_source"),
+        "expected_move_coverage_status": risk.get("expected_move_coverage_status")
+        or nested_get(risk, "expected_move_coverage.expected_move_coverage_status"),
         "fee_bps": nested_get(risk, "canary_profile_tightening.fee_bps"),
         "spread_bps": nested_get(risk, "canary_profile_tightening.spread_bps"),
         "slippage_bps": last_event.get("slippage_bps") or 2.0,
@@ -302,6 +310,20 @@ def _reason_items(value: Any) -> list[str]:
     if value in (None, ""):
         return []
     return [str(value)]
+
+
+def _is_missing_expected_move_block(row: Mapping[str, Any]) -> bool:
+    reasons = {item.lower() for item in _reason_items(row.get("block_reason"))}
+    return (
+        row.get("expected_move_after_cost_bps") is None
+        or "missing_expected_move_after_costs" in reasons
+        or "edge_after_costs_missing_block" in reasons
+    )
+
+
+def _is_native_expected_move_block(row: Mapping[str, Any]) -> bool:
+    source = _str(row.get("expected_move_source")).lower()
+    return source.startswith("native_") and row.get("expected_move_after_cost_bps") is not None
 
 
 def build_paper_shadow_outcome_observer_status(
@@ -354,6 +376,20 @@ def build_paper_shadow_outcome_observer_status(
     false_block_reason_counts: Counter[str] = Counter()
     for row in false_blocks:
         false_block_reason_counts.update(_reason_items(row.get("block_reason")))
+    false_blocks_missing_expected_move = [
+        row for row in false_blocks if _is_missing_expected_move_block(row)
+    ]
+    false_blocks_with_expected_move = [
+        row for row in false_blocks if row.get("expected_move_after_cost_bps") is not None
+    ]
+    false_blocks_native_expected_move = [
+        row for row in false_blocks if _is_native_expected_move_block(row)
+    ]
+    false_blocks_unknown_expected_move_source = [
+        row
+        for row in false_blocks_with_expected_move
+        if not _str(row.get("expected_move_source"))
+    ]
     if not observations:
         outcome_status = "EDGE_PENDING_INSUFFICIENT_SAMPLE"
     elif not completed:
@@ -381,6 +417,10 @@ def build_paper_shadow_outcome_observer_status(
         "completed_observations": len(completed),
         "pending_observations": len(pending),
         "false_block_count": len(false_blocks),
+        "false_block_missing_expected_move_count": len(false_blocks_missing_expected_move),
+        "false_block_with_expected_move_count": len(false_blocks_with_expected_move),
+        "false_block_native_expected_move_count": len(false_blocks_native_expected_move),
+        "false_block_unknown_expected_move_source_count": len(false_blocks_unknown_expected_move_source),
         "false_block_reason_counts": dict(sorted(false_block_reason_counts.items())),
         "false_block_examples": [
             {
@@ -391,11 +431,18 @@ def build_paper_shadow_outcome_observer_status(
                 "cost_bps": row.get("cost_bps"),
                 "expected_move_bps": row.get("expected_move_bps"),
                 "expected_move_after_cost_bps": row.get("expected_move_after_cost_bps"),
+                "expected_move_source": row.get("expected_move_source"),
                 "block_reason": row.get("block_reason"),
                 "max_favorable_excursion_bps": row.get("max_favorable_excursion_bps"),
             }
             for row in false_blocks[:5]
         ],
+        "false_block_classification": {
+            "historical_missing_expected_move": len(false_blocks_missing_expected_move),
+            "expected_move_present_model_review": len(false_blocks_with_expected_move),
+            "native_expected_move_model_review": len(false_blocks_native_expected_move),
+            "expected_move_source_unknown": len(false_blocks_unknown_expected_move_source),
+        },
         "no_trade_correct_count": len(no_trade_correct),
         "after_cost_correct_count": len(false_blocks),
         "candidate_trade_count": len(observations),

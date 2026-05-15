@@ -105,6 +105,9 @@ def test_shadow_observer_flags_false_block_when_blocked_intent_beats_costs(
                 "side": "short",
                 "entry_reference_price": 100.0,
                 "event_ts": "2026-01-01T00:00:00Z",
+                "expected_move_bps": 7.0,
+                "expected_move_after_cost_bps": 1.0,
+                "expected_move_source": "native_trainer_expected_move_bps",
                 "cost_bps": 6.0,
                 "block_reason": "CONFIDENCE_TOO_LOW_BLOCK",
             }
@@ -137,9 +140,14 @@ def test_shadow_observer_flags_false_block_when_blocked_intent_beats_costs(
 
     assert status["outcome_status"] == "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED"
     assert status["false_block_count"] == 1
+    assert status["false_block_with_expected_move_count"] == 1
+    assert status["false_block_native_expected_move_count"] == 1
+    assert status["false_block_missing_expected_move_count"] == 0
     assert status["no_trade_correct_count"] == 0
     assert status["latest_observation"]["would_have_beaten_costs"] is True
+    assert status["latest_observation"]["expected_move_source"] == "native_trainer_expected_move_bps"
     assert status["false_block_reason_counts"] == {"CONFIDENCE_TOO_LOW_BLOCK": 1}
+    assert status["false_block_classification"]["native_expected_move_model_review"] == 1
     assert status["recommended_next_action"] == "EXPECTED_MOVE_MODEL_REVIEW_REQUIRED_KEEP_FILL_GATE_STRICT"
 
 
@@ -188,6 +196,8 @@ def test_shadow_observer_captures_native_trainer_expected_move_from_paper_runtim
                 "feature_snapshot_id": "fs_4",
                 "generated_at": "2026-01-01T00:00:00Z",
                 "risk_reason_code": "deny_low_confidence",
+                "expected_move_source": "native_trainer_expected_move_bps",
+                "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
             },
             "current_signal_lineage": {
                 "execution_intent": {
@@ -233,6 +243,7 @@ def test_shadow_observer_captures_native_trainer_expected_move_from_paper_runtim
     latest = status["latest_observation"]
     assert latest["expected_move_bps"] == 20.0
     assert latest["expected_move_after_cost_bps"] == 14.0
+    assert latest["expected_move_source"] == "native_trainer_expected_move_bps"
     assert latest["cost_bps"] == 6.0
     assert latest["paper_fill_recorded"] is False
     assert status["exchange_action_taken"] is False
