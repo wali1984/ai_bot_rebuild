@@ -2,98 +2,33 @@
   "approves_canary": false,
   "approves_legacy_shutdown": false,
   "approves_live": false,
-  "blocked_intent_counts": {
-    "confidence_too_low_block": "covered_by_unit_and_integration_tests",
-    "cooldown_block": "covered_by_unit_tests",
-    "edge_after_costs_missing_block": "covered_by_unit_and_integration_tests",
-    "edge_after_costs_negative_block": "covered_by_unit_and_integration_tests",
-    "feature_freshness_missing_block": "covered_by_unit_and_integration_tests",
-    "feature_stale_block": "covered_by_unit_tests",
-    "flip_churn_block": "covered_by_unit_tests",
-    "risk_gate_block": "covered_by_unit_tests",
-    "symbol_not_paper_eligible_block": "covered_by_unit_and_integration_tests",
-    "trainer_source_missing_block": "covered_by_unit_and_integration_tests"
-  },
-  "coverage": {
-    "edge_after_costs_coverage": "REQUIRED_FOR_NEW_FILLS_OLD_PREFILTER_ALLOWED_FILLS_MISSING",
-    "feature_freshness_coverage": "REQUIRED_FOR_NEW_FILLS_OLD_PREFILTER_EVENTS_SOURCE_LIMITED",
-    "trainer_source_coverage": "REQUIRED_FOR_NEW_FILLS_OLD_PREFILTER_EVENTS_SOURCE_LIMITED"
-  },
   "current_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
   "edge_proven": false,
-  "edge_status": "POST_FILTER_NO_UNSAFE_FILLS_EDGE_PENDING",
-  "forbidden_action_scan_summary": {
-    "approval_token_created": false,
-    "exchange_mutations": "absent_in_touched_runtime_code",
-    "leverage_or_margin_change": false,
-    "old_redis_writes": "absent_in_touched_runtime_code",
-    "redis_trim_approval_created": false
-  },
-  "generated_at": "2026-05-15T05:39:50Z",
+  "edge_status": "POST_STRICT_GATE_NO_UNSAFE_FILLS_EDGE_PENDING",
+  "final_approval_token": "absent",
+  "generated_at": "2026-05-15T08:25:55Z",
   "go_no_go": "V2_PAPER_EDGE_RECOVERY_READY_NO_UNSAFE_FILLS_EDGE_PENDING",
-  "implemented_by": "codex_direct_fix_after_claude_report_only_blocked_packet",
   "live_gate": "blocked_human_only",
   "live_symbols": [],
-  "next_automatic_action": "continue trainer parity or run shadow outcome observer / threshold replay once new blocked-intent samples accumulate",
-  "no_trade_status": "NO_UNSAFE_FILLS_NO_POSITIVE_EDGE_SAMPLE_YET",
+  "next_automatic_action": "continue shadow outcome observation and strict-gate sample collection; do not loosen fill gate",
+  "no_trade_status": "STRICT_GATE_ACTIVE_EDGE_SAMPLE_INSUFFICIENT",
   "paper_fill_boundary_status": "HARD_GATE_IMPLEMENTED",
   "paper_pnl": {
-    "confidence_bucket_0_75_plus_pre_filter_pnl_usdt": -12.79,
-    "cumulative_paper_pnl_usdt": -49.12,
-    "estimated_slippage_pre_filter_usdt": 11.345,
-    "explicit_booked_fees_pre_filter_usdt": 22.69,
-    "gross_pnl_if_fees_added_back_usdt": -0.06,
-    "observed_pre_filter_loss_usdt": -22.75,
-    "post_filter_fills": 0,
-    "post_filter_pnl_delta_usdt": 0.0,
-    "post_filter_unsafe_fills": 0,
-    "source_limited_prior_baseline_usdt": -26.37
+    "current_cumulative_paper_pnl_usdt": -49.14,
+    "post_canary_filter_fills": 2,
+    "post_canary_filter_pnl_delta_usdt": -0.02,
+    "post_canary_filter_unsafe_fills": 1,
+    "post_strict_cost_aware_gate_fills": 1,
+    "post_strict_cost_aware_gate_pnl_delta_usdt": -0.01,
+    "post_strict_cost_aware_gate_unsafe_fills": 0
   },
-  "phase_status": {
-    "phase_a_extend_paper_event_schema": "WORKER_STATUS_SCHEMA_EXTENDED_LEDGER_EVENT_BACKFILL_PENDING",
-    "phase_b_cost_aware_scoring_module": "IMPLEMENTED_TESTED",
-    "phase_c_shadow_outcome_observer": "BLOCKED_INTENT_REQUEST_EMITTED_OBSERVER_CLI_PENDING",
-    "phase_d_threshold_replay": "NOT_YET_RUN_SOURCE_LIMITED_UNTIL_NEW_EDGE_FIELDS_ACCUMULATE",
-    "phase_e_legacy_protective_behavior_map": "MAPPED_WITH_EXPLICIT_PENDING_EQUIVALENTS",
-    "phase_f_dashboard_payload": "UPDATED"
-  },
+  "qualified_strict_gate_fill_observed": true,
   "remaining_blockers": [
-    "POST_FILTER_POSITIVE_EDGE_NOT_PROVEN_ZERO_FILLS",
-    "PAPER_SHADOW_OUTCOME_OBSERVER_CLI_PENDING",
-    "THRESHOLD_REPLAY_NOT_YET_RUN_WITH_NEW_EDGE_FIELDS",
-    "LEGACY_PROTECTIVE_BEHAVIOR_EQUIVALENTS_PENDING_FOR_EXIT_LIFECYCLE_STOPS",
+    "POST_FILTER_POSITIVE_EDGE_NOT_PROVEN_INSUFFICIENT_STRICT_GATE_SAMPLE",
     "TRAINER_PARITY_DERIVED_EVIDENCE_OPERATOR_DECISION_STILL_OPEN",
     "TRADE_PERMISSION_UNKNOWN_REMAINS_LIVE_CANARY_BLOCKER"
   ],
-  "resolved_controls": [
-    "missing_expected_move_after_cost_bps_blocks_fill",
-    "missing_trainer_source_blocks_fill",
-    "missing_feature_freshness_state_blocks_fill",
-    "symbol_not_in_paper_symbols_blocks_fill",
-    "confidence_alone_cannot_allow_fill",
-    "paper_edge_denials_emit_shadow_observation_request",
-    "worker_status_preserves_live_gate_blocked_human_only_and_live_symbols_empty"
-  ],
-  "shadow_observations_pending": "emitted_per_blocked_worker_status_observer_cli_pending",
-  "source_evidence": {
-    "integration_tests": "v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py",
-    "legacy_protective_behavior_map": "claude_worklog/final_readiness/paper_edge_recovery/latest/legacy_protective_behavior_to_v2_paper_map.json",
-    "paper_loss_attribution_report": "claude_worklog/final_readiness/paper_loss_attribution/latest/PAPER_LOSS_ATTRIBUTION_REPORT.md",
-    "paper_worker": "v2/backend/app/cli/v2_paper_execution_worker.py",
-    "scoring_module": "v2/backend/app/composition/paper_edge_scoring/runtime.py",
-    "threshold_replay_status": "claude_worklog/final_readiness/paper_edge_recovery/latest/paper_edge_threshold_replay.json",
-    "unit_tests": "v2/backend/tests/unit/composition/test_paper_edge_scoring.py"
-  },
-  "task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection",
-  "threshold_replay_best_safe_profile": {
-    "reason": "old pre-filter events lack trainer_source, feature_freshness_state, and expected_move_after_cost_bps; future events are now gated for those fields",
-    "status": "NOT_YET_RUN"
-  },
-  "validation": {
-    "focused_pytest": "PASS_44_TESTS",
-    "manual_adversarial_missing_fields_dry_run": "PASS_DENIED_BY_PAPER_EDGE_GATE_ZERO_FILLS",
-    "positive_edge_proven": false,
-    "post_filter_no_unsafe_fills": true,
-    "py_compile": "PASS"
-  }
+  "redis_trim_approval": "absent",
+  "source_status_path": "claude_worklog/final_readiness/paper_edge_recovery/latest/paper_edge_recovery_status.json",
+  "task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
 }

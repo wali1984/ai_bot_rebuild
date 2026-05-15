@@ -5,7 +5,7 @@
     "final_approval_token": "absent",
     "redis_trim_approval": "absent"
   },
-  "as_of_utc": "2026-05-15T08:22:14Z",
+  "as_of_utc": "2026-05-15T08:30:15Z",
   "blocked_intent_count": 1810,
   "blocker_count": 6,
   "blocker_counts": {
@@ -60,7 +60,7 @@
   "git_dirty_classification": {
     "buckets": {
       "agent_supervisor_state": 0,
-      "runtime_or_dashboard_artifact": 421,
+      "runtime_or_dashboard_artifact": 433,
       "source_or_tooling": 4,
       "unknown": 10
     },
@@ -127,7 +127,7 @@
         "claude_worklog/final_readiness/tonight_v2_live_like_paper_shadow_and_canary_preflight/"
       ]
     },
-    "total_dirty": 435
+    "total_dirty": 447
   },
   "go_no_go": "CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP_READY",
   "last_commit": "0df8a9c4 Full rl/risk/trader/services/utils dependency closure audit",
@@ -145,9 +145,9 @@
   "old_redis_write_status": "absent",
   "paper_pnl": -49.14,
   "paper_shadow_freshness": {
-    "age_seconds": 37,
+    "age_seconds": 39,
     "blockers": [],
-    "generated_at": "2026-05-15T08:21:37Z",
+    "generated_at": "2026-05-15T08:29:37Z",
     "path": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
     "status": "fresh"
   },
@@ -228,9 +228,9 @@
     "v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json"
   ],
   "symbol_universe": {
-    "age_seconds": 36,
+    "age_seconds": 37,
     "blockers": [],
-    "generated_at": "2026-05-15T08:21:38Z",
+    "generated_at": "2026-05-15T08:29:39Z",
     "live_gate": "blocked_human_only",
     "live_symbols": [],
     "paper_symbols": [
@@ -243,9 +243,9 @@
     ]
   },
   "symbol_universe_freshness": {
-    "age_seconds": 36,
+    "age_seconds": 37,
     "blockers": [],
-    "generated_at": "2026-05-15T08:21:38Z",
+    "generated_at": "2026-05-15T08:29:39Z",
     "live_gate": "blocked_human_only",
     "live_symbols": [],
     "paper_symbols": [
@@ -260,21 +260,21 @@
   "task_id": "codex_shutdown_readiness_takeover",
   "trainer_parity_state": {
     "accepted_as_legacy_hybrid_prediction": true,
-    "age_seconds": 15,
+    "age_seconds": 16,
     "blockers": [
       "legacy_log_confidence_calibration_derived",
       "legacy_log_feature_attribution_incomplete",
       "legacy_log_feature_snapshot_id_derived"
     ],
-    "checkpoint_id": "legacy_live_checkpoint_1778833256",
-    "generated_at": "2026-05-15T08:21:59Z",
+    "checkpoint_id": "legacy_live_checkpoint_1778833699",
+    "generated_at": "2026-05-15T08:30:00Z",
     "lineage_derivation_warnings": [
       "feature_snapshot_id_bridge_derived_from_legacy_redis_prediction_hash",
       "confidence_calibrated_bridge_derived_from_legacy_prediction_confidence",
       "top_features_absent_from_legacy_prediction_hash",
       "top_negative_features_absent_from_legacy_prediction_hash"
     ],
-    "model_checkpoint_id": "legacy_live_checkpoint_1778833256",
+    "model_checkpoint_id": "legacy_live_checkpoint_1778833699",
     "model_version": "legacy_hybrid_trainer_live_legacy",
     "path": "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json",
     "prediction_evidence_status": "LEGACY_HYBRID_TRAINER_PREDICTION_PRESENT",

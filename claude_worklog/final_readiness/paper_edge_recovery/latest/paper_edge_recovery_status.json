@@ -15,50 +15,52 @@
     "trainer_source_missing_block": "covered_by_unit_and_integration_tests"
   },
   "coverage": {
-    "edge_after_costs_coverage": "REQUIRED_FOR_NEW_FILLS_OLD_PREFILTER_ALLOWED_FILLS_MISSING",
-    "feature_freshness_coverage": "REQUIRED_FOR_NEW_FILLS_OLD_PREFILTER_EVENTS_SOURCE_LIMITED",
-    "trainer_source_coverage": "REQUIRED_FOR_NEW_FILLS_OLD_PREFILTER_EVENTS_SOURCE_LIMITED"
+    "edge_after_costs_coverage": "REQUIRED_FOR_STRICT_GATE_FILLS",
+    "feature_freshness_coverage": "REQUIRED_FOR_STRICT_GATE_FILLS",
+    "trainer_source_coverage": "REQUIRED_FOR_STRICT_GATE_FILLS"
   },
   "edge_proven": false,
-  "edge_status": "POST_FILTER_NO_UNSAFE_FILLS_EDGE_PENDING",
+  "edge_status": "POST_STRICT_GATE_NO_UNSAFE_FILLS_EDGE_PENDING",
   "forbidden_action_scan_summary": {
     "approval_token_created": false,
-    "exchange_mutations": "absent_in_touched_runtime_code",
+    "exchange_mutations": "absent_in_touched_runtime_code_and_audited_events",
     "leverage_or_margin_change": false,
-    "old_redis_writes": "absent_in_touched_runtime_code",
+    "old_redis_writes": "absent_in_touched_runtime_code_and_audited_events",
     "redis_trim_approval_created": false
   },
-  "generated_at": "2026-05-15T05:39:50Z",
+  "generated_at": "2026-05-15T08:25:55Z",
   "go_no_go": "V2_PAPER_EDGE_RECOVERY_READY_NO_UNSAFE_FILLS_EDGE_PENDING",
   "implemented_by": "codex_direct_fix_after_claude_report_only_blocked_packet",
   "live_gate": "blocked_human_only",
   "live_symbols": [],
-  "no_trade_status": "NO_UNSAFE_FILLS_NO_POSITIVE_EDGE_SAMPLE_YET",
+  "no_trade_status": "STRICT_GATE_ACTIVE_EDGE_SAMPLE_INSUFFICIENT",
   "paper_fill_boundary_status": "HARD_GATE_IMPLEMENTED",
   "paper_pnl": {
     "confidence_bucket_0_75_plus_pre_filter_pnl_usdt": -12.79,
-    "cumulative_paper_pnl_usdt": -49.12,
+    "current_cumulative_paper_pnl_usdt": -49.14,
     "estimated_slippage_pre_filter_usdt": 11.345,
     "explicit_booked_fees_pre_filter_usdt": 22.69,
     "gross_pnl_if_fees_added_back_usdt": -0.06,
     "observed_pre_filter_loss_usdt": -22.75,
-    "post_filter_fills": 0,
-    "post_filter_pnl_delta_usdt": 0.0,
-    "post_filter_unsafe_fills": 0,
+    "post_canary_filter_fills": 2,
+    "post_canary_filter_pnl_delta_usdt": -0.02,
+    "post_canary_filter_unsafe_fills": 1,
+    "post_strict_cost_aware_gate_fills": 1,
+    "post_strict_cost_aware_gate_pnl_delta_usdt": -0.01,
+    "post_strict_cost_aware_gate_unsafe_fills": 0,
     "source_limited_prior_baseline_usdt": -26.37
   },
   "phase_status": {
-    "phase_a_extend_paper_event_schema": "WORKER_STATUS_SCHEMA_EXTENDED_LEDGER_EVENT_BACKFILL_PENDING",
+    "phase_a_extend_paper_event_schema": "STRICT_GATE_RUNTIME_FIELDS_PRESENT_FOR_CURRENT_FILLS",
     "phase_b_cost_aware_scoring_module": "IMPLEMENTED_TESTED",
-    "phase_c_shadow_outcome_observer": "BLOCKED_INTENT_REQUEST_EMITTED_OBSERVER_CLI_PENDING",
-    "phase_d_threshold_replay": "NOT_YET_RUN_SOURCE_LIMITED_UNTIL_NEW_EDGE_FIELDS_ACCUMULATE",
+    "phase_c_shadow_outcome_observer": "RUNNING_WITH_SOURCE_PROVENANCE_CLASSIFICATION",
+    "phase_d_threshold_replay": "SOURCE_LIMITED_UNTIL_MORE_STRICT_GATE_SAMPLES_ACCUMULATE",
     "phase_e_legacy_protective_behavior_map": "MAPPED_WITH_EXPLICIT_PENDING_EQUIVALENTS",
     "phase_f_dashboard_payload": "UPDATED"
   },
   "remaining_blockers": [
-    "POST_FILTER_POSITIVE_EDGE_NOT_PROVEN_ZERO_FILLS",
-    "PAPER_SHADOW_OUTCOME_OBSERVER_CLI_PENDING",
-    "THRESHOLD_REPLAY_NOT_YET_RUN_WITH_NEW_EDGE_FIELDS",
+    "POST_FILTER_POSITIVE_EDGE_NOT_PROVEN_INSUFFICIENT_STRICT_GATE_SAMPLE",
+    "THRESHOLD_REPLAY_SOURCE_LIMITED_UNTIL_NEW_EDGE_FIELDS_ACCUMULATE",
     "LEGACY_PROTECTIVE_BEHAVIOR_EQUIVALENTS_PENDING_FOR_EXIT_LIFECYCLE_STOPS",
     "TRAINER_PARITY_DERIVED_EVIDENCE_OPERATOR_DECISION_STILL_OPEN",
     "TRADE_PERMISSION_UNKNOWN_REMAINS_LIVE_CANARY_BLOCKER"
@@ -72,22 +74,40 @@
     "paper_edge_denials_emit_shadow_observation_request",
     "worker_status_preserves_live_gate_blocked_human_only_and_live_symbols_empty"
   ],
-  "shadow_observations_pending": "emitted_per_blocked_worker_status_observer_cli_pending",
+  "runtime_observation": {
+    "post_canary_filter_start_utc": "2026-05-14T22:40:46Z",
+    "post_strict_cost_aware_gate_start_utc": "2026-05-15T08:11:06Z",
+    "qualified_strict_gate_fill": {
+      "expected_move_after_cost_bps": 12.51149373,
+      "expected_move_source": "native_trainer_expected_move_bps",
+      "feature_freshness_state": "CURRENT",
+      "generated_at": "2026-05-15T08:20:27Z",
+      "paper_symbol_allowed": true,
+      "trainer_source": "LEGACY_HYBRID_TRAINER_REDIS_READONLY"
+    },
+    "source_limited_fill_before_strict_gate": {
+      "expected_move_after_cost_bps": null,
+      "feature_freshness_state": null,
+      "generated_at": "2026-05-15T08:03:05Z",
+      "trainer_source": null
+    }
+  },
+  "shadow_observations_pending": "continue_observing_blocked_intents_and_qualified_fills",
   "source_evidence": {
+    "event_log": "v2/runtime/paper_online/latest/paper_events.jsonl",
     "integration_tests": "v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py",
     "legacy_protective_behavior_map": "claude_worklog/final_readiness/paper_edge_recovery/latest/legacy_protective_behavior_to_v2_paper_map.json",
     "paper_loss_attribution_report": "claude_worklog/final_readiness/paper_loss_attribution/latest/PAPER_LOSS_ATTRIBUTION_REPORT.md",
     "paper_worker": "v2/backend/app/cli/v2_paper_execution_worker.py",
     "scoring_module": "v2/backend/app/composition/paper_edge_scoring/runtime.py",
-    "threshold_replay_status": "claude_worklog/final_readiness/paper_edge_recovery/latest/paper_edge_threshold_replay.json",
     "unit_tests": "v2/backend/tests/unit/composition/test_paper_edge_scoring.py"
   },
   "task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection",
   "validation": {
-    "focused_pytest": "PASS_44_TESTS",
+    "focused_pytest": "PASS_44_TESTS_AT_IMPLEMENTATION",
     "manual_adversarial_missing_fields_dry_run": "PASS_DENIED_BY_PAPER_EDGE_GATE_ZERO_FILLS",
     "positive_edge_proven": false,
-    "post_filter_no_unsafe_fills": true,
-    "py_compile": "PASS"
+    "post_strict_gate_no_unsafe_fills": true,
+    "py_compile": "PASS_AT_IMPLEMENTATION"
   }
 }

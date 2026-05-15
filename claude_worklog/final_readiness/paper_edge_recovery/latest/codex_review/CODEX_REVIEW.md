@@ -1,21 +1,23 @@
 # Codex Review - Paper Edge Recovery And Cost-Aware Trade Selection
 
 Result: PASS
-Generated: `2026-05-15T05:39:50Z`
+Generated: `2026-05-15T08:25:55Z`
 
-Codex directly remediated the failed boundary after the Claude packet remained report-only/blocked. The critical unsafe path is now closed: a V2 paper fill cannot be recorded when `expected_move_after_cost_bps`, `trainer_source`, `feature_freshness_state`, or paper symbol eligibility is missing.
+Codex previously remediated the unsafe boundary after the Claude packet remained report-only/blocked. Current runtime evidence confirms the strict cost-aware gate is active.
 
 ## Evidence
 
-- `v2/backend/app/composition/paper_edge_scoring/runtime.py` implements the pure hard gate.
-- `v2/backend/app/cli/v2_paper_execution_worker.py` calls the hard gate before the paper ledger recorder.
-- Focused tests passed: `44 passed`.
-- Manual adversarial dry run with missing required fields returned `ledger_action=denied_by_paper_edge_gate` and `fills_recorded_total=0`.
+- `v2/backend/app/composition/paper_edge_scoring/runtime.py` implements the hard gate.
+- `v2/backend/app/cli/v2_paper_execution_worker.py` calls the hard gate before paper fill recording.
+- Implementation validation passed with `44` focused tests.
+- Runtime JSONL audit since strict cost-aware gate start (`2026-05-15T08:11:06Z`) shows one qualified paper-only fill and zero unsafe fills.
 
 ## Caveats
 
-This PASS does not mean positive edge is proven. Post-filter fills remain `0`, so the honest paper state is `NO_UNSAFE_FILLS_EDGE_PENDING`. The paper shadow outcome observer, threshold replay, and full paper-only equivalents for deeper legacy protective behavior remain explicit follow-up work.
+The broader original post-canary window includes one source-limited fill at `2026-05-15T08:03:05Z`, before strict edge/provenance/freshness fields were enforced at runtime. That fill is preserved as evidence that the canary filter alone was insufficient.
+
+This PASS does not mean positive edge is proven. The strict-gate fill booked `0.01 USDT` fee and is insufficient sample. The honest paper state remains `NO_UNSAFE_FILLS_EDGE_PENDING`.
 
 ## Safety
 
-No live, canary, or legacy shutdown approval is implied. `live_gate=blocked_human_only`; `live_symbols=[]`; no old Redis write, exchange mutation, approval token, Redis trim approval, leverage change, or margin-mode change was introduced by the touched code.
+No live, canary, or legacy shutdown approval is implied. `live_gate=blocked_human_only`; `live_symbols=[]`; no old Redis write, exchange mutation, approval token, Redis trim approval, leverage change, or margin-mode change was introduced.
