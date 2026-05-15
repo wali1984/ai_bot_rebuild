@@ -1,5 +1,5 @@
 {
-  "as_of_utc": "2026-05-15T16:47:21Z",
+  "as_of_utc": "2026-05-15T16:49:21Z",
   "blockers": [
     {
       "category": "P0_SHUTDOWN_BLOCKER",
@@ -47,14 +47,14 @@
     "never_write_old_redis": true
   },
   "evidence": {
-    "as_of_utc": "2026-05-15T16:47:21Z",
+    "as_of_utc": "2026-05-15T16:49:21Z",
     "canonical_inputs": {
       "missing": [
         "v2/frontend/public/operator_runtime/v2_symbol_universe/latest/symbol_universe_status.json"
       ],
       "records": [
         {
-          "age_seconds": 145041,
+          "age_seconds": 145161,
           "exists": true,
           "generated_at": "2026-05-14T00:30:00Z",
           "path": "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/latest/operator_dashboard_payload.json",
@@ -105,35 +105,35 @@
         {
           "age_seconds": 43,
           "exists": true,
-          "generated_at": "2026-05-15T16:46:38Z",
+          "generated_at": "2026-05-15T16:48:38Z",
           "path": "claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/worker_porting_state.json",
           "valid_json": true
         },
         {
           "age_seconds": 43,
           "exists": true,
-          "generated_at": "2026-05-15T16:46:38Z",
+          "generated_at": "2026-05-15T16:48:38Z",
           "path": "claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/operator_dashboard_payload.json",
           "valid_json": true
         },
         {
-          "age_seconds": 13,
+          "age_seconds": 1,
           "exists": true,
-          "generated_at": "2026-05-15T16:47:08Z",
+          "generated_at": "2026-05-15T16:49:20Z",
           "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
           "valid_json": true
         },
         {
           "age_seconds": 6,
           "exists": true,
-          "generated_at": "2026-05-15T16:47:15Z",
+          "generated_at": "2026-05-15T16:49:15Z",
           "path": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
           "valid_json": true
         },
         {
           "age_seconds": 23,
           "exists": true,
-          "generated_at": "2026-05-15T16:46:58Z",
+          "generated_at": "2026-05-15T16:48:58Z",
           "path": "v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json",
           "valid_json": true
         },
@@ -147,7 +147,7 @@
         {
           "age_seconds": 4,
           "exists": true,
-          "generated_at": "2026-05-15T16:47:17Z",
+          "generated_at": "2026-05-15T16:49:17Z",
           "path": "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json",
           "valid_json": true
         },
@@ -159,7 +159,7 @@
           "valid_json": true
         },
         {
-          "age_seconds": 1359,
+          "age_seconds": 1479,
           "exists": true,
           "generated_at": "2026-05-15T16:24:42Z",
           "path": "v2/frontend/public/operator_runtime/coinank_market_intelligence/latest/coinank_market_intelligence_status.json",
@@ -201,7 +201,7 @@
           "valid_json": true
         },
         {
-          "age_seconds": 1359,
+          "age_seconds": 1479,
           "exists": true,
           "generated_at": "2026-05-15T16:24:42Z",
           "path": "v2/frontend/public/operator_runtime/v2_account_position_monitor/latest/v2_account_position_monitor_status.json",
@@ -317,8 +317,8 @@
     "git_dirty_summary": {
       "buckets": {
         "agent_supervisor_state": 0,
-        "runtime_or_dashboard_artifact": 464,
-        "source_or_tooling": 6,
+        "runtime_or_dashboard_artifact": 453,
+        "source_or_tooling": 4,
         "unknown": 10
       },
       "preview": {
@@ -369,9 +369,7 @@
           "claude_worklog/tools/build_active_autonomous_dispatch_packet.py",
           "v2/backend/app/domain/risk_gateway/__init__.py",
           "v2/backend/app/domain/risk_gateway/record.py",
-          "v2/backend/app/services/decision_improvement/service.py",
-          "v2/backend/tests/unit/domain/risk_gateway/test_public_surface.py",
-          "v2/backend/tests/unit/services/test_decision_improvement.py"
+          "v2/backend/tests/unit/domain/risk_gateway/test_public_surface.py"
         ],
         "unknown": [
           ".claude/settings.local.json",
@@ -386,10 +384,10 @@
           "claude_worklog/final_readiness/tonight_v2_live_like_paper_shadow_and_canary_preflight/"
         ]
       },
-      "total_dirty": 480
+      "total_dirty": 467
     },
     "paper_edge": {
-      "age_seconds": 59582,
+      "age_seconds": 59702,
       "blocked_intents": 1810,
       "blockers": [
         "blocked_intents_present"
@@ -409,14 +407,14 @@
       "simulated_fills": 2269
     },
     "paper_runtime": {
-      "age_seconds": 13,
+      "age_seconds": 1,
       "blockers": [
         "paper_realized_pnl_negative",
         "current_paper_intent_blocked_or_unfilled"
       ],
       "fill_count": null,
       "fills_last_hour": null,
-      "generated_at": "2026-05-15T16:47:08Z",
+      "generated_at": "2026-05-15T16:49:20Z",
       "latest_fill_price": null,
       "latest_paper_action": null,
       "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
@@ -428,7 +426,7 @@
     "paper_shadow": {
       "age_seconds": 6,
       "blockers": [],
-      "generated_at": "2026-05-15T16:47:15Z",
+      "generated_at": "2026-05-15T16:49:15Z",
       "path": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
       "status": "fresh"
     },
@@ -438,241 +436,241 @@
       "non_current_reference_stale_count": 255,
       "non_current_reference_stale_preview": [
         {
-          "age_seconds": 67704,
+          "age_seconds": 67824,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/CODEX_ACCOUNT_PERMISSION_AND_SOAK_REVIEW.json"
         },
         {
-          "age_seconds": 67704,
+          "age_seconds": 67824,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/canary_readiness_after_account_evidence.json"
         },
         {
-          "age_seconds": 67704,
+          "age_seconds": 67824,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/margin_leverage_evidence.json"
         },
         {
-          "age_seconds": 67704,
+          "age_seconds": 67824,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 67704,
+          "age_seconds": 67824,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/p0_p1_migration_account_evidence_progress.json"
         },
         {
-          "age_seconds": 67704,
+          "age_seconds": 67824,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/paper_shadow_monitor_continuation.json"
         },
         {
-          "age_seconds": 67704,
+          "age_seconds": 67824,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/paper_shadow_soak_reconciliation.json"
         },
         {
-          "age_seconds": 67704,
+          "age_seconds": 67824,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/readonly_account_evidence.json"
         },
         {
-          "age_seconds": 67704,
+          "age_seconds": 67824,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/trade_permission_evidence.json"
         },
         {
-          "age_seconds": 67704,
+          "age_seconds": 67824,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/trainer_trader_monitor_continuation_status.json"
         },
         {
-          "age_seconds": 67704,
+          "age_seconds": 67824,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T21:58:57Z",
           "path": "v2/frontend/public/account_permission_and_soak/latest/weekly_loss_gate_runtime_proof.json"
         },
         {
-          "age_seconds": 235526,
+          "age_seconds": 235646,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-12T23:21:55.367925+00:00",
           "path": "v2/frontend/public/active_autonomous_dispatch/latest/claude_idle_and_dispatch_diagnostic.json"
         },
         {
-          "age_seconds": 235526,
+          "age_seconds": 235646,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-12T23:21:55.367925+00:00",
           "path": "v2/frontend/public/active_autonomous_dispatch/latest/codex_parallel_dispatch_state.json"
         },
         {
-          "age_seconds": 235526,
+          "age_seconds": 235646,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-12T23:21:55.367925+00:00",
           "path": "v2/frontend/public/active_autonomous_dispatch/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 235526,
+          "age_seconds": 235646,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-12T23:21:55.367925+00:00",
           "path": "v2/frontend/public/active_autonomous_dispatch/latest/primary_dispatch_state.json"
         },
         {
-          "age_seconds": 44310,
+          "age_seconds": 44431,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-15T04:28:50.650980+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/always_on_runtime_state.json"
         },
         {
-          "age_seconds": 160163,
+          "age_seconds": 160284,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-13T20:17:57.782874+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/automation_utilization_status.json"
         },
         {
-          "age_seconds": 44310,
+          "age_seconds": 44431,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-15T04:28:50.598661+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/git_dirty_state.json"
         },
         {
-          "age_seconds": 44310,
+          "age_seconds": 44431,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-15T04:28:50.650980+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 44310,
+          "age_seconds": 44431,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-15T04:28:50.653917+00:00",
           "path": "v2/frontend/public/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json"
         },
         {
-          "age_seconds": 510908,
+          "age_seconds": 511028,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-09T18:52:13.154032+00:00",
           "path": "v2/frontend/public/automation_liveness/latest/dashboard_069_liveness_payload.json"
         },
         {
-          "age_seconds": 510831,
+          "age_seconds": 510951,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-09T18:53:30.424067+00:00",
           "path": "v2/frontend/public/automation_liveness/latest/dashboard_liveness_payload.json"
         },
         {
-          "age_seconds": 241217,
+          "age_seconds": 241338,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-12T21:47:03.651686+00:00",
           "path": "v2/frontend/public/autonomous_governor/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 407987,
+          "age_seconds": 408107,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-10T23:27:34.157556+00:00",
           "path": "v2/frontend/public/autonomous_governor_manual_replacement/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 505158,
+          "age_seconds": 505278,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-09T20:28:03.005904+00:00",
           "path": "v2/frontend/public/autonomous_live_readiness_builder/latest/autonomous_builder_status.json"
         },
         {
-          "age_seconds": 241623,
+          "age_seconds": 241744,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-12T21:40:17.796346+00:00",
           "path": "v2/frontend/public/claude_automation_non_drift_governor_lock/latest/non_drift_governor_status.json"
         },
         {
-          "age_seconds": 241623,
+          "age_seconds": 241744,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-12T21:40:17.796346+00:00",
           "path": "v2/frontend/public/claude_automation_non_drift_governor_lock/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 241623,
+          "age_seconds": 241744,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-12T21:40:17.796346+00:00",
           "path": "v2/frontend/public/claude_automation_non_drift_governor_lock/latest/primary_objective_lock.json"
         },
         {
-          "age_seconds": 385211,
+          "age_seconds": 385331,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-11T05:47:10.135832+00:00",
           "path": "v2/frontend/public/claude_codex_rate_limit_handoff/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 322660,
+          "age_seconds": 322780,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-11T19:09:41-04:00",
           "path": "v2/frontend/public/claude_design_full_visual_implementation/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 378083,
+          "age_seconds": 378203,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-11T07:45:58.228145+00:00",
           "path": "v2/frontend/public/claude_primary_handoff/latest/WORKER_ROUTING_STATE.json"
         },
         {
-          "age_seconds": 378083,
+          "age_seconds": 378203,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-11T07:45:58.228145+00:00",
           "path": "v2/frontend/public/claude_primary_handoff/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 415865,
+          "age_seconds": 415985,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-10T21:16:16.250972+00:00",
           "path": "v2/frontend/public/claude_rate_limit_codex_takeover/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 329037,
+          "age_seconds": 329157,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-11T21:23:24Z",
           "path": "v2/frontend/public/codex_design_handoff_review_protocol/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 152391,
+          "age_seconds": 152511,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-13T22:27:30Z",
           "path": "v2/frontend/public/codex_env_repo_parity/latest/env_dependency_parity.json"
         },
         {
-          "age_seconds": 152251,
+          "age_seconds": 152371,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-13T22:29:50Z",
           "path": "v2/frontend/public/codex_env_repo_parity/latest/legacy_v2_function_gap.json"
         },
         {
-          "age_seconds": 152251,
+          "age_seconds": 152371,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-13T22:29:50Z",
           "path": "v2/frontend/public/codex_env_repo_parity/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 109174,
+          "age_seconds": 109294,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T10:27:47Z",
           "path": "v2/frontend/public/codex_independent_v2_support/latest/account_permission_contract_status.json"
         },
         {
-          "age_seconds": 109631,
+          "age_seconds": 109751,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-14T10:20:10Z",
           "path": "v2/frontend/public/codex_independent_v2_support/latest/operator_dashboard_payload.json"
         },
         {
-          "age_seconds": 156542,
+          "age_seconds": 156662,
           "classification": "INFO_ONLY_STALE_NON_CURRENT_REFERENCE",
           "generated_at": "2026-05-13T21:18:19Z",
           "path": "v2/frontend/public/codex_independent_v2_support/latest/paper_shadow_metrics_analysis.json"
@@ -691,7 +689,7 @@
       "human_attention_required_count": 4,
       "next_pending_task": "recurring_monitor_legacy_trainer_runtime",
       "non_drift_selected_task": "recurring_monitor_legacy_trainer_runtime",
-      "queue_generated_at": "2026-05-15T16:47:21.445943+00:00",
+      "queue_generated_at": "2026-05-15T16:48:52.129828+00:00",
       "queue_status_path": "claude_worklog/agent_supervisor/status/queue_status.json"
     },
     "risk_gateway_tests": {
@@ -827,7 +825,7 @@
     "symbol_universe": {
       "age_seconds": 23,
       "blockers": [],
-      "generated_at": "2026-05-15T16:46:58Z",
+      "generated_at": "2026-05-15T16:48:58Z",
       "live_gate": "blocked_human_only",
       "live_symbols": [],
       "paper_symbols": [
@@ -840,7 +838,7 @@
       ]
     },
     "trade_permission": {
-      "age_seconds": 59580,
+      "age_seconds": 59700,
       "blockers": [
         "trade_permission_readonly_unknown"
       ],
@@ -871,15 +869,15 @@
         "legacy_log_feature_attribution_incomplete",
         "legacy_log_feature_snapshot_id_derived"
       ],
-      "checkpoint_id": "legacy_live_checkpoint_1778863544",
-      "generated_at": "2026-05-15T16:47:17Z",
+      "checkpoint_id": "legacy_live_checkpoint_1778863693",
+      "generated_at": "2026-05-15T16:49:17Z",
       "lineage_derivation_warnings": [
         "feature_snapshot_id_bridge_derived_from_legacy_redis_prediction_hash",
         "confidence_calibrated_bridge_derived_from_legacy_prediction_confidence",
         "top_features_absent_from_legacy_prediction_hash",
         "top_negative_features_absent_from_legacy_prediction_hash"
       ],
-      "model_checkpoint_id": "legacy_live_checkpoint_1778863544",
+      "model_checkpoint_id": "legacy_live_checkpoint_1778863693",
       "model_version": "legacy_hybrid_trainer_live_legacy",
       "path": "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json",
       "prediction_evidence_status": "LEGACY_HYBRID_TRAINER_PREDICTION_PRESENT",
@@ -955,7 +953,7 @@
     },
     "worker_porting": {
       "age_seconds": 43,
-      "as_of_utc": "2026-05-15T16:46:38Z",
+      "as_of_utc": "2026-05-15T16:48:38Z",
       "blocked_workers": [],
       "blockers": [
         "legacy_baseline_backfill_required"

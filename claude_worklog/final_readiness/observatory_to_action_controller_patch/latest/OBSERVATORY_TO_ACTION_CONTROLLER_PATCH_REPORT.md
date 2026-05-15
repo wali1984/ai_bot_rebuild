@@ -1,6 +1,6 @@
 # Observatory To Action Controller Patch
 
-Generated: `2026-05-15T09:36:32Z`
+Generated: `2026-05-15T16:49:06Z`
 
 This patch makes observatory findings actionable. It does not approve live trading, canary trading, or legacy shutdown.
 
