@@ -38,6 +38,16 @@ def _fill(*, seconds_ago: int, action: str = "OPEN_LONG", pnl_delta: float = -0.
     }
 
 
+def _closed_position(*, seconds_ago: int, pnl_delta: float = -0.03) -> dict[str, object]:
+    return {
+        "generated_at_ms": NOW_MS - seconds_ago * 1000,
+        "symbol": "BTCUSDT",
+        "ledger_action": "PAPER_POSITION_CLOSED",
+        "paper_result": "POSITION_CLOSED_PAPER_ONLY",
+        "realized_delta_usdt": pnl_delta,
+    }
+
+
 def _runtime(**kwargs: object):
     return build_canary_profile_tightening_runtime(now_ms_clock=lambda: NOW_MS, **kwargs)
 
@@ -121,6 +131,17 @@ def test_recent_loss_cooldown_is_blocked() -> None:
     )
 
     assert "loss_cooldown_active" in record["blockers"]
+
+
+def test_recent_closed_position_loss_cooldown_is_blocked_without_counting_as_fill() -> None:
+    record = _runtime(loss_cooldown_seconds=600).evaluate_now(
+        intent_payload=_intent(action="OPEN_SHORT"),
+        recent_events=[_closed_position(seconds_ago=120, pnl_delta=-0.25)],
+    )
+
+    assert "loss_cooldown_active" in record["blockers"]
+    assert record["recent_fill_stats"]["fills_last_hour"] == 0
+    assert record["recent_fill_stats"]["total_recent_fills"] == 0
 
 
 def test_runtime_rejects_bad_inputs() -> None:

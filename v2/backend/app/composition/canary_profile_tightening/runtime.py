@@ -181,6 +181,18 @@ def _is_fill(event: Mapping[str, Any]) -> bool:
     return event.get("paper_result") == "FILLED_PAPER_ONLY" or event.get("ledger_action") == "PAPER_FILL_SIMULATED"
 
 
+def _is_position_close(event: Mapping[str, Any]) -> bool:
+    return event.get("paper_result") == "POSITION_CLOSED_PAPER_ONLY" or event.get("ledger_action") == "PAPER_POSITION_CLOSED"
+
+
+def _event_pnl_delta(event: Mapping[str, Any]) -> float:
+    for key in ("paper_pnl_delta", "realized_delta_usdt", "realized_delta", "gross_pnl_usdt"):
+        value = _numeric(event.get(key))
+        if value is not None:
+            return value
+    return 0.0
+
+
 def _recent_fill_stats(
     *,
     now_ms: int,
@@ -199,22 +211,25 @@ def _recent_fill_stats(
     flip_churn = False
     loss_in_cooldown = False
     for event in events:
-        if not _is_fill(event):
+        is_fill = _is_fill(event)
+        is_position_close = _is_position_close(event)
+        if not is_fill and not is_position_close:
             continue
         event_ms = _event_ts_ms(event)
         if event_ms is None:
             continue
-        fills.append(event)
-        if event_ms >= last_hour_cutoff:
-            fills_last_hour += 1
+        if is_fill:
+            fills.append(event)
+            if event_ms >= last_hour_cutoff:
+                fills_last_hour += 1
         event_symbol = str(event.get("symbol") or "").upper()
         event_action = _event_action(event)
-        if event_symbol == symbol and event_ms >= cooldown_cutoff:
+        if is_fill and event_symbol == symbol and event_ms >= cooldown_cutoff:
             if event_action == action:
                 same_direction = True
             elif {event_action, action} <= {"OPEN_LONG", "OPEN_SHORT", "LONG", "SHORT"}:
                 flip_churn = True
-        if event_symbol == symbol and event_ms >= loss_cutoff and (_numeric(event.get("paper_pnl_delta")) or 0.0) < 0:
+        if event_symbol == symbol and event_ms >= loss_cutoff and _event_pnl_delta(event) < 0:
             loss_in_cooldown = True
     return {
         "fills_last_hour": fills_last_hour,

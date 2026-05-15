@@ -948,6 +948,12 @@ def append_paper_event(root: Path, payload: dict[str, Any], risk_runtime_payload
         "fill_rejected_reason": risk["risk_reason_code"] if is_blocked else None,
         "ledger_action": ledger_entry["ledger_action"],
         "paper_result": ledger_entry["paper_result"],
+        "exit_reason": ledger_entry.get("exit_reason"),
+        "realized_delta_usdt": ledger_entry.get("realized_delta_usdt"),
+        "gross_pnl_usdt": ledger_entry.get("gross_pnl_usdt"),
+        "paper_pnl_delta": ledger_entry.get("realized_delta_usdt")
+        if ledger_entry.get("realized_delta_usdt") is not None
+        else (-ledger_entry["fee_usdt"] if is_fill else 0.0),
         "confidence": confidence,
         "notional_usdt": ledger_entry["notional_usdt"],
         "fee_usdt": ledger_entry["fee_usdt"],
