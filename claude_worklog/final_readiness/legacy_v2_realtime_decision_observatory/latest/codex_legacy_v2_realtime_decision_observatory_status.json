@@ -12,7 +12,7 @@
   "does_not_approve_legacy_shutdown": true,
   "does_not_approve_live": true,
   "exchange_action_status": "ABSENT",
-  "generated_at": "2026-05-15T10:10:08Z",
+  "generated_at": "2026-05-15T10:14:06Z",
   "go_no_go": "CODEX_LEGACY_V2_REALTIME_DECISION_OBSERVATORY_READY",
   "legacy_ingestion_health": "STALE",
   "legacy_shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
@@ -29,15 +29,15 @@
   "no_trade_correctness": "PENDING_OUTCOME",
   "old_redis_write_status": "ABSENT",
   "paper_edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
-  "paper_pnl_visible": -49.197409,
-  "paper_shadow_false_block_count": 15,
+  "paper_pnl_visible": -49.186177,
+  "paper_shadow_false_block_count": 14,
   "paper_shadow_outcome": "OUTCOME_PENDING_SOURCE_LIMITED",
   "paper_shadow_outcome_observer_status": "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED",
   "read_only_legacy_reference": true,
   "recommendations_generated": [
     {
       "priority": "P0",
-      "reason": "Shadow outcome observer found 15 blocked intents that beat costs; current false-block reasons show expected-move coverage/model review is required.",
+      "reason": "Shadow outcome observer found 14 blocked intents that beat costs; current false-block reasons show expected-move coverage/model review is required.",
       "required_result": "Increase native or explicitly accepted expected_move_after_cost_bps coverage from trainer/feature evidence; do not use future outcome labels to permit fills and do not loosen the strict paper fill gate.",
       "task_id": "claude_improve_expected_move_after_cost_coverage_from_shadow_false_blocks"
     },

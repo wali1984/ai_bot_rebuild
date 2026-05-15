@@ -4,7 +4,7 @@
   "comparisons": [
     {
       "comparator_result": "LEGACY_SIGNAL_MISSING_V2_PRESENT",
-      "comparison_id": "cmp_a17cf5ec58592ea5",
+      "comparison_id": "cmp_7606adb891a3f65c",
       "cost_breakdown_bps": {
         "estimated_cost_bps": 6.0,
         "fee_bps": null,
@@ -13,10 +13,10 @@
         "spread_bps": null
       },
       "disagreement_reasons": [
-        "cooldown_block",
+        "edge_below_cost",
         "risk_gate_block"
       ],
-      "expected_move_after_cost_bps": 3.76541295,
+      "expected_move_after_cost_bps": -2.03805006,
       "feature_freshness_state": "CURRENT",
       "legacy_confidence": null,
       "legacy_prediction_id": null,
@@ -33,20 +33,20 @@
       },
       "timeframe": "1m",
       "v2_block_reason": [
-        "same_symbol_same_direction_cooldown"
+        "expected_edge_below_costs"
       ],
-      "v2_confidence": 0.8,
+      "v2_confidence": 0.795263,
       "v2_confidence_bucket": "0.75_plus",
-      "v2_feature_snapshot_id": "fs_paper_tick_1778839791481",
-      "v2_prediction_id": "pred_paper_tick_1778839791481",
+      "v2_feature_snapshot_id": "fs_paper_tick_1778840022416",
+      "v2_prediction_id": "pred_paper_tick_1778840022416",
       "v2_reason": "deny_canary_profile_tightening"
     }
   ],
   "exchange_action_taken": false,
-  "generated_at": "2026-05-15T10:10:08Z",
+  "generated_at": "2026-05-15T10:14:06Z",
   "latest_comparison": {
     "comparator_result": "LEGACY_SIGNAL_MISSING_V2_PRESENT",
-    "comparison_id": "cmp_a17cf5ec58592ea5",
+    "comparison_id": "cmp_7606adb891a3f65c",
     "cost_breakdown_bps": {
       "estimated_cost_bps": 6.0,
       "fee_bps": null,
@@ -55,10 +55,10 @@
       "spread_bps": null
     },
     "disagreement_reasons": [
-      "cooldown_block",
+      "edge_below_cost",
       "risk_gate_block"
     ],
-    "expected_move_after_cost_bps": 3.76541295,
+    "expected_move_after_cost_bps": -2.03805006,
     "feature_freshness_state": "CURRENT",
     "legacy_confidence": null,
     "legacy_prediction_id": null,
@@ -75,12 +75,12 @@
     },
     "timeframe": "1m",
     "v2_block_reason": [
-      "same_symbol_same_direction_cooldown"
+      "expected_edge_below_costs"
     ],
-    "v2_confidence": 0.8,
+    "v2_confidence": 0.795263,
     "v2_confidence_bucket": "0.75_plus",
-    "v2_feature_snapshot_id": "fs_paper_tick_1778839791481",
-    "v2_prediction_id": "pred_paper_tick_1778839791481",
+    "v2_feature_snapshot_id": "fs_paper_tick_1778840022416",
+    "v2_prediction_id": "pred_paper_tick_1778840022416",
     "v2_reason": "deny_canary_profile_tightening"
   },
   "legacy_mutation_performed": false,

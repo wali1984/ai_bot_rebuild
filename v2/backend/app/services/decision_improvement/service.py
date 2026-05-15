@@ -5,6 +5,15 @@ from typing import Any, Mapping
 from v2.backend.app.services.legacy_v2_observatory_common import LIVE_GATE_STATUS, safety_footer, utc_now
 
 
+def _nested_get(payload: Mapping[str, Any], *keys: str) -> Any:
+    current: Any = payload
+    for key in keys:
+        if not isinstance(current, Mapping):
+            return None
+        current = current.get(key)
+    return current
+
+
 def build_decision_improvement_recommendations(
     *,
     scoreboard_status: Mapping[str, Any],
@@ -19,6 +28,17 @@ def build_decision_improvement_recommendations(
     paper_edge_status = paper_edge_status or {}
     false_block_count = int(shadow_outcome_status.get("false_block_count") or 0)
     resolved_controls = set(paper_edge_status.get("resolved_controls") or [])
+    expected_move_review = (
+        paper_edge_status.get("expected_move_after_cost_false_block_model_review")
+        or _nested_get(paper_edge_status, "paper_pnl", "expected_move_after_cost_false_block_model_review")
+        or {}
+    )
+    expected_move_review_ready = (
+        expected_move_review.get("classification")
+        == "EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_READY_EDGE_PENDING"
+        or expected_move_review.get("remediation_status")
+        == "PAPER_EXPECTED_MOVE_COVERAGE_REMEDIATION_READY"
+    )
     core_edge_controls = {
         "missing_expected_move_after_cost_bps_blocks_fill",
         "missing_trainer_source_blocks_fill",
@@ -65,7 +85,7 @@ def build_decision_improvement_recommendations(
                 "required_result": "Every intent/fill/block carries trainer_source and feature_freshness_state.",
             },
         )
-    if false_block_count > 0:
+    if false_block_count > 0 and not expected_move_review_ready:
         tasks.insert(
             0,
             {

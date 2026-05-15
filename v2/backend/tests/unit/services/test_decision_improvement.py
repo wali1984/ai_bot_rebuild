@@ -53,3 +53,33 @@ def test_resolved_per_fill_fields_are_not_requeued() -> None:
     assert "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection" not in task_ids
     assert status["live_gate"] == "blocked_human_only"
     assert status["live_symbols"] == []
+
+
+def test_completed_expected_move_review_is_not_requeued_for_historical_false_blocks() -> None:
+    status = build_decision_improvement_recommendations(
+        scoreboard_status={},
+        paper_edge_status={
+            "resolved_controls": [
+                "missing_expected_move_after_cost_bps_blocks_fill",
+                "missing_trainer_source_blocks_fill",
+                "missing_feature_freshness_state_blocks_fill",
+                "symbol_not_in_paper_symbols_blocks_fill",
+                "confidence_alone_cannot_allow_fill",
+            ],
+            "paper_pnl": {
+                "expected_move_after_cost_false_block_model_review": {
+                    "classification": "EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_READY_EDGE_PENDING"
+                }
+            },
+        },
+        shadow_outcome_status={
+            "false_block_count": 15,
+            "outcome_status": "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED",
+        },
+    )
+
+    task_ids = [task["task_id"] for task in status["next_tasks"]]
+    assert "claude_improve_expected_move_after_cost_coverage_from_shadow_false_blocks" not in task_ids
+    assert status["shadow_false_block_count"] == 15
+    assert status["live_gate"] == "blocked_human_only"
+    assert status["live_symbols"] == []

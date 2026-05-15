@@ -1,78 +1,78 @@
 {
   "all_event_detail": {
-    "blocked_count": 2866,
+    "blocked_count": 2903,
     "canary_profile_tightening_blocker_distribution": {
-      "confidence_below_canary_threshold": 836,
-      "expected_edge_below_costs": 58,
+      "confidence_below_canary_threshold": 842,
+      "expected_edge_below_costs": 67,
       "fill_frequency_exceeds_canary_limit": 85,
       "flip_churn_cooldown": 5,
       "missing_expected_move_after_costs": 2201,
       "paper_outcome_model_missing": 25,
-      "same_symbol_same_direction_cooldown": 37
+      "same_symbol_same_direction_cooldown": 46
     },
     "confidence_bucket_distribution": {
-      "0.58_to_0.65": 811,
-      "0.65_to_0.75": 1021,
-      "0.75_plus": 2828,
-      "below_0.58": 479
+      "0.58_to_0.65": 814,
+      "0.65_to_0.75": 1024,
+      "0.75_plus": 2854,
+      "below_0.58": 485
     },
-    "cumulative_pnl_delta_usdt": -22.827409,
-    "event_count": 5139,
+    "cumulative_pnl_delta_usdt": -22.816177,
+    "event_count": 5177,
     "exchange_order_events": 0,
-    "fee_usdt": 22.73,
+    "fee_usdt": 22.74,
     "fill_confidence_bucket_distribution": {
       "0.58_to_0.65": 454,
       "0.65_to_0.75": 542,
-      "0.75_plus": 1277
+      "0.75_plus": 1278
     },
-    "fill_count": 2273,
-    "fill_expected_move_after_cost_present_count": 3,
-    "fill_feature_freshness_present_count": 3,
+    "fill_count": 2274,
+    "fill_expected_move_after_cost_present_count": 4,
+    "fill_feature_freshness_present_count": 4,
     "fill_risk_reason_distribution": {
-      "allow_proceed_long": 1157,
+      "allow_proceed_long": 1158,
       "allow_proceed_short": 1116
     },
     "fill_symbol_distribution": {
-      "BTCUSDT": 2273
+      "BTCUSDT": 2274
     },
-    "fill_trainer_source_present_count": 3,
+    "fill_trainer_source_present_count": 4,
     "first_cumulative_pnl_usdt": -26.37,
     "first_event_at": "2026-05-13T07:21:34Z",
-    "last_cumulative_pnl_usdt": -49.197409,
-    "last_event_at": "2026-05-15T09:52:01Z",
+    "last_cumulative_pnl_usdt": -49.186177,
+    "last_event_at": "2026-05-15T10:13:09Z",
     "live_gate_values": {
-      "blocked_human_only": 5139
+      "blocked_human_only": 5177
     },
-    "notional_usdt": 56825.0,
+    "notional_usdt": 56850.0,
     "old_redis_write_events": 0,
     "risk_reason_distribution": {
-      "allow_proceed_long": 1157,
+      "allow_proceed_long": 1158,
       "allow_proceed_short": 1116,
-      "deny_canary_profile_tightening": 2382,
-      "deny_low_confidence": 299,
+      "deny_canary_profile_tightening": 2413,
+      "deny_low_confidence": 303,
       "deny_orchestrator_held": 177,
       "deny_paper_outcome_model_missing": 5,
-      "deny_stale_market_feed": 3
+      "deny_stale_market_feed": 5
     },
     "slippage_bps_assumption_values": {
-      "2.0": 2273
+      "2.0": 2274
     },
-    "slippage_usdt_estimate_not_separately_booked": 11.365,
+    "slippage_usdt_estimate_not_separately_booked": 11.37,
     "symbol_distribution": {
-      "BTCUSDT": 5139
+      "BTCUSDT": 5177
     }
   },
   "classification": "PAPER_LOSS_ATTRIBUTION_READY_SOURCE_LIMITED",
   "feature_freshness": {
-    "current_market_age_seconds": 7,
+    "current_market_age_seconds": 9,
     "current_paper_runtime_feature_freshness": "CURRENT",
     "feature_pipeline_freshness_seconds": 12,
     "feature_pipeline_last_run_ts": "2026-05-14T22:42:09Z",
     "per_fill_feature_freshness": "SOURCE_LIMITED_MIXED_POST_FILTER_COVERAGE",
-    "stale_market_feed_denials_post_filter": 2,
+    "stale_market_feed_denials_post_filter": 4,
     "stale_market_feed_denials_pre_filter": 1
   },
-  "generated_at": "2026-05-15T09:52:19Z",
+  "generated_at": "2026-05-15T10:13:28Z",
   "go_no_go": "PAPER_LOSS_ATTRIBUTION_READY_SOURCE_LIMITED",
   "observed_pre_filter_loss_breakdown": {
     "churn_flip_count": 193,
@@ -108,12 +108,12 @@
     "stricter_canary_profile_would_block_count": 996
   },
   "pnl_waterfall": {
-    "current_cumulative_paper_pnl_usdt": -49.197409,
+    "current_cumulative_paper_pnl_usdt": -49.186177,
     "note": "Only the observed pre-filter event delta has per-fill dimensional attribution. The prior baseline is cumulative source-limited evidence.",
     "observed_pre_filter_pnl_delta_usdt": -22.75,
     "post_filter_event_stream_newer_than_observation_packet": true,
     "post_filter_pnl_delta_source": "paper_events_jsonl_post_filter_window_current",
-    "post_filter_pnl_delta_usdt": -0.077409,
+    "post_filter_pnl_delta_usdt": -0.066177,
     "reconciles_to_current_cumulative_pnl": true,
     "source_limited_prior_baseline_loss_usdt": -26.37
   },
@@ -122,67 +122,67 @@
     "paper_edge_positive_proven": false,
     "post_filter_churn_events": 2,
     "post_filter_safety_classification": "POST_FILTER_FILLS_OBSERVED_LOSS_SOURCE_LIMITED",
-    "post_filter_window_end_utc": "2026-05-15T09:52:01Z",
+    "post_filter_window_end_utc": "2026-05-15T10:13:09Z",
     "post_filter_window_start_utc": "2026-05-14T22:40:46Z"
   },
   "post_filter_event_detail": {
-    "blocked_count": 1225,
+    "blocked_count": 1262,
     "canary_profile_tightening_blocker_distribution": {
-      "confidence_below_canary_threshold": 410,
-      "expected_edge_below_costs": 58,
+      "confidence_below_canary_threshold": 416,
+      "expected_edge_below_costs": 67,
       "flip_churn_cooldown": 2,
       "missing_expected_move_after_costs": 925,
       "paper_outcome_model_missing": 25,
-      "same_symbol_same_direction_cooldown": 31
+      "same_symbol_same_direction_cooldown": 40
     },
     "confidence_bucket_distribution": {
-      "0.58_to_0.65": 163,
-      "0.65_to_0.75": 247,
-      "0.75_plus": 705,
-      "below_0.58": 114
+      "0.58_to_0.65": 166,
+      "0.65_to_0.75": 250,
+      "0.75_plus": 731,
+      "below_0.58": 120
     },
-    "cumulative_pnl_delta_usdt": -0.077409,
-    "event_count": 1229,
+    "cumulative_pnl_delta_usdt": -0.066177,
+    "event_count": 1267,
     "exchange_order_events": 0,
-    "fee_usdt": 0.04,
+    "fee_usdt": 0.05,
     "fill_confidence_bucket_distribution": {
-      "0.75_plus": 4
+      "0.75_plus": 5
     },
-    "fill_count": 4,
-    "fill_expected_move_after_cost_present_count": 3,
-    "fill_feature_freshness_present_count": 3,
+    "fill_count": 5,
+    "fill_expected_move_after_cost_present_count": 4,
+    "fill_feature_freshness_present_count": 4,
     "fill_risk_reason_distribution": {
-      "allow_proceed_long": 1,
+      "allow_proceed_long": 2,
       "allow_proceed_short": 3
     },
     "fill_symbol_distribution": {
-      "BTCUSDT": 4
+      "BTCUSDT": 5
     },
-    "fill_trainer_source_present_count": 3,
+    "fill_trainer_source_present_count": 4,
     "first_cumulative_pnl_usdt": -49.12,
     "first_event_at": "2026-05-14T22:41:02Z",
-    "last_cumulative_pnl_usdt": -49.197409,
-    "last_event_at": "2026-05-15T09:52:01Z",
+    "last_cumulative_pnl_usdt": -49.186177,
+    "last_event_at": "2026-05-15T10:13:09Z",
     "live_gate_values": {
-      "blocked_human_only": 1229
+      "blocked_human_only": 1267
     },
-    "notional_usdt": 100.0,
+    "notional_usdt": 125.0,
     "old_redis_write_events": 0,
     "risk_reason_distribution": {
-      "allow_proceed_long": 1,
+      "allow_proceed_long": 2,
       "allow_proceed_short": 3,
-      "deny_canary_profile_tightening": 1106,
-      "deny_low_confidence": 66,
+      "deny_canary_profile_tightening": 1137,
+      "deny_low_confidence": 70,
       "deny_orchestrator_held": 46,
       "deny_paper_outcome_model_missing": 5,
-      "deny_stale_market_feed": 2
+      "deny_stale_market_feed": 4
     },
     "slippage_bps_assumption_values": {
-      "2.0": 4
+      "2.0": 5
     },
-    "slippage_usdt_estimate_not_separately_booked": 0.02,
+    "slippage_usdt_estimate_not_separately_booked": 0.025,
     "symbol_distribution": {
-      "BTCUSDT": 1229
+      "BTCUSDT": 1267
     }
   },
   "pre_filter_event_detail": {
@@ -276,7 +276,7 @@
     ],
     "invalid_jsonl_rows": 1,
     "source_limited_prior_baseline_present": true,
-    "valid_jsonl_events": 5139
+    "valid_jsonl_events": 5177
   },
   "source_limitations": {
     "cooldown_violation_for_pre_filter_allowed_fills": "SOURCE_LIMITED_TO_CANARY_BLOCKER_COUNTS_AND_AUDIT",
@@ -290,7 +290,7 @@
   "task_id": "paper_loss_attribution",
   "trainer_source": {
     "current_paper_runtime_trainer_source": "LEGACY_HYBRID_TRAINER_REDIS_READONLY",
-    "current_prediction_id": "pred_paper_tick_1778838721711",
+    "current_prediction_id": "pred_paper_tick_1778839989410",
     "per_fill_trainer_source": "SOURCE_LIMITED_MIXED_POST_FILTER_COVERAGE",
     "trainer_bridge_field_classification": {
       "confidence_calibration": "DERIVED_FROM_LEGACY_LOG",

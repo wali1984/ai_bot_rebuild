@@ -1,6 +1,6 @@
 # CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP
 
-As of: 2026-05-15T09:53:28Z
+As of: 2026-05-15T10:14:29Z
 
 Loop marker: `CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP_READY`
 Shutdown recommendation: `BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE`
@@ -36,8 +36,8 @@ Legacy shutdown remains blocked because required parity, edge, dependency, or sa
 - copied full-closure files: `250`
 - binary blobs inventoried only: `139`
 - Redis users / exchange API users / config importers: `49` / `43` / `100`
-- paper runtime: `fresh`, PnL=`-49.197409`, action=`PAPER_INTENT_BLOCKED`
-- post-filter paper: `POST_FILTER_EDGE_PENDING`, delta=`-0.077409`, fills=`4`, no_unsafe_fills=`False`
+- paper runtime: `fresh`, PnL=`-49.186177`, action=`PAPER_INTENT_BLOCKED`
+- post-filter paper: `POST_FILTER_EDGE_PENDING`, delta=`-0.066177`, fills=`5`, no_unsafe_fills=`False`
 - trainer bridge: `LEGACY_HYBRID_TRAINER_PREDICTION_PRESENT`, accepted=`True`
 - trainer derived evidence: `V2_TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_REQUIRED`, operator_acceptance_required=`True`
 - trade permission: `TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY`, paper_only=`OPERATOR_DECISION_REQUIRED`, live_canary=`P2_LIVE_ONLY_BLOCKED`

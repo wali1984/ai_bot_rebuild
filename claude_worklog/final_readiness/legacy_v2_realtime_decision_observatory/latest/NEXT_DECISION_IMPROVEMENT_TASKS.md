@@ -1,13 +1,13 @@
 # Next Decision Improvement Tasks
 
-Generated: `2026-05-15T10:10:08Z`
+Generated: `2026-05-15T10:14:06Z`
 
 This queue is V2 paper/shadow only and does not approve live trading or legacy shutdown.
 
 ## claude_improve_expected_move_after_cost_coverage_from_shadow_false_blocks
 
 - priority: `P0`
-- reason: Shadow outcome observer found 15 blocked intents that beat costs; current false-block reasons show expected-move coverage/model review is required.
+- reason: Shadow outcome observer found 14 blocked intents that beat costs; current false-block reasons show expected-move coverage/model review is required.
 - required result: Increase native or explicitly accepted expected_move_after_cost_bps coverage from trainer/feature evidence; do not use future outcome labels to permit fills and do not loosen the strict paper fill gate.
 
 ## claude_add_shadow_outcome_learning_for_blocked_intents
