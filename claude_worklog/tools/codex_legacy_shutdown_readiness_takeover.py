@@ -98,6 +98,10 @@ REQUIRED_TRAINER_PACKAGES = ["torch", "stable_baselines3", "cloudpickle", "gymna
 GENUINE_UNRESOLVED_IMPORTS = ["ingest", "binance_websocket", "hybrid_rule_based_signals"]
 TRAINER_LINEAGE_ATTRIBUTION_TASK_ID = "claude_v2_trainer_lineage_attribution_parity_remediation"
 TRAINER_LINEAGE_ATTRIBUTION_REVIEW_ID = "codex_review_v2_trainer_lineage_attribution_parity"
+TRAINER_DERIVED_ACCEPTANCE_TASK_ID = "claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet"
+TRAINER_DERIVED_ACCEPTANCE_REVIEW_ID = "codex_review_v2_trainer_derived_evidence_acceptance_or_native_parity_packet"
+PAPER_EDGE_POST_FILTER_TASK_ID = "paper_edge_post_filter_observation_window"
+PAPER_EDGE_POST_FILTER_REVIEW_ID = "codex_review_paper_edge_post_filter_observation_window"
 TRAINER_LINEAGE_ATTRIBUTION_BLOCKERS = {
     "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED",
     "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
@@ -125,6 +129,7 @@ REMEDIATION_PRIORITY = [
     "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map",
     "claude_port_v2_trainer_bridge_full_legacy_parity",
     TRAINER_LINEAGE_ATTRIBUTION_TASK_ID,
+    TRAINER_DERIVED_ACCEPTANCE_TASK_ID,
     "claude_port_v2_signal_publisher_from_legacy_schema",
     "claude_remediate_v2_orchestrator_adapter_legacy_parity",
     "claude_remediate_v2_market_ingestor_full_runtime_sha_backfill",
@@ -133,6 +138,7 @@ REMEDIATION_PRIORITY = [
     "claude_remediate_account_position_monitor_shutdown_parity",
     "claude_audit_stale_public_payloads_and_freshness_guard",
     "claude_replay_paper_edge_repair_from_legacy_trainer_output",
+    PAPER_EDGE_POST_FILTER_TASK_ID,
 ]
 
 TEMPLATE_TASKS = [
@@ -141,8 +147,10 @@ TEMPLATE_TASKS = [
     "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map",
     "claude_port_v2_trainer_bridge_full_legacy_parity",
     TRAINER_LINEAGE_ATTRIBUTION_TASK_ID,
+    TRAINER_DERIVED_ACCEPTANCE_TASK_ID,
     "claude_port_v2_signal_publisher_from_legacy_schema",
     "claude_audit_stale_public_payloads_and_freshness_guard",
+    PAPER_EDGE_POST_FILTER_TASK_ID,
 ]
 
 CODEX_REVIEW_IDS = {
@@ -151,8 +159,10 @@ CODEX_REVIEW_IDS = {
     "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map": "codex_review_v2_risk_gateway_legacy_action_parity_tests",
     "claude_port_v2_trainer_bridge_full_legacy_parity": "codex_review_v2_trainer_full_legacy_parity",
     TRAINER_LINEAGE_ATTRIBUTION_TASK_ID: TRAINER_LINEAGE_ATTRIBUTION_REVIEW_ID,
+    TRAINER_DERIVED_ACCEPTANCE_TASK_ID: TRAINER_DERIVED_ACCEPTANCE_REVIEW_ID,
     "claude_port_v2_signal_publisher_from_legacy_schema": "codex_review_v2_signal_publisher_legacy_schema_parity",
     "claude_audit_stale_public_payloads_and_freshness_guard": "codex_review_public_payload_freshness_shutdown_readiness",
+    PAPER_EDGE_POST_FILTER_TASK_ID: PAPER_EDGE_POST_FILTER_REVIEW_ID,
 }
 
 
@@ -948,7 +958,9 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
     for item in trainer.get("blockers", []):
         blocker_id = "WRAPPER_NOT_LEGACY_HYBRID_PARITY" if "wrapper" in item or "legacy_hybrid" in item else item.upper()
         task_id = (
-            TRAINER_LINEAGE_ATTRIBUTION_TASK_ID
+            TRAINER_DERIVED_ACCEPTANCE_TASK_ID
+            if blocker_id in TRAINER_LINEAGE_ATTRIBUTION_BLOCKERS and codex_passed(TRAINER_LINEAGE_ATTRIBUTION_TASK_ID)
+            else TRAINER_LINEAGE_ATTRIBUTION_TASK_ID
             if blocker_id in TRAINER_LINEAGE_ATTRIBUTION_BLOCKERS
             else "claude_port_v2_trainer_bridge_full_legacy_parity"
         )
@@ -973,6 +985,11 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
         )
 
     paper = evidence["paper_runtime"]
+    paper_task_id = (
+        PAPER_EDGE_POST_FILTER_TASK_ID
+        if codex_passed("claude_replay_paper_edge_repair_from_legacy_trainer_output")
+        else "claude_replay_paper_edge_repair_from_legacy_trainer_output"
+    )
     for item in paper.get("blockers", []):
         if item == "paper_realized_pnl_negative":
             bid = "PAPER_PNL_NEGATIVE_BLOCKS_CANARY"
@@ -980,7 +997,7 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
             bid = "PAPER_EDGE_UNPROVEN"
         else:
             bid = item.upper()
-        blockers.append(blocker(bid, "P0_SHUTDOWN_BLOCKER", f"paper_runtime: {item}", "claude_replay_paper_edge_repair_from_legacy_trainer_output"))
+        blockers.append(blocker(bid, "P0_SHUTDOWN_BLOCKER", f"paper_runtime: {item}", paper_task_id))
 
     paper_shadow = evidence["paper_shadow"]
     for item in paper_shadow.get("blockers", []):
@@ -989,7 +1006,7 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
     edge = evidence["paper_edge"]
     for item in edge.get("blockers", []):
         bid = "PAPER_PNL_NEGATIVE_BLOCKS_CANARY" if "negative" in item else "PAPER_EDGE_UNPROVEN"
-        blockers.append(blocker(bid, "P0_SHUTDOWN_BLOCKER", f"paper_edge: {item}", "claude_replay_paper_edge_repair_from_legacy_trainer_output"))
+        blockers.append(blocker(bid, "P0_SHUTDOWN_BLOCKER", f"paper_edge: {item}", paper_task_id))
 
     trade = evidence["trade_permission"]
     for item in trade.get("blockers", []):
@@ -1073,6 +1090,10 @@ def classify_shutdown(evidence: Dict[str, Any], blockers: List[Dict[str, Any]]) 
 def task_output_dir(task_id: str) -> Path:
     if task_id == TRAINER_LINEAGE_ATTRIBUTION_TASK_ID:
         return ROOT / "claude_worklog/final_readiness/trainer_lineage_attribution_parity/latest"
+    if task_id == TRAINER_DERIVED_ACCEPTANCE_TASK_ID:
+        return ROOT / "claude_worklog/final_readiness/trainer_derived_evidence_acceptance/latest"
+    if task_id == PAPER_EDGE_POST_FILTER_TASK_ID:
+        return ROOT / "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest"
     return OUT / "claude_tasks" / task_id
 
 
@@ -1083,6 +1104,10 @@ def review_task_id_for(task_id: str) -> str:
 def codex_output_dir(task_id: str) -> Path:
     if task_id == TRAINER_LINEAGE_ATTRIBUTION_TASK_ID:
         return ROOT / "claude_worklog/final_readiness/trainer_lineage_attribution_parity/latest/codex_review"
+    if task_id == TRAINER_DERIVED_ACCEPTANCE_TASK_ID:
+        return ROOT / "claude_worklog/final_readiness/trainer_derived_evidence_acceptance/latest/codex_review"
+    if task_id == PAPER_EDGE_POST_FILTER_TASK_ID:
+        return ROOT / "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/codex_review"
     return OUT / "codex_reviews" / review_task_id_for(task_id)
 
 
@@ -1140,6 +1165,76 @@ def claude_prompt(task_id: str) -> str:
             "otherwise keep BLOCKED.\n"
             f"BEGIN_FILE: {out}/GO_NO_GO.md\n"
             "V2_TRAINER_LINEAGE_ATTRIBUTION_PARITY_BLOCKED\n"
+            "END_FILE\n"
+        )
+    if task_id == TRAINER_DERIVED_ACCEPTANCE_TASK_ID:
+        return (
+            common
+            + "Task: Build V2_TRAINER_DERIVED_EVIDENCE_ACCEPTANCE_OR_NATIVE_PARITY_PACKET_READY. "
+            "The trainer bridge is no longer blocked by WRAPPER_NOT_LEGACY_HYBRID_PARITY, but shutdown remains blocked because "
+            "feature_snapshot_id and confidence calibration are derived from legacy logs and feature attribution is incomplete. "
+            "Determine whether native legacy or V2 trainer evidence can be produced. If native evidence is unavailable, create an "
+            "explicit operator acceptance packet for V2 paper-only shutdown without claiming full live or canary readiness.\n\n"
+            "Inspect: current v2_trainer_bridge payload; preserved rl/hybrid_trainer.py, rl/unified_feature_builder.py, rl/obs_schema.py, "
+            "rl/confidence_gates.py, rl/calibrated_confidence.py if present, rl/decision_trace.py, and rl/feature_health.py; preserved "
+            "trainer logs/read-only evidence; v2_feature_snapshot_builder payload; v2_feature_pipeline_and_ta_worker payload; and Symbol "
+            "Universe payload.\n\n"
+            "Try to locate native evidence for feature_snapshot_id, confidence_raw, confidence_calibrated, top positive features, top "
+            "negative features, and stale/missing/unused feature flags. Classify each field using only: NATIVE_FIELD_PRESENT, "
+            "DERIVED_FROM_LEGACY_LOG, DERIVED_FROM_V2_SNAPSHOT_LINK, MISSING_EVIDENCE, or INCOMPLETE_ATTRIBUTION. If native evidence "
+            "exists, wire it into the V2 trainer bridge payload, update tests, and leave live blocked. If native evidence does not exist, "
+            "keep blockers honest and write TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_PACKET.md stating clearly that derived evidence "
+            "may be acceptable for V2 paper-only shutdown only if the operator explicitly accepts it, is not acceptable for live/canary "
+            "readiness, and live remains blocked_human_only. Never fabricate feature attribution and never label derived evidence as native.\n\n"
+            "Output these required files exactly:\n"
+            f"BEGIN_FILE: {out}/TRAINER_DERIVED_EVIDENCE_ACCEPTANCE_REPORT.md\n"
+            "...report with inspected sources, native-evidence search result, tests run, and remaining gaps...\n"
+            "END_FILE\n\n"
+            f"BEGIN_FILE: {out}/trainer_field_evidence_matrix.json\n"
+            "{\"task_id\":\"claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet\","
+            "\"live_gate\":\"blocked_human_only\",\"field_matrix\":[],\"operator_acceptance_required\":true}\n"
+            "END_FILE\n\n"
+            f"BEGIN_FILE: {out}/TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_PACKET.md\n"
+            "...operator acceptance packet; no live readiness; no shutdown recommendation without explicit operator acceptance...\n"
+            "END_FILE\n\n"
+            "The GO_NO_GO.md body must contain exactly one line from the allowed set. Use native READY only if real native evidence clears "
+            "the required fields; use ACCEPTANCE_REQUIRED when derived/incomplete evidence remains but an operator paper-only acceptance "
+            "packet is complete; use BLOCKED if evidence cannot be classified safely.\n"
+            f"BEGIN_FILE: {out}/GO_NO_GO.md\n"
+            "V2_TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_REQUIRED\n"
+            "END_FILE\n\n"
+            "Also emit a public dashboard payload:\n"
+            "BEGIN_FILE: v2/frontend/public/trainer_derived_evidence_acceptance/latest/operator_dashboard_payload.json\n"
+            "{\"current_gate_state\":\"blocked_human_only\",\"live_symbols\":[],\"shutdown_recommendation\":\"BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE\"}\n"
+            "END_FILE\n"
+        )
+    if task_id == PAPER_EDGE_POST_FILTER_TASK_ID:
+        return (
+            common
+            + "Task: Build paper_edge_post_filter_observation_window. Separate old negative paper fills from behavior after "
+            "paper_canary_aligned_filter_v1 started gating paper fills. Prove whether the post-filter window prevents fee bleed and churn. "
+            "Do not treat the old -49.12 paper PnL as current post-filter PnL if no new fills are allowed. Do not mark paper edge proven "
+            "unless post-filter evidence actually supports it. This task never approves live and never approves legacy shutdown.\n\n"
+            "Read current paper runtime, paper shadow observation, paper execution worker status, execution ledger, signal lineage, trainer "
+            "payload, and paper_strategy_edge_tightening artifacts. Identify the filter activation evidence, post-filter observation start, "
+            "post-filter fills, post-filter denials, blocked intents, fees, churn, and realized/unrealized PnL deltas. Classify the result as "
+            "exactly one of: POST_FILTER_EDGE_PENDING, POST_FILTER_NO_UNSAFE_FILLS, POST_FILTER_POSITIVE_EDGE_PROVEN, "
+            "POST_FILTER_EDGE_STILL_UNPROVEN.\n\n"
+            "Output these required files exactly:\n"
+            f"BEGIN_FILE: {out}/PAPER_EDGE_POST_FILTER_OBSERVATION_REPORT.md\n"
+            "...report with post-filter window definition, fill/denial counts, PnL split, and blocker impact...\n"
+            "END_FILE\n\n"
+            f"BEGIN_FILE: {out}/paper_edge_post_filter_observation_status.json\n"
+            "{\"task_id\":\"paper_edge_post_filter_observation_window\",\"live_gate\":\"blocked_human_only\","
+            "\"classification\":\"POST_FILTER_EDGE_PENDING\",\"live_symbols\":[]}\n"
+            "END_FILE\n\n"
+            "The GO_NO_GO.md body must contain exactly one classification token:\n"
+            f"BEGIN_FILE: {out}/GO_NO_GO.md\n"
+            "POST_FILTER_EDGE_PENDING\n"
+            "END_FILE\n\n"
+            "Also emit a public dashboard payload:\n"
+            "BEGIN_FILE: v2/frontend/public/paper_edge_post_filter_observation_window/latest/operator_dashboard_payload.json\n"
+            "{\"live_gate\":\"blocked_human_only\",\"live_symbols\":[],\"classification\":\"POST_FILTER_EDGE_PENDING\"}\n"
             "END_FILE\n"
         )
     if task_id == "claude_resolve_remaining_unresolved_local_imports":
@@ -1288,6 +1383,96 @@ def claude_task_descriptor(task_id: str) -> Dict[str, Any]:
             "max_attempts": 1,
             "prompt": claude_prompt(task_id),
         }
+    if task_id == TRAINER_DERIVED_ACCEPTANCE_TASK_ID:
+        allowed = [
+            out + "/",
+            "v2/backend/app/",
+            "v2/backend/tests/",
+            "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/",
+            "v2/frontend/public/trainer_derived_evidence_acceptance/latest/",
+            rel(CLOSURE_DIR) + "/",
+            "claude_worklog/final_readiness/trainer_lineage_attribution_parity/latest/",
+        ]
+        return {
+            "task_id": task_id,
+            "agent": "claude",
+            "risk_level": "L2",
+            "live_gate": LIVE_GATE,
+            "status": "pending",
+            "cwd": str(ROOT),
+            "emit_files": True,
+            "lane": "shutdown_readiness_remediation",
+            "managed_by": "codex_legacy_shutdown_readiness_takeover",
+            "allowed_paths": ["v2/**", "claude_worklog/**", "requirements/**"],
+            "forbidden": [
+                "legacy_mutation",
+                "old_redis_write",
+                "exchange_action",
+                "leverage_change",
+                "margin_mode_change",
+                "live_gate_unlock",
+                "approval_token_creation",
+                "redis_trim_approval_creation",
+                "fabricated_feature_attribution",
+                "derived_evidence_mislabeled_native",
+                "live_readiness_implied",
+                "shutdown_recommended_without_operator_acceptance",
+            ],
+            "allowed_output_prefixes": allowed,
+            "required_output_files": [
+                f"{out}/GO_NO_GO.md",
+                f"{out}/TRAINER_DERIVED_EVIDENCE_ACCEPTANCE_REPORT.md",
+                f"{out}/trainer_field_evidence_matrix.json",
+                f"{out}/TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_PACKET.md",
+                "v2/frontend/public/trainer_derived_evidence_acceptance/latest/operator_dashboard_payload.json",
+            ],
+            "task_timeout_seconds": 1800,
+            "max_attempts": 1,
+            "prompt": claude_prompt(task_id),
+        }
+    if task_id == PAPER_EDGE_POST_FILTER_TASK_ID:
+        allowed = [
+            out + "/",
+            "v2/frontend/public/paper_edge_post_filter_observation_window/latest/",
+            "v2/frontend/public/operator_runtime/",
+            "claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/",
+            "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/",
+            "v2/backend/tests/",
+        ]
+        return {
+            "task_id": task_id,
+            "agent": "claude",
+            "risk_level": "L2",
+            "live_gate": LIVE_GATE,
+            "status": "pending",
+            "cwd": str(ROOT),
+            "emit_files": True,
+            "lane": "shutdown_readiness_remediation",
+            "managed_by": "codex_legacy_shutdown_readiness_takeover",
+            "allowed_paths": ["v2/**", "claude_worklog/**", "requirements/**"],
+            "forbidden": [
+                "legacy_mutation",
+                "old_redis_write",
+                "exchange_action",
+                "leverage_change",
+                "margin_mode_change",
+                "live_gate_unlock",
+                "approval_token_creation",
+                "redis_trim_approval_creation",
+                "old_negative_pnl_mislabeled_post_filter",
+                "paper_edge_proven_without_post_filter_evidence",
+            ],
+            "allowed_output_prefixes": allowed,
+            "required_output_files": [
+                f"{out}/GO_NO_GO.md",
+                f"{out}/PAPER_EDGE_POST_FILTER_OBSERVATION_REPORT.md",
+                f"{out}/paper_edge_post_filter_observation_status.json",
+                "v2/frontend/public/paper_edge_post_filter_observation_window/latest/operator_dashboard_payload.json",
+            ],
+            "task_timeout_seconds": 1800,
+            "max_attempts": 2,
+            "prompt": claude_prompt(task_id),
+        }
     return {
         "task_id": task_id,
         "agent": "claude",
@@ -1341,6 +1526,72 @@ def codex_review_descriptor(task_id: str) -> Dict[str, Any]:
             "feature flags are hidden, trainer parity is marked full while any lineage blocker remains, legacy Redis mutation evidence appears, "
             "exchange mutation appears, or live_gate changes. Verify GO_NO_GO.md has exactly one allowed token and that "
             "READY is used only when native evidence genuinely clears the three known blockers.\n\n"
+            "Emit exactly two BEGIN_FILE blocks:\n"
+            f"BEGIN_FILE: {out}/CODEX_REVIEW.md\n...findings with PASS/FAIL rationale...\nEND_FILE\n\n"
+            f"BEGIN_FILE: {out}/CODEX_GO_NO_GO.md\n{fail_token}\nEND_FILE\n"
+            f"Use {pass_token} instead only if every review condition passes.\n"
+        )
+        return {
+            "task_id": review_id,
+            "agent": "codex",
+            "risk_level": "L1",
+            "live_gate": LIVE_GATE,
+            "status": "pending",
+            "cwd": str(ROOT),
+            "emit_files": True,
+            "lane": "shutdown_readiness_remediation",
+            "managed_by": "codex_legacy_shutdown_readiness_takeover",
+            "allowed_output_prefixes": [out + "/"],
+            "required_output_files": [f"{out}/CODEX_REVIEW.md", f"{out}/CODEX_GO_NO_GO.md"],
+            "depends_on": [task_id],
+            "task_timeout_seconds": 1200,
+            "max_attempts": 1,
+            "prompt": prompt,
+        }
+    if task_id == TRAINER_DERIVED_ACCEPTANCE_TASK_ID:
+        pass_token = upper_token(task_id, "CODEX_PASS")
+        fail_token = upper_token(task_id, "CODEX_FAIL")
+        prompt = (
+            "You are Codex running the trainer derived-evidence/native-parity packet review. "
+            "Review the Claude outputs, V2 trainer bridge payload/code/tests, public dashboard payload, current shutdown controller status, "
+            "and read-only preserved legacy trainer evidence. Do not modify source files. Do not mutate legacy, old Redis, exchange state, "
+            "leverage, margin mode, or live trading. Keep live_gate=blocked_human_only.\n\n"
+            "Fail if derived evidence is mislabeled as native, feature attribution is fabricated, live/canary readiness is implied, "
+            "shutdown is recommended without explicit operator acceptance, old Redis write evidence appears, exchange mutation evidence appears, "
+            "approval tokens appear, live_symbols is non-empty, or GO_NO_GO.md does not contain exactly one allowed token.\n\n"
+            "Emit exactly two BEGIN_FILE blocks:\n"
+            f"BEGIN_FILE: {out}/CODEX_REVIEW.md\n...findings with PASS/FAIL rationale...\nEND_FILE\n\n"
+            f"BEGIN_FILE: {out}/CODEX_GO_NO_GO.md\n{fail_token}\nEND_FILE\n"
+            f"Use {pass_token} instead only if every review condition passes.\n"
+        )
+        return {
+            "task_id": review_id,
+            "agent": "codex",
+            "risk_level": "L1",
+            "live_gate": LIVE_GATE,
+            "status": "pending",
+            "cwd": str(ROOT),
+            "emit_files": True,
+            "lane": "shutdown_readiness_remediation",
+            "managed_by": "codex_legacy_shutdown_readiness_takeover",
+            "allowed_output_prefixes": [out + "/"],
+            "required_output_files": [f"{out}/CODEX_REVIEW.md", f"{out}/CODEX_GO_NO_GO.md"],
+            "depends_on": [task_id],
+            "task_timeout_seconds": 1200,
+            "max_attempts": 1,
+            "prompt": prompt,
+        }
+    if task_id == PAPER_EDGE_POST_FILTER_TASK_ID:
+        pass_token = upper_token(task_id, "CODEX_PASS")
+        fail_token = upper_token(task_id, "CODEX_FAIL")
+        prompt = (
+            "You are Codex running the paper-edge post-filter observation review. "
+            "Review the Claude outputs, current paper runtime/shadow payloads, paper execution worker status, and current shutdown controller state. "
+            "Do not modify source files. Do not mutate legacy, old Redis, exchange state, leverage, margin mode, or live trading. "
+            "Keep live_gate=blocked_human_only.\n\n"
+            "Fail if old negative PnL is mislabeled as post-filter PnL, paper edge is marked proven without post-filter evidence, live readiness is implied, "
+            "shutdown is recommended, old Redis write evidence appears, exchange mutation evidence appears, approval tokens appear, live_symbols is non-empty, "
+            "or GO_NO_GO.md does not contain exactly one allowed post-filter classification.\n\n"
             "Emit exactly two BEGIN_FILE blocks:\n"
             f"BEGIN_FILE: {out}/CODEX_REVIEW.md\n...findings with PASS/FAIL rationale...\nEND_FILE\n\n"
             f"BEGIN_FILE: {out}/CODEX_GO_NO_GO.md\n{fail_token}\nEND_FILE\n"

@@ -1,0 +1,45 @@
+{
+  "agent": "claude",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/",
+    "v2/frontend/public/paper_edge_post_filter_observation_window/latest/",
+    "v2/frontend/public/operator_runtime/",
+    "claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/",
+    "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/",
+    "v2/backend/tests/"
+  ],
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**",
+    "requirements/**"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "forbidden": [
+    "legacy_mutation",
+    "old_redis_write",
+    "exchange_action",
+    "leverage_change",
+    "margin_mode_change",
+    "live_gate_unlock",
+    "approval_token_creation",
+    "redis_trim_approval_creation",
+    "old_negative_pnl_mislabeled_post_filter",
+    "paper_edge_proven_without_post_filter_evidence"
+  ],
+  "lane": "shutdown_readiness_remediation",
+  "live_gate": "blocked_human_only",
+  "managed_by": "codex_legacy_shutdown_readiness_takeover",
+  "max_attempts": 2,
+  "prompt": "You are Claude running under the AI BOT REBUILD supervisor.\nScope: write only inside /home/wali/Desktop/AI BOT REBUILD. Read the legacy bot tree only as reference evidence. Use BEGIN_FILE blocks for every file you change; do not attempt direct filesystem writes from headless mode. Do not mutate legacy files, old Redis, exchange state, leverage, margin mode, or live trading. Do not create final approval or Redis trim approval tokens. Keep live_gate=blocked_human_only and live_symbols=[] in all payloads.\n\nTask: Build paper_edge_post_filter_observation_window. Separate old negative paper fills from behavior after paper_canary_aligned_filter_v1 started gating paper fills. Prove whether the post-filter window prevents fee bleed and churn. Do not treat the old -49.12 paper PnL as current post-filter PnL if no new fills are allowed. Do not mark paper edge proven unless post-filter evidence actually supports it. This task never approves live and never approves legacy shutdown.\n\nRead current paper runtime, paper shadow observation, paper execution worker status, execution ledger, signal lineage, trainer payload, and paper_strategy_edge_tightening artifacts. Identify the filter activation evidence, post-filter observation start, post-filter fills, post-filter denials, blocked intents, fees, churn, and realized/unrealized PnL deltas. Classify the result as exactly one of: POST_FILTER_EDGE_PENDING, POST_FILTER_NO_UNSAFE_FILLS, POST_FILTER_POSITIVE_EDGE_PROVEN, POST_FILTER_EDGE_STILL_UNPROVEN.\n\nOutput these required files exactly:\nBEGIN_FILE: claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/PAPER_EDGE_POST_FILTER_OBSERVATION_REPORT.md\n...report with post-filter window definition, fill/denial counts, PnL split, and blocker impact...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/paper_edge_post_filter_observation_status.json\n{\"task_id\":\"paper_edge_post_filter_observation_window\",\"live_gate\":\"blocked_human_only\",\"classification\":\"POST_FILTER_EDGE_PENDING\",\"live_symbols\":[]}\nEND_FILE\n\nThe GO_NO_GO.md body must contain exactly one classification token:\nBEGIN_FILE: claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/GO_NO_GO.md\nPOST_FILTER_EDGE_PENDING\nEND_FILE\n\nAlso emit a public dashboard payload:\nBEGIN_FILE: v2/frontend/public/paper_edge_post_filter_observation_window/latest/operator_dashboard_payload.json\n{\"live_gate\":\"blocked_human_only\",\"live_symbols\":[],\"classification\":\"POST_FILTER_EDGE_PENDING\"}\nEND_FILE\n",
+  "required_output_files": [
+    "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/GO_NO_GO.md",
+    "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/PAPER_EDGE_POST_FILTER_OBSERVATION_REPORT.md",
+    "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/paper_edge_post_filter_observation_status.json",
+    "v2/frontend/public/paper_edge_post_filter_observation_window/latest/operator_dashboard_payload.json"
+  ],
+  "risk_level": "L2",
+  "status": "pending",
+  "task_id": "paper_edge_post_filter_observation_window",
+  "task_timeout_seconds": 1800
+}

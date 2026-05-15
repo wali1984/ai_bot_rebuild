@@ -1,35 +1,35 @@
 {
-  "as_of_utc": "2026-05-15T00:33:14Z",
+  "as_of_utc": "2026-05-15T01:11:23Z",
   "blockers": [
     {
       "category": "P0_SHUTDOWN_BLOCKER",
       "evidence": "trainer_bridge: legacy_log_confidence_calibration_derived",
       "id": "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
-      "remediation_task_id": "claude_v2_trainer_lineage_attribution_parity_remediation"
+      "remediation_task_id": "claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet"
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
       "evidence": "trainer_bridge: legacy_log_feature_attribution_incomplete",
       "id": "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
-      "remediation_task_id": "claude_v2_trainer_lineage_attribution_parity_remediation"
+      "remediation_task_id": "claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet"
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
       "evidence": "trainer_bridge: legacy_log_feature_snapshot_id_derived",
       "id": "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED",
-      "remediation_task_id": "claude_v2_trainer_lineage_attribution_parity_remediation"
+      "remediation_task_id": "claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet"
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
       "evidence": "paper_runtime: paper_realized_pnl_negative",
       "id": "PAPER_PNL_NEGATIVE_BLOCKS_CANARY",
-      "remediation_task_id": "claude_replay_paper_edge_repair_from_legacy_trainer_output"
+      "remediation_task_id": "paper_edge_post_filter_observation_window"
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
       "evidence": "paper_runtime: current_paper_intent_blocked_or_unfilled",
       "id": "PAPER_EDGE_UNPROVEN",
-      "remediation_task_id": "claude_replay_paper_edge_repair_from_legacy_trainer_output"
+      "remediation_task_id": "paper_edge_post_filter_observation_window"
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
