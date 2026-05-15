@@ -615,6 +615,13 @@ def paper_runtime_evidence() -> Dict[str, Any]:
     age = age_seconds(generated_at)
     account = payload.get("paper_account") if isinstance(payload.get("paper_account"), dict) else {}
     latest = payload.get("latest_paper_ledger_entry") if isinstance(payload.get("latest_paper_ledger_entry"), dict) else {}
+    ledger_tail = payload.get("paper_ledger_tail")
+    if not latest and isinstance(ledger_tail, list) and ledger_tail and isinstance(ledger_tail[0], dict):
+        latest = ledger_tail[0]
+    if not latest and isinstance(payload.get("last_paper_event"), dict):
+        latest = payload["last_paper_event"]
+    lifecycle = payload.get("paper_position_lifecycle") if isinstance(payload.get("paper_position_lifecycle"), dict) else {}
+    open_position = lifecycle.get("open_position") if isinstance(lifecycle.get("open_position"), dict) else {}
     risk = payload.get("current_risk_decision") if isinstance(payload.get("current_risk_decision"), dict) else {}
     current_risk = payload.get("current_risk_decision") if isinstance(payload.get("current_risk_decision"), dict) else {}
     recent_fill_stats = {}
@@ -628,11 +635,18 @@ def paper_runtime_evidence() -> Dict[str, Any]:
         blockers.append("paper_runtime_payload_stale_or_missing")
     if isinstance(realized, (int, float)) and realized < 0:
         blockers.append("paper_realized_pnl_negative")
-    if latest.get("paper_action") == "PAPER_NOOP_BLOCKED" or latest.get("fill_price") is None:
+    open_position_count = account.get("open_position_count")
+    position_open = (
+        open_position_count and open_position_count > 0
+    ) or str(lifecycle.get("status") or "").upper() == "OPEN"
+    latest_action = latest.get("ledger_action") or latest.get("paper_action")
+    if position_open:
+        blockers.append("paper_position_outcome_pending")
+    elif latest_action in {"PAPER_NOOP_BLOCKED", "PAPER_INTENT_BLOCKED"} or latest.get("fill_price") is None:
         blockers.append("current_paper_intent_blocked_or_unfilled")
     total_recent_fills = recent_fill_stats.get("total_recent_fills")
     fills_last_hour = recent_fill_stats.get("fills_last_hour")
-    if total_recent_fills == 0 or fills_last_hour == 0:
+    if not position_open and (total_recent_fills == 0 or fills_last_hour == 0):
         blockers.append("fills_flat_recent_window")
     return {
         "path": rel(PAPER_RUNTIME),
@@ -641,8 +655,11 @@ def paper_runtime_evidence() -> Dict[str, Any]:
         "status": "fresh" if age is not None and age <= 180 else "stale",
         "realized_pnl": realized,
         "unrealized_pnl": account.get("unrealized_pnl"),
-        "latest_paper_action": latest.get("paper_action"),
-        "latest_fill_price": latest.get("fill_price"),
+        "latest_paper_action": latest_action,
+        "latest_fill_price": latest.get("fill_price") or open_position.get("entry_price"),
+        "open_position_count": open_position_count,
+        "position_lifecycle_status": lifecycle.get("status"),
+        "open_position": open_position,
         "fill_count": total_recent_fills,
         "fills_last_hour": fills_last_hour,
         "recent_fill_stats": recent_fill_stats,
@@ -1342,6 +1359,8 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
     for item in paper.get("blockers", []):
         if item == "paper_realized_pnl_negative":
             bid = "PAPER_PNL_NEGATIVE_BLOCKS_CANARY"
+        elif item == "paper_position_outcome_pending":
+            bid = "PAPER_EDGE_UNPROVEN"
         elif "fill" in item:
             bid = "PAPER_EDGE_UNPROVEN"
         else:
@@ -1356,13 +1375,20 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
                 f"post_filter_safety={post_filter.get('post_filter_safety_classification')}"
             )
         elif bid == "PAPER_EDGE_UNPROVEN" and post_filter.get("no_unsafe_fills") and not post_filter.get("positive_edge_proven"):
-            evidence_text = (
-                "post_filter_edge_pending: no unsafe post-filter fills observed, but zero fills means "
-                "positive edge is not proven; "
-                f"shadow_outcome={shadow_outcome.get('outcome_status') or 'missing'} "
-                f"completed={shadow_outcome.get('completed_observations')} "
-                f"pending={shadow_outcome.get('pending_observations')}"
-            )
+            if item == "paper_position_outcome_pending":
+                evidence_text = (
+                    "paper_position_outcome_pending: a strict-gate paper-only position is open; "
+                    "positive edge is not proven until the position closes net-positive after fees/slippage; "
+                    f"open_position_count={paper.get('open_position_count')} "
+                    f"unrealized_pnl={paper.get('unrealized_pnl')}"
+                )
+            else:
+                evidence_text = (
+                    "post_filter_edge_pending: no unsafe post-filter fills observed, but positive edge is not proven; "
+                    f"shadow_outcome={shadow_outcome.get('outcome_status') or 'missing'} "
+                    f"completed={shadow_outcome.get('completed_observations')} "
+                    f"pending={shadow_outcome.get('pending_observations')}"
+                )
         blockers.append(blocker(bid, category, evidence_text, paper_task_id))
 
     paper_shadow = evidence["paper_shadow"]

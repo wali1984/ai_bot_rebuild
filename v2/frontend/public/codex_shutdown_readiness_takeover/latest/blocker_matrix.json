@@ -1,5 +1,5 @@
 {
-  "as_of_utc": "2026-05-15T09:25:29Z",
+  "as_of_utc": "2026-05-15T09:36:32Z",
   "blockers": [
     {
       "category": "OPERATOR_DECISION_REQUIRED",
@@ -33,7 +33,7 @@
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "post_filter_edge_pending: no unsafe post-filter fills observed, but zero fills means positive edge is not proven; shadow_outcome=BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED completed=44 pending=28",
+      "evidence": "paper_position_outcome_pending: a strict-gate paper-only position is open; positive edge is not proven until the position closes net-positive after fees/slippage; open_position_count=1 unrealized_pnl=0.004375",
       "id": "PAPER_EDGE_UNPROVEN",
       "remediation_task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
     },

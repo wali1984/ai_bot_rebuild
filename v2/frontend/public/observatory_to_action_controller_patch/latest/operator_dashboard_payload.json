@@ -4,7 +4,7 @@
   "approves_live": false,
   "exchange_action_status": "absent",
   "final_approval_token": "absent",
-  "generated_at": "2026-05-15T09:25:29Z",
+  "generated_at": "2026-05-15T09:36:32Z",
   "go_no_go": "OBSERVATORY_TO_ACTION_CONTROLLER_PATCH_READY",
   "legacy_signal_comparison_classification": "MISSING_EVIDENCE_CANNOT_COMPARE",
   "legacy_signal_health": "STALE",

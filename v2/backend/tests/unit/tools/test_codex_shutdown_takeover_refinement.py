@@ -140,6 +140,49 @@ def test_outcome_guard_overrides_stale_pre_outcome_post_filter_fields(tmp_path, 
     assert evidence["paper_only_interpretation"] == "POST_FILTER_NO_UNSAFE_FILLS_EDGE_PENDING"
 
 
+def test_open_paper_position_is_outcome_pending_not_zero_fill_flatline(tmp_path, monkeypatch):
+    controller = _load_controller()
+    status_path = tmp_path / "paper_runtime_status.json"
+    status_path.write_text(
+        """
+{
+  "generated_at": "2026-05-15T09:34:30Z",
+  "paper_account": {
+    "open_position_count": 1,
+    "realized_pnl": -49.16,
+    "unrealized_pnl": 0.012538
+  },
+  "paper_ledger_tail": [
+    {
+      "ledger_action": "PAPER_POSITION_HELD",
+      "fill_price": null,
+      "paper_result": "POSITION_HELD_PAPER_ONLY"
+    }
+  ],
+  "paper_position_lifecycle": {
+    "status": "OPEN",
+    "open_position": {
+      "entry_price": 80544.50568,
+      "expected_move_after_cost_bps": 8.21900593,
+      "status": "OPEN"
+    }
+  }
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(controller, "PAPER_RUNTIME", status_path)
+
+    evidence = controller.paper_runtime_evidence()
+
+    assert "paper_position_outcome_pending" in evidence["blockers"]
+    assert "current_paper_intent_blocked_or_unfilled" not in evidence["blockers"]
+    assert "fills_flat_recent_window" not in evidence["blockers"]
+    assert evidence["latest_paper_action"] == "PAPER_POSITION_HELD"
+    assert evidence["latest_fill_price"] == 80544.50568
+    assert evidence["open_position_count"] == 1
+
+
 def test_trade_permission_unknown_requires_operator_decision_for_paper_only():
     controller = _load_controller()
     blockers = controller.collect_blockers(_base_evidence())
