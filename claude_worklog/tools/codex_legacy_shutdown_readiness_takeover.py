@@ -28,6 +28,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest"
 PUBLIC = ROOT / "v2/frontend/public/codex_shutdown_readiness_takeover/latest"
+PUBLIC_PAPER_POST_FILTER = ROOT / "v2/frontend/public/paper_edge_post_filter_observation_window/latest/operator_dashboard_payload.json"
 TASKS_DIR = ROOT / "claude_worklog/agent_supervisor/tasks"
 STATE_TASKS_DIR = ROOT / "claude_worklog/agent_supervisor/state/tasks"
 EVENTS_FILE = ROOT / "claude_worklog/agent_supervisor/events.jsonl"
@@ -54,6 +55,10 @@ PAPER_EDGE = ROOT / "claude_worklog/final_readiness/paper_strategy_edge_tighteni
 PAPER_POST_FILTER = ROOT / "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/paper_edge_post_filter_observation_status.json"
 TRADE_PERMISSION = ROOT / "claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/account_permission_margin_blockers_status.json"
 TRAINER_BRIDGE = ROOT / "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json"
+TRAINER_DERIVED_ACCEPTANCE_DIR = ROOT / "claude_worklog/final_readiness/trainer_derived_evidence_acceptance/latest"
+TRAINER_DERIVED_ACCEPTANCE_MATRIX = TRAINER_DERIVED_ACCEPTANCE_DIR / "trainer_field_evidence_matrix.json"
+TRAINER_DERIVED_ACCEPTANCE_GO_NO_GO = TRAINER_DERIVED_ACCEPTANCE_DIR / "GO_NO_GO.md"
+TRAINER_DERIVED_ACCEPTANCE_PACKET = TRAINER_DERIVED_ACCEPTANCE_DIR / "TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_PACKET.md"
 SYMBOL_UNIVERSE = ROOT / "v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json"
 SYMBOL_UNIVERSE_ALT = ROOT / "v2/frontend/public/operator_runtime/v2_symbol_universe/latest/symbol_universe_status.json"
 MARKET_INGESTOR = ROOT / "v2/frontend/public/operator_runtime/v2_market_ingestor/latest/v2_market_ingestor_status.json"
@@ -806,6 +811,42 @@ def trainer_evidence() -> Dict[str, Any]:
     }
 
 
+def trainer_derived_acceptance_evidence() -> Dict[str, Any]:
+    matrix = read_json(TRAINER_DERIVED_ACCEPTANCE_MATRIX)
+    go_no_go = read_text(TRAINER_DERIVED_ACCEPTANCE_GO_NO_GO).strip()
+    codex_go_no_go = read_text(codex_output_dir(TRAINER_DERIVED_ACCEPTANCE_TASK_ID) / "CODEX_GO_NO_GO.md").strip()
+    remaining_gaps = matrix.get("remaining_parity_gaps", []) if isinstance(matrix, dict) else []
+    field_matrix = matrix.get("field_matrix", []) if isinstance(matrix, dict) else []
+    operator_acceptance_required = bool(
+        isinstance(matrix, dict)
+        and matrix.get("operator_acceptance_required") is True
+        and go_no_go == "V2_TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_REQUIRED"
+        and codex_passed(TRAINER_DERIVED_ACCEPTANCE_TASK_ID)
+        and TRAINER_DERIVED_ACCEPTANCE_PACKET.exists()
+    )
+    native_evidence_ready = bool(
+        go_no_go == "V2_TRAINER_NATIVE_PARITY_EVIDENCE_READY"
+        and codex_passed(TRAINER_DERIVED_ACCEPTANCE_TASK_ID)
+    )
+    return {
+        "path": rel(TRAINER_DERIVED_ACCEPTANCE_MATRIX),
+        "go_no_go_path": rel(TRAINER_DERIVED_ACCEPTANCE_GO_NO_GO),
+        "packet_path": rel(TRAINER_DERIVED_ACCEPTANCE_PACKET),
+        "codex_review_path": rel(codex_output_dir(TRAINER_DERIVED_ACCEPTANCE_TASK_ID) / "CODEX_GO_NO_GO.md"),
+        "generated_at": matrix.get("generated_at") if isinstance(matrix, dict) else None,
+        "go_no_go": go_no_go,
+        "codex_go_no_go": codex_go_no_go,
+        "operator_acceptance_required": operator_acceptance_required,
+        "native_evidence_ready": native_evidence_ready,
+        "operator_acceptance_scope": matrix.get("operator_acceptance_scope") if isinstance(matrix, dict) else None,
+        "remaining_parity_gaps": remaining_gaps,
+        "field_matrix": field_matrix,
+        "live_ready": False,
+        "live_gate": matrix.get("live_gate") if isinstance(matrix, dict) else None,
+        "live_symbols": matrix.get("live_symbols") if isinstance(matrix, dict) else None,
+    }
+
+
 def symbol_evidence() -> Dict[str, Any]:
     payload, source_path = read_first_json([SYMBOL_UNIVERSE, SYMBOL_UNIVERSE_ALT])
     if not isinstance(payload, dict):
@@ -1049,8 +1090,11 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
             )
 
     trainer = evidence["trainer_bridge"]
+    trainer_acceptance = evidence.get("trainer_derived_acceptance", {})
     for item in trainer.get("blockers", []):
         blocker_id = "WRAPPER_NOT_LEGACY_HYBRID_PARITY" if "wrapper" in item or "legacy_hybrid" in item else item.upper()
+        if blocker_id in TRAINER_LINEAGE_ATTRIBUTION_BLOCKERS and trainer_acceptance.get("native_evidence_ready"):
+            continue
         task_id = (
             TRAINER_DERIVED_ACCEPTANCE_TASK_ID
             if blocker_id in TRAINER_LINEAGE_ATTRIBUTION_BLOCKERS and codex_passed(TRAINER_LINEAGE_ATTRIBUTION_TASK_ID)
@@ -1058,14 +1102,25 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
             if blocker_id in TRAINER_LINEAGE_ATTRIBUTION_BLOCKERS
             else "claude_port_v2_trainer_bridge_full_legacy_parity"
         )
-        blockers.append(
-            blocker(
-                blocker_id,
-                "P0_SHUTDOWN_BLOCKER",
-                f"trainer_bridge: {item}",
-                task_id,
+        category = "P0_SHUTDOWN_BLOCKER"
+        evidence_text = f"trainer_bridge: {item}"
+        if blocker_id in TRAINER_LINEAGE_ATTRIBUTION_BLOCKERS and trainer_acceptance.get("operator_acceptance_required"):
+            category = "OPERATOR_DECISION_REQUIRED"
+            evidence_text = (
+                f"trainer_bridge: {item}; native trainer evidence was not found and "
+                "TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_PACKET requires explicit operator acceptance "
+                "for V2 paper-only shutdown evaluation; live/canary remain blocked"
             )
+        item_payload = blocker(
+            blocker_id,
+            category,
+            evidence_text,
+            task_id,
         )
+        if category == "OPERATOR_DECISION_REQUIRED":
+            item_payload["decision_packet"] = trainer_acceptance.get("packet_path")
+            item_payload["go_no_go"] = trainer_acceptance.get("go_no_go")
+        blockers.append(item_payload)
 
     packages = evidence["trainer_external_packages"]
     if packages.get("missing"):
@@ -1960,6 +2015,19 @@ def select_next_action(blockers: List[Dict[str, Any]], dry_run: bool) -> Dict[st
                 "blocker_id": item["id"],
             }
         continue
+    decision_blockers = [
+        item for item in blockers if item.get("category") == "OPERATOR_DECISION_REQUIRED"
+    ]
+    if decision_blockers:
+        primary = decision_blockers[0]
+        return {
+            "kind": "operator_decision_required",
+            "task_id": None,
+            "blocker_id": primary.get("id"),
+            "decision_packet": primary.get("decision_packet"),
+            "follow_up": "operator must explicitly accept or decline paper-only shutdown limitations; live/canary remain blocked",
+            "operator_decision_blockers": decision_blockers,
+        }
     return {"kind": "monitor_only_no_dispatchable_blocker", "task_id": None}
 
 
@@ -1985,6 +2053,7 @@ def build_evidence(no_service_remediation: bool) -> Dict[str, Any]:
             ]
         },
         "trainer_bridge": trainer_evidence(),
+        "trainer_derived_acceptance": trainer_derived_acceptance_evidence(),
         "trainer_external_packages": package_profile(),
         "paper_runtime": paper_runtime_evidence(),
         "paper_shadow": paper_shadow_evidence(),
@@ -2072,6 +2141,12 @@ def render_report(state: Dict[str, Any]) -> str:
     )
     trainer = state["evidence"]["trainer_bridge"]
     lines.append(f"- trainer bridge: `{trainer.get('runtime_evidence_status')}`, accepted=`{trainer.get('accepted_as_legacy_hybrid_prediction')}`")
+    trainer_acceptance = state["evidence"].get("trainer_derived_acceptance", {})
+    lines.append(
+        "- trainer derived evidence: "
+        f"`{trainer_acceptance.get('go_no_go')}`, "
+        f"operator_acceptance_required=`{trainer_acceptance.get('operator_acceptance_required')}`"
+    )
     trade = state["evidence"]["trade_permission"]
     lines.append(
         f"- trade permission: `{trade.get('trade_permission_status')}`, "
@@ -2135,6 +2210,7 @@ def dashboard_payload(state: Dict[str, Any]) -> Dict[str, Any]:
             "paper_edge_positive_proven": post_filter.get("positive_edge_proven"),
         },
         "trainer_parity_state": evidence["trainer_bridge"],
+        "trainer_derived_acceptance": evidence.get("trainer_derived_acceptance", {}),
         "paper_pnl": paper.get("realized_pnl") if paper.get("realized_pnl") is not None else edge.get("paper_pnl_current_usdt"),
         "fill_count": paper.get("fill_count") if paper.get("fill_count") is not None else edge.get("simulated_fills"),
         "blocked_intent_count": edge.get("blocked_intents"),
@@ -2154,6 +2230,40 @@ def dashboard_payload(state: Dict[str, Any]) -> Dict[str, Any]:
             rel(TRAINER_BRIDGE),
             rel(SYMBOL_UNIVERSE),
         ],
+    }
+
+
+def paper_post_filter_public_payload(state: Dict[str, Any]) -> Dict[str, Any]:
+    post_filter = state["evidence"].get("paper_post_filter", {})
+    return {
+        "task_id": "paper_edge_post_filter_observation_window",
+        "generated_at": state["as_of_utc"],
+        "source_observation_generated_at": post_filter.get("generated_at"),
+        "source_status_path": post_filter.get("path"),
+        "live_gate": state["live_gate"],
+        "live_symbols": state["live_symbols"],
+        "classification": post_filter.get("classification"),
+        "post_filter_safety_classification": post_filter.get("post_filter_safety_classification"),
+        "paper_only_interpretation": post_filter.get("paper_only_interpretation"),
+        "post_filter_window_start_utc": post_filter.get("post_filter_window_start_utc"),
+        "post_filter_window_end_utc": post_filter.get("post_filter_window_end_utc"),
+        "post_filter_window_seconds": post_filter.get("post_filter_window_seconds"),
+        "cumulative_paper_pnl_usdt_pre_plus_post": post_filter.get("cumulative_paper_pnl_usdt_pre_plus_post"),
+        "post_filter_realized_pnl_delta_usdt": post_filter.get("post_filter_realized_pnl_delta_usdt"),
+        "post_filter_simulated_fills": post_filter.get("post_filter_simulated_fills"),
+        "post_filter_allowed_intents": post_filter.get("post_filter_allowed_intents"),
+        "post_filter_blocked_intents_1h": post_filter.get("post_filter_blocked_intents_1h"),
+        "post_filter_blocked_intents_6h_window": post_filter.get("post_filter_blocked_intents_6h_window"),
+        "post_filter_fees_usdt": post_filter.get("post_filter_fees_usdt"),
+        "post_filter_churn_events": post_filter.get("post_filter_churn_events"),
+        "post_filter_no_unsafe_fills": post_filter.get("no_unsafe_fills"),
+        "paper_edge_positive_proven": post_filter.get("positive_edge_proven"),
+        "historical_negative_pnl_isolated": post_filter.get("historical_negative_pnl_isolated"),
+        "final_approval_token": state["final_approval_token"],
+        "redis_trim_approval": state["redis_trim_approval"],
+        "approves_live": False,
+        "approves_legacy_shutdown": False,
+        "shutdown_recommendation": state["shutdown_recommendation"],
     }
 
 
@@ -2201,6 +2311,7 @@ def write_outputs(state: Dict[str, Any]) -> None:
     write_json(PUBLIC / "blocker_matrix.json", blocker_matrix)
     write_text(PUBLIC / "CODEX_SHUTDOWN_TAKEOVER_STATUS.md", render_report(state))
     write_text(PUBLIC / "CODEX_GO_NO_GO.md", state["loop_marker"] + "\n")
+    write_json(PUBLIC_PAPER_POST_FILTER, paper_post_filter_public_payload(state))
     if state["next_action"].get("kind", "").startswith("dispatch_"):
         line = {"as_of_utc": state["as_of_utc"], **state["next_action"]}
         with (OUT / "claude_delegation_log.jsonl").open("a", encoding="utf-8") as fh:

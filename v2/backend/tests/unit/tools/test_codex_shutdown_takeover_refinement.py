@@ -45,6 +45,10 @@ def _base_evidence():
             "v2_feature_pipeline_and_ta_worker_from_legacy_baseline": {"pass_evidence_present": True},
         },
         "trainer_bridge": {"blockers": []},
+        "trainer_derived_acceptance": {
+            "operator_acceptance_required": False,
+            "native_evidence_ready": False,
+        },
         "trainer_external_packages": {"missing": []},
         "paper_runtime": {
             "blockers": ["paper_realized_pnl_negative", "fills_flat_recent_window"],
@@ -90,3 +94,57 @@ def test_trade_permission_unknown_requires_operator_decision_for_paper_only():
     assert len(trade) == 1
     assert trade[0]["category"] == "OPERATOR_DECISION_REQUIRED"
     assert "blocks live/canary" in trade[0]["evidence"]
+
+
+def test_trainer_derived_acceptance_packet_turns_lineage_into_operator_decision():
+    controller = _load_controller()
+    evidence = _base_evidence()
+    evidence["trainer_bridge"] = {
+        "blockers": [
+            "legacy_log_confidence_calibration_derived",
+            "legacy_log_feature_attribution_incomplete",
+            "legacy_log_feature_snapshot_id_derived",
+        ]
+    }
+    evidence["trainer_derived_acceptance"] = {
+        "operator_acceptance_required": True,
+        "native_evidence_ready": False,
+        "packet_path": "claude_worklog/final_readiness/trainer_derived_evidence_acceptance/latest/TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_PACKET.md",
+        "go_no_go": "V2_TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_REQUIRED",
+    }
+
+    blockers = controller.collect_blockers(evidence)
+    trainer = [
+        item
+        for item in blockers
+        if item["id"]
+        in {
+            "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
+            "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
+            "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED",
+        }
+    ]
+
+    assert len(trainer) == 3
+    assert all(item["category"] == "OPERATOR_DECISION_REQUIRED" for item in trainer)
+    assert all("decision_packet" in item for item in trainer)
+    assert all("native trainer evidence was not found" in item["evidence"] for item in trainer)
+
+
+def test_next_action_surfaces_operator_decision_when_no_dispatchable_task_remains():
+    controller = _load_controller()
+    blockers = [
+        {
+            "id": "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
+            "category": "OPERATOR_DECISION_REQUIRED",
+            "evidence": "trainer derived evidence requires operator decision",
+            "decision_packet": "acceptance.md",
+            "remediation_task_id": "claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet",
+        }
+    ]
+
+    action = controller.select_next_action(blockers, dry_run=True)
+
+    assert action["kind"] == "operator_decision_required"
+    assert action["blocker_id"] == "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED"
+    assert action["decision_packet"] == "acceptance.md"
