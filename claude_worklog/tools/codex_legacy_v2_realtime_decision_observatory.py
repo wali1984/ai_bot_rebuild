@@ -94,6 +94,19 @@ def _payload_paths() -> dict[str, list[Path]]:
             / "latest"
             / "paper_edge_recovery_status.json",
         ],
+        "paper_shadow_outcome": [
+            public
+            / "operator_runtime"
+            / "paper_shadow_outcome_observer"
+            / "latest"
+            / "paper_shadow_outcome_observer_status.json",
+            REPO_ROOT
+            / "claude_worklog"
+            / "final_readiness"
+            / "paper_shadow_outcome_observer"
+            / "latest"
+            / "paper_shadow_outcome_observer_status.json",
+        ],
         "shutdown": [
             REPO_ROOT
             / "claude_worklog"
@@ -211,6 +224,7 @@ def run_once(*, dry_run: bool = False) -> dict[str, Any]:
     paper_exec = _load_first(paths["paper_exec"])
     paper_loss = _load_first(paths["paper_loss"])
     paper_edge = _load_first(paths["paper_edge"])
+    paper_shadow_outcome = _load_first(paths["paper_shadow_outcome"])
     shutdown = _load_first(paths["shutdown"])
 
     legacy = build_legacy_runtime_observer_status()
@@ -237,11 +251,24 @@ def run_once(*, dry_run: bool = False) -> dict[str, Any]:
         paper_loss_status=paper_loss,
         trainer_status=trainer,
         paper_edge_status=paper_edge,
+        shadow_outcome_status=paper_shadow_outcome,
         symbol_status=symbol,
         risk_status=risk,
     )
     safety_findings = _safety_findings(
-        [legacy, comparator, outcome, scoreboard, recommendations, paper, trainer, symbol, risk, paper_exec]
+        [
+            legacy,
+            comparator,
+            outcome,
+            scoreboard,
+            recommendations,
+            paper,
+            trainer,
+            symbol,
+            risk,
+            paper_exec,
+            paper_shadow_outcome,
+        ]
     )
     go_no_go = (
         "CODEX_LEGACY_V2_REALTIME_DECISION_OBSERVATORY_BLOCKED"
@@ -283,6 +310,10 @@ def run_once(*, dry_run: bool = False) -> dict[str, Any]:
         "paper_edge_status": paper_edge.get("edge_status")
         or paper_edge.get("classification")
         or "POST_FILTER_EDGE_PENDING",
+        "paper_shadow_outcome_observer_status": paper_shadow_outcome.get("outcome_status")
+        or paper_shadow_outcome.get("status")
+        or "MISSING_EVIDENCE",
+        "paper_shadow_false_block_count": paper_shadow_outcome.get("false_block_count", 0),
         "trainer_parity_gaps": trainer.get("remaining_parity_gaps")
         or trainer.get("trainer_full_parity_blockers")
         or [],

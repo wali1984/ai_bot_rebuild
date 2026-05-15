@@ -8,14 +8,14 @@
   "candidate_trade_count": 1,
   "confidence_calibration_error": "MISSING_NATIVE_OUTCOME_SAMPLE",
   "directional_accuracy": "PENDING_OUTCOME",
-  "edge_missing_block_count": 1,
+  "edge_missing_block_count": 0,
   "exchange_action_taken": false,
-  "expected_edge_coverage": 0.0,
+  "expected_edge_coverage": 1.0,
   "false_allow_count": 0,
   "false_block_count": 0,
   "feature_freshness_coverage": 1.0,
   "fee_bleed_prevented": "SOURCE_LIMITED_POST_FILTER_NO_UNSAFE_FILLS",
-  "generated_at": "2026-05-15T04:24:38Z",
+  "generated_at": "2026-05-15T10:10:08Z",
   "legacy_mutation_performed": false,
   "live_blocked": true,
   "live_gate": "blocked_human_only",
@@ -31,7 +31,7 @@
   "outcome_status": "OUTCOME_PENDING_SOURCE_LIMITED",
   "paper_loss_visible": {
     "classification": "PAPER_LOSS_ATTRIBUTION_READY_SOURCE_LIMITED",
-    "current_cumulative_pnl": -49.12
+    "current_cumulative_pnl": -49.197409
   },
   "precision_by_confidence_bucket": {},
   "precision_by_reason_code": {},
