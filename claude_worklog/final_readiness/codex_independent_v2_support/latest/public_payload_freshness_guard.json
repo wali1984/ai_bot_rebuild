@@ -1,12 +1,13 @@
 {
   "approval_token_created": false,
   "findings": [
+    "MISSING_GENERATED_AT",
     "MISSING_SOURCE",
     "READY_CLAIM_WITH_MISSING_EVIDENCE",
     "STALE_PAYLOAD"
   ],
-  "generated_at": "2026-05-15T17:49:44Z",
-  "go_no_go_files_checked": 99,
+  "generated_at": "2026-05-15T18:02:40Z",
+  "go_no_go_files_checked": 100,
   "go_no_go_results": [
     {
       "findings": [],
@@ -325,6 +326,11 @@
     },
     {
       "findings": [],
+      "path": "claude_worklog/final_readiness/permanent_migration_runtime/latest/GO_NO_GO.md",
+      "status": "PASS"
+    },
+    {
+      "findings": [],
       "path": "claude_worklog/final_readiness/phase3c_runtime_monitor_verification/latest/GO_NO_GO.md",
       "status": "PASS"
     },
@@ -508,7 +514,7 @@
   "mutation_performed": false,
   "payload_results": [
     {
-      "age_seconds": 71446,
+      "age_seconds": 72223,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -517,7 +523,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 239268,
+      "age_seconds": 240044,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -527,7 +533,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 48053,
+      "age_seconds": 48829,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -536,7 +542,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 244960,
+      "age_seconds": 245736,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -546,7 +552,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 411729,
+      "age_seconds": 412505,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -556,7 +562,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 245366,
+      "age_seconds": 246142,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -566,7 +572,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 388953,
+      "age_seconds": 389730,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -576,7 +582,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 326402,
+      "age_seconds": 327179,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -586,7 +592,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 381825,
+      "age_seconds": 382601,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -596,7 +602,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 419607,
+      "age_seconds": 420383,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -606,7 +612,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 332779,
+      "age_seconds": 333556,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -616,7 +622,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 155993,
+      "age_seconds": 156770,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -626,7 +632,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 113373,
+      "age_seconds": 114150,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -635,7 +641,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 381825,
+      "age_seconds": 382601,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -645,21 +651,28 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 70,
+      "age_seconds": 673,
       "findings": [],
-      "generated_at": "2026-05-15T17:48:33Z",
+      "generated_at": "2026-05-15T17:51:27Z",
+      "path": "v2/frontend/public/codex_permanent_migration_governor/latest/operator_dashboard_payload.json",
+      "status": "PASS"
+    },
+    {
+      "age_seconds": 4,
+      "findings": [],
+      "generated_at": "2026-05-15T18:02:36Z",
       "path": "v2/frontend/public/codex_shutdown_readiness_takeover/latest/operator_dashboard_payload.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 843,
+      "age_seconds": 1620,
       "findings": [],
       "generated_at": "2026-05-15T17:35:40Z",
       "path": "v2/frontend/public/coinank_plan3_runtime_remediation/latest/operator_dashboard_payload.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 302237,
+      "age_seconds": 303013,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -669,7 +682,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 218497,
+      "age_seconds": 219274,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -678,7 +691,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 393255,
+      "age_seconds": 394032,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -688,7 +701,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 162283,
+      "age_seconds": 163060,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -698,7 +711,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 381825,
+      "age_seconds": 382601,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -708,14 +721,14 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 1106,
+      "age_seconds": 1883,
       "findings": [],
       "generated_at": "2026-05-15T17:31:17Z",
       "path": "v2/frontend/public/expected_move_model_review/latest/operator_dashboard_payload.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 582583,
+      "age_seconds": 583360,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -724,7 +737,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 222559,
+      "age_seconds": 223335,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -734,7 +747,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 213277,
+      "age_seconds": 214053,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -744,7 +757,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 582583,
+      "age_seconds": 583360,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -754,7 +767,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 157183,
+      "age_seconds": 157960,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -763,7 +776,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 5101,
+      "age_seconds": 5878,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -773,7 +786,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 148783,
+      "age_seconds": 149560,
       "findings": [
         "READY_CLAIM_WITH_MISSING_EVIDENCE",
         "STALE_PAYLOAD"
@@ -783,7 +796,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 153583,
+      "age_seconds": 154360,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -792,7 +805,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 301087,
+      "age_seconds": 301864,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -802,7 +815,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 262770,
+      "age_seconds": 263547,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -811,14 +824,14 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 71,
+      "age_seconds": 0,
       "findings": [],
-      "generated_at": "2026-05-15T17:48:32Z",
+      "generated_at": "2026-05-15T18:02:40Z",
       "path": "v2/frontend/public/legacy_v2_realtime_decision_observatory/latest/operator_dashboard_payload.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 216197,
+      "age_seconds": 216974,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -827,7 +840,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 239268,
+      "age_seconds": 240045,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -837,16 +850,16 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 70,
+      "age_seconds": 4,
       "findings": [
         "MISSING_SOURCE"
       ],
-      "generated_at": "2026-05-15T17:48:33Z",
+      "generated_at": "2026-05-15T18:02:36Z",
       "path": "v2/frontend/public/observatory_to_action_controller_patch/latest/operator_dashboard_payload.json",
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 381825,
+      "age_seconds": 382601,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -856,21 +869,30 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 843,
+      "age_seconds": 1620,
       "findings": [],
       "generated_at": "2026-05-15T17:35:40Z",
       "path": "v2/frontend/public/operator_runtime/coinank_market_intelligence/latest/coinank_market_intelligence_status.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 71,
+      "age_seconds": 0,
       "findings": [],
-      "generated_at": "2026-05-15T17:48:32Z",
+      "generated_at": "2026-05-15T18:02:40Z",
       "path": "v2/frontend/public/operator_runtime/decision_quality_scoreboard/latest/decision_quality_scoreboard_status.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 250506,
+      "age_seconds": null,
+      "findings": [
+        "MISSING_GENERATED_AT"
+      ],
+      "generated_at": null,
+      "path": "v2/frontend/public/operator_runtime/frontend_truth/latest/frontend_truth_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 251283,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -879,7 +901,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 249716,
+      "age_seconds": 250493,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -888,28 +910,28 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 71,
+      "age_seconds": 0,
       "findings": [],
-      "generated_at": "2026-05-15T17:48:32Z",
+      "generated_at": "2026-05-15T18:02:40Z",
       "path": "v2/frontend/public/operator_runtime/legacy_runtime_observer/latest/legacy_runtime_observer_status.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 71,
+      "age_seconds": 0,
       "findings": [],
-      "generated_at": "2026-05-15T17:48:32Z",
+      "generated_at": "2026-05-15T18:02:40Z",
       "path": "v2/frontend/public/operator_runtime/legacy_signal_outcome_observer/latest/legacy_signal_outcome_observer_status.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 71,
+      "age_seconds": 0,
       "findings": [],
-      "generated_at": "2026-05-15T17:48:32Z",
+      "generated_at": "2026-05-15T18:02:40Z",
       "path": "v2/frontend/public/operator_runtime/legacy_v2_decision_comparator/latest/legacy_v2_decision_comparator_status.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 249716,
+      "age_seconds": 250493,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -918,7 +940,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 249716,
+      "age_seconds": 250493,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -927,7 +949,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 249716,
+      "age_seconds": 250493,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -936,7 +958,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 249716,
+      "age_seconds": 250493,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -945,7 +967,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 249716,
+      "age_seconds": 250493,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -954,7 +976,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 249716,
+      "age_seconds": 250493,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -963,7 +985,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 249716,
+      "age_seconds": 250493,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -972,7 +994,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 249716,
+      "age_seconds": 250493,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -981,7 +1003,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 249716,
+      "age_seconds": 250493,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -991,84 +1013,84 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 29,
+      "age_seconds": 15,
       "findings": [],
-      "generated_at": "2026-05-15T17:49:14Z",
+      "generated_at": "2026-05-15T18:02:25Z",
       "path": "v2/frontend/public/operator_runtime/paper_online/latest/current_risk_decisions.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 29,
+      "age_seconds": 15,
       "findings": [],
-      "generated_at": "2026-05-15T17:49:14Z",
+      "generated_at": "2026-05-15T18:02:25Z",
       "path": "v2/frontend/public/operator_runtime/paper_online/latest/current_signal_lineage.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 29,
+      "age_seconds": 15,
       "findings": [],
-      "generated_at": "2026-05-15T17:49:14Z",
+      "generated_at": "2026-05-15T18:02:25Z",
       "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_ledger_tail.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 29,
+      "age_seconds": 15,
       "findings": [],
-      "generated_at": "2026-05-15T17:49:14Z",
+      "generated_at": "2026-05-15T18:02:25Z",
       "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_positions.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 29,
+      "age_seconds": 15,
       "findings": [],
-      "generated_at": "2026-05-15T17:49:14Z",
+      "generated_at": "2026-05-15T18:02:25Z",
       "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 29,
+      "age_seconds": 15,
       "findings": [],
-      "generated_at": "2026-05-15T17:49:14Z",
+      "generated_at": "2026-05-15T18:02:25Z",
       "path": "v2/frontend/public/operator_runtime/paper_online/latest/risk_runtime_payload.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 32,
+      "age_seconds": 18,
       "findings": [],
-      "generated_at": "2026-05-15T17:49:11Z",
+      "generated_at": "2026-05-15T18:02:22Z",
       "path": "v2/frontend/public/operator_runtime/paper_online/latest/trainer_prediction_current_record.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 22,
+      "age_seconds": 18,
       "findings": [],
-      "generated_at": "2026-05-15T17:49:21Z",
+      "generated_at": "2026-05-15T18:02:22Z",
       "path": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 70,
+      "age_seconds": 4,
       "findings": [],
-      "generated_at": "2026-05-15T17:48:33Z",
+      "generated_at": "2026-05-15T18:02:36Z",
       "path": "v2/frontend/public/operator_runtime/paper_shadow_outcome_observer/latest/paper_shadow_outcome_observer_status.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 43,
+      "age_seconds": 39,
       "findings": [],
-      "generated_at": "2026-05-15T17:49:00Z",
+      "generated_at": "2026-05-15T18:02:01Z",
       "path": "v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 844,
+      "age_seconds": 1621,
       "findings": [],
       "generated_at": "2026-05-15T17:35:39Z",
       "path": "v2/frontend/public/operator_runtime/v2_account_position_monitor/latest/v2_account_position_monitor_status.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 116749,
+      "age_seconds": 117526,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1077,7 +1099,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 119289,
+      "age_seconds": 120066,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1086,7 +1108,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 117871,
+      "age_seconds": 118648,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1095,7 +1117,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 68854,
+      "age_seconds": 69631,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1104,7 +1126,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 68854,
+      "age_seconds": 69631,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1113,14 +1135,14 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 33,
+      "age_seconds": 54,
       "findings": [],
-      "generated_at": "2026-05-15T17:49:10Z",
+      "generated_at": "2026-05-15T18:01:46Z",
       "path": "v2/frontend/public/operator_runtime/v2_feature_snapshot_builder/latest/v2_feature_snapshot_builder_status.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 68854,
+      "age_seconds": 69631,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1129,7 +1151,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 123464,
+      "age_seconds": 124241,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1138,7 +1160,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 68854,
+      "age_seconds": 69631,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1147,7 +1169,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 121425,
+      "age_seconds": 122202,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1156,7 +1178,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 68854,
+      "age_seconds": 69631,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1165,7 +1187,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 120349,
+      "age_seconds": 121126,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1174,7 +1196,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 68854,
+      "age_seconds": 69631,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1183,7 +1205,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 122523,
+      "age_seconds": 123300,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1192,14 +1214,14 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 17,
+      "age_seconds": 12,
       "findings": [],
-      "generated_at": "2026-05-15T17:49:26Z",
+      "generated_at": "2026-05-15T18:02:28Z",
       "path": "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 844,
+      "age_seconds": 1620,
       "findings": [
         "MISSING_SOURCE"
       ],
@@ -1208,7 +1230,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 321449,
+      "age_seconds": 322226,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1218,7 +1240,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 328259,
+      "age_seconds": 329036,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1228,16 +1250,16 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 70,
+      "age_seconds": 4,
       "findings": [
         "MISSING_SOURCE"
       ],
-      "generated_at": "2026-05-15T17:48:33Z",
+      "generated_at": "2026-05-15T18:02:36Z",
       "path": "v2/frontend/public/paper_edge_post_filter_observation_window/latest/operator_dashboard_payload.json",
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 3992,
+      "age_seconds": 4769,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1246,7 +1268,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 34717,
+      "age_seconds": 35494,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1256,7 +1278,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 23241,
+      "age_seconds": 24018,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1265,14 +1287,14 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 844,
+      "age_seconds": 1620,
       "findings": [],
       "generated_at": "2026-05-15T17:35:39.689Z",
       "path": "v2/frontend/public/paper_online_canonical_truth_bridge/latest/operator_dashboard_payload.json",
       "status": "PASS"
     },
     {
-      "age_seconds": 4223,
+      "age_seconds": 5000,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1282,16 +1304,16 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 70,
+      "age_seconds": 4,
       "findings": [
         "MISSING_SOURCE"
       ],
-      "generated_at": "2026-05-15T17:48:33Z",
+      "generated_at": "2026-05-15T18:02:36Z",
       "path": "v2/frontend/public/paper_shadow_outcome_observer/latest/operator_dashboard_payload.json",
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 210105,
+      "age_seconds": 210881,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1300,7 +1322,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 70403,
+      "age_seconds": 71180,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1309,7 +1331,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 63322,
+      "age_seconds": 64099,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1318,7 +1340,17 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 475987,
+      "age_seconds": null,
+      "findings": [
+        "MISSING_GENERATED_AT",
+        "READY_CLAIM_WITH_MISSING_EVIDENCE"
+      ],
+      "generated_at": null,
+      "path": "v2/frontend/public/permanent_migration_runtime/latest/operator_dashboard_payload.json",
+      "status": "BLOCKED"
+    },
+    {
+      "age_seconds": 476763,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1328,7 +1360,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 312474,
+      "age_seconds": 313250,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1338,7 +1370,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 844,
+      "age_seconds": 1620,
       "findings": [
         "MISSING_SOURCE"
       ],
@@ -1347,7 +1379,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 219965,
+      "age_seconds": 220741,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1356,7 +1388,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 248213,
+      "age_seconds": 248990,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1366,7 +1398,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 249422,
+      "age_seconds": 250199,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1376,7 +1408,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 214733,
+      "age_seconds": 215509,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1386,7 +1418,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 496183,
+      "age_seconds": 496960,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1395,7 +1427,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 844,
+      "age_seconds": 1620,
       "findings": [
         "MISSING_SOURCE"
       ],
@@ -1404,7 +1436,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 844,
+      "age_seconds": 1620,
       "findings": [
         "MISSING_SOURCE"
       ],
@@ -1413,7 +1445,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 381825,
+      "age_seconds": 382601,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1423,7 +1455,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 472209,
+      "age_seconds": 472985,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1433,7 +1465,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 430589,
+      "age_seconds": 431365,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1443,7 +1475,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 473024,
+      "age_seconds": 473801,
       "findings": [
         "STALE_PAYLOAD"
       ],
@@ -1452,7 +1484,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 475247,
+      "age_seconds": 476023,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1462,7 +1494,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 428439,
+      "age_seconds": 429215,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1472,7 +1504,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 423823,
+      "age_seconds": 424600,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1482,7 +1514,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 211789,
+      "age_seconds": 212565,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1492,7 +1524,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 327598,
+      "age_seconds": 328375,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1502,7 +1534,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 327907,
+      "age_seconds": 328684,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1512,7 +1544,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 483650,
+      "age_seconds": 484426,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1522,7 +1554,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 485076,
+      "age_seconds": 485852,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1532,7 +1564,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 250491,
+      "age_seconds": 251268,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1542,7 +1574,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 24546,
+      "age_seconds": 25323,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1552,7 +1584,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 381825,
+      "age_seconds": 382601,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1562,7 +1594,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 249716,
+      "age_seconds": 250493,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1572,7 +1604,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 31327,
+      "age_seconds": 32104,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1582,7 +1614,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 151894,
+      "age_seconds": 152671,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1592,7 +1624,7 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 221256,
+      "age_seconds": 222032,
       "findings": [
         "MISSING_SOURCE",
         "STALE_PAYLOAD"
@@ -1602,14 +1634,14 @@
       "status": "BLOCKED"
     },
     {
-      "age_seconds": 62,
+      "age_seconds": 119,
       "findings": [],
-      "generated_at": "2026-05-15T17:48:41Z",
+      "generated_at": "2026-05-15T18:00:41Z",
       "path": "v2/frontend/public/v2_worker_porting_orchestrator/latest/operator_dashboard_payload.json",
       "status": "PASS"
     }
   ],
-  "payloads_checked": 122,
+  "payloads_checked": 125,
   "result": "BLOCKED",
   "stale_after_seconds": 3600
 }

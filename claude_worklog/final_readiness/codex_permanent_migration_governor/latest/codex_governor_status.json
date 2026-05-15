@@ -61,6 +61,7 @@
     "INFO_ONLY": 2,
     "OPERATOR_DECISION_REQUIRED": 4,
     "P0_SHUTDOWN_BLOCKER": 1,
+    "P1_SHUTDOWN_SUPPORT": 0,
     "P2_LIVE_ONLY_BLOCKED": 1
   },
   "claude_current_status": {
@@ -172,16 +173,17 @@
     "shutdown_dashboard": "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/operator_dashboard_payload.json"
   },
   "expected_move_model_review": {
-    "current_false_block_count": 106,
+    "completed_observations": 273,
+    "current_false_block_count": 107,
     "edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
     "false_block_count_reviewed": 95,
     "go_no_go": "V2_EXPECTED_MOVE_MODEL_REVIEW_READY_KEEP_GATE_STRICT",
-    "no_trade_correct_count": 163,
+    "no_trade_correct_count": 166,
     "recommended_gate_action": "KEEP_GATE_STRICT"
   },
   "final_shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
   "frontend_review_status": "FRONTEND_GOVERNOR_REVIEW_SOURCE_LIMITED_BLOCKED_FOR_FULL_APPROVAL",
-  "generated_at": "2026-05-15T17:51:27Z",
+  "generated_at": "2026-05-15T18:03:35Z",
   "go_no_go": "CODEX_PERMANENT_SHUTDOWN_AND_MIGRATION_GOVERNOR_READY",
   "implementation_mode": "NO_NEW_SCRIPT_OR_SERVICE_PER_OPERATOR_OVERRIDE; existing takeover and observatory services are active",
   "mandatory_monitored_conditions": [
@@ -303,6 +305,16 @@
     "follow_up": "continue observing blocked paper intents over 5m/15m/30m/1h horizons; do not loosen fill gate or claim positive edge without completed after-cost evidence",
     "kind": "monitor_shadow_outcome_observer",
     "task_id": "paper_shadow_outcome_observer"
+  },
+  "public_freshness": {
+    "active_stale_count": 0,
+    "findings": [
+      "MISSING_GENERATED_AT",
+      "MISSING_SOURCE",
+      "READY_CLAIM_WITH_MISSING_EVIDENCE",
+      "STALE_PAYLOAD"
+    ],
+    "generated_at": "2026-05-15T18:02:40Z"
   },
   "safety": {
     "approval_token_status": {

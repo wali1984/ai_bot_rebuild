@@ -1,6 +1,6 @@
 # Legacy V2 Realtime Decision Observatory Report
 
-Generated: `2026-05-15T17:52:32Z`
+Generated: `2026-05-15T18:02:40Z`
 
 This observatory is read-only against legacy evidence. It does not approve live trading, canary trading, or legacy shutdown.
 

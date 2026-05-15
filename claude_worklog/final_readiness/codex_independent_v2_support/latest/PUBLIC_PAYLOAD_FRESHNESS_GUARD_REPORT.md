@@ -1,10 +1,10 @@
 # Public Payload Freshness Guard Report
 
-Generated: 2026-05-15T17:49:44Z
+Generated: 2026-05-15T18:02:40Z
 Result: `BLOCKED`
 Live gate: `blocked_human_only`
-Payloads checked: 122
-GO/NO-GO files checked: 99
+Payloads checked: 125
+GO/NO-GO files checked: 100
 Approval token created: `False`
 
 Findings:
@@ -41,6 +41,7 @@ Findings:
 - `v2/frontend/public/non_drift_governor_lock/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
 - `v2/frontend/public/observatory_to_action_controller_patch/latest/operator_dashboard_payload.json`: MISSING_SOURCE
 - `v2/frontend/public/online_readiness_control_plane/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
+- `v2/frontend/public/operator_runtime/frontend_truth/latest/frontend_truth_payload.json`: MISSING_GENERATED_AT
 - `v2/frontend/public/operator_runtime/legacy_live_bridge/latest/current_runtime_truth_payload.json`: STALE_PAYLOAD
 - `v2/frontend/public/operator_runtime/legacy_live_bridge/latest/legacy_live_bridge_status.json`: STALE_PAYLOAD
 - `v2/frontend/public/operator_runtime/live_observer/latest/audit_ledger_tail.json`: STALE_PAYLOAD
@@ -77,6 +78,7 @@ Findings:
 - `v2/frontend/public/paper_shadow_persistence_and_ports/latest/operator_dashboard_payload.json`: STALE_PAYLOAD
 - `v2/frontend/public/paper_shadow_soak_negative_pnl/latest/operator_dashboard_payload.json`: STALE_PAYLOAD
 - `v2/frontend/public/paper_strategy_edge_tightening/latest/operator_dashboard_payload.json`: STALE_PAYLOAD
+- `v2/frontend/public/permanent_migration_runtime/latest/operator_dashboard_payload.json`: MISSING_GENERATED_AT, READY_CLAIM_WITH_MISSING_EVIDENCE
 - `v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
 - `v2/frontend/public/production_dashboard_wajidali_us_repair/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
 - `v2/frontend/public/production_operator_webapp/latest/operator_dashboard_payload.json`: MISSING_SOURCE

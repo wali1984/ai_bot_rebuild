@@ -1,13 +1,13 @@
 {
   "CoinAnk_freshness": {
-    "age_seconds": 12129083,
+    "age_seconds": 12129691,
     "fresh_seconds": 900,
     "mtime": "2025-12-26T08:41:08Z",
     "path": "/home/wali/Desktop/AI BOT/.logs/coinank.log",
     "state": "STALE"
   },
   "TA_freshness": {
-    "age_seconds": 13776692,
+    "age_seconds": 13777300,
     "fresh_seconds": 900,
     "mtime": "2025-12-07T07:01:00Z",
     "path": "/home/wali/Desktop/AI BOT/.logs/ta_service.log",
@@ -19,15 +19,15 @@
   ],
   "exchange_action_taken": false,
   "feature_freshness": {
-    "age_seconds": 13776692,
+    "age_seconds": 13777300,
     "fresh_seconds": 900,
     "mtime": "2025-12-07T07:01:00Z",
     "path": "/home/wali/Desktop/AI BOT/.logs/ta_service.log",
     "state": "STALE"
   },
-  "generated_at": "2026-05-15T17:52:32Z",
+  "generated_at": "2026-05-15T18:02:40Z",
   "ingestor_freshness": {
-    "age_seconds": 3635999,
+    "age_seconds": 3636607,
     "fresh_seconds": 900,
     "mtime": "2026-04-03T15:52:32Z",
     "path": "/home/wali/Desktop/AI BOT/.logs/ingest_live_binance.log",
@@ -59,18 +59,18 @@
   "legacy_trainer_process_state": {
     "count": 3,
     "sample": [
-      "48623   48621  1-19:22:15 python3         python3 -u -m rl.hybrid_trainer --mode hybrid --epochs 1000 --batch-size 64",
-      "57478   57291  1-18:58:22 python3         python3 Desktop/AI BOT/scripts/monitor_trainer_predictions.py",
-      "817288   53288    18:37:30 tail            tail -f Desktop/AI BOT/logs/hybrid_trainer.log"
+      "48623   48621  1-19:32:23 python3         python3 -u -m rl.hybrid_trainer --mode hybrid --epochs 1000 --batch-size 64",
+      "57478   57291  1-19:08:30 python3         python3 Desktop/AI BOT/scripts/monitor_trainer_predictions.py",
+      "817288   53288    18:47:38 tail            tail -f Desktop/AI BOT/logs/hybrid_trainer.log"
     ],
     "state": "RUNNING_READONLY_OBSERVED"
   },
   "liquidation_freshness": {
-    "age_seconds": 4323,
+    "age_seconds": 357,
     "fresh_seconds": 900,
-    "mtime": "2026-05-15T16:40:28Z",
+    "mtime": "2026-05-15T17:56:42Z",
     "path": "/home/wali/Desktop/AI BOT/.logs/live_coinank.log",
-    "state": "STALE"
+    "state": "CURRENT"
   },
   "live_blocked": true,
   "live_gate": "blocked_human_only",
@@ -79,9 +79,9 @@
   "orchestrator_process_state": {
     "count": 3,
     "sample": [
-      "54017   54015  1-19:07:21 python3         python3 -u -m rl.orchestrator_worker",
-      "67228   67184  1-18:32:14 watch           watch -n 10  echo \"=== current worker ===\" cat claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/worker_porting_state.json 2>/dev/null | python3 -m json.tool | grep -E \"current_worker|next_action|last_completed_worker|live_gate\" || true  echo echo \"=== market ingestor baseline files ===\" ls -la claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/*market_ingestor* 2>/dev/null || true  echo echo \"=== active claude/codex ===\" ps -eo pid,etimes,cmd | grep -E \"claude --print|codex exec|agent_supervisor|v2_worker_porting_orchestrator\" | grep -v grep || true",
-      "430848    5737  1-07:18:55 python3         ./.venv/bin/python3 claude_worklog/tools/v2_worker_porting_orchestrator.py --daemon --poll-seconds 120"
+      "54017   54015  1-19:17:29 python3         python3 -u -m rl.orchestrator_worker",
+      "67228   67184  1-18:42:21 watch           watch -n 10  echo \"=== current worker ===\" cat claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/worker_porting_state.json 2>/dev/null | python3 -m json.tool | grep -E \"current_worker|next_action|last_completed_worker|live_gate\" || true  echo echo \"=== market ingestor baseline files ===\" ls -la claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/*market_ingestor* 2>/dev/null || true  echo echo \"=== active claude/codex ===\" ps -eo pid,etimes,cmd | grep -E \"claude --print|codex exec|agent_supervisor|v2_worker_porting_orchestrator\" | grep -v grep || true",
+      "430848    5737  1-07:29:02 python3         ./.venv/bin/python3 claude_worklog/tools/v2_worker_porting_orchestrator.py --daemon --poll-seconds 120"
     ],
     "state": "RUNNING_READONLY_OBSERVED"
   },
@@ -90,7 +90,7 @@
     "count": 50,
     "exists": true,
     "freshness": {
-      "age_seconds": 7273592,
+      "age_seconds": 7274200,
       "fresh_seconds": 900,
       "mtime": "2026-02-20T13:25:59Z",
       "path": "/home/wali/Desktop/AI BOT/.logs/orchestrator.log",
@@ -105,7 +105,7 @@
     "count": 9,
     "exists": true,
     "freshness": {
-      "age_seconds": 1343966,
+      "age_seconds": 1344573,
       "fresh_seconds": 900,
       "mtime": "2026-04-30T04:33:06Z",
       "path": "/home/wali/Desktop/AI BOT/.logs/signal_router.log",
@@ -116,7 +116,7 @@
   "trainer_checkpoint": "",
   "trainer_log_errors": [],
   "trainer_log_freshness": {
-    "age_seconds": 6460787,
+    "age_seconds": 6461394,
     "fresh_seconds": 900,
     "mtime": "2026-03-01T23:12:45Z",
     "path": "/home/wali/Desktop/AI BOT/.logs/hybrid_trainer_stdout.log",
