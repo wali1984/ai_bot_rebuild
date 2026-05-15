@@ -1,11 +1,11 @@
 {
-  "active_claude_task": "claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet",
+  "active_claude_task": null,
   "active_codex_task": null,
   "approval_token_status": {
     "final_approval_token": "absent",
     "redis_trim_approval": "absent"
   },
-  "as_of_utc": "2026-05-15T01:11:23Z",
+  "as_of_utc": "2026-05-15T01:57:25Z",
   "blocked_intent_count": 1810,
   "blocker_count": 6,
   "blocker_counts": {
@@ -20,31 +20,31 @@
       "category": "P0_SHUTDOWN_BLOCKER",
       "evidence": "trainer_bridge: legacy_log_confidence_calibration_derived",
       "id": "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
-      "remediation_task_id": "claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet"
+      "remediation_task_id": "claude_v2_trainer_lineage_attribution_parity_remediation"
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
       "evidence": "trainer_bridge: legacy_log_feature_attribution_incomplete",
       "id": "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
-      "remediation_task_id": "claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet"
+      "remediation_task_id": "claude_v2_trainer_lineage_attribution_parity_remediation"
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
       "evidence": "trainer_bridge: legacy_log_feature_snapshot_id_derived",
       "id": "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED",
-      "remediation_task_id": "claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet"
+      "remediation_task_id": "claude_v2_trainer_lineage_attribution_parity_remediation"
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
       "evidence": "paper_runtime: paper_realized_pnl_negative",
       "id": "PAPER_PNL_NEGATIVE_BLOCKS_CANARY",
-      "remediation_task_id": "paper_edge_post_filter_observation_window"
+      "remediation_task_id": "claude_replay_paper_edge_repair_from_legacy_trainer_output"
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
       "evidence": "paper_runtime: current_paper_intent_blocked_or_unfilled",
       "id": "PAPER_EDGE_UNPROVEN",
-      "remediation_task_id": "paper_edge_post_filter_observation_window"
+      "remediation_task_id": "claude_replay_paper_edge_repair_from_legacy_trainer_output"
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
@@ -60,9 +60,9 @@
   "git_dirty_classification": {
     "buckets": {
       "agent_supervisor_state": 0,
-      "runtime_or_dashboard_artifact": 382,
-      "source_or_tooling": 5,
-      "unknown": 14
+      "runtime_or_dashboard_artifact": 388,
+      "source_or_tooling": 4,
+      "unknown": 11
     },
     "preview": {
       "agent_supervisor_state": [],
@@ -105,12 +105,11 @@
         "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/git_dirty_state.json",
         "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json",
         "claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json",
-        "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/CODEX_SHUTDOWN_TAKEOVER_STATUS.md",
-        "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/blocker_matrix.json"
+        "claude_worklog/final_readiness/codex_independent_v2_support/latest/PUBLIC_PAYLOAD_FRESHNESS_GUARD_REPORT.md",
+        "claude_worklog/final_readiness/codex_independent_v2_support/latest/public_payload_freshness_guard.json"
       ],
       "source_or_tooling": [
         "claude_worklog/tools/build_active_autonomous_dispatch_packet.py",
-        "claude_worklog/tools/codex_legacy_shutdown_readiness_takeover.py",
         "v2/backend/app/domain/risk_gateway/__init__.py",
         "v2/backend/app/domain/risk_gateway/record.py",
         "v2/backend/tests/unit/domain/risk_gateway/test_public_surface.py"
@@ -123,16 +122,13 @@
         "claude_worklog/legacy_readonly_audit/03_LEGACY_CODE_FUNCTION_INVENTORY.md",
         "claude_worklog/legacy_readonly_audit/07_ORCHESTRATOR_TRADER_RUNTIME_EVIDENCE.md",
         "claude_worklog/agent_supervisor/tasks/POST_FINAL_GATE_NON_LIVE_MONITORING_AND_HARDENING.json",
-        "claude_worklog/agent_supervisor/tasks/claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet.json",
-        "claude_worklog/agent_supervisor/tasks/codex_review_paper_edge_post_filter_observation_window.json",
-        "claude_worklog/agent_supervisor/tasks/codex_review_v2_trainer_derived_evidence_acceptance_or_native_parity_packet.json",
-        "claude_worklog/agent_supervisor/tasks/paper_edge_post_filter_observation_window.json",
         "claude_worklog/final_readiness/always_on_claude_codex_runtime/recurring/",
         "claude_worklog/final_readiness/post_final_gate_non_live_monitoring_and_hardening/",
-        "claude_worklog/final_readiness/tonight_v2_live_like_paper_shadow_and_canary_preflight/"
+        "claude_worklog/final_readiness/tonight_v2_live_like_paper_shadow_and_canary_preflight/",
+        "claude_worklog/final_readiness/trainer_derived_evidence_acceptance/"
       ]
     },
-    "total_dirty": 401
+    "total_dirty": 403
   },
   "go_no_go": "CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP_READY",
   "last_commit": "0df8a9c4 Full rl/risk/trader/services/utils dependency closure audit",
@@ -140,25 +136,19 @@
   "live_gate_status": "blocked_human_only",
   "live_symbols": [],
   "next_action": {
-    "blocker_id": "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
-    "follow_up": "run codex_review_v2_trainer_derived_evidence_acceptance_or_native_parity_packet after Claude emits required files",
-    "kind": "dispatch_claude_remediation",
-    "task_descriptor": "claude_worklog/agent_supervisor/tasks/claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet.json",
-    "task_id": "claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet"
+    "kind": "monitor_only_no_dispatchable_blocker",
+    "task_id": null
   },
   "next_automatic_action": {
-    "blocker_id": "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
-    "follow_up": "run codex_review_v2_trainer_derived_evidence_acceptance_or_native_parity_packet after Claude emits required files",
-    "kind": "dispatch_claude_remediation",
-    "task_descriptor": "claude_worklog/agent_supervisor/tasks/claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet.json",
-    "task_id": "claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet"
+    "kind": "monitor_only_no_dispatchable_blocker",
+    "task_id": null
   },
   "old_redis_write_status": "absent",
   "paper_pnl": -49.12,
   "paper_shadow_freshness": {
-    "age_seconds": 15,
+    "age_seconds": 14,
     "blockers": [],
-    "generated_at": "2026-05-15T01:11:08Z",
+    "generated_at": "2026-05-15T01:57:11Z",
     "path": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
     "status": "fresh"
   },
@@ -241,7 +231,7 @@
   "symbol_universe": {
     "age_seconds": 1,
     "blockers": [],
-    "generated_at": "2026-05-15T01:11:22Z",
+    "generated_at": "2026-05-15T01:57:24Z",
     "live_gate": "blocked_human_only",
     "live_symbols": [],
     "paper_symbols": [
@@ -256,7 +246,7 @@
   "symbol_universe_freshness": {
     "age_seconds": 1,
     "blockers": [],
-    "generated_at": "2026-05-15T01:11:22Z",
+    "generated_at": "2026-05-15T01:57:24Z",
     "live_gate": "blocked_human_only",
     "live_symbols": [],
     "paper_symbols": [
@@ -271,21 +261,21 @@
   "task_id": "codex_shutdown_readiness_takeover",
   "trainer_parity_state": {
     "accepted_as_legacy_hybrid_prediction": true,
-    "age_seconds": 49,
+    "age_seconds": 46,
     "blockers": [
       "legacy_log_confidence_calibration_derived",
       "legacy_log_feature_attribution_incomplete",
       "legacy_log_feature_snapshot_id_derived"
     ],
-    "checkpoint_id": "legacy_live_checkpoint_1778807294",
-    "generated_at": "2026-05-15T01:10:34Z",
+    "checkpoint_id": "legacy_live_checkpoint_1778810088",
+    "generated_at": "2026-05-15T01:56:39Z",
     "lineage_derivation_warnings": [
       "feature_snapshot_id_bridge_derived_from_legacy_log_line",
       "confidence_calibrated_bridge_derived_from_ppo_conf",
       "top_features_are_action_probability_evidence_not_full_feature_attribution",
       "top_negative_features_absent_from_legacy_log_line"
     ],
-    "model_checkpoint_id": "legacy_live_checkpoint_1778807294",
+    "model_checkpoint_id": "legacy_live_checkpoint_1778810088",
     "model_version": "legacy_hybrid_trainer_live_legacy",
     "path": "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json",
     "prediction_evidence_status": "LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT",

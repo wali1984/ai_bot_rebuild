@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-12T23:05:32.391Z",
+  "generated_at": "2026-05-15T01:55:29.944Z",
   "source_files": [
     "claude_worklog/agent_supervisor/status/current_status.json",
     "claude_worklog/agent_supervisor/status/queue_status.json",
@@ -21,8 +21,8 @@
   "canonical_truth_bridge": {
     "status": "PAPER_ONLINE_CANONICAL_TRUTH_ACTIVE",
     "source": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
-    "generated_at": "2026-05-12T23:05:32Z",
-    "paper_runtime_age_seconds": 0,
+    "generated_at": "2026-05-15T01:55:00Z",
+    "paper_runtime_age_seconds": 30,
     "operator_truth_was_stale": false,
     "runtime_state": "PAPER_RUNTIME_ONLINE_ACTIVE",
     "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT",
@@ -30,30 +30,32 @@
     "live_gate_status": "blocked_human_only"
   },
   "supervisor_status": {
-    "generated_at": "2026-05-12T23:05:32.391Z",
+    "generated_at": "2026-05-15T01:55:29.944Z",
     "current_status_path": "claude_worklog/agent_supervisor/status/current_status.json",
     "queue_status_path": "claude_worklog/agent_supervisor/status/queue_status.json",
     "master_planner_status_path": "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json",
     "current_status": {
-      "task_id": null,
-      "agent": null,
-      "start_time": "2026-05-12T23:05:07.267077+00:00",
-      "end_time": "2026-05-12T23:05:07.267080+00:00",
-      "status": "pending",
-      "summary": "no runnable task",
-      "next_recommended_action": "wait for dependencies/quota or add pending tasks"
+      "task_id": "paper_edge_post_filter_observation_window",
+      "agent": "claude",
+      "risk_level": "L2",
+      "start_time": "2026-05-15T01:55:06.506244+00:00",
+      "end_time": null,
+      "status": "running",
+      "stdout_path": "claude_worklog/agent_supervisor/runs/paper_edge_post_filter_observation_window/stdout.txt",
+      "stderr_path": "claude_worklog/agent_supervisor/runs/paper_edge_post_filter_observation_window/stderr.txt",
+      "summary": "task execution in progress",
+      "next_recommended_action": "wait for completion",
+      "materialized_files": [],
+      "run_pid": 920463
     },
     "queue_status": {
-      "generated_at": "2026-05-12T23:05:07.308858+00:00",
-      "next_pending_task": "SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX",
+      "generated_at": "2026-05-15T01:55:06.817838+00:00",
+      "next_pending_task": "recurring_monitor_legacy_trainer_runtime",
       "non_drift_governor_lock_enabled": true,
-      "non_drift_selected_primary_task": "SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX",
+      "non_drift_selected_primary_task": "recurring_monitor_legacy_trainer_runtime",
       "non_drift_support_lane_policy": "Website/UI/proof work is support-only unless it fixes a fresh route/data-truth regression or unblocks primary runtime truth.",
-      "non_drift_current_primary_blockers": [
-        "legacy_trainer_restart_runtime_parity_sync_blocked",
-        "legacy_execution_containment_marker_missing"
-      ],
-      "current_running_task": null,
+      "non_drift_current_primary_blockers": [],
+      "current_running_task": "paper_edge_post_filter_observation_window",
       "blocked_quota": null,
       "stale_running_count": 0,
       "stale_running_tasks": [],
@@ -61,8 +63,26 @@
       "no_event_tasks": [],
       "no_output_growth_count": 0,
       "no_output_growth_tasks": [],
-      "human_attention_required_count": 1,
+      "human_attention_required_count": 4,
       "human_attention_required_tasks": [
+        {
+          "task_id": "claude_port_v2_config_admin_manager",
+          "agent": "claude",
+          "attention_reason": null,
+          "last_summary": "codex takeover after stalled Claude run with zero stdout/stderr and no artifacts"
+        },
+        {
+          "task_id": "claude_port_v2_script_monitor",
+          "agent": "claude",
+          "attention_reason": null,
+          "last_summary": "codex takeover after stalled Claude run with zero stdout/stderr and no artifacts"
+        },
+        {
+          "task_id": "claude_port_v2_trainer_bridge_full_legacy_parity",
+          "agent": "claude",
+          "attention_reason": "max_attempts 2 exhausted; last reason: task_failed",
+          "last_summary": "; max_attempts 2 exhausted -> human_attention_required"
+        },
         {
           "task_id": "codex_recover_fail_marker_2hc_paper_execution_ledger_composition_root_codex_go_no_go",
           "agent": "codex",
@@ -72,8 +92,26 @@
       ],
       "final_live_gate_required_count": 0,
       "final_live_gate_required_tasks": [],
-      "non_blocking_decision_packet_count": 1,
+      "non_blocking_decision_packet_count": 4,
       "non_blocking_decision_packets": [
+        {
+          "task_id": "claude_port_v2_config_admin_manager",
+          "agent": "claude",
+          "attention_reason": null,
+          "last_summary": "codex takeover after stalled Claude run with zero stdout/stderr and no artifacts"
+        },
+        {
+          "task_id": "claude_port_v2_script_monitor",
+          "agent": "claude",
+          "attention_reason": null,
+          "last_summary": "codex takeover after stalled Claude run with zero stdout/stderr and no artifacts"
+        },
+        {
+          "task_id": "claude_port_v2_trainer_bridge_full_legacy_parity",
+          "agent": "claude",
+          "attention_reason": "max_attempts 2 exhausted; last reason: task_failed",
+          "last_summary": "; max_attempts 2 exhausted -> human_attention_required"
+        },
         {
           "task_id": "codex_recover_fail_marker_2hc_paper_execution_ledger_composition_root_codex_go_no_go",
           "agent": "codex",
@@ -84,17 +122,17 @@
       "human_attention_global_blocking": false,
       "manual_copilot_prompting_required": false,
       "counts": {
-        "pending": 8,
-        "running": 0,
-        "completed": 416,
+        "pending": 40,
+        "running": 1,
+        "completed": 478,
         "failed": 2,
-        "blocked": 10,
-        "retry_scheduled": 8,
+        "blocked": 12,
+        "retry_scheduled": 10,
         "skipped": 0,
         "cancelled": 1,
         "claude_rate_limited_resume_scheduled": 0,
-        "human_attention_required": 1,
-        "superseded_by_evidence": 48,
+        "human_attention_required": 4,
+        "superseded_by_evidence": 50,
         "waiting_decision_packet": 0,
         "delegated_decision_pending": 0
       },
@@ -188,24 +226,26 @@
       "prompt_path": "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt"
     },
     "active_processes": [
-      "68607 1029421 5386 bash -c cd '/home/wali/Desktop/AI BOT REBUILD' && while true; do if [ -f '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/control_plane/STOP_REBUILD_CONTROL_PLANE' ]; then echo stop-file-seen; e...",
-      "68613 68607 5386 python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30",
-      "1035556 1011413 320485 python3 ingest/live_binance.py",
-      "1035713 1011413 320474 python3 ingest/live_kucoin.py",
-      "1035811 1011413 320467 python3 ingest/live_coinank.py",
-      "1035965 1011413 320459 python3 ingest/live_coinank_global_aggregator.py",
-      "1036143 1011413 320447 python3 ingest/live_binance_liquidations.py",
-      "1038292 1011413 320360 python3 feature_pipeline.py",
-      "1038859 1011413 320333 python3 ingest/live_technical_analysis.py",
-      "1042465 1011413 320241 python3 -m rl.orchestrator_worker",
-      "1272209 1272100 276066 tail -f Desktop/AI BOT/logs/orchestrator_worker.log",
-      "3324271 1011413 77863 /bin/bash -O extglob -c snap=$(command cat <&3) && builtin shopt -s extglob && builtin eval -- \"$snap\" && { builtin set +u 2>/dev/null || true; builtin eval \"${__CURSOR_SANDBOX_ENV_RESTORE:-}\" 2>/dev/null; builtin export...",
-      "3324274 3324271 77863 python3 -u trading/trader.py",
-      "3446733 1011413 70331 python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30",
-      "3980694 1011413 25629 python3 -m rl.hybrid_trainer --mode hybrid --training-mode live --enhanced-features"
+      "46218 46198 98842 python3 -u ingest/live_binance.py",
+      "46365 46363 98830 python3 -u ingest/live_binance_liquidations.py",
+      "46559 46557 98816 python3 -u ingest/live_coinank.py",
+      "47157 47155 98787 python3 -u ingest/live_kucoin.py",
+      "47348 47346 98773 python3 -u ingest/live_technical_analysis.py",
+      "48066 48064 98746 python3 -u feature_pipeline.py",
+      "48623 48621 98713 python3 -u -m rl.hybrid_trainer --mode hybrid --epochs 1000 --batch-size 64",
+      "54017 54015 97819 python3 -u -m rl.orchestrator_worker",
+      "54905 54901 97698 python3 -u ingest/live_coinapi_v1.py",
+      "55369 55367 97659 python3 -u ingest/live_coinapi_wsds.py",
+      "57478 57291 97280 python3 Desktop/AI BOT/scripts/monitor_trainer_predictions.py",
+      "67228 67184 95711 watch -n 10 echo \"=== current worker ===\" cat claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/worker_porting_state.json 2>/dev/null | python3 -m json.tool | grep -E \"current_worker|next_action|last_c...",
+      "430848 5737 55313 ./.venv/bin/python3 claude_worklog/tools/v2_worker_porting_orchestrator.py --daemon --poll-seconds 120",
+      "435062 5737 54805 ./.venv/bin/python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30",
+      "859673 5737 5992 ./.venv/bin/python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30",
+      "920463 859673 23 claude --print [prompt redacted]"
     ],
     "supervisor_processes": [
-      "68613 68607 5386 python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30"
+      "859673 5737 5992 ./.venv/bin/python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30",
+      "920463 859673 23 claude --print [prompt redacted]"
     ],
     "is_supervisor_alive": true,
     "heartbeat_stale": false,
@@ -214,45 +254,40 @@
     "historical_status_files_stale": true,
     "master_planner_running": false,
     "autonomous_governor_active": false,
-    "current_running_task": null,
+    "current_running_task": "paper_edge_post_filter_observation_window",
     "last_completed_task": null,
-    "last_task_status": "pending",
-    "next_pending_task": "SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX",
-    "true_next_task": "SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX",
+    "last_task_status": "running",
+    "next_pending_task": "recurring_monitor_legacy_trainer_runtime",
+    "true_next_task": "recurring_monitor_legacy_trainer_runtime",
     "non_drift_governor_lock": {
       "status": "ACTIVE",
-      "selected_primary_task": "SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX",
+      "selected_primary_task": "recurring_monitor_legacy_trainer_runtime",
       "primary_objective": "V2 live-like paper/shadow, legacy bridge, risk gateway, trainer parity, and canary preflight",
       "support_lane_policy": "Website/UI/proof work is support-only unless it fixes a fresh route/data-truth regression or unblocks primary runtime truth.",
-      "current_primary_blockers": [
-        "legacy_trainer_restart_runtime_parity_sync_blocked",
-        "legacy_execution_containment_marker_missing"
-      ],
+      "current_primary_blockers": [],
       "path": "claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json"
     },
     "stale_or_conflicting": false,
     "status_conflicts": {
       "git_status_conflict": true,
-      "current_git_status": "M claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json\n M claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.md\n M claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/CODEX_NON_DRIFT_GOVERNOR_REVIEW.md\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/GOVERNOR_PRIORITY_POLICY.md\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/NEXT_TASKS_BY_LANE.md\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/PRIMARY_OBJECTIVE_LOCK.md\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/next_tasks_by_lane.json\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/objective_drift_status.json\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/operator_dashboard_payload.json\n M claude_worklog/legacy_readonly_audit/01_PROCESS_SNAPSHOT.md\n M claude_worklog/legacy_readonly_audit/06_TRAINER_RUNTIME_EVIDENCE.md\n M claude_worklog/tools/agent_supervisor.py\n M claude_worklog/tools/check_objective_drift.py\n M claude_worklog/tools/codex_non_live_watchdog.py\n M claude_worklog/tools/parallel_capacity_scheduler.py\n M v2/frontend/public/non_drift_governor_lock/latest/operator_dashboard_payload.json\n M v2/frontend/scripts/sync-proof-artifacts.mjs\n?? claude_worklog/agent_supervisor/tasks/LEGACY_EXECUTION_CONTAINMENT_AND_TRAINER_PARITY_SAFE_MODE.json\n?? claude_worklog/agent_supervisor/tasks/LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK.json\n?? claude_worklog/agent_supervisor/tasks/SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX.json\n?? claude_worklog/agent_supervisor/tasks/codex_audit_current_runtime_truth.json\n?? claude_worklog/agent_supervisor/tasks/codex_audit_legacy_bridge_readonly.json\n?? claude_worklog/agent_supervisor/tasks/codex_audit_no_live_side_effects.json\n?? claude_worklog/agent_supervisor/tasks/codex_audit_public_dashboard_truth.json\n?? claude_worklog/agent_supervisor/tasks/codex_audit_risk_gateway_fail_closed.json\n?? claude_worklog/agent_supervisor/tasks/codex_audit_script_migration_coverage.json\n?? claude_worklog/agent_supervisor/tasks/codex_audit_trainer_parity_truth.json\n?? claude_worklog/agent_supervisor/tasks/codex_audit_v2_data_plane_independence.json\n?? claude_worklog/final_readiness/active_autonomous_dispatch/\n?? claude_worklog/final_readiness/continuous_claude_runtime/\n?? claude_worklog/final_readiness/documentation_governance/\n?? claude_worklog/final_readiness/legacy_execution_containment/\n?? claude_worklog/final_readiness/safe_legacy_trainer_bridge/\n?? claude_worklog/final_readiness/script_migration_backlog/\n?? claude_worklog/tools/build_active_autonomous_dispatch_packet.py\n?? v2/frontend/public/active_autonomous_dispatch/",
+      "current_git_status": "M .claude/settings.local.json\n M claude_worklog/agent_supervisor/CLAUDE_QUOTA_CHECK_OUTPUT.txt\n M claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json\n M claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.md\n M claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/CANARY_READINESS_AFTER_ACCOUNT_EVIDENCE.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/CODEX_ACCOUNT_PERMISSION_AND_SOAK_REVIEW.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/CODEX_ACCOUNT_PERMISSION_AND_SOAK_REVIEW.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/MARGIN_LEVERAGE_EVIDENCE_REPORT.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/P0_P1_MIGRATION_ACCOUNT_EVIDENCE_PROGRESS.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/PAPER_SHADOW_MONITOR_CONTINUATION.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/PAPER_SHADOW_SOAK_RECONCILIATION.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/READONLY_ACCOUNT_EVIDENCE_REPORT.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/READONLY_ACCOUNT_TRADE_PERMISSION_AND_6H_PAPER_SHADOW_SOAK_REPORT.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/TRADE_PERMISSION_EVIDENCE_REPORT.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/TRAINER_TRADER_MONITOR_CONTINUATION_REPORT.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/WEEKLY_LOSS_GATE_RUNTIME_PROOF.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/canary_readiness_after_account_evidence.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/margin_leverage_evidence.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/p0_p1_migration_account_evidence_progress.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/paper_shadow_monitor_continuation.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/paper_shadow_soak_reconciliation.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/readonly_account_evidence.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/trade_permission_evidence.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/trainer_trader_monitor_continuation_status.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/weekly_loss_gate_runtime_proof.json\n M claude_worklog/final_readiness/active_autonomous_dispatch/latest/ACTIVE_AUTONOMOUS_PRIMARY_DISPATCH_AND_SCRIPT_MIGRATION_PROOF_REPORT.md\n M claude_worklog/final_readiness/active_autonomous_dispatch/latest/CLAUDE_IDLE_AND_DISPATCH_DIAGNOSTIC.md\n M claude_worklog/final_readiness/active_autonomous_dispatch/latest/CODEX_PARALLEL_DISPATCH_PROOF.md\n M claude_worklog/final_readiness/active_autonomous_dispatch/latest/PRIMARY_DISPATCH_PROOF.md\n M claude_worklog/final_readiness/active_autonomous_dispatch/latest/claude_idle_and_dispatch_diagnostic.json\n M claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_parallel_dispatch_state.json\n M claude_worklog/final_readiness/active_autonomous_dispatch/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/active_autonomous_dispatch/latest/primary_dispatch_state.json\n M claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/always_on_runtime_state.json\n M claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/automation_utilization_status.json\n M claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/git_dirty_state.json\n M claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json\n M claude_worklog/final_readiness/codex_independent_v2_support/latest/PUBLIC_PAYLOAD_FRESHNESS_GUARD_REPORT.md\n M claude_worklog/final_readiness/codex_independent_v2_support/latest/public_payload_freshness_guard.json\n M claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/CODEX_SHUTDOWN_TAKEOVER_STATUS.md\n M claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/blocker_matrix.json\n M claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/claude_delegation_log.jsonl\n M claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/codex_shutdown_takeover_status.json\n M claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/current_recommendation.json\n M claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/shutdown_readiness_state.json\n M claude_worklog/final_readiness/documentation_governance/latest/doc_update_policy.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_account_position_monitor_status.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_coinank_and_liquidation_bridge_from_legacy_baseline_status.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_execution_ledger_worker_status.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_feature_pipeline_and_ta_worker_from_legacy_baseline_status.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_feature_snapshot_builder_status.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_market_ingestor_from_legacy_baseline_status.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_paper_execution_worker_status.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_risk_gateway_runtime_worker_status.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_signal_lineage_worker_status.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_trainer_bridge_status.json\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/GOVERNOR_PRIORITY_POLICY.md\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/NEXT_TASKS_BY_LANE.md\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/PRIMARY_OBJECTIVE_LOCK.md\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/next_tasks_by_lane.json\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/objective_drift_status.json\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/CONTROL_PLANE_FRESHNESS_RECOVERY.md\n M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/LEGACY_TRADER_CONTAINMENT.md\n M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_REPORT.md\n M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/operator_truth_payload.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/CANARY_READINESS_AFTER_NEGATIVE_PNL_AND_ACCOUNT_CHECK.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/CODEX_NEGATIVE_PNL_ACCOUNT_EVIDENCE_REVIEW.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/CODEX_NEGATIVE_PNL_ACCOUNT_EVIDENCE_REVIEW.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/MARGIN_LEVERAGE_EVIDENCE_PROVIDER.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/NEGATIVE_PAPER_PNL_DIAGNOSIS.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/P0_P1_MIGRATION_CONTINUATION.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/PAPER_FILL_QUALITY_AND_OVERTRADING_AUDIT.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/PAPER_SHADOW_6H_24H_CONTINUATION.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/PAPER_SHADOW_6H_SOAK_NEGATIVE_PNL_DIAGNOSIS_AND_ACCOUNT_EVIDENCE_PROVIDER_REPORT.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/READONLY_ACCOUNT_EVIDENCE_PROVIDER.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/TRADE_PERMISSION_EVIDENCE_PROVIDER.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/TRAINER_TRADER_MONITOR_CONTINUATION.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/canary_readiness_after_negative_pnl_and_account_check.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/margin_leverage_evidence_provider.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/negative_paper_pnl_diagnosis.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/p0_p1_migration_continuation.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/paper_fill_quality_and_overtrading_audit.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/paper_shadow_6h_24h_continuation.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/readonly_account_evidence_provider.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/trade_permission_evidence_provider.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/trainer_trader_monitor_continuation.json\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/CANARY_PROFILE_TIGHTENING_IMPLEMENTATION_REPORT.md\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/CANARY_PROFILE_TIGHTENING_PROPOSAL.md\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/CANARY_READINESS_AFTER_TIGHTENING.md\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/CODEX_STRATEGY_EDGE_TIGHTENING_REVIEW.json\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/CODEX_STRATEGY_EDGE_TIGHTENING_REVIEW.md\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/NEGATIVE_6H_PNL_ROOT_CAUSE.md\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/PAPER_SHADOW_24H_CONTINUATION.md\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/PAPER_STRATEGY_EDGE_DIAGNOSIS_AND_CANARY_PROFILE_TIGHTENING_REPORT.md\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/TIGHTENED_PROFILE_EVALUATION.md\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/TRAINER_TRADER_MONITOR_DURING_NEGATIVE_PNL.md\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/canary_profile_tightening_proposal.json\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/canary_profile_tightening_test_results.json\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/canary_readiness_after_tightening.json\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/negative_6h_pnl_root_cause.json\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/paper_shadow_24h_continuation.json\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/tightened_profile_evaluation.json\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/trainer_trader_monitor_during_negative_pnl.json\n M claude_worklog/final_readiness/production_operator_webapp/latest/ADMIN_SHELL_REBUILD_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/ALL_ROUTES_PRODUCTION_CONTENT_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/BROWSER_PRODUCTION_ACCEPTANCE_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/MISSION_CONTROL_PRODUCTION_REBUILD_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/MONITOR_CENTER_PRODUCTION_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/OPERATOR_TRUTH_GENERATOR_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/PRODUCTION_OPERATOR_WEBAPP_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/ROUTE_ACCEPTANCE_MATRIX.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/SIGNAL_EXPLAINABILITY_PRODUCTION_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/SUPERVISOR_FRESHNESS_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/TRADINGVIEW_PRODUCTION_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/TRAINER_MONITOR_PRODUCTION_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/UI_ACCEPTANCE_FAILURE.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/symbol_universe_public_payload/latest/symbol_universe_status.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/ADMIN_AI_OPERATIONAL_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/ALL_ROUTES_OPERATIONAL_ACCEPTANCE.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/BROWSER_PUBLIC_URL_ACCEPTANCE_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/CODEX_PARALLEL_AUDIT_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/HARD_RESET_TO_REAL_GOAL.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/HOSTING_AND_TELEMETRY_BRIDGE_PLAN.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/MARKET_FEED_ONLINE_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/NO_LIVE_MUTATION_SAFETY_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/PAPER_RUNTIME_ONLINE_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/PAPER_RUNTIME_WIRING_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/RISK_GATEWAY_CURRENT_RUNTIME_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/RUNTIME_DATA_VISIBILITY_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/SIGNAL_LINEAGE_ONLINE_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/SUPERVISOR_CONTROL_PLANE_REPAIR_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/TRAINER_MONITOR_ONLINE_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/V2_DATA_PLANE_ONLINE_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/V2_PAPER_ONLINE_FULL_OPERATIONAL_RECOVERY_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/VALIDATION_COMMANDS.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/admin_ai_status.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/current_risk_decisions.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/current_signal_lineage.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/market_feed_status.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/paper_ledger_tail.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/paper_positions.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/paper_runtime_status.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/supervisor_current_truth.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/trainer_prediction_current_record.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/trainer_runtime_current_status.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/v2_data_plane_status.json\n M claude_worklog/final_readiness/v2_persistent_automation_service_layer/latest/automation_liveness_watchdog_status.json\n M claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/WORKER_PORTING_STATUS.md\n M claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/next_selected_task.json\n M claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/worker_porting_state.json\n M claude_worklog/historical_pnl_audit/01_DATA_SOURCE_STATUS.md\n M claude_worklog/legacy_readonly_audit/01_PROCESS_SNAPSHOT.md\n M claude_worklog/legacy_readonly_audit/03_LEGACY_CODE_FUNCTION_INVENTORY.md\n M claude_worklog/legacy_readonly_audit/07_ORCHESTRATOR_TRADER_RUNTIME_EVIDENCE.md\n M claude_worklog/tools/build_active_autonomous_dispatch_packet.py\n M v2/backend/app/domain/risk_gateway/__init__.py\n M v2/backend/app/domain/risk_gateway/record.py\n M v2/backend/tests/unit/domain/risk_gateway/test_public_surface.py\n M v2/frontend/public/account_permission_and_soak/latest/CANARY_READINESS_AFTER_ACCOUNT_EVIDENCE.md\n M v2/frontend/public/account_permission_and_soak/latest/CODEX_ACCOUNT_PERMISSION_AND_SOAK_REVIEW.json\n M v2/frontend/public/account_permission_and_soak/latest/CODEX_ACCOUNT_PERMISSION_AND_SOAK_REVIEW.md\n M v2/frontend/public/account_permission_and_soak/latest/MARGIN_LEVERAGE_EVIDENCE_REPORT.md\n M v2/frontend/public/account_permission_and_soak/latest/P0_P1_MIGRATION_ACCOUNT_EVIDENCE_PROGRESS.md\n M v2/frontend/public/account_permission_and_soak/latest/PAPER_SHADOW_MONITOR_CONTINUATION.md\n M v2/frontend/public/account_permission_and_soak/latest/PAPER_SHADOW_SOAK_RECONCILIATION.md\n M v2/frontend/public/account_permission_and_soak/latest/READONLY_ACCOUNT_EVIDENCE_REPORT.md\n M v2/frontend/public/account_permission_and_soak/latest/READONLY_ACCOUNT_TRADE_PERMISSION_AND_6H_PAPER_SHADOW_SOAK_REPORT.md\n M v2/frontend/public/account_permission_and_soak/latest/TRADE_PERMISSION_EVIDENCE_REPORT.md\n M v2/frontend/public/account_permission_and_soak/latest/TRAINER_TRADER_MONITOR_CONTINUATION_REPORT.md\n M v2/frontend/public/account_permission_and_soak/latest/WEEKLY_LOSS_GATE_RUNTIME_PROOF.md\n M v2/frontend/public/account_permission_and_soak/latest/canary_readiness_after_account_evidence.json\n M v2/frontend/public/account_permission_and_soak/latest/margin_leverage_evidence.json\n M v2/frontend/public/account_permission_and_soak/latest/operator_dashboard_payload.json\n M v2/frontend/public/account_permission_and_soak/latest/p0_p1_migration_account_evidence_progress.json\n M v2/frontend/public/account_permission_and_soak/latest/paper_shadow_monitor_continuation.json\n M v2/frontend/public/account_permission_and_soak/latest/paper_shadow_soak_reconciliation.json\n M v2/frontend/public/account_permission_and_soak/latest/readonly_account_evidence.json\n M v2/frontend/public/account_permission_and_soak/latest/trade_permission_evidence.json\n M v2/frontend/public/account_permission_and_soak/latest/trainer_trader_monitor_continuation_status.json\n M v2/frontend/public/account_permission_and_soak/latest/weekly_loss_gate_runtime_proof.json\n M v2/frontend/public/active_autonomous_dispatch/latest/ACTIVE_AUTONOMOUS_PRIMARY_DISPATCH_AND_SCRIPT_MIGRATION_PROOF_REPORT.md\n M v2/frontend/public/active_autonomous_dispatch/latest/CLAUDE_IDLE_AND_DISPATCH_DIAGNOSTIC.md\n M v2/frontend/public/active_autonomous_dispatch/latest/CODEX_PARALLEL_DISPATCH_PROOF.md\n M v2/frontend/public/active_autonomous_dispatch/latest/PRIMARY_DISPATCH_PROOF.md\n M v2/frontend/public/active_autonomous_dispatch/latest/claude_idle_and_dispatch_diagnostic.json\n M v2/frontend/public/active_autonomous_dispatch/latest/codex_parallel_dispatch_state.json\n M v2/frontend/public/active_autonomous_dispatch/latest/operator_dashboard_payload.json\n M v2/frontend/public/active_autonomous_dispatch/latest/primary_dispatch_state.json\n M v2/frontend/public/always_on_claude_codex_runtime/latest/always_on_runtime_state.json\n M v2/frontend/public/always_on_claude_codex_runtime/latest/automation_utilization_status.json\n M v2/frontend/public/always_on_claude_codex_runtime/latest/git_dirty_state.json\n M v2/frontend/public/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json\n M v2/frontend/public/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json\n M v2/frontend/public/codex_independent_v2_support/latest/public_payload_freshness_guard.json\n M v2/frontend/public/codex_shutdown_readiness_takeover/latest/CODEX_SHUTDOWN_TAKEOVER_STATUS.md\n M v2/frontend/public/codex_shutdown_readiness_takeover/latest/blocker_matrix.json\n M v2/frontend/public/codex_shutdown_readiness_takeover/latest/codex_shutdown_takeover_status.json\n M v2/frontend/public/codex_shutdown_readiness_takeover/latest/operator_dashboard_payload.json\n M v2/frontend/public/documentation_governance/latest/doc_update_policy.json\n M v2/frontend/public/live_readiness_preflight/latest/LIVE_READINESS_PREFLIGHT_REPORT.md\n M v2/frontend/public/non_drift_governor_lock/latest/CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md\n M v2/frontend/public/non_drift_governor_lock/latest/GOVERNOR_PRIORITY_POLICY.md\n M v2/frontend/public/non_drift_governor_lock/latest/NEXT_TASKS_BY_LANE.md\n M v2/frontend/public/non_drift_governor_lock/latest/PRIMARY_OBJECTIVE_LOCK.md\n M v2/frontend/public/non_drift_governor_lock/latest/next_tasks_by_lane.json\n M v2/frontend/public/non_drift_governor_lock/latest/objective_drift_status.json\n M v2/frontend/public/non_drift_governor_lock/latest/operator_dashboard_payload.json\n M v2/frontend/public/operator_runtime/coinank_market_intelligence/latest/coinank_market_intelligence_status.json\n M v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json\n M v2/frontend/public/operator_runtime/v2_account_position_monitor/latest/v2_account_position_monitor_status.json\n M v2/frontend/public/operator_runtime/v2_execution_ledger_worker/latest/v2_execution_ledger_worker_status.json\n M v2/frontend/public/operator_runtime/v2_feature_pipeline_and_ta_worker/latest/v2_feature_pipeline_and_ta_worker_status.json\n M v2/frontend/public/operator_runtime/v2_market_ingestor/latest/v2_market_ingestor_status.json\n M v2/frontend/public/operator_runtime/v2_paper_execution_worker/latest/v2_paper_execution_worker_status.json\n M v2/frontend/public/operator_runtime/v2_risk_gateway_runtime_worker/latest/v2_risk_gateway_runtime_worker_status.json\n M v2/frontend/public/operator_runtime/v2_signal_lineage_worker/latest/v2_signal_lineage_worker_status.json\n M v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json\n M v2/frontend/public/paper_online_canonical_truth_bridge/latest/CONTROL_PLANE_FRESHNESS_RECOVERY.md\n M v2/frontend/public/paper_online_canonical_truth_bridge/latest/LEGACY_TRADER_CONTAINMENT.md\n M v2/frontend/public/paper_online_canonical_truth_bridge/latest/PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_REPORT.md\n M v2/frontend/public/paper_online_canonical_truth_bridge/latest/operator_dashboard_payload.json\n M v2/frontend/public/paper_online_canonical_truth_bridge/latest/operator_truth_payload.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/CANARY_READINESS_AFTER_NEGATIVE_PNL_AND_ACCOUNT_CHECK.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/CODEX_NEGATIVE_PNL_ACCOUNT_EVIDENCE_REVIEW.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/CODEX_NEGATIVE_PNL_ACCOUNT_EVIDENCE_REVIEW.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/MARGIN_LEVERAGE_EVIDENCE_PROVIDER.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/NEGATIVE_PAPER_PNL_DIAGNOSIS.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/P0_P1_MIGRATION_CONTINUATION.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/PAPER_FILL_QUALITY_AND_OVERTRADING_AUDIT.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/PAPER_SHADOW_6H_24H_CONTINUATION.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/PAPER_SHADOW_6H_SOAK_NEGATIVE_PNL_DIAGNOSIS_AND_ACCOUNT_EVIDENCE_PROVIDER_REPORT.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/READONLY_ACCOUNT_EVIDENCE_PROVIDER.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/TRADE_PERMISSION_EVIDENCE_PROVIDER.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/TRAINER_TRADER_MONITOR_CONTINUATION.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/canary_readiness_after_negative_pnl_and_account_check.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/margin_leverage_evidence_provider.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/negative_paper_pnl_diagnosis.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/operator_dashboard_payload.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/p0_p1_migration_continuation.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/paper_fill_quality_and_overtrading_audit.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/paper_shadow_6h_24h_continuation.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/readonly_account_evidence_provider.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/trade_permission_evidence_provider.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/trainer_trader_monitor_continuation.json\n M v2/frontend/public/paper_strategy_edge_tightening/latest/CANARY_PROFILE_TIGHTENING_IMPLEMENTATION_REPORT.md\n M v2/frontend/public/paper_strategy_edge_tightening/latest/CANARY_PROFILE_TIGHTENING_PROPOSAL.md\n M v2/frontend/public/paper_strategy_edge_tightening/latest/CANARY_READINESS_AFTER_TIGHTENING.md\n M v2/frontend/public/paper_strategy_edge_tightening/latest/CODEX_STRATEGY_EDGE_TIGHTENING_REVIEW.json\n M v2/frontend/public/paper_strategy_edge_tightening/latest/CODEX_STRATEGY_EDGE_TIGHTENING_REVIEW.md\n M v2/frontend/public/paper_strategy_edge_tightening/latest/NEGATIVE_6H_PNL_ROOT_CAUSE.md\n M v2/frontend/public/paper_strategy_edge_tightening/latest/PAPER_SHADOW_24H_CONTINUATION.md\n M v2/frontend/public/paper_strategy_edge_tightening/latest/PAPER_STRATEGY_EDGE_DIAGNOSIS_AND_CANARY_PROFILE_TIGHTENING_REPORT.md\n M v2/frontend/public/paper_strategy_edge_tightening/latest/TIGHTENED_PROFILE_EVALUATION.md\n M v2/frontend/public/paper_strategy_edge_tightening/latest/TRAINER_TRADER_MONITOR_DURING_NEGATIVE_PNL.md\n M v2/frontend/public/paper_strategy_edge_tightening/latest/canary_profile_tightening_proposal.json\n M v2/frontend/public/paper_strategy_edge_tightening/latest/canary_profile_tightening_test_results.json\n M v2/frontend/public/paper_strategy_edge_tightening/latest/canary_readiness_after_tightening.json\n M v2/frontend/public/paper_strategy_edge_tightening/latest/negative_6h_pnl_root_cause.json\n M v2/frontend/public/paper_strategy_edge_tightening/latest/operator_dashboard_payload.json\n M v2/frontend/public/paper_strategy_edge_tightening/latest/paper_shadow_24h_continuation.json\n M v2/frontend/public/paper_strategy_edge_tightening/latest/tightened_profile_evaluation.json\n M v2/frontend/public/paper_strategy_edge_tightening/latest/trainer_trader_monitor_during_negative_pnl.json\n M v2/frontend/public/production_operator_webapp/latest/ADMIN_SHELL_REBUILD_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/ALL_ROUTES_PRODUCTION_CONTENT_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/BROWSER_PRODUCTION_ACCEPTANCE_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/MISSION_CONTROL_PRODUCTION_REBUILD_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/MONITOR_CENTER_PRODUCTION_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/OPERATOR_TRUTH_GENERATOR_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/PRODUCTION_OPERATOR_WEBAPP_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/ROUTE_ACCEPTANCE_MATRIX.md\n M v2/frontend/public/production_operator_webapp/latest/SIGNAL_EXPLAINABILITY_PRODUCTION_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/SUPERVISOR_FRESHNESS_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/TRADINGVIEW_PRODUCTION_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/TRAINER_MONITOR_PRODUCTION_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/UI_ACCEPTANCE_FAILURE.md\n M v2/frontend/public/production_operator_webapp/latest/operator_dashboard_payload.json\n M v2/frontend/public/v2_paper_online_recovery/latest/ADMIN_AI_OPERATIONAL_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/ALL_ROUTES_OPERATIONAL_ACCEPTANCE.md\n M v2/frontend/public/v2_paper_online_recovery/latest/BROWSER_PUBLIC_URL_ACCEPTANCE_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/CODEX_PARALLEL_AUDIT_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/HARD_RESET_TO_REAL_GOAL.md\n M v2/frontend/public/v2_paper_online_recovery/latest/HOSTING_AND_TELEMETRY_BRIDGE_PLAN.md\n M v2/frontend/public/v2_paper_online_recovery/latest/MARKET_FEED_ONLINE_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/NO_LIVE_MUTATION_SAFETY_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/PAPER_RUNTIME_ONLINE_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/PAPER_RUNTIME_WIRING_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/RISK_GATEWAY_CURRENT_RUNTIME_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/RUNTIME_DATA_VISIBILITY_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/SIGNAL_LINEAGE_ONLINE_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/SUPERVISOR_CONTROL_PLANE_REPAIR_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/TRAINER_MONITOR_ONLINE_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/V2_DATA_PLANE_ONLINE_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/V2_PAPER_ONLINE_FULL_OPERATIONAL_RECOVERY_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/VALIDATION_COMMANDS.md\n M v2/frontend/public/v2_paper_online_recovery/latest/admin_ai_status.json\n M v2/frontend/public/v2_paper_online_recovery/latest/current_risk_decisions.json\n M v2/frontend/public/v2_paper_online_recovery/latest/current_signal_lineage.json\n M v2/frontend/public/v2_paper_online_recovery/latest/market_feed_status.json\n M v2/frontend/public/v2_paper_online_recovery/latest/operator_dashboard_payload.json\n M v2/frontend/public/v2_paper_online_recovery/latest/paper_ledger_tail.json\n M v2/frontend/public/v2_paper_online_recovery/latest/paper_positions.json\n M v2/frontend/public/v2_paper_online_recovery/latest/paper_runtime_status.json\n M v2/frontend/public/v2_paper_online_recovery/latest/supervisor_current_truth.json\n M v2/frontend/public/v2_paper_online_recovery/latest/trainer_prediction_current_record.json\n M v2/frontend/public/v2_paper_online_recovery/latest/trainer_runtime_current_status.json\n M v2/frontend/public/v2_paper_online_recovery/latest/v2_data_plane_status.json\n M v2/frontend/public/v2_persistent_automation_service_layer/latest/automation_liveness_watchdog_status.json\n M v2/frontend/public/v2_worker_porting_orchestrator/latest/operator_dashboard_payload.json\n?? claude_worklog/agent_supervisor/tasks/POST_FINAL_GATE_NON_LIVE_MONITORING_AND_HARDENING.json\n?? claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_GO_NO_GO.md\n?? claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_REPORT.md\n?? claude_worklog/final_readiness/always_on_claude_codex_runtime/recurring/\n?? claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_feature_pipeline_and_ta_worker_from_legacy_baseline_LEGACY_BASELINE_ANALYSIS.md\n?? claude_worklog/final_readiness/post_final_gate_non_live_monitoring_and_hardening/\n?? claude_worklog/final_readiness/tonight_v2_live_like_paper_shadow_and_canary_preflight/\n?? claude_worklog/final_readiness/trainer_derived_evidence_acceptance/\n?? claude_worklog/final_readiness/v2_paper_online_recovery/latest/risk_runtime_payload.json\n?? v2/frontend/public/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_GO_NO_GO.md\n?? v2/frontend/public/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_REPORT.md\n?? v2/frontend/public/trainer_derived_evidence_acceptance/\n?? v2/frontend/public/v2_paper_online_recovery/latest/risk_runtime_payload.json",
       "planner_reported_git_status": "?? claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/CODEX_GO_NO_GO.md\n?? claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/CODEX_ONLINE_READINESS_AGGREGATOR_FRESHNESS_REVIEW.md",
-      "queue_age_seconds": 25,
-      "planner_age_seconds": 95418,
+      "queue_age_seconds": 23,
+      "planner_age_seconds": 278416,
       "historical_status_files_stale": true,
       "canonical_truth_source": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json"
     },
     "latest_event": {
-      "event": "no_runnable_task",
-      "task_id": null,
-      "agent": null,
-      "start_time": "2026-05-12T23:05:07.267077+00:00",
-      "end_time": "2026-05-12T23:05:07.267080+00:00",
-      "status": "pending",
-      "summary": "no runnable task",
-      "next_recommended_action": "wait for dependencies/quota or add pending tasks",
-      "ts": "2026-05-12T23:05:07.326092+00:00"
+      "blocker_count": 7,
+      "event": "codex_shutdown_readiness_takeover_tick",
+      "loop_marker": "CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP_READY",
+      "next_action_kind": "monitor_only_no_dispatchable_blocker",
+      "next_task_id": null,
+      "shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
+      "ts": "2026-05-15T01:55:25Z"
     },
-    "git_status": "M claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json\n M claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.md\n M claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/CODEX_NON_DRIFT_GOVERNOR_REVIEW.md\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/GOVERNOR_PRIORITY_POLICY.md\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/NEXT_TASKS_BY_LANE.md\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/PRIMARY_OBJECTIVE_LOCK.md\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/next_tasks_by_lane.json\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/objective_drift_status.json\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/operator_dashboard_payload.json\n M claude_worklog/legacy_readonly_audit/01_PROCESS_SNAPSHOT.md\n M claude_worklog/legacy_readonly_audit/06_TRAINER_RUNTIME_EVIDENCE.md\n M claude_worklog/tools/agent_supervisor.py\n M claude_worklog/tools/check_objective_drift.py\n M claude_worklog/tools/codex_non_live_watchdog.py\n M claude_worklog/tools/parallel_capacity_scheduler.py\n M v2/frontend/public/non_drift_governor_lock/latest/operator_dashboard_payload.json\n M v2/frontend/scripts/sync-proof-artifacts.mjs\n?? claude_worklog/agent_supervisor/tasks/LEGACY_EXECUTION_CONTAINMENT_AND_TRAINER_PARITY_SAFE_MODE.json\n?? claude_worklog/agent_supervisor/tasks/LEGACY_TRAINER_RESTART_RUNTIME_CAPTURE_AND_V2_PARITY_SYNC_UNBLOCK.json\n?? claude_worklog/agent_supervisor/tasks/SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX.json\n?? claude_worklog/agent_supervisor/tasks/codex_audit_current_runtime_truth.json\n?? claude_worklog/agent_supervisor/tasks/codex_audit_legacy_bridge_readonly.json\n?? claude_worklog/agent_supervisor/tasks/codex_audit_no_live_side_effects.json\n?? claude_worklog/agent_supervisor/tasks/codex_audit_public_dashboard_truth.json\n?? claude_worklog/agent_supervisor/tasks/codex_audit_risk_gateway_fail_closed.json\n?? claude_worklog/agent_supervisor/tasks/codex_audit_script_migration_coverage.json\n?? claude_worklog/agent_supervisor/tasks/codex_audit_trainer_parity_truth.json\n?? claude_worklog/agent_supervisor/tasks/codex_audit_v2_data_plane_independence.json\n?? claude_worklog/final_readiness/active_autonomous_dispatch/\n?? claude_worklog/final_readiness/continuous_claude_runtime/\n?? claude_worklog/final_readiness/documentation_governance/\n?? claude_worklog/final_readiness/legacy_execution_containment/\n?? claude_worklog/final_readiness/safe_legacy_trainer_bridge/\n?? claude_worklog/final_readiness/script_migration_backlog/\n?? claude_worklog/tools/build_active_autonomous_dispatch_packet.py\n?? v2/frontend/public/active_autonomous_dispatch/",
-    "latest_commit": "7e6f376 Refresh non-drift governor lock state",
+    "git_status": "M .claude/settings.local.json\n M claude_worklog/agent_supervisor/CLAUDE_QUOTA_CHECK_OUTPUT.txt\n M claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json\n M claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.md\n M claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/CANARY_READINESS_AFTER_ACCOUNT_EVIDENCE.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/CODEX_ACCOUNT_PERMISSION_AND_SOAK_REVIEW.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/CODEX_ACCOUNT_PERMISSION_AND_SOAK_REVIEW.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/MARGIN_LEVERAGE_EVIDENCE_REPORT.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/P0_P1_MIGRATION_ACCOUNT_EVIDENCE_PROGRESS.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/PAPER_SHADOW_MONITOR_CONTINUATION.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/PAPER_SHADOW_SOAK_RECONCILIATION.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/READONLY_ACCOUNT_EVIDENCE_REPORT.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/READONLY_ACCOUNT_TRADE_PERMISSION_AND_6H_PAPER_SHADOW_SOAK_REPORT.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/TRADE_PERMISSION_EVIDENCE_REPORT.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/TRAINER_TRADER_MONITOR_CONTINUATION_REPORT.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/WEEKLY_LOSS_GATE_RUNTIME_PROOF.md\n M claude_worklog/final_readiness/account_permission_and_soak/latest/canary_readiness_after_account_evidence.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/margin_leverage_evidence.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/p0_p1_migration_account_evidence_progress.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/paper_shadow_monitor_continuation.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/paper_shadow_soak_reconciliation.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/readonly_account_evidence.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/trade_permission_evidence.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/trainer_trader_monitor_continuation_status.json\n M claude_worklog/final_readiness/account_permission_and_soak/latest/weekly_loss_gate_runtime_proof.json\n M claude_worklog/final_readiness/active_autonomous_dispatch/latest/ACTIVE_AUTONOMOUS_PRIMARY_DISPATCH_AND_SCRIPT_MIGRATION_PROOF_REPORT.md\n M claude_worklog/final_readiness/active_autonomous_dispatch/latest/CLAUDE_IDLE_AND_DISPATCH_DIAGNOSTIC.md\n M claude_worklog/final_readiness/active_autonomous_dispatch/latest/CODEX_PARALLEL_DISPATCH_PROOF.md\n M claude_worklog/final_readiness/active_autonomous_dispatch/latest/PRIMARY_DISPATCH_PROOF.md\n M claude_worklog/final_readiness/active_autonomous_dispatch/latest/claude_idle_and_dispatch_diagnostic.json\n M claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_parallel_dispatch_state.json\n M claude_worklog/final_readiness/active_autonomous_dispatch/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/active_autonomous_dispatch/latest/primary_dispatch_state.json\n M claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/always_on_runtime_state.json\n M claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/automation_utilization_status.json\n M claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/git_dirty_state.json\n M claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json\n M claude_worklog/final_readiness/codex_independent_v2_support/latest/PUBLIC_PAYLOAD_FRESHNESS_GUARD_REPORT.md\n M claude_worklog/final_readiness/codex_independent_v2_support/latest/public_payload_freshness_guard.json\n M claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/CODEX_SHUTDOWN_TAKEOVER_STATUS.md\n M claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/blocker_matrix.json\n M claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/claude_delegation_log.jsonl\n M claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/codex_shutdown_takeover_status.json\n M claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/current_recommendation.json\n M claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/shutdown_readiness_state.json\n M claude_worklog/final_readiness/documentation_governance/latest/doc_update_policy.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_account_position_monitor_status.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_coinank_and_liquidation_bridge_from_legacy_baseline_status.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_execution_ledger_worker_status.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_feature_pipeline_and_ta_worker_from_legacy_baseline_status.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_feature_snapshot_builder_status.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_market_ingestor_from_legacy_baseline_status.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_paper_execution_worker_status.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_risk_gateway_runtime_worker_status.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_signal_lineage_worker_status.json\n M claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_trainer_bridge_status.json\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/GOVERNOR_PRIORITY_POLICY.md\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/NEXT_TASKS_BY_LANE.md\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/PRIMARY_OBJECTIVE_LOCK.md\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/next_tasks_by_lane.json\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/objective_drift_status.json\n M claude_worklog/final_readiness/non_drift_governor_lock/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/CONTROL_PLANE_FRESHNESS_RECOVERY.md\n M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/LEGACY_TRADER_CONTAINMENT.md\n M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_REPORT.md\n M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/paper_online_canonical_truth_bridge/latest/operator_truth_payload.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/CANARY_READINESS_AFTER_NEGATIVE_PNL_AND_ACCOUNT_CHECK.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/CODEX_NEGATIVE_PNL_ACCOUNT_EVIDENCE_REVIEW.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/CODEX_NEGATIVE_PNL_ACCOUNT_EVIDENCE_REVIEW.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/MARGIN_LEVERAGE_EVIDENCE_PROVIDER.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/NEGATIVE_PAPER_PNL_DIAGNOSIS.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/P0_P1_MIGRATION_CONTINUATION.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/PAPER_FILL_QUALITY_AND_OVERTRADING_AUDIT.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/PAPER_SHADOW_6H_24H_CONTINUATION.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/PAPER_SHADOW_6H_SOAK_NEGATIVE_PNL_DIAGNOSIS_AND_ACCOUNT_EVIDENCE_PROVIDER_REPORT.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/READONLY_ACCOUNT_EVIDENCE_PROVIDER.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/TRADE_PERMISSION_EVIDENCE_PROVIDER.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/TRAINER_TRADER_MONITOR_CONTINUATION.md\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/canary_readiness_after_negative_pnl_and_account_check.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/margin_leverage_evidence_provider.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/negative_paper_pnl_diagnosis.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/p0_p1_migration_continuation.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/paper_fill_quality_and_overtrading_audit.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/paper_shadow_6h_24h_continuation.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/readonly_account_evidence_provider.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/trade_permission_evidence_provider.json\n M claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/trainer_trader_monitor_continuation.json\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/CANARY_PROFILE_TIGHTENING_IMPLEMENTATION_REPORT.md\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/CANARY_PROFILE_TIGHTENING_PROPOSAL.md\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/CANARY_READINESS_AFTER_TIGHTENING.md\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/CODEX_STRATEGY_EDGE_TIGHTENING_REVIEW.json\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/CODEX_STRATEGY_EDGE_TIGHTENING_REVIEW.md\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/NEGATIVE_6H_PNL_ROOT_CAUSE.md\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/PAPER_SHADOW_24H_CONTINUATION.md\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/PAPER_STRATEGY_EDGE_DIAGNOSIS_AND_CANARY_PROFILE_TIGHTENING_REPORT.md\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/TIGHTENED_PROFILE_EVALUATION.md\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/TRAINER_TRADER_MONITOR_DURING_NEGATIVE_PNL.md\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/canary_profile_tightening_proposal.json\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/canary_profile_tightening_test_results.json\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/canary_readiness_after_tightening.json\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/negative_6h_pnl_root_cause.json\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/paper_shadow_24h_continuation.json\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/tightened_profile_evaluation.json\n M claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/trainer_trader_monitor_during_negative_pnl.json\n M claude_worklog/final_readiness/production_operator_webapp/latest/ADMIN_SHELL_REBUILD_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/ALL_ROUTES_PRODUCTION_CONTENT_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/BROWSER_PRODUCTION_ACCEPTANCE_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/MISSION_CONTROL_PRODUCTION_REBUILD_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/MONITOR_CENTER_PRODUCTION_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/OPERATOR_TRUTH_GENERATOR_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/PRODUCTION_OPERATOR_WEBAPP_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/ROUTE_ACCEPTANCE_MATRIX.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/SIGNAL_EXPLAINABILITY_PRODUCTION_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/SUPERVISOR_FRESHNESS_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/TRADINGVIEW_PRODUCTION_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/TRAINER_MONITOR_PRODUCTION_REPAIR_REPORT.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/UI_ACCEPTANCE_FAILURE.md\n M claude_worklog/final_readiness/production_operator_webapp/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/symbol_universe_public_payload/latest/symbol_universe_status.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/ADMIN_AI_OPERATIONAL_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/ALL_ROUTES_OPERATIONAL_ACCEPTANCE.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/BROWSER_PUBLIC_URL_ACCEPTANCE_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/CODEX_PARALLEL_AUDIT_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/HARD_RESET_TO_REAL_GOAL.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/HOSTING_AND_TELEMETRY_BRIDGE_PLAN.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/MARKET_FEED_ONLINE_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/NO_LIVE_MUTATION_SAFETY_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/PAPER_RUNTIME_ONLINE_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/PAPER_RUNTIME_WIRING_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/RISK_GATEWAY_CURRENT_RUNTIME_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/RUNTIME_DATA_VISIBILITY_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/SIGNAL_LINEAGE_ONLINE_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/SUPERVISOR_CONTROL_PLANE_REPAIR_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/TRAINER_MONITOR_ONLINE_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/V2_DATA_PLANE_ONLINE_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/V2_PAPER_ONLINE_FULL_OPERATIONAL_RECOVERY_REPORT.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/VALIDATION_COMMANDS.md\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/admin_ai_status.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/current_risk_decisions.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/current_signal_lineage.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/market_feed_status.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/paper_ledger_tail.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/paper_positions.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/paper_runtime_status.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/supervisor_current_truth.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/trainer_prediction_current_record.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/trainer_runtime_current_status.json\n M claude_worklog/final_readiness/v2_paper_online_recovery/latest/v2_data_plane_status.json\n M claude_worklog/final_readiness/v2_persistent_automation_service_layer/latest/automation_liveness_watchdog_status.json\n M claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/WORKER_PORTING_STATUS.md\n M claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/next_selected_task.json\n M claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/operator_dashboard_payload.json\n M claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/worker_porting_state.json\n M claude_worklog/historical_pnl_audit/01_DATA_SOURCE_STATUS.md\n M claude_worklog/legacy_readonly_audit/01_PROCESS_SNAPSHOT.md\n M claude_worklog/legacy_readonly_audit/03_LEGACY_CODE_FUNCTION_INVENTORY.md\n M claude_worklog/legacy_readonly_audit/07_ORCHESTRATOR_TRADER_RUNTIME_EVIDENCE.md\n M claude_worklog/tools/build_active_autonomous_dispatch_packet.py\n M v2/backend/app/domain/risk_gateway/__init__.py\n M v2/backend/app/domain/risk_gateway/record.py\n M v2/backend/tests/unit/domain/risk_gateway/test_public_surface.py\n M v2/frontend/public/account_permission_and_soak/latest/CANARY_READINESS_AFTER_ACCOUNT_EVIDENCE.md\n M v2/frontend/public/account_permission_and_soak/latest/CODEX_ACCOUNT_PERMISSION_AND_SOAK_REVIEW.json\n M v2/frontend/public/account_permission_and_soak/latest/CODEX_ACCOUNT_PERMISSION_AND_SOAK_REVIEW.md\n M v2/frontend/public/account_permission_and_soak/latest/MARGIN_LEVERAGE_EVIDENCE_REPORT.md\n M v2/frontend/public/account_permission_and_soak/latest/P0_P1_MIGRATION_ACCOUNT_EVIDENCE_PROGRESS.md\n M v2/frontend/public/account_permission_and_soak/latest/PAPER_SHADOW_MONITOR_CONTINUATION.md\n M v2/frontend/public/account_permission_and_soak/latest/PAPER_SHADOW_SOAK_RECONCILIATION.md\n M v2/frontend/public/account_permission_and_soak/latest/READONLY_ACCOUNT_EVIDENCE_REPORT.md\n M v2/frontend/public/account_permission_and_soak/latest/READONLY_ACCOUNT_TRADE_PERMISSION_AND_6H_PAPER_SHADOW_SOAK_REPORT.md\n M v2/frontend/public/account_permission_and_soak/latest/TRADE_PERMISSION_EVIDENCE_REPORT.md\n M v2/frontend/public/account_permission_and_soak/latest/TRAINER_TRADER_MONITOR_CONTINUATION_REPORT.md\n M v2/frontend/public/account_permission_and_soak/latest/WEEKLY_LOSS_GATE_RUNTIME_PROOF.md\n M v2/frontend/public/account_permission_and_soak/latest/canary_readiness_after_account_evidence.json\n M v2/frontend/public/account_permission_and_soak/latest/margin_leverage_evidence.json\n M v2/frontend/public/account_permission_and_soak/latest/operator_dashboard_payload.json\n M v2/frontend/public/account_permission_and_soak/latest/p0_p1_migration_account_evidence_progress.json\n M v2/frontend/public/account_permission_and_soak/latest/paper_shadow_monitor_continuation.json\n M v2/frontend/public/account_permission_and_soak/latest/paper_shadow_soak_reconciliation.json\n M v2/frontend/public/account_permission_and_soak/latest/readonly_account_evidence.json\n M v2/frontend/public/account_permission_and_soak/latest/trade_permission_evidence.json\n M v2/frontend/public/account_permission_and_soak/latest/trainer_trader_monitor_continuation_status.json\n M v2/frontend/public/account_permission_and_soak/latest/weekly_loss_gate_runtime_proof.json\n M v2/frontend/public/active_autonomous_dispatch/latest/ACTIVE_AUTONOMOUS_PRIMARY_DISPATCH_AND_SCRIPT_MIGRATION_PROOF_REPORT.md\n M v2/frontend/public/active_autonomous_dispatch/latest/CLAUDE_IDLE_AND_DISPATCH_DIAGNOSTIC.md\n M v2/frontend/public/active_autonomous_dispatch/latest/CODEX_PARALLEL_DISPATCH_PROOF.md\n M v2/frontend/public/active_autonomous_dispatch/latest/PRIMARY_DISPATCH_PROOF.md\n M v2/frontend/public/active_autonomous_dispatch/latest/claude_idle_and_dispatch_diagnostic.json\n M v2/frontend/public/active_autonomous_dispatch/latest/codex_parallel_dispatch_state.json\n M v2/frontend/public/active_autonomous_dispatch/latest/operator_dashboard_payload.json\n M v2/frontend/public/active_autonomous_dispatch/latest/primary_dispatch_state.json\n M v2/frontend/public/always_on_claude_codex_runtime/latest/always_on_runtime_state.json\n M v2/frontend/public/always_on_claude_codex_runtime/latest/automation_utilization_status.json\n M v2/frontend/public/always_on_claude_codex_runtime/latest/git_dirty_state.json\n M v2/frontend/public/always_on_claude_codex_runtime/latest/operator_dashboard_payload.json\n M v2/frontend/public/always_on_claude_codex_runtime/latest/recurring_monitor_audit_tasks.json\n M v2/frontend/public/codex_independent_v2_support/latest/public_payload_freshness_guard.json\n M v2/frontend/public/codex_shutdown_readiness_takeover/latest/CODEX_SHUTDOWN_TAKEOVER_STATUS.md\n M v2/frontend/public/codex_shutdown_readiness_takeover/latest/blocker_matrix.json\n M v2/frontend/public/codex_shutdown_readiness_takeover/latest/codex_shutdown_takeover_status.json\n M v2/frontend/public/codex_shutdown_readiness_takeover/latest/operator_dashboard_payload.json\n M v2/frontend/public/documentation_governance/latest/doc_update_policy.json\n M v2/frontend/public/live_readiness_preflight/latest/LIVE_READINESS_PREFLIGHT_REPORT.md\n M v2/frontend/public/non_drift_governor_lock/latest/CLAUDE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md\n M v2/frontend/public/non_drift_governor_lock/latest/GOVERNOR_PRIORITY_POLICY.md\n M v2/frontend/public/non_drift_governor_lock/latest/NEXT_TASKS_BY_LANE.md\n M v2/frontend/public/non_drift_governor_lock/latest/PRIMARY_OBJECTIVE_LOCK.md\n M v2/frontend/public/non_drift_governor_lock/latest/next_tasks_by_lane.json\n M v2/frontend/public/non_drift_governor_lock/latest/objective_drift_status.json\n M v2/frontend/public/non_drift_governor_lock/latest/operator_dashboard_payload.json\n M v2/frontend/public/operator_runtime/coinank_market_intelligence/latest/coinank_market_intelligence_status.json\n M v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json\n M v2/frontend/public/operator_runtime/v2_account_position_monitor/latest/v2_account_position_monitor_status.json\n M v2/frontend/public/operator_runtime/v2_execution_ledger_worker/latest/v2_execution_ledger_worker_status.json\n M v2/frontend/public/operator_runtime/v2_feature_pipeline_and_ta_worker/latest/v2_feature_pipeline_and_ta_worker_status.json\n M v2/frontend/public/operator_runtime/v2_market_ingestor/latest/v2_market_ingestor_status.json\n M v2/frontend/public/operator_runtime/v2_paper_execution_worker/latest/v2_paper_execution_worker_status.json\n M v2/frontend/public/operator_runtime/v2_risk_gateway_runtime_worker/latest/v2_risk_gateway_runtime_worker_status.json\n M v2/frontend/public/operator_runtime/v2_signal_lineage_worker/latest/v2_signal_lineage_worker_status.json\n M v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json\n M v2/frontend/public/paper_online_canonical_truth_bridge/latest/CONTROL_PLANE_FRESHNESS_RECOVERY.md\n M v2/frontend/public/paper_online_canonical_truth_bridge/latest/LEGACY_TRADER_CONTAINMENT.md\n M v2/frontend/public/paper_online_canonical_truth_bridge/latest/PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_REPORT.md\n M v2/frontend/public/paper_online_canonical_truth_bridge/latest/operator_dashboard_payload.json\n M v2/frontend/public/paper_online_canonical_truth_bridge/latest/operator_truth_payload.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/CANARY_READINESS_AFTER_NEGATIVE_PNL_AND_ACCOUNT_CHECK.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/CODEX_NEGATIVE_PNL_ACCOUNT_EVIDENCE_REVIEW.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/CODEX_NEGATIVE_PNL_ACCOUNT_EVIDENCE_REVIEW.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/MARGIN_LEVERAGE_EVIDENCE_PROVIDER.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/NEGATIVE_PAPER_PNL_DIAGNOSIS.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/P0_P1_MIGRATION_CONTINUATION.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/PAPER_FILL_QUALITY_AND_OVERTRADING_AUDIT.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/PAPER_SHADOW_6H_24H_CONTINUATION.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/PAPER_SHADOW_6H_SOAK_NEGATIVE_PNL_DIAGNOSIS_AND_ACCOUNT_EVIDENCE_PROVIDER_REPORT.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/READONLY_ACCOUNT_EVIDENCE_PROVIDER.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/TRADE_PERMISSION_EVIDENCE_PROVIDER.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/TRAINER_TRADER_MONITOR_CONTINUATION.md\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/canary_readiness_after_negative_pnl_and_account_check.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/margin_leverage_evidence_provider.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/negative_paper_pnl_diagnosis.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/operator_dashboard_payload.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/p0_p1_migration_continuation.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/paper_fill_quality_and_overtrading_audit.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/paper_shadow_6h_24h_continuation.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/readonly_account_evidence_provider.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/trade_permission_evidence_provider.json\n M v2/frontend/public/paper_shadow_soak_negative_pnl/latest/trainer_trader_monitor_continuation.json\n M v2/frontend/public/paper_strategy_edge_tightening/latest/CANARY_PROFILE_TIGHTENING_IMPLEMENTATION_REPORT.md\n M v2/frontend/public/paper_strategy_edge_tightening/latest/CANARY_PROFILE_TIGHTENING_PROPOSAL.md\n M v2/frontend/public/paper_strategy_edge_tightening/latest/CANARY_READINESS_AFTER_TIGHTENING.md\n M v2/frontend/public/paper_strategy_edge_tightening/latest/CODEX_STRATEGY_EDGE_TIGHTENING_REVIEW.json\n M v2/frontend/public/paper_strategy_edge_tightening/latest/CODEX_STRATEGY_EDGE_TIGHTENING_REVIEW.md\n M v2/frontend/public/paper_strategy_edge_tightening/latest/NEGATIVE_6H_PNL_ROOT_CAUSE.md\n M v2/frontend/public/paper_strategy_edge_tightening/latest/PAPER_SHADOW_24H_CONTINUATION.md\n M v2/frontend/public/paper_strategy_edge_tightening/latest/PAPER_STRATEGY_EDGE_DIAGNOSIS_AND_CANARY_PROFILE_TIGHTENING_REPORT.md\n M v2/frontend/public/paper_strategy_edge_tightening/latest/TIGHTENED_PROFILE_EVALUATION.md\n M v2/frontend/public/paper_strategy_edge_tightening/latest/TRAINER_TRADER_MONITOR_DURING_NEGATIVE_PNL.md\n M v2/frontend/public/paper_strategy_edge_tightening/latest/canary_profile_tightening_proposal.json\n M v2/frontend/public/paper_strategy_edge_tightening/latest/canary_profile_tightening_test_results.json\n M v2/frontend/public/paper_strategy_edge_tightening/latest/canary_readiness_after_tightening.json\n M v2/frontend/public/paper_strategy_edge_tightening/latest/negative_6h_pnl_root_cause.json\n M v2/frontend/public/paper_strategy_edge_tightening/latest/operator_dashboard_payload.json\n M v2/frontend/public/paper_strategy_edge_tightening/latest/paper_shadow_24h_continuation.json\n M v2/frontend/public/paper_strategy_edge_tightening/latest/tightened_profile_evaluation.json\n M v2/frontend/public/paper_strategy_edge_tightening/latest/trainer_trader_monitor_during_negative_pnl.json\n M v2/frontend/public/production_operator_webapp/latest/ADMIN_SHELL_REBUILD_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/ALL_ROUTES_PRODUCTION_CONTENT_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/BROWSER_PRODUCTION_ACCEPTANCE_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/MISSION_CONTROL_PRODUCTION_REBUILD_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/MONITOR_CENTER_PRODUCTION_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/OPERATOR_TRUTH_GENERATOR_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/PRODUCTION_OPERATOR_WEBAPP_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/ROUTE_ACCEPTANCE_MATRIX.md\n M v2/frontend/public/production_operator_webapp/latest/SIGNAL_EXPLAINABILITY_PRODUCTION_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/SUPERVISOR_FRESHNESS_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/TRADINGVIEW_PRODUCTION_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/TRAINER_MONITOR_PRODUCTION_REPAIR_REPORT.md\n M v2/frontend/public/production_operator_webapp/latest/UI_ACCEPTANCE_FAILURE.md\n M v2/frontend/public/production_operator_webapp/latest/operator_dashboard_payload.json\n M v2/frontend/public/v2_paper_online_recovery/latest/ADMIN_AI_OPERATIONAL_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/ALL_ROUTES_OPERATIONAL_ACCEPTANCE.md\n M v2/frontend/public/v2_paper_online_recovery/latest/BROWSER_PUBLIC_URL_ACCEPTANCE_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/CODEX_PARALLEL_AUDIT_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/HARD_RESET_TO_REAL_GOAL.md\n M v2/frontend/public/v2_paper_online_recovery/latest/HOSTING_AND_TELEMETRY_BRIDGE_PLAN.md\n M v2/frontend/public/v2_paper_online_recovery/latest/MARKET_FEED_ONLINE_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/NO_LIVE_MUTATION_SAFETY_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/PAPER_RUNTIME_ONLINE_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/PAPER_RUNTIME_WIRING_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/RISK_GATEWAY_CURRENT_RUNTIME_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/RUNTIME_DATA_VISIBILITY_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/SIGNAL_LINEAGE_ONLINE_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/SUPERVISOR_CONTROL_PLANE_REPAIR_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/TRAINER_MONITOR_ONLINE_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/V2_DATA_PLANE_ONLINE_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/V2_PAPER_ONLINE_FULL_OPERATIONAL_RECOVERY_REPORT.md\n M v2/frontend/public/v2_paper_online_recovery/latest/VALIDATION_COMMANDS.md\n M v2/frontend/public/v2_paper_online_recovery/latest/admin_ai_status.json\n M v2/frontend/public/v2_paper_online_recovery/latest/current_risk_decisions.json\n M v2/frontend/public/v2_paper_online_recovery/latest/current_signal_lineage.json\n M v2/frontend/public/v2_paper_online_recovery/latest/market_feed_status.json\n M v2/frontend/public/v2_paper_online_recovery/latest/operator_dashboard_payload.json\n M v2/frontend/public/v2_paper_online_recovery/latest/paper_ledger_tail.json\n M v2/frontend/public/v2_paper_online_recovery/latest/paper_positions.json\n M v2/frontend/public/v2_paper_online_recovery/latest/paper_runtime_status.json\n M v2/frontend/public/v2_paper_online_recovery/latest/supervisor_current_truth.json\n M v2/frontend/public/v2_paper_online_recovery/latest/trainer_prediction_current_record.json\n M v2/frontend/public/v2_paper_online_recovery/latest/trainer_runtime_current_status.json\n M v2/frontend/public/v2_paper_online_recovery/latest/v2_data_plane_status.json\n M v2/frontend/public/v2_persistent_automation_service_layer/latest/automation_liveness_watchdog_status.json\n M v2/frontend/public/v2_worker_porting_orchestrator/latest/operator_dashboard_payload.json\n?? claude_worklog/agent_supervisor/tasks/POST_FINAL_GATE_NON_LIVE_MONITORING_AND_HARDENING.json\n?? claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_GO_NO_GO.md\n?? claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_REPORT.md\n?? claude_worklog/final_readiness/always_on_claude_codex_runtime/recurring/\n?? claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_feature_pipeline_and_ta_worker_from_legacy_baseline_LEGACY_BASELINE_ANALYSIS.md\n?? claude_worklog/final_readiness/post_final_gate_non_live_monitoring_and_hardening/\n?? claude_worklog/final_readiness/tonight_v2_live_like_paper_shadow_and_canary_preflight/\n?? claude_worklog/final_readiness/trainer_derived_evidence_acceptance/\n?? claude_worklog/final_readiness/v2_paper_online_recovery/latest/risk_runtime_payload.json\n?? v2/frontend/public/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_GO_NO_GO.md\n?? v2/frontend/public/active_autonomous_dispatch/latest/codex_audits/codex_audit_current_runtime_truth_REPORT.md\n?? v2/frontend/public/trainer_derived_evidence_acceptance/\n?? v2/frontend/public/v2_paper_online_recovery/latest/risk_runtime_payload.json",
+    "latest_commit": "c2a6f570 Resolve shutdown readiness trainer acceptance routing",
     "freshness_model": {
       "current_seconds": 120,
       "warn_seconds": 300,
@@ -261,58 +296,57 @@
   },
   "non_drift_governor_lock": {
     "status": "ACTIVE",
-    "selected_primary_task": "SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX",
+    "selected_primary_task": "recurring_monitor_legacy_trainer_runtime",
     "primary_objective": "V2 live-like paper/shadow, legacy bridge, risk gateway, trainer parity, and canary preflight",
     "support_lane_policy": "Website/UI/proof work is support-only unless it fixes a fresh route/data-truth regression or unblocks primary runtime truth.",
-    "current_primary_blockers": [
-      "legacy_trainer_restart_runtime_parity_sync_blocked",
-      "legacy_execution_containment_marker_missing"
-    ],
+    "current_primary_blockers": [],
     "path": "claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json"
   },
   "runtime_monitor_status": {
-    "generated_at": "2026-05-12T23:05:32.391Z",
+    "generated_at": "2026-05-15T01:55:29.944Z",
     "active_processes": [
-      "68607 1029421 5386 bash -c cd '/home/wali/Desktop/AI BOT REBUILD' && while true; do if [ -f '/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/runtime/control_plane/STOP_REBUILD_CONTROL_PLANE' ]; then echo stop-file-seen; e...",
-      "68613 68607 5386 python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30",
-      "1035556 1011413 320485 python3 ingest/live_binance.py",
-      "1035713 1011413 320474 python3 ingest/live_kucoin.py",
-      "1035811 1011413 320467 python3 ingest/live_coinank.py",
-      "1035965 1011413 320459 python3 ingest/live_coinank_global_aggregator.py",
-      "1036143 1011413 320447 python3 ingest/live_binance_liquidations.py",
-      "1038292 1011413 320360 python3 feature_pipeline.py",
-      "1038859 1011413 320333 python3 ingest/live_technical_analysis.py",
-      "1042465 1011413 320241 python3 -m rl.orchestrator_worker",
-      "1272209 1272100 276066 tail -f Desktop/AI BOT/logs/orchestrator_worker.log",
-      "3324271 1011413 77863 /bin/bash -O extglob -c snap=$(command cat <&3) && builtin shopt -s extglob && builtin eval -- \"$snap\" && { builtin set +u 2>/dev/null || true; builtin eval \"${__CURSOR_SANDBOX_ENV_RESTORE:-}\" 2>/dev/null; builtin export...",
-      "3324274 3324271 77863 python3 -u trading/trader.py",
-      "3446733 1011413 70331 python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30",
-      "3980694 1011413 25629 python3 -m rl.hybrid_trainer --mode hybrid --training-mode live --enhanced-features"
+      "46218 46198 98842 python3 -u ingest/live_binance.py",
+      "46365 46363 98830 python3 -u ingest/live_binance_liquidations.py",
+      "46559 46557 98816 python3 -u ingest/live_coinank.py",
+      "47157 47155 98787 python3 -u ingest/live_kucoin.py",
+      "47348 47346 98773 python3 -u ingest/live_technical_analysis.py",
+      "48066 48064 98746 python3 -u feature_pipeline.py",
+      "48623 48621 98713 python3 -u -m rl.hybrid_trainer --mode hybrid --epochs 1000 --batch-size 64",
+      "54017 54015 97819 python3 -u -m rl.orchestrator_worker",
+      "54905 54901 97698 python3 -u ingest/live_coinapi_v1.py",
+      "55369 55367 97659 python3 -u ingest/live_coinapi_wsds.py",
+      "57478 57291 97280 python3 Desktop/AI BOT/scripts/monitor_trainer_predictions.py",
+      "67228 67184 95711 watch -n 10 echo \"=== current worker ===\" cat claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/worker_porting_state.json 2>/dev/null | python3 -m json.tool | grep -E \"current_worker|next_action|last_c...",
+      "430848 5737 55313 ./.venv/bin/python3 claude_worklog/tools/v2_worker_porting_orchestrator.py --daemon --poll-seconds 120",
+      "435062 5737 54805 ./.venv/bin/python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30",
+      "859673 5737 5992 ./.venv/bin/python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30",
+      "920463 859673 23 claude --print [prompt redacted]"
     ],
     "orchestrator_processes": [
-      "1042465 1011413 320241 python3 -m rl.orchestrator_worker",
-      "1272209 1272100 276066 tail -f Desktop/AI BOT/logs/orchestrator_worker.log"
+      "54017 54015 97819 python3 -u -m rl.orchestrator_worker",
+      "67228 67184 95711 watch -n 10 echo \"=== current worker ===\" cat claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/worker_porting_state.json 2>/dev/null | python3 -m json.tool | grep -E \"current_worker|next_action|last_c...",
+      "430848 5737 55313 ./.venv/bin/python3 claude_worklog/tools/v2_worker_porting_orchestrator.py --daemon --poll-seconds 120"
     ],
     "trainer_processes": [
-      "3980694 1011413 25629 python3 -m rl.hybrid_trainer --mode hybrid --training-mode live --enhanced-features"
+      "48623 48621 98713 python3 -u -m rl.hybrid_trainer --mode hybrid --epochs 1000 --batch-size 64",
+      "57478 57291 97280 python3 Desktop/AI BOT/scripts/monitor_trainer_predictions.py"
     ],
-    "trader_processes": [
-      "3324274 3324271 77863 python3 -u trading/trader.py"
-    ],
+    "trader_processes": [],
     "market_ingestor_processes": [
-      "1035556 1011413 320485 python3 ingest/live_binance.py",
-      "1035713 1011413 320474 python3 ingest/live_kucoin.py",
-      "1035811 1011413 320467 python3 ingest/live_coinank.py",
-      "1035965 1011413 320459 python3 ingest/live_coinank_global_aggregator.py",
-      "1036143 1011413 320447 python3 ingest/live_binance_liquidations.py",
-      "1038859 1011413 320333 python3 ingest/live_technical_analysis.py"
+      "46218 46198 98842 python3 -u ingest/live_binance.py",
+      "46365 46363 98830 python3 -u ingest/live_binance_liquidations.py",
+      "46559 46557 98816 python3 -u ingest/live_coinank.py",
+      "47157 47155 98787 python3 -u ingest/live_kucoin.py",
+      "47348 47346 98773 python3 -u ingest/live_technical_analysis.py",
+      "54905 54901 97698 python3 -u ingest/live_coinapi_v1.py",
+      "55369 55367 97659 python3 -u ingest/live_coinapi_wsds.py"
     ],
     "feature_pipeline_processes": [
-      "1038292 1011413 320360 python3 feature_pipeline.py"
+      "48066 48064 98746 python3 -u feature_pipeline.py"
     ],
     "orchestrator_status": "PROCESS_OBSERVED_READONLY",
     "trainer_status": "V2_PAPER_TRAINER_WRAPPER_CURRENT",
-    "trader_status": "PROCESS_OBSERVED_READONLY",
+    "trader_status": "TRADER_PROCESS_NOT_OBSERVED_OR_INTENTIONALLY_DISABLED",
     "market_ingestor_status": "PROCESS_OBSERVED_READONLY",
     "feature_pipeline_status": "PROCESS_OBSERVED_READONLY",
     "runtime_sources_payload": {
@@ -341,7 +375,7 @@
       "path": "v2/frontend/public/redis_memory_pressure_remediation/latest/operator_dashboard_payload.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-10T05:48:56.400Z",
-      "age_seconds": 234996,
+      "age_seconds": 417994,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -353,7 +387,7 @@
       "path": "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-10T00:00:00.000Z",
-      "age_seconds": 255932,
+      "age_seconds": 438930,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -365,7 +399,7 @@
       "path": "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-09T20:28:03.010Z",
-      "age_seconds": 268649,
+      "age_seconds": 451647,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -376,8 +410,8 @@
       "label": "v2 paper online runtime",
       "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
       "classification": "REALTIME_RUNTIME_EVIDENCE",
-      "generated_at": "2026-05-12T23:05:32.000Z",
-      "age_seconds": 0,
+      "generated_at": "2026-05-15T01:55:00.000Z",
+      "age_seconds": 30,
       "is_realtime": true,
       "is_static_fixture": false,
       "stale": false,
@@ -387,30 +421,63 @@
     "paper_online_runtime": {
       "audit_events": [
         {
-          "audit_event_id": "audit_paper_tick_1778627132216",
+          "audit_event_id": "audit_paper_tick_1778810100008",
           "event_type": "V2_PAPER_RUNTIME_TICK",
-          "generated_at": "2026-05-12T23:05:32Z",
+          "generated_at": "2026-05-15T01:55:00Z",
           "lineage_ids": {
-            "execution_intent_id": "pei_paper_tick_1778627132216",
-            "feature_snapshot_id": "fs_paper_tick_1778627132216",
-            "orchestrator_decision_id": "orch_paper_tick_1778627132216",
-            "prediction_id": "pred_paper_tick_1778627132216",
-            "risk_decision_id": "risk_paper_tick_1778627132216",
-            "signal_id": "sig_paper_tick_1778627132216"
+            "execution_intent_id": "pei_paper_tick_1778810100008",
+            "feature_snapshot_id": "fs_paper_tick_1778810100008",
+            "orchestrator_decision_id": "orch_paper_tick_1778810100008",
+            "prediction_id": "pred_paper_tick_1778810100008",
+            "risk_decision_id": "risk_paper_tick_1778810100008",
+            "signal_id": "sig_paper_tick_1778810100008"
           },
           "live_gate_status": "blocked_human_only",
-          "paper_ledger_entry_id": "pledger_paper_tick_1778627132216"
+          "paper_ledger_entry_id": "pledger_paper_tick_1778810100008"
         }
       ],
       "blockers": [],
       "continuous_loop_available": true,
       "current_risk_decision": {
-        "feature_snapshot_id": "fs_paper_tick_1778627132216",
-        "generated_at": "2026-05-12T23:05:32Z",
+        "canary_profile_tightening": {
+          "action": "OPEN_SHORT",
+          "automation_can_enable_live": false,
+          "blockers": [
+            "missing_expected_move_after_costs"
+          ],
+          "classification": "TIGHTENED_PROFILE_BLOCKED",
+          "confidence": 0.8,
+          "estimated_cost_bps": 6,
+          "expected_move_bps": null,
+          "feature_age_seconds": 3,
+          "generated_at_ms": 1778810100017,
+          "live_blockers": [
+            "approval_token_absent_live_block"
+          ],
+          "live_gate_status": "blocked_human_only",
+          "min_confidence": 0.75,
+          "paper_simulation_allowed": false,
+          "recent_fill_stats": {
+            "fills_last_hour": 0,
+            "flip_churn_in_cooldown": false,
+            "loss_in_cooldown": false,
+            "same_symbol_same_direction_in_cooldown": false,
+            "total_recent_fills": 0
+          },
+          "safe_for_live": false,
+          "signal_age_seconds": 0,
+          "source": "V2_CANARY_PROFILE_TIGHTENING",
+          "symbol": "BTCUSDT"
+        },
+        "canary_profile_tightening_blockers": [
+          "missing_expected_move_after_costs"
+        ],
+        "feature_snapshot_id": "fs_paper_tick_1778810100008",
+        "generated_at": "2026-05-15T01:55:00Z",
         "live_blocked": true,
         "missing_fields": [],
-        "orchestrator_decision_id": "orch_paper_tick_1778627132216",
-        "prediction_id": "pred_paper_tick_1778627132216",
+        "orchestrator_decision_id": "orch_paper_tick_1778810100008",
+        "prediction_id": "pred_paper_tick_1778810100008",
         "required_blocks_checked": [
           "missing_signal_id",
           "missing_prediction_id",
@@ -424,68 +491,103 @@
           "missing_stop_policy",
           "disabled_kill_switch",
           "daily_loss_breach",
-          "untraceable_execution"
+          "weekly_loss_breach",
+          "untraceable_execution",
+          "canary_profile_tightening"
         ],
-        "risk_action": "allow",
-        "risk_decision_id": "risk_paper_tick_1778627132216",
-        "risk_reason_code": "allow_proceed_long",
-        "risk_result": "APPROVED_FOR_PAPER_ONLY",
-        "signal_id": "sig_paper_tick_1778627132216"
+        "risk_action": "deny",
+        "risk_decision_id": "risk_paper_tick_1778810100008",
+        "risk_reason_code": "deny_canary_profile_tightening",
+        "risk_result": "BLOCKED",
+        "signal_id": "sig_paper_tick_1778810100008"
       },
       "current_signal_lineage": {
         "classification": "REALTIME_RUNTIME_EVIDENCE",
         "execution_intent": {
           "exchange_order_allowed": false,
-          "execution_intent_id": "pei_paper_tick_1778627132216",
-          "generated_at": "2026-05-12T23:05:32Z",
-          "intent_action": "paper_fill_simulation",
+          "execution_intent_id": "pei_paper_tick_1778810100008",
+          "generated_at": "2026-05-15T01:55:00Z",
+          "intent_action": "paper_noop_blocked",
           "paper_only": true,
-          "risk_decision_id": "risk_paper_tick_1778627132216",
-          "side": "long",
-          "signal_id": "sig_paper_tick_1778627132216",
+          "risk_decision_id": "risk_paper_tick_1778810100008",
+          "side": "short",
+          "signal_id": "sig_paper_tick_1778810100008",
           "symbol": "BTCUSDT"
         },
         "feature_snapshot": {
-          "feature_snapshot_id": "fs_paper_tick_1778627132216",
+          "feature_snapshot_id": "fs_paper_tick_1778810100008",
           "features": {
-            "return_15m": 0.00009426,
-            "return_1m": 0.00000248,
-            "return_5m": 0.00017985,
-            "volatility_10": 0.00020985,
-            "volume_avg_10": 31.2254,
-            "volume_last": 2.164
+            "return_15m": -0.00206478,
+            "return_1m": 0.00088136,
+            "return_5m": -0.00080235,
+            "volatility_10": 0.00047334,
+            "volume_avg_10": 72.2602,
+            "volume_last": 114.598
           },
           "freshness_state": "CURRENT",
-          "generated_at": "2026-05-12T23:05:29Z",
-          "market_age_seconds": 9,
+          "generated_at": "2026-05-15T01:54:57Z",
+          "market_age_seconds": 5,
           "source_type": "READONLY_MARKET_FEED",
           "symbol": "BTCUSDT"
         },
-        "generated_at": "2026-05-12T23:05:32Z",
+        "generated_at": "2026-05-15T01:55:00Z",
         "lineage_ids": {
-          "execution_intent_id": "pei_paper_tick_1778627132216",
-          "feature_snapshot_id": "fs_paper_tick_1778627132216",
-          "orchestrator_decision_id": "orch_paper_tick_1778627132216",
-          "prediction_id": "pred_paper_tick_1778627132216",
-          "risk_decision_id": "risk_paper_tick_1778627132216",
-          "signal_id": "sig_paper_tick_1778627132216"
+          "execution_intent_id": "pei_paper_tick_1778810100008",
+          "feature_snapshot_id": "fs_paper_tick_1778810100008",
+          "orchestrator_decision_id": "orch_paper_tick_1778810100008",
+          "prediction_id": "pred_paper_tick_1778810100008",
+          "risk_decision_id": "risk_paper_tick_1778810100008",
+          "signal_id": "sig_paper_tick_1778810100008"
         },
         "orchestrator_decision": {
           "cannot_bypass_risk_gateway": true,
-          "decision_action": "open_long",
+          "decision_action": "open_short",
           "decision_reason": "paper_momentum_signal_routed",
-          "generated_at": "2026-05-12T23:05:32Z",
-          "orchestrator_decision_id": "orch_paper_tick_1778627132216",
+          "generated_at": "2026-05-15T01:55:00Z",
+          "orchestrator_decision_id": "orch_paper_tick_1778810100008",
           "risk_gateway_required": true,
-          "signal_id": "sig_paper_tick_1778627132216"
+          "signal_id": "sig_paper_tick_1778810100008"
         },
         "risk_decision": {
-          "feature_snapshot_id": "fs_paper_tick_1778627132216",
-          "generated_at": "2026-05-12T23:05:32Z",
+          "canary_profile_tightening": {
+            "action": "OPEN_SHORT",
+            "automation_can_enable_live": false,
+            "blockers": [
+              "missing_expected_move_after_costs"
+            ],
+            "classification": "TIGHTENED_PROFILE_BLOCKED",
+            "confidence": 0.8,
+            "estimated_cost_bps": 6,
+            "expected_move_bps": null,
+            "feature_age_seconds": 3,
+            "generated_at_ms": 1778810100017,
+            "live_blockers": [
+              "approval_token_absent_live_block"
+            ],
+            "live_gate_status": "blocked_human_only",
+            "min_confidence": 0.75,
+            "paper_simulation_allowed": false,
+            "recent_fill_stats": {
+              "fills_last_hour": 0,
+              "flip_churn_in_cooldown": false,
+              "loss_in_cooldown": false,
+              "same_symbol_same_direction_in_cooldown": false,
+              "total_recent_fills": 0
+            },
+            "safe_for_live": false,
+            "signal_age_seconds": 0,
+            "source": "V2_CANARY_PROFILE_TIGHTENING",
+            "symbol": "BTCUSDT"
+          },
+          "canary_profile_tightening_blockers": [
+            "missing_expected_move_after_costs"
+          ],
+          "feature_snapshot_id": "fs_paper_tick_1778810100008",
+          "generated_at": "2026-05-15T01:55:00Z",
           "live_blocked": true,
           "missing_fields": [],
-          "orchestrator_decision_id": "orch_paper_tick_1778627132216",
-          "prediction_id": "pred_paper_tick_1778627132216",
+          "orchestrator_decision_id": "orch_paper_tick_1778810100008",
+          "prediction_id": "pred_paper_tick_1778810100008",
           "required_blocks_checked": [
             "missing_signal_id",
             "missing_prediction_id",
@@ -499,36 +601,86 @@
             "missing_stop_policy",
             "disabled_kill_switch",
             "daily_loss_breach",
-            "untraceable_execution"
+            "weekly_loss_breach",
+            "untraceable_execution",
+            "canary_profile_tightening"
           ],
-          "risk_action": "allow",
-          "risk_decision_id": "risk_paper_tick_1778627132216",
-          "risk_reason_code": "allow_proceed_long",
-          "risk_result": "APPROVED_FOR_PAPER_ONLY",
-          "signal_id": "sig_paper_tick_1778627132216"
+          "risk_action": "deny",
+          "risk_decision_id": "risk_paper_tick_1778810100008",
+          "risk_reason_code": "deny_canary_profile_tightening",
+          "risk_result": "BLOCKED",
+          "signal_id": "sig_paper_tick_1778810100008"
         },
         "signal": {
-          "confidence": 0.598072,
-          "feature_snapshot_id": "fs_paper_tick_1778627132216",
-          "generated_at": "2026-05-12T23:05:32Z",
-          "prediction_id": "pred_paper_tick_1778627132216",
-          "proposed_action": "open_long",
-          "signal_id": "sig_paper_tick_1778627132216",
+          "actionable": true,
+          "actionable_reason_code": "actionable",
+          "confidence_calibrated": 0.8,
+          "confidence_floor": 0.58,
+          "evidence_citations": [
+            {
+              "field_name": "prediction_id",
+              "present": true,
+              "source": "trainer_prediction.prediction_id",
+              "value": "pred_paper_tick_1778810100008"
+            },
+            {
+              "field_name": "feature_snapshot_id",
+              "present": true,
+              "source": "feature_snapshot.feature_snapshot_id",
+              "value": "fs_paper_tick_1778810100008"
+            },
+            {
+              "field_name": "side",
+              "present": true,
+              "source": "trainer_prediction.raw_output.side",
+              "value": "short"
+            },
+            {
+              "field_name": "confidence_calibrated",
+              "present": true,
+              "source": "trainer_prediction.confidence_calibrated",
+              "value": 0.8
+            },
+            {
+              "field_name": "market_freshness_state",
+              "present": true,
+              "source": "market_feed.freshness_state",
+              "value": "CURRENT"
+            },
+            {
+              "field_name": "market_age_seconds",
+              "present": true,
+              "source": "market_feed.age_seconds",
+              "value": 5
+            }
+          ],
+          "exchange_action_taken": false,
+          "exchange_call_invariant": "NO_REAL_EXCHANGE_CALL_FROM_SIGNAL_PUBLISHER",
+          "explanation": "Signal 'open_short' proposed because trainer side='short' with calibrated confidence 0.8 (floor=0.58) and market freshness 'CURRENT' (age_seconds=5).",
+          "feature_snapshot_id": "fs_paper_tick_1778810100008",
+          "generated_at": "2026-05-15T01:55:00Z",
+          "live_gate": "blocked_human_only",
+          "market_age_seconds": 5,
+          "prediction_id": "pred_paper_tick_1778810100008",
+          "proposed_action": "open_short",
+          "service_id": "v2_signal_publisher",
+          "side": "short",
+          "signal_id": "sig_paper_tick_1778810100008",
           "source_freshness": "CURRENT",
           "symbol": "BTCUSDT"
         },
         "trainer_prediction": {
-          "confidence_calibrated": 0.598072,
-          "confidence_raw": 0.618072,
-          "feature_snapshot_id": "fs_paper_tick_1778627132216",
+          "confidence_calibrated": 0.8,
+          "confidence_raw": 0.84,
+          "feature_snapshot_id": "fs_paper_tick_1778810100008",
           "freshness_state": "CURRENT",
-          "generated_at": "2026-05-12T23:05:29Z",
-          "market_age_seconds": 9,
+          "generated_at": "2026-05-15T01:54:57Z",
+          "market_age_seconds": 5,
           "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-          "prediction_id": "pred_paper_tick_1778627132216",
+          "prediction_id": "pred_paper_tick_1778810100008",
           "raw_output": {
-            "momentum_score": 0.0580722,
-            "side": "long"
+            "momentum_score": -0.4563846,
+            "side": "short"
           },
           "source_type": "V2_PAPER_TRAINER_WRAPPER",
           "symbol": "BTCUSDT",
@@ -536,15 +688,15 @@
           "top_features": [
             {
               "name": "return_5m",
-              "value": 0.00017985
+              "value": -0.00080235
             },
             {
               "name": "return_15m",
-              "value": 0.00009426
+              "value": -0.00206478
             },
             {
               "name": "volatility_10",
-              "value": 0.00020985
+              "value": 0.00047334
             }
           ],
           "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
@@ -552,41 +704,41 @@
       },
       "exchange_orders": false,
       "feature_snapshot": {
-        "feature_snapshot_id": "fs_paper_tick_1778627132216",
+        "feature_snapshot_id": "fs_paper_tick_1778810100008",
         "features": {
-          "return_15m": 0.00009426,
-          "return_1m": 0.00000248,
-          "return_5m": 0.00017985,
-          "volatility_10": 0.00020985,
-          "volume_avg_10": 31.2254,
-          "volume_last": 2.164
+          "return_15m": -0.00206478,
+          "return_1m": 0.00088136,
+          "return_5m": -0.00080235,
+          "volatility_10": 0.00047334,
+          "volume_avg_10": 72.2602,
+          "volume_last": 114.598
         },
         "freshness_state": "CURRENT",
-        "generated_at": "2026-05-12T23:05:29Z",
-        "market_age_seconds": 9,
+        "generated_at": "2026-05-15T01:54:57Z",
+        "market_age_seconds": 5,
         "source_type": "READONLY_MARKET_FEED",
         "symbol": "BTCUSDT"
       },
       "freshness": {
-        "generated_at": "2026-05-12T23:05:32Z",
-        "market_age_seconds": 9,
+        "generated_at": "2026-05-15T01:55:00Z",
+        "market_age_seconds": 5,
         "runtime_age_seconds": 0,
         "source_type": "REALTIME_RUNTIME_EVIDENCE",
         "status": "CURRENT"
       },
-      "generated_at": "2026-05-12T23:05:32Z",
+      "generated_at": "2026-05-15T01:55:00Z",
       "last_paper_event": {
         "exchange_order_id": null,
-        "generated_at": "2026-05-12T23:05:32Z",
+        "generated_at": "2026-05-15T01:55:00Z",
         "legacy_redis_write": false,
         "live_order": false,
         "market_source_type": "READONLY_MARKET_FEED",
-        "observed_price": 80639.4,
-        "paper_action": "PAPER_FILL_SIMULATED",
-        "paper_reason": "allow_proceed_long",
-        "risk_gateway_result": "APPROVED_FOR_PAPER_ONLY",
+        "observed_price": 81196.5,
+        "paper_action": "PAPER_INTENT_BLOCKED",
+        "paper_reason": "deny_canary_profile_tightening",
+        "risk_gateway_result": "BLOCKED",
         "symbol": "BTCUSDT",
-        "tick_id": "paper_tick_1778627132216"
+        "tick_id": "paper_tick_1778810100008"
       },
       "legacy_redis_writes": false,
       "leverage_changes": false,
@@ -594,284 +746,284 @@
       "loop_interval_seconds": 30,
       "margin_mode_changes": false,
       "market_feed": {
-        "age_seconds": 9,
+        "age_seconds": 5,
         "candles": [
           {
-            "close": 80578.4,
-            "high": 80595.1,
-            "low": 80574.4,
-            "open": 80595,
+            "close": 81458.7,
+            "high": 81473.8,
+            "low": 81392.4,
+            "open": 81430.6,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:36:00Z",
-            "volume": 42.82
+            "time": "2026-05-15T01:25:00Z",
+            "volume": 34.979
           },
           {
-            "close": 80601.4,
-            "high": 80601.5,
-            "low": 80578.4,
-            "open": 80578.4,
+            "close": 81419.3,
+            "high": 81458.8,
+            "low": 81393.9,
+            "open": 81458.7,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:37:00Z",
-            "volume": 7.367
+            "time": "2026-05-15T01:26:00Z",
+            "volume": 39.935
           },
           {
-            "close": 80615.3,
-            "high": 80615.4,
-            "low": 80601.4,
-            "open": 80601.4,
+            "close": 81383.1,
+            "high": 81419.3,
+            "low": 81364.2,
+            "open": 81419.3,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:38:00Z",
-            "volume": 5.858
+            "time": "2026-05-15T01:27:00Z",
+            "volume": 76.522
           },
           {
-            "close": 80629,
-            "high": 80629,
-            "low": 80604.4,
-            "open": 80615.3,
+            "close": 81368.1,
+            "high": 81387,
+            "low": 81364.4,
+            "open": 81383.2,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:39:00Z",
-            "volume": 10.222
+            "time": "2026-05-15T01:28:00Z",
+            "volume": 25.953
           },
           {
-            "close": 80612.7,
-            "high": 80629,
-            "low": 80612.7,
-            "open": 80629,
+            "close": 81338.1,
+            "high": 81368.2,
+            "low": 81338,
+            "open": 81368.1,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:40:00Z",
-            "volume": 7.853
+            "time": "2026-05-15T01:29:00Z",
+            "volume": 59.71
           },
           {
-            "close": 80626,
-            "high": 80631.9,
-            "low": 80612.8,
-            "open": 80612.8,
+            "close": 81220,
+            "high": 81340.7,
+            "low": 81220,
+            "open": 81338,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:41:00Z",
-            "volume": 10.073
+            "time": "2026-05-15T01:30:00Z",
+            "volume": 91.597
           },
           {
-            "close": 80609.5,
-            "high": 80626.1,
-            "low": 80605.5,
-            "open": 80626.1,
+            "close": 81184.5,
+            "high": 81245,
+            "low": 81175,
+            "open": 81220.1,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:42:00Z",
-            "volume": 24.549
+            "time": "2026-05-15T01:31:00Z",
+            "volume": 213.506
           },
           {
-            "close": 80607,
-            "high": 80609.5,
-            "low": 80607,
-            "open": 80609.5,
+            "close": 81203,
+            "high": 81259.4,
+            "low": 81166,
+            "open": 81184.5,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:43:00Z",
-            "volume": 4.357
+            "time": "2026-05-15T01:32:00Z",
+            "volume": 110.599
           },
           {
-            "close": 80619.8,
-            "high": 80619.8,
-            "low": 80602,
-            "open": 80607.1,
+            "close": 81179.1,
+            "high": 81209.2,
+            "low": 81179,
+            "open": 81203.1,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:44:00Z",
-            "volume": 15.625
+            "time": "2026-05-15T01:33:00Z",
+            "volume": 62.167
           },
           {
-            "close": 80623.9,
-            "high": 80629.9,
-            "low": 80619.7,
-            "open": 80619.7,
+            "close": 81247.1,
+            "high": 81247.2,
+            "low": 81171,
+            "open": 81179.1,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:45:00Z",
-            "volume": 8.543
+            "time": "2026-05-15T01:34:00Z",
+            "volume": 70.029
           },
           {
-            "close": 80607,
-            "high": 80623.9,
-            "low": 80607,
-            "open": 80623.9,
+            "close": 81274,
+            "high": 81274,
+            "low": 81213.8,
+            "open": 81247.2,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:46:00Z",
-            "volume": 11.186
+            "time": "2026-05-15T01:35:00Z",
+            "volume": 104.856
           },
           {
-            "close": 80612.2,
-            "high": 80623.4,
-            "low": 80597.4,
-            "open": 80607,
+            "close": 81368.3,
+            "high": 81368.3,
+            "low": 81274,
+            "open": 81274,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:47:00Z",
-            "volume": 14.858
+            "time": "2026-05-15T01:36:00Z",
+            "volume": 106.239
           },
           {
-            "close": 80598,
-            "high": 80612.3,
-            "low": 80597.9,
-            "open": 80612.3,
+            "close": 81385.7,
+            "high": 81442.7,
+            "low": 81360,
+            "open": 81368.4,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:48:00Z",
-            "volume": 5.149
+            "time": "2026-05-15T01:37:00Z",
+            "volume": 101.372
           },
           {
-            "close": 80608.4,
-            "high": 80608.5,
-            "low": 80598,
-            "open": 80598,
+            "close": 81365.5,
+            "high": 81388.4,
+            "low": 81360,
+            "open": 81385.8,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:49:00Z",
-            "volume": 10.941
+            "time": "2026-05-15T01:38:00Z",
+            "volume": 30.249
           },
           {
-            "close": 80631.8,
-            "high": 80631.9,
-            "low": 80608.4,
-            "open": 80608.4,
+            "close": 81364.5,
+            "high": 81397.3,
+            "low": 81364.5,
+            "open": 81365.5,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:50:00Z",
-            "volume": 17.442
+            "time": "2026-05-15T01:39:00Z",
+            "volume": 13.643
           },
           {
-            "close": 80630,
-            "high": 80631.9,
-            "low": 80608.4,
-            "open": 80631.8,
+            "close": 81360,
+            "high": 81397.2,
+            "low": 81360,
+            "open": 81364.5,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:51:00Z",
-            "volume": 9.837
+            "time": "2026-05-15T01:40:00Z",
+            "volume": 22.677
           },
           {
-            "close": 80649,
-            "high": 80649,
-            "low": 80630,
-            "open": 80630,
+            "close": 81324.3,
+            "high": 81360.1,
+            "low": 81311.3,
+            "open": 81360.1,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:52:00Z",
-            "volume": 11.769
+            "time": "2026-05-15T01:41:00Z",
+            "volume": 22.771
           },
           {
-            "close": 80661.3,
-            "high": 80661.3,
-            "low": 80648.9,
-            "open": 80648.9,
+            "close": 81366.3,
+            "high": 81366.3,
+            "low": 81324.2,
+            "open": 81324.2,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:53:00Z",
-            "volume": 13.72
+            "time": "2026-05-15T01:42:00Z",
+            "volume": 20.963
           },
           {
-            "close": 80651.4,
-            "high": 80661.3,
-            "low": 80651.4,
-            "open": 80661.2,
+            "close": 81366.3,
+            "high": 81382,
+            "low": 81366.2,
+            "open": 81366.3,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:54:00Z",
-            "volume": 6.499
+            "time": "2026-05-15T01:43:00Z",
+            "volume": 17.662
           },
           {
-            "close": 80666,
-            "high": 80666,
-            "low": 80650,
-            "open": 80651.5,
+            "close": 81348.8,
+            "high": 81371.6,
+            "low": 81330.9,
+            "open": 81366.3,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:55:00Z",
-            "volume": 19.43
+            "time": "2026-05-15T01:44:00Z",
+            "volume": 49.44
           },
           {
-            "close": 80672.1,
-            "high": 80685.7,
-            "low": 80665.9,
-            "open": 80666,
+            "close": 81300,
+            "high": 81354.2,
+            "low": 81300,
+            "open": 81348.8,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:56:00Z",
-            "volume": 22.456
+            "time": "2026-05-15T01:45:00Z",
+            "volume": 29.915
           },
           {
-            "close": 80650,
-            "high": 80672.1,
-            "low": 80650,
-            "open": 80672.1,
+            "close": 81240.1,
+            "high": 81312.3,
+            "low": 81240.1,
+            "open": 81300,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:57:00Z",
-            "volume": 25.491
+            "time": "2026-05-15T01:46:00Z",
+            "volume": 60.673
           },
           {
-            "close": 80627.3,
-            "high": 80650.1,
-            "low": 80627.2,
-            "open": 80650,
+            "close": 81249.9,
+            "high": 81250,
+            "low": 81198.9,
+            "open": 81240.1,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:58:00Z",
-            "volume": 11.137
+            "time": "2026-05-15T01:47:00Z",
+            "volume": 75.444
           },
           {
-            "close": 80613.4,
-            "high": 80627.3,
-            "low": 80613.4,
-            "open": 80627.2,
+            "close": 81261.8,
+            "high": 81268.9,
+            "low": 81246.3,
+            "open": 81249.9,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T22:59:00Z",
-            "volume": 7.12
+            "time": "2026-05-15T01:48:00Z",
+            "volume": 50.523
           },
           {
-            "close": 80624.9,
-            "high": 80624.9,
-            "low": 80596.3,
-            "open": 80613.5,
+            "close": 81261.7,
+            "high": 81273.6,
+            "low": 81234.9,
+            "open": 81261.7,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T23:00:00Z",
-            "volume": 85.216
+            "time": "2026-05-15T01:49:00Z",
+            "volume": 20.778
           },
           {
-            "close": 80668.8,
-            "high": 80679.3,
-            "low": 80624.8,
-            "open": 80624.9,
+            "close": 81273.5,
+            "high": 81273.6,
+            "low": 81242.4,
+            "open": 81261.6,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T23:01:00Z",
-            "volume": 84.518
+            "time": "2026-05-15T01:50:00Z",
+            "volume": 29.269
           },
           {
-            "close": 80639.1,
-            "high": 80677.5,
-            "low": 80639,
-            "open": 80668.8,
+            "close": 81142.9,
+            "high": 81273.6,
+            "low": 81118.8,
+            "open": 81273.6,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T23:02:00Z",
-            "volume": 62.602
+            "time": "2026-05-15T01:51:00Z",
+            "volume": 85.177
           },
           {
-            "close": 80643.3,
-            "high": 80650.1,
-            "low": 80639,
-            "open": 80639.1,
+            "close": 81131.3,
+            "high": 81163.5,
+            "low": 81122,
+            "open": 81142.8,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T23:03:00Z",
-            "volume": 6.76
+            "time": "2026-05-15T01:52:00Z",
+            "volume": 104.998
           },
           {
-            "close": 80639.2,
-            "high": 80643.3,
-            "low": 80639.2,
-            "open": 80643.3,
+            "close": 81125,
+            "high": 81131.4,
+            "low": 81066,
+            "open": 81131.4,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T23:04:00Z",
-            "volume": 4.79
+            "time": "2026-05-15T01:53:00Z",
+            "volume": 151.227
           },
           {
-            "close": 80639.4,
-            "high": 80639.5,
-            "low": 80639.2,
-            "open": 80639.3,
+            "close": 81228.9,
+            "high": 81235.1,
+            "low": 81124.9,
+            "open": 81125,
             "source_type": "READONLY_MARKET_FEED",
-            "time": "2026-05-12T23:05:00Z",
-            "volume": 2.164
+            "time": "2026-05-15T01:54:00Z",
+            "volume": 114.598
           }
         ],
         "errors": [],
         "freshness_state": "CURRENT",
-        "generated_at": "2026-05-12T23:05:29Z",
-        "last_event_at": "2026-05-12T23:05:22Z",
-        "price": 80639.4,
+        "generated_at": "2026-05-15T01:54:57Z",
+        "last_event_at": "2026-05-15T01:54:54Z",
+        "price": 81196.5,
         "source": "binance_usdm_public_get_only",
         "source_pointer": "/fapi/v1/ticker/price + /fapi/v1/klines",
         "source_type": "READONLY_MARKET_FEED",
@@ -880,44 +1032,73 @@
       "mode": "paper_only_non_live",
       "paper_account": {
         "currency": "USDT",
-        "equity": 9981.27,
-        "open_position_count": 1,
-        "position_source": "V2_PAPER_RUNTIME_SIMULATED_FILL",
-        "realized_pnl": -18.73,
+        "equity": 9950.88,
+        "open_position_count": 0,
+        "position_source": "V2_PAPER_RUNTIME_EMPTY_RISK_BLOCKED",
+        "realized_pnl": -49.12,
         "starting_equity": 10000,
         "unrealized_pnl": 0
       },
       "paper_ledger_tail": [
         {
           "exchange_order_id": null,
-          "execution_intent_id": "pei_paper_tick_1778627132216",
+          "execution_intent_id": "pei_paper_tick_1778810100008",
           "fee_rate": 0.0004,
-          "fee_usdt": 0.01,
-          "fill_price": 80655.52788,
+          "fee_usdt": 0,
+          "fill_price": null,
           "funding_assumption": "zero_until_funding_feed_adapter_current",
-          "generated_at": "2026-05-12T23:05:32Z",
-          "ledger_action": "PAPER_FILL_SIMULATED",
+          "generated_at": "2026-05-15T01:55:00Z",
+          "ledger_action": "PAPER_INTENT_BLOCKED",
           "legacy_redis_write": false,
           "live_order": false,
-          "notional_usdt": 25,
-          "paper_ledger_entry_id": "pledger_paper_tick_1778627132216",
-          "paper_result": "FILLED_PAPER_ONLY",
-          "risk_decision_id": "risk_paper_tick_1778627132216",
-          "signal_id": "sig_paper_tick_1778627132216",
+          "notional_usdt": 0,
+          "paper_ledger_entry_id": "pledger_paper_tick_1778810100008",
+          "paper_result": "NO_FILL_RISK_BLOCKED",
+          "risk_decision_id": "risk_paper_tick_1778810100008",
+          "signal_id": "sig_paper_tick_1778810100008",
           "slippage_bps": 2,
           "symbol": "BTCUSDT"
         }
       ],
       "paper_loop": {
-        "last_paper_event_count": 2157,
-        "last_risk_block_count": 0,
+        "last_paper_event_count": 7328,
+        "last_risk_block_count": 1,
         "last_shadow_decision_count": 1,
-        "last_tick_at": "2026-05-12T23:05:32Z",
-        "paper_event_count": 2157,
+        "last_tick_at": "2026-05-15T01:55:00Z",
+        "paper_event_count": 7328,
         "state": "PAPER_RUNTIME_ONLINE_ACTIVE",
-        "tick_id": "paper_tick_1778627132216"
+        "tick_id": "paper_tick_1778810100008"
       },
       "redis_trim_approval_created": false,
+      "risk_runtime_payload": {
+        "audit_event": "WEEKLY_LOSS_GATE_RUNTIME_EVALUATED",
+        "daily_loss_breach": false,
+        "daily_loss_gate_required": true,
+        "daily_loss_limit_usdt": -75,
+        "daily_pnl_source": "V2_PAPER_ACCOUNT_REALIZED_PNL_CURRENT",
+        "daily_realized_pnl_usdt": -49.12,
+        "dedupe_source": "paper_ledger_entry_id + execution_intent_id + risk_decision_id",
+        "exchange_order": false,
+        "execution_intent_id": "pei_paper_tick_1778810100008",
+        "generated_at": "2026-05-15T01:55:00Z",
+        "kill_switch_required": true,
+        "legacy_redis_write": false,
+        "live_gate_status": "blocked_human_only",
+        "reset_window": {
+          "daily": "UTC calendar day until V2 durable account ledger is installed",
+          "weekly": "UTC ISO week until V2 durable account ledger is installed"
+        },
+        "risk_config_version": "v2_paper_canary_hard_gates_v1",
+        "risk_decision_id": "risk_paper_tick_1778810100008",
+        "signal_id": "sig_paper_tick_1778810100008",
+        "source": "V2_PAPER_RUNTIME_RISK_RUNTIME_PAYLOAD",
+        "stop_policy_required": true,
+        "weekly_loss_breach": false,
+        "weekly_loss_gate_required": true,
+        "weekly_loss_limit_usdt": -250,
+        "weekly_pnl_source": "V2_PAPER_ACCOUNT_REALIZED_PNL_CURRENT_UNTIL_DURABLE_WINDOW_LEDGER",
+        "weekly_realized_pnl_usdt": -49.12
+      },
       "runtime": "v2_paper_online",
       "runtime_state": "PAPER_RUNTIME_ONLINE_ACTIVE",
       "safety": {
@@ -932,17 +1113,17 @@
         "public_runtime_status": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json"
       },
       "trainer_prediction": {
-        "confidence_calibrated": 0.598072,
-        "confidence_raw": 0.618072,
-        "feature_snapshot_id": "fs_paper_tick_1778627132216",
+        "confidence_calibrated": 0.8,
+        "confidence_raw": 0.84,
+        "feature_snapshot_id": "fs_paper_tick_1778810100008",
         "freshness_state": "CURRENT",
-        "generated_at": "2026-05-12T23:05:29Z",
-        "market_age_seconds": 9,
+        "generated_at": "2026-05-15T01:54:57Z",
+        "market_age_seconds": 5,
         "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-        "prediction_id": "pred_paper_tick_1778627132216",
+        "prediction_id": "pred_paper_tick_1778810100008",
         "raw_output": {
-          "momentum_score": 0.0580722,
-          "side": "long"
+          "momentum_score": -0.4563846,
+          "side": "short"
         },
         "source_type": "V2_PAPER_TRAINER_WRAPPER",
         "symbol": "BTCUSDT",
@@ -950,15 +1131,15 @@
         "top_features": [
           {
             "name": "return_5m",
-            "value": 0.00017985
+            "value": -0.00080235
           },
           {
             "name": "return_15m",
-            "value": 0.00009426
+            "value": -0.00206478
           },
           {
             "name": "volatility_10",
-            "value": 0.00020985
+            "value": 0.00047334
           }
         ],
         "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT"
@@ -970,7 +1151,7 @@
       "path": "v2/frontend/public/operator_runtime/live_observer/latest/current_runtime_truth_payload.json",
       "classification": "REALTIME_RUNTIME_EVIDENCE",
       "generated_at": "2026-05-12T20:27:47.000Z",
-      "age_seconds": 9465,
+      "age_seconds": 192463,
       "is_realtime": true,
       "is_static_fixture": false,
       "stale": true,
@@ -3993,46 +4174,45 @@
       }
     },
     "legacy_trader_containment": {
-      "status": "LEGACY_TRADER_PROCESS_OBSERVED_READONLY_CONTAINED",
+      "status": "LEGACY_TRADER_NOT_OBSERVED",
       "action": "observation_only_no_restart_no_kill_no_order_action",
-      "process_rows": [
-        "3324274 3324271 77863 python3 -u trading/trader.py"
-      ],
+      "process_rows": [],
       "evidence_source": "read-only process list",
       "live_gate_status": "blocked_human_only"
     }
   },
   "trainer_monitor_status": {
-    "generated_at": "2026-05-12T23:05:32.391Z",
+    "generated_at": "2026-05-15T01:55:29.944Z",
     "status": "V2_PAPER_TRAINER_WRAPPER_CURRENT",
     "trainer_processes": [
-      "3980694 1011413 25629 python3 -m rl.hybrid_trainer --mode hybrid --training-mode live --enhanced-features"
+      "48623 48621 98713 python3 -u -m rl.hybrid_trainer --mode hybrid --epochs 1000 --batch-size 64",
+      "57478 57291 97280 python3 Desktop/AI BOT/scripts/monitor_trainer_predictions.py"
     ],
     "prediction_worker_alive_from_stale_payload": true,
     "latest_trainer_status_from_payload": "DEGRADED",
-    "payload_age_seconds": 141574,
+    "payload_age_seconds": 324572,
     "prediction_lineage_gap": "runtime evidence still has missing prediction/feature snapshot links",
     "latest_prediction": {
       "classification": "REALTIME_RUNTIME_EVIDENCE",
-      "prediction_id": "pred_paper_tick_1778627132216",
+      "prediction_id": "pred_paper_tick_1778810100008",
       "symbol": "BTCUSDT",
       "timeframe": "1m",
       "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
-      "confidence_raw": 0.618072,
-      "confidence_calibrated": 0.598072,
-      "feature_snapshot_id": "fs_paper_tick_1778627132216",
+      "confidence_raw": 0.84,
+      "confidence_calibrated": 0.8,
+      "feature_snapshot_id": "fs_paper_tick_1778810100008",
       "top_positive": [
         {
           "name": "return_5m",
-          "value": 0.00017985
+          "value": -0.00080235
         },
         {
           "name": "return_15m",
-          "value": 0.00009426
+          "value": -0.00206478
         },
         {
           "name": "volatility_10",
-          "value": 0.00020985
+          "value": 0.00047334
         }
       ],
       "top_negative": [],
@@ -4042,20 +4222,20 @@
     "missing_evidence": []
   },
   "signal_lineage_status": {
-    "generated_at": "2026-05-12T23:05:32.391Z",
+    "generated_at": "2026-05-15T01:55:29.944Z",
     "status": "REALTIME_RUNTIME_EVIDENCE",
     "latest_signal": {
       "classification": "REALTIME_RUNTIME_EVIDENCE",
-      "signal_id": "sig_paper_tick_1778627132216",
-      "prediction_id": "pred_paper_tick_1778627132216",
-      "feature_snapshot_id": "fs_paper_tick_1778627132216",
-      "orchestrator_decision_id": "orch_paper_tick_1778627132216",
-      "risk_decision_id": "risk_paper_tick_1778627132216",
-      "execution_intent_id": "pei_paper_tick_1778627132216",
-      "signal_reason": "open_long",
+      "signal_id": "sig_paper_tick_1778810100008",
+      "prediction_id": "pred_paper_tick_1778810100008",
+      "feature_snapshot_id": "fs_paper_tick_1778810100008",
+      "orchestrator_decision_id": "orch_paper_tick_1778810100008",
+      "risk_decision_id": "risk_paper_tick_1778810100008",
+      "execution_intent_id": "pei_paper_tick_1778810100008",
+      "signal_reason": "open_short",
       "orchestrator_reason": "paper_momentum_signal_routed",
-      "risk_reason": "allow_proceed_long",
-      "result": "APPROVED_FOR_PAPER_ONLY",
+      "risk_reason": "deny_canary_profile_tightening",
+      "result": "BLOCKED",
       "evidence_links": [
         "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json"
       ]
@@ -4244,7 +4424,7 @@
     "missing_evidence": []
   },
   "dashboard_freshness_status": {
-    "generated_at": "2026-05-12T23:05:32.391Z",
+    "generated_at": "2026-05-15T01:55:29.944Z",
     "payloads_checked": 16,
     "stale_payload_count": 13,
     "warn_payload_count": 0,
@@ -4255,8 +4435,8 @@
         "label": "supervisor current status",
         "path": "claude_worklog/agent_supervisor/status/current_status.json",
         "classification": "REALTIME_RUNTIME_EVIDENCE",
-        "generated_at": "2026-05-12T23:05:07.267Z",
-        "age_seconds": 25,
+        "generated_at": "2026-05-15T01:55:06.506Z",
+        "age_seconds": 23,
         "is_realtime": true,
         "is_static_fixture": false,
         "stale": false,
@@ -4267,8 +4447,8 @@
         "label": "supervisor queue status",
         "path": "claude_worklog/agent_supervisor/status/queue_status.json",
         "classification": "REALTIME_RUNTIME_EVIDENCE",
-        "generated_at": "2026-05-12T23:05:07.308Z",
-        "age_seconds": 25,
+        "generated_at": "2026-05-15T01:55:06.817Z",
+        "age_seconds": 23,
         "is_realtime": true,
         "is_static_fixture": false,
         "stale": false,
@@ -4280,7 +4460,7 @@
         "path": "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json",
         "classification": "REALTIME_RUNTIME_EVIDENCE",
         "generated_at": "2026-05-11T20:35:14.146Z",
-        "age_seconds": 95418,
+        "age_seconds": 278416,
         "is_realtime": true,
         "is_static_fixture": false,
         "stale": true,
@@ -4291,8 +4471,8 @@
         "label": "autonomous governor selection",
         "path": "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json",
         "classification": "RUNTIME_MONITOR_PAYLOAD",
-        "generated_at": "2026-05-12T22:53:21.066Z",
-        "age_seconds": 731,
+        "generated_at": "2026-05-13T20:17:57.189Z",
+        "age_seconds": 106653,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -4304,7 +4484,7 @@
         "path": "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
         "classification": "STATIC_PROOF_FIXTURE",
         "generated_at": "2026-05-09T23:59:00.000Z",
-        "age_seconds": 255992,
+        "age_seconds": 438990,
         "is_realtime": false,
         "is_static_fixture": true,
         "stale": true,
@@ -4316,7 +4496,7 @@
         "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/current_runtime_sources.json",
         "classification": "RUNTIME_MONITOR_PAYLOAD",
         "generated_at": "2026-05-11T07:45:58.228Z",
-        "age_seconds": 141574,
+        "age_seconds": 324572,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -4328,7 +4508,7 @@
         "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/trainer_prediction_monitor_status.json",
         "classification": "RUNTIME_MONITOR_PAYLOAD",
         "generated_at": "2026-05-11T07:45:58.228Z",
-        "age_seconds": 141574,
+        "age_seconds": 324572,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -4340,7 +4520,7 @@
         "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/signal_execution_monitor_status.json",
         "classification": "RUNTIME_MONITOR_PAYLOAD",
         "generated_at": "2026-05-11T07:45:58.228Z",
-        "age_seconds": 141574,
+        "age_seconds": 324572,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -4352,7 +4532,7 @@
         "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json",
         "classification": "RUNTIME_MONITOR_PAYLOAD",
         "generated_at": "2026-05-11T07:45:58.228Z",
-        "age_seconds": 141574,
+        "age_seconds": 324572,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -4364,7 +4544,7 @@
         "path": "v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json",
         "classification": "RUNTIME_MONITOR_PAYLOAD",
         "generated_at": "2026-05-10T05:36:36.155Z",
-        "age_seconds": 235736,
+        "age_seconds": 418734,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -4375,8 +4555,8 @@
         "label": "v2 paper online runtime",
         "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
         "classification": "REALTIME_RUNTIME_EVIDENCE",
-        "generated_at": "2026-05-12T23:05:32.000Z",
-        "age_seconds": 0,
+        "generated_at": "2026-05-15T01:55:00.000Z",
+        "age_seconds": 30,
         "is_realtime": true,
         "is_static_fixture": false,
         "stale": false,
@@ -4388,7 +4568,7 @@
         "path": "v2/frontend/public/operator_runtime/live_observer/latest/current_runtime_truth_payload.json",
         "classification": "REALTIME_RUNTIME_EVIDENCE",
         "generated_at": "2026-05-12T20:27:47.000Z",
-        "age_seconds": 9465,
+        "age_seconds": 192463,
         "is_realtime": true,
         "is_static_fixture": false,
         "stale": true,
@@ -4400,7 +4580,7 @@
         "path": "v2/frontend/public/legacy_trainer_restart_runtime/latest/operator_dashboard_payload.json",
         "classification": "RUNTIME_MONITOR_PAYLOAD",
         "generated_at": "2026-05-12T16:50:13.000Z",
-        "age_seconds": 22519,
+        "age_seconds": 205517,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -4412,7 +4592,7 @@
         "path": "v2/frontend/public/orchestrator_decision_evidence_reconciliation/latest/operator_dashboard_payload.json",
         "classification": "V2_PROOF_ARTIFACT",
         "generated_at": "2026-05-11T22:38:44.000Z",
-        "age_seconds": 88008,
+        "age_seconds": 271006,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -4424,7 +4604,7 @@
         "path": "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
         "classification": "V2_PROOF_ARTIFACT",
         "generated_at": "2026-05-10T00:00:00.000Z",
-        "age_seconds": 255932,
+        "age_seconds": 438930,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -4436,7 +4616,7 @@
         "path": "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json",
         "classification": "V2_PROOF_ARTIFACT",
         "generated_at": "2026-05-09T20:28:03.010Z",
-        "age_seconds": 268649,
+        "age_seconds": 451647,
         "is_realtime": false,
         "is_static_fixture": false,
         "stale": true,
@@ -4444,7 +4624,7 @@
         "status": "STALE"
       }
     ],
-    "public_json_count": 168
+    "public_json_count": 319
   },
   "static_fixture_panels": [
     {
@@ -4452,7 +4632,7 @@
       "path": "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
       "classification": "STATIC_PROOF_FIXTURE",
       "generated_at": "2026-05-09T23:59:00.000Z",
-      "age_seconds": 255992,
+      "age_seconds": 438990,
       "is_realtime": false,
       "is_static_fixture": true,
       "stale": true,
@@ -4466,7 +4646,7 @@
       "path": "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json",
       "classification": "REALTIME_RUNTIME_EVIDENCE",
       "generated_at": "2026-05-11T20:35:14.146Z",
-      "age_seconds": 95418,
+      "age_seconds": 278416,
       "is_realtime": true,
       "is_static_fixture": false,
       "stale": true,
@@ -4477,8 +4657,8 @@
       "label": "autonomous governor selection",
       "path": "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json",
       "classification": "RUNTIME_MONITOR_PAYLOAD",
-      "generated_at": "2026-05-12T22:53:21.066Z",
-      "age_seconds": 731,
+      "generated_at": "2026-05-13T20:17:57.189Z",
+      "age_seconds": 106653,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -4490,7 +4670,7 @@
       "path": "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
       "classification": "STATIC_PROOF_FIXTURE",
       "generated_at": "2026-05-09T23:59:00.000Z",
-      "age_seconds": 255992,
+      "age_seconds": 438990,
       "is_realtime": false,
       "is_static_fixture": true,
       "stale": true,
@@ -4502,7 +4682,7 @@
       "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/current_runtime_sources.json",
       "classification": "RUNTIME_MONITOR_PAYLOAD",
       "generated_at": "2026-05-11T07:45:58.228Z",
-      "age_seconds": 141574,
+      "age_seconds": 324572,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -4514,7 +4694,7 @@
       "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/trainer_prediction_monitor_status.json",
       "classification": "RUNTIME_MONITOR_PAYLOAD",
       "generated_at": "2026-05-11T07:45:58.228Z",
-      "age_seconds": 141574,
+      "age_seconds": 324572,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -4526,7 +4706,7 @@
       "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/signal_execution_monitor_status.json",
       "classification": "RUNTIME_MONITOR_PAYLOAD",
       "generated_at": "2026-05-11T07:45:58.228Z",
-      "age_seconds": 141574,
+      "age_seconds": 324572,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -4538,7 +4718,7 @@
       "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json",
       "classification": "RUNTIME_MONITOR_PAYLOAD",
       "generated_at": "2026-05-11T07:45:58.228Z",
-      "age_seconds": 141574,
+      "age_seconds": 324572,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -4550,7 +4730,7 @@
       "path": "v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json",
       "classification": "RUNTIME_MONITOR_PAYLOAD",
       "generated_at": "2026-05-10T05:36:36.155Z",
-      "age_seconds": 235736,
+      "age_seconds": 418734,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -4562,7 +4742,7 @@
       "path": "v2/frontend/public/operator_runtime/live_observer/latest/current_runtime_truth_payload.json",
       "classification": "REALTIME_RUNTIME_EVIDENCE",
       "generated_at": "2026-05-12T20:27:47.000Z",
-      "age_seconds": 9465,
+      "age_seconds": 192463,
       "is_realtime": true,
       "is_static_fixture": false,
       "stale": true,
@@ -4574,7 +4754,7 @@
       "path": "v2/frontend/public/legacy_trainer_restart_runtime/latest/operator_dashboard_payload.json",
       "classification": "RUNTIME_MONITOR_PAYLOAD",
       "generated_at": "2026-05-12T16:50:13.000Z",
-      "age_seconds": 22519,
+      "age_seconds": 205517,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -4586,7 +4766,7 @@
       "path": "v2/frontend/public/orchestrator_decision_evidence_reconciliation/latest/operator_dashboard_payload.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-11T22:38:44.000Z",
-      "age_seconds": 88008,
+      "age_seconds": 271006,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -4598,7 +4778,7 @@
       "path": "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-10T00:00:00.000Z",
-      "age_seconds": 255932,
+      "age_seconds": 438930,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -4610,7 +4790,7 @@
       "path": "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-09T20:28:03.010Z",
-      "age_seconds": 268649,
+      "age_seconds": 451647,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -4632,11 +4812,6 @@
       "detail": "Run cd v2/frontend && npm run build:live-observer so the GUI can display legacy read-only bridge evidence beside V2 paper truth."
     },
     {
-      "id": "LEGACY_TRADER_PROCESS_OBSERVED_READONLY_CONTAINED",
-      "severity": "safety_visibility",
-      "detail": "A legacy trading/trader.py process is visible. This recovery only observed it read-only and did not restart, kill, command, or modify it."
-    },
-    {
       "id": "LIVE_GATE_BLOCKED_HUMAN_ONLY",
       "severity": "expected_safety_gate",
       "detail": "Live trading remains blocked_human_only."
@@ -4647,7 +4822,7 @@
       "detail": "Redis trim approval file absent; no XTRIM may run."
     }
   ],
-  "current_next_task": "SAFE_LEGACY_TRAINER_BRIDGE_AND_GPU_PARITY_SANDBOX",
+  "current_next_task": "recurring_monitor_legacy_trainer_runtime",
   "live_gate_status": "blocked_human_only",
   "redis_trim_status": "deferred_non_blocking",
   "proof_artifact_statuses": [
@@ -4656,7 +4831,7 @@
       "path": "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
       "classification": "STATIC_PROOF_FIXTURE",
       "generated_at": "2026-05-09T23:59:00.000Z",
-      "age_seconds": 255992,
+      "age_seconds": 438990,
       "is_realtime": false,
       "is_static_fixture": true,
       "stale": true,
@@ -4668,7 +4843,7 @@
       "path": "v2/frontend/public/orchestrator_decision_evidence_reconciliation/latest/operator_dashboard_payload.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-11T22:38:44.000Z",
-      "age_seconds": 88008,
+      "age_seconds": 271006,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -4680,7 +4855,7 @@
       "path": "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-10T00:00:00.000Z",
-      "age_seconds": 255932,
+      "age_seconds": 438930,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,
@@ -4692,7 +4867,7 @@
       "path": "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json",
       "classification": "V2_PROOF_ARTIFACT",
       "generated_at": "2026-05-09T20:28:03.010Z",
-      "age_seconds": 268649,
+      "age_seconds": 451647,
       "is_realtime": false,
       "is_static_fixture": false,
       "stale": true,

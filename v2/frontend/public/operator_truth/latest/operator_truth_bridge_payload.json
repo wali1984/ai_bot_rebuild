@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-05-12T23:05:32.391Z",
+  "generated_at": "2026-05-15T01:55:29.944Z",
   "status": "PAPER_ONLINE_CANONICAL_TRUTH_ACTIVE",
   "canonical_truth_bridge": {
     "status": "PAPER_ONLINE_CANONICAL_TRUTH_ACTIVE",
     "source": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
-    "generated_at": "2026-05-12T23:05:32Z",
-    "paper_runtime_age_seconds": 0,
+    "generated_at": "2026-05-15T01:55:00Z",
+    "paper_runtime_age_seconds": 30,
     "operator_truth_was_stale": false,
     "runtime_state": "PAPER_RUNTIME_ONLINE_ACTIVE",
     "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT",
@@ -3123,11 +3123,9 @@
   "control_plane_status": "CONTROL_PLANE_DAEMON_OBSERVED",
   "historical_status_files_stale": true,
   "legacy_trader_containment": {
-    "status": "LEGACY_TRADER_PROCESS_OBSERVED_READONLY_CONTAINED",
+    "status": "LEGACY_TRADER_NOT_OBSERVED",
     "action": "observation_only_no_restart_no_kill_no_order_action",
-    "process_rows": [
-      "3324274 3324271 77863 python3 -u trading/trader.py"
-    ],
+    "process_rows": [],
     "evidence_source": "read-only process list",
     "live_gate_status": "blocked_human_only"
   },

@@ -1,10 +1,10 @@
 # Public Payload Freshness Guard Report
 
-Generated: 2026-05-15T00:12:17Z
+Generated: 2026-05-15T01:55:40Z
 Result: `BLOCKED`
 Live gate: `blocked_human_only`
-Payloads checked: 107
-GO/NO-GO files checked: 89
+Payloads checked: 108
+GO/NO-GO files checked: 90
 Approval token created: `False`
 
 Findings:
@@ -66,23 +66,22 @@ Findings:
 - `v2/frontend/public/operator_runtime/v2_script_monitor/latest/v2_script_monitor_status.json`: STALE_PAYLOAD
 - `v2/frontend/public/operator_runtime/v2_signal_lineage_worker/latest/v2_signal_lineage_worker_status.json`: STALE_PAYLOAD
 - `v2/frontend/public/operator_runtime/v2_signal_publisher/latest/v2_signal_publisher_status.json`: STALE_PAYLOAD
-- `v2/frontend/public/operator_truth_recovery/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
+- `v2/frontend/public/operator_truth_recovery/latest/operator_dashboard_payload.json`: MISSING_SOURCE
 - `v2/frontend/public/operator_ui_hard_fail_recovery/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
 - `v2/frontend/public/orchestrator_decision_evidence_reconciliation/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
-- `v2/frontend/public/paper_online_canonical_truth_bridge/latest/operator_dashboard_payload.json`: STALE_PAYLOAD
 - `v2/frontend/public/paper_shadow_persistence_and_ports/latest/operator_dashboard_payload.json`: STALE_PAYLOAD
 - `v2/frontend/public/paper_shadow_soak_negative_pnl/latest/operator_dashboard_payload.json`: STALE_PAYLOAD
 - `v2/frontend/public/paper_strategy_edge_tightening/latest/operator_dashboard_payload.json`: STALE_PAYLOAD
 - `v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
 - `v2/frontend/public/production_dashboard_wajidali_us_repair/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
-- `v2/frontend/public/production_operator_webapp/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
+- `v2/frontend/public/production_operator_webapp/latest/operator_dashboard_payload.json`: MISSING_SOURCE
 - `v2/frontend/public/production_truth_reconciliation/latest/operator_dashboard_payload.json`: STALE_PAYLOAD
 - `v2/frontend/public/production_website_full_rebuild/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
 - `v2/frontend/public/production_website_public_route_rebuild/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
 - `v2/frontend/public/public_trading_platform_visual_parity/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
 - `v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json`: STALE_PAYLOAD
-- `v2/frontend/public/realtime_control_plane_recovery/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
-- `v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
+- `v2/frontend/public/realtime_control_plane_recovery/latest/operator_dashboard_payload.json`: MISSING_SOURCE
+- `v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/operator_dashboard_payload.json`: MISSING_SOURCE
 - `v2/frontend/public/realtime_legacy_monitoring_continuity/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
 - `v2/frontend/public/redis_export_capacity_remediation/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
 - `v2/frontend/public/redis_liquidations_full_export/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
@@ -96,6 +95,7 @@ Findings:
 - `v2/frontend/public/system_atlas_gap_remediation/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
 - `v2/frontend/public/system_atlas_runtime_coverage/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
 - `v2/frontend/public/tonight_live_like_paper_shadow/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
+- `v2/frontend/public/trainer_derived_evidence_acceptance/latest/operator_dashboard_payload.json`: MISSING_SOURCE
 - `v2/frontend/public/v2_data_plane_independence/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
 - `v2/frontend/public/v2_live_observer_shadow_twin/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
 - `v2/frontend/public/v2_paper_online_recovery/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD

@@ -1,0 +1,107 @@
+{
+  "generated_at": "2026-05-15T01:50:29Z",
+  "go_no_go": "V2_TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_REQUIRED",
+  "legacy_shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "operator_acceptance_required": true,
+  "operator_acceptance_scope": "V2_PAPER_ONLY_SHUTDOWN_LIMITATION",
+  "task_id": "claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet",
+  "trainer_parity_status": "BLOCKS_LEGACY_SHUTDOWN",
+  "field_matrix": [
+    {
+      "field": "feature_snapshot_id",
+      "classification": "DERIVED_FROM_LEGACY_LOG",
+      "current_value": "legacy_log_feature_ALICEUSDT_15m_1778809835",
+      "native_evidence_found": false,
+      "evidence_source": "v2_trainer_bridge legacy PPO log bridge",
+      "blocker": "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED",
+      "paper_only_acceptance_required": true,
+      "live_ready": false
+    },
+    {
+      "field": "confidence_raw",
+      "classification": "NATIVE_FIELD_PRESENT",
+      "current_value": 0.5957,
+      "native_evidence_found": true,
+      "evidence_source": "legacy PPO_DECISION_RAW ppo_conf",
+      "blocker": null,
+      "paper_only_acceptance_required": false,
+      "live_ready": false
+    },
+    {
+      "field": "confidence_calibrated",
+      "classification": "DERIVED_FROM_LEGACY_LOG",
+      "current_value": 0.5957,
+      "native_evidence_found": false,
+      "evidence_source": "active legacy PPO log has no separate calibrated confidence field; V2 bridge currently mirrors ppo_conf",
+      "blocker": "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
+      "paper_only_acceptance_required": true,
+      "live_ready": false
+    },
+    {
+      "field": "top_positive_features",
+      "classification": "INCOMPLETE_ATTRIBUTION",
+      "current_value": [],
+      "native_evidence_found": false,
+      "evidence_source": "no active model explanation, SHAP, or feature-importance evidence available for the legacy-log prediction",
+      "blocker": "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
+      "paper_only_acceptance_required": true,
+      "live_ready": false
+    },
+    {
+      "field": "top_negative_features",
+      "classification": "INCOMPLETE_ATTRIBUTION",
+      "current_value": [],
+      "native_evidence_found": false,
+      "evidence_source": "no active model explanation, SHAP, or feature-importance evidence available for the legacy-log prediction",
+      "blocker": "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
+      "paper_only_acceptance_required": true,
+      "live_ready": false
+    },
+    {
+      "field": "missing_feature_flags",
+      "classification": "NATIVE_FIELD_PRESENT",
+      "current_value": [],
+      "native_evidence_found": true,
+      "evidence_source": "v2_feature_snapshot_builder payload",
+      "blocker": null,
+      "paper_only_acceptance_required": false,
+      "live_ready": false
+    },
+    {
+      "field": "stale_feature_flags",
+      "classification": "NATIVE_FIELD_PRESENT",
+      "current_value": [],
+      "native_evidence_found": true,
+      "evidence_source": "v2_feature_snapshot_builder payload",
+      "blocker": null,
+      "paper_only_acceptance_required": false,
+      "live_ready": false
+    },
+    {
+      "field": "unused_feature_flags",
+      "classification": "NATIVE_FIELD_PRESENT",
+      "current_value": [],
+      "native_evidence_found": true,
+      "evidence_source": "v2_feature_snapshot_builder payload",
+      "blocker": null,
+      "paper_only_acceptance_required": false,
+      "live_ready": false
+    }
+  ],
+  "remaining_parity_gaps": [
+    "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
+    "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
+    "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED"
+  ],
+  "safety": {
+    "final_approval_token": "absent",
+    "redis_trim_approval": "absent",
+    "old_redis_write": false,
+    "exchange_mutation": false,
+    "leverage_change": false,
+    "margin_mode_change": false,
+    "live_ready": false
+  }
+}
