@@ -1,6 +1,11 @@
 {
+  "confidence_calibration_mode": "DERIVED_FROM_LEGACY_LOG",
   "current_gate_state": "blocked_human_only",
-  "generated_at": "2026-05-15T01:50:29Z",
+  "expected_move_bps": 7.01219201,
+  "expected_move_evidence_mode": "NATIVE_FIELD_PRESENT",
+  "feature_attribution_status": "INCOMPLETE_ATTRIBUTION",
+  "feature_snapshot_id_classification": "DERIVED_FROM_LEGACY_LOG",
+  "generated_at": "2026-05-15T11:00:37Z",
   "go_no_go": "V2_TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_REQUIRED",
   "legacy_shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
   "live_gate": "blocked_human_only",
@@ -12,15 +17,16 @@
     "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
     "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED"
   ],
-  "shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
   "safety": {
     "exchange_mutation": false,
     "final_approval_token": "absent",
     "leverage_change": false,
+    "live_ready": false,
     "margin_mode_change": false,
     "old_redis_write": false,
     "redis_trim_approval": "absent"
   },
+  "shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
   "trainer_derived_evidence_acceptance_status": "OPERATOR_ACCEPTANCE_REQUIRED_FOR_PAPER_ONLY",
   "trainer_parity_status": "BLOCKS_LEGACY_SHUTDOWN"
 }

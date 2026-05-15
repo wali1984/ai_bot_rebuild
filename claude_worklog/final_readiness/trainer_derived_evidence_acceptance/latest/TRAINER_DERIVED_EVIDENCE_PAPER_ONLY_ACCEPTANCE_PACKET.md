@@ -1,19 +1,22 @@
 # Trainer Derived Evidence Paper-Only Acceptance Packet
 
+Generated: 2026-05-15T11:00:37Z
+
 This packet is an operator decision packet, not an approval.
 
 Current trainer lineage state:
-- `feature_snapshot_id`: derived from legacy log evidence.
-- `confidence_calibrated`: derived from the same legacy log confidence value as `confidence_raw`.
+- `feature_snapshot_id`: derived from legacy read-only bridge evidence.
+- `confidence_calibrated`: derived from the same legacy confidence value as `confidence_raw`.
 - `top_positive_features`: incomplete attribution.
 - `top_negative_features`: incomplete attribution.
+- `expected_move_bps`: native field present, but this does not clear lineage/attribution blockers.
 
 The derived evidence may be acceptable for V2 paper-only legacy shutdown only if the operator explicitly accepts these limitations:
-- The V2 trainer bridge has legacy hybrid trainer log evidence and checkpoint evidence.
+- The V2 trainer bridge has legacy hybrid trainer log/Redis evidence and checkpoint evidence.
 - The active prediction lineage does not contain a native trainer-emitted `feature_snapshot_id`.
 - The active prediction lineage does not contain a separate native calibrated confidence field.
 - The active prediction lineage does not contain native feature attribution for top positive and negative features.
-- V2 feature snapshot missing/stale/unused flags are available from the V2 feature snapshot payload, but they do not prove native trainer attribution for the legacy-log prediction.
+- V2 feature snapshot missing/stale/unused flags are available from V2 payloads, but they do not prove native trainer attribution for the legacy prediction.
 
 This limitation is not acceptable for live or canary readiness.
 
