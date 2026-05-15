@@ -1,0 +1,44 @@
+{
+  "agent": "claude",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/trainer_lineage_attribution_parity/latest/",
+    "v2/backend/app/",
+    "v2/backend/tests/",
+    "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/",
+    "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/"
+  ],
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**",
+    "requirements/**"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "forbidden": [
+    "legacy_mutation",
+    "old_redis_write",
+    "exchange_action",
+    "leverage_change",
+    "margin_mode_change",
+    "live_gate_unlock",
+    "approval_token_creation",
+    "redis_trim_approval_creation",
+    "fabricated_feature_attribution",
+    "derived_evidence_mislabeled_native",
+    "full_trainer_parity_while_blockers_remain"
+  ],
+  "lane": "shutdown_readiness_remediation",
+  "live_gate": "blocked_human_only",
+  "managed_by": "codex_legacy_shutdown_readiness_takeover",
+  "max_attempts": 1,
+  "prompt": "You are Claude running under the AI BOT REBUILD supervisor.\nScope: write only inside /home/wali/Desktop/AI BOT REBUILD. Read the legacy bot tree only as reference evidence. Use BEGIN_FILE blocks for every file you change; do not attempt direct filesystem writes from headless mode. Do not mutate legacy files, old Redis, exchange state, leverage, margin mode, or live trading. Do not create final approval or Redis trim approval tokens. Keep live_gate=blocked_human_only and live_symbols=[] in all payloads.\n\nTask: Build V2_TRAINER_LINEAGE_ATTRIBUTION_PARITY_REMEDIATION_READY honestly. The V2 trainer bridge has legacy hybrid trainer log evidence, checkpoint evidence, and validated CUDA/GPU dependency evidence, but shutdown remains blocked by LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED, LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED, and LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE. Do not fabricate native trainer parity.\n\nInspect the V2 trainer bridge implementation, preserved rl/hybrid_trainer.py, rl/confidence_gates.py, rl/calibrated_confidence.py when present, rl/decision_trace.py, rl/unified_feature_builder.py, rl/obs_schema.py, rl/feature_health.py, current trainer log evidence read-only, V2 feature snapshot builder payload, V2 feature pipeline and TA payload, and Symbol Universe payload.\n\nBuild explicit field classifications using only these values: NATIVE_FIELD_PRESENT, DERIVED_FROM_LEGACY_LOG, MISSING_EVIDENCE, INCOMPLETE_ATTRIBUTION, ACCEPTED_FOR_PAPER_ONLY, BLOCKS_LEGACY_SHUTDOWN. For feature_snapshot_id, do not invent a native ID. If the legacy trainer log lacks an explicit feature_snapshot_id, keep DERIVED_FROM_LEGACY_LOG and link prediction evidence to the nearest V2 feature snapshot by timestamp, symbol, and timeframe only when freshness and symbol scope match. Label that link derived_feature_snapshot_link. For confidence calibration, map raw and calibrated confidence from preserved code or logs; if calibration is inferred, label it DERIVED_FROM_LEGACY_LOG. For feature attribution, use actual model or explanation evidence only; otherwise emit FEATURE_ATTRIBUTION_INCOMPLETE and keep full parity blocked. Add missing, stale, and unused feature flags from the V2 feature snapshot payload. Never fabricate SHAP or importance values.\n\nUpdate v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json with prediction_id, feature_snapshot_id, feature_snapshot_link_mode, raw_confidence, calibrated_confidence, confidence_calibration_mode, top_positive_features, top_negative_features, missing_feature_flags, stale_feature_flags, unused_feature_flags, checkpoint_id, model_version, symbol_universe_scope, trainer_parity_status, and remaining_parity_gaps. Add or extend trainer bridge tests for derived feature_snapshot_id labeling, derived confidence calibration labeling, missing attribution blocking full parity, no fake attribution, native evidence clearing only the exact native blocker, live_gate remaining blocked_human_only, old Redis absence, and exchange method absence.\n\nIf code, test, or payload changes are needed, emit BEGIN_FILE blocks for those files before the report. Output these required files exactly:\nBEGIN_FILE: claude_worklog/final_readiness/trainer_lineage_attribution_parity/latest/V2_TRAINER_LINEAGE_ATTRIBUTION_PARITY_REPORT.md\n...report with inspected evidence, classification table, tests run, and remaining gaps...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/trainer_lineage_attribution_parity/latest/trainer_lineage_attribution_status.json\n{\"task_id\":\"claude_v2_trainer_lineage_attribution_parity_remediation\",\"live_gate\":\"blocked_human_only\",\"trainer_lineage_attribution_status\":\"BLOCKED_OR_READY\",\"remaining_parity_gaps\":[]}\nEND_FILE\n\nThe GO_NO_GO.md body must contain exactly one line. Use READY only if native evidence clears the blockers; otherwise keep BLOCKED.\nBEGIN_FILE: claude_worklog/final_readiness/trainer_lineage_attribution_parity/latest/GO_NO_GO.md\nV2_TRAINER_LINEAGE_ATTRIBUTION_PARITY_BLOCKED\nEND_FILE\n",
+  "required_output_files": [
+    "claude_worklog/final_readiness/trainer_lineage_attribution_parity/latest/V2_TRAINER_LINEAGE_ATTRIBUTION_PARITY_REPORT.md",
+    "claude_worklog/final_readiness/trainer_lineage_attribution_parity/latest/trainer_lineage_attribution_status.json",
+    "claude_worklog/final_readiness/trainer_lineage_attribution_parity/latest/GO_NO_GO.md"
+  ],
+  "risk_level": "L2",
+  "status": "pending",
+  "task_id": "claude_v2_trainer_lineage_attribution_parity_remediation",
+  "task_timeout_seconds": 1800
+}

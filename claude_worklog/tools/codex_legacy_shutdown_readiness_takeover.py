@@ -96,6 +96,13 @@ BLOCK = "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE"
 
 REQUIRED_TRAINER_PACKAGES = ["torch", "stable_baselines3", "cloudpickle", "gymnasium"]
 GENUINE_UNRESOLVED_IMPORTS = ["ingest", "binance_websocket", "hybrid_rule_based_signals"]
+TRAINER_LINEAGE_ATTRIBUTION_TASK_ID = "claude_v2_trainer_lineage_attribution_parity_remediation"
+TRAINER_LINEAGE_ATTRIBUTION_REVIEW_ID = "codex_review_v2_trainer_lineage_attribution_parity"
+TRAINER_LINEAGE_ATTRIBUTION_BLOCKERS = {
+    "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED",
+    "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
+    "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
+}
 
 SERVICE_UNITS = [
     "ai-bot-v2-worker-porting-orchestrator.service",
@@ -117,6 +124,7 @@ REMEDIATION_PRIORITY = [
     "claude_port_v2_risk_gateway_legacy_gate_implementations_from_legacy_action_map",
     "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map",
     "claude_port_v2_trainer_bridge_full_legacy_parity",
+    TRAINER_LINEAGE_ATTRIBUTION_TASK_ID,
     "claude_port_v2_signal_publisher_from_legacy_schema",
     "claude_remediate_v2_orchestrator_adapter_legacy_parity",
     "claude_remediate_v2_market_ingestor_full_runtime_sha_backfill",
@@ -132,6 +140,7 @@ TEMPLATE_TASKS = [
     "claude_port_v2_risk_gateway_legacy_gate_implementations_from_legacy_action_map",
     "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map",
     "claude_port_v2_trainer_bridge_full_legacy_parity",
+    TRAINER_LINEAGE_ATTRIBUTION_TASK_ID,
     "claude_port_v2_signal_publisher_from_legacy_schema",
     "claude_audit_stale_public_payloads_and_freshness_guard",
 ]
@@ -141,6 +150,7 @@ CODEX_REVIEW_IDS = {
     "claude_port_v2_risk_gateway_legacy_gate_implementations_from_legacy_action_map": "codex_review_v2_risk_gateway_legacy_gate_implementations",
     "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map": "codex_review_v2_risk_gateway_legacy_action_parity_tests",
     "claude_port_v2_trainer_bridge_full_legacy_parity": "codex_review_v2_trainer_full_legacy_parity",
+    TRAINER_LINEAGE_ATTRIBUTION_TASK_ID: TRAINER_LINEAGE_ATTRIBUTION_REVIEW_ID,
     "claude_port_v2_signal_publisher_from_legacy_schema": "codex_review_v2_signal_publisher_legacy_schema_parity",
     "claude_audit_stale_public_payloads_and_freshness_guard": "codex_review_public_payload_freshness_shutdown_readiness",
 }
@@ -936,12 +946,18 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
 
     trainer = evidence["trainer_bridge"]
     for item in trainer.get("blockers", []):
+        blocker_id = "WRAPPER_NOT_LEGACY_HYBRID_PARITY" if "wrapper" in item or "legacy_hybrid" in item else item.upper()
+        task_id = (
+            TRAINER_LINEAGE_ATTRIBUTION_TASK_ID
+            if blocker_id in TRAINER_LINEAGE_ATTRIBUTION_BLOCKERS
+            else "claude_port_v2_trainer_bridge_full_legacy_parity"
+        )
         blockers.append(
             blocker(
-                "WRAPPER_NOT_LEGACY_HYBRID_PARITY" if "wrapper" in item or "legacy_hybrid" in item else item.upper(),
+                blocker_id,
                 "P0_SHUTDOWN_BLOCKER",
                 f"trainer_bridge: {item}",
-                "claude_port_v2_trainer_bridge_full_legacy_parity",
+                task_id,
             )
         )
 
@@ -1046,6 +1062,7 @@ def classify_shutdown(evidence: Dict[str, Any], blockers: List[Dict[str, Any]]) 
             "TRAINER_BRIDGE_NOT_LEGACY_HYBRID_PARITY",
             "CHECKPOINT_EVIDENCE_MISSING_OR_REJECTED",
             "TRAINER_EXTERNAL_DEPS_MISSING_IN_V2_VENV",
+            *TRAINER_LINEAGE_ATTRIBUTION_BLOCKERS,
         }
     ]
     if core_v2_paper_ready(evidence) and not non_trainer_blockers:
@@ -1054,6 +1071,8 @@ def classify_shutdown(evidence: Dict[str, Any], blockers: List[Dict[str, Any]]) 
 
 
 def task_output_dir(task_id: str) -> Path:
+    if task_id == TRAINER_LINEAGE_ATTRIBUTION_TASK_ID:
+        return ROOT / "claude_worklog/final_readiness/trainer_lineage_attribution_parity/latest"
     return OUT / "claude_tasks" / task_id
 
 
@@ -1062,6 +1081,8 @@ def review_task_id_for(task_id: str) -> str:
 
 
 def codex_output_dir(task_id: str) -> Path:
+    if task_id == TRAINER_LINEAGE_ATTRIBUTION_TASK_ID:
+        return ROOT / "claude_worklog/final_readiness/trainer_lineage_attribution_parity/latest/codex_review"
     return OUT / "codex_reviews" / review_task_id_for(task_id)
 
 
@@ -1078,6 +1099,49 @@ def claude_prompt(task_id: str) -> str:
         "Do not create final approval or Redis trim approval tokens. Keep live_gate=blocked_human_only and live_symbols=[] in all payloads.\n\n"
     )
     out = rel(task_output_dir(task_id))
+    if task_id == TRAINER_LINEAGE_ATTRIBUTION_TASK_ID:
+        return (
+            common
+            + "Task: Build V2_TRAINER_LINEAGE_ATTRIBUTION_PARITY_REMEDIATION_READY honestly. "
+            "The V2 trainer bridge has legacy hybrid trainer log evidence, checkpoint evidence, and validated CUDA/GPU dependency evidence, "
+            "but shutdown remains blocked by LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED, "
+            "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED, and LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE. "
+            "Do not fabricate native trainer parity.\n\n"
+            "Inspect the V2 trainer bridge implementation, preserved rl/hybrid_trainer.py, rl/confidence_gates.py, "
+            "rl/calibrated_confidence.py when present, rl/decision_trace.py, rl/unified_feature_builder.py, rl/obs_schema.py, "
+            "rl/feature_health.py, current trainer log evidence read-only, V2 feature snapshot builder payload, "
+            "V2 feature pipeline and TA payload, and Symbol Universe payload.\n\n"
+            "Build explicit field classifications using only these values: NATIVE_FIELD_PRESENT, DERIVED_FROM_LEGACY_LOG, "
+            "MISSING_EVIDENCE, INCOMPLETE_ATTRIBUTION, ACCEPTED_FOR_PAPER_ONLY, BLOCKS_LEGACY_SHUTDOWN. "
+            "For feature_snapshot_id, do not invent a native ID. If the legacy trainer log lacks an explicit feature_snapshot_id, "
+            "keep DERIVED_FROM_LEGACY_LOG and link prediction evidence to the nearest V2 feature snapshot by timestamp, symbol, "
+            "and timeframe only when freshness and symbol scope match. Label that link derived_feature_snapshot_link. "
+            "For confidence calibration, map raw and calibrated confidence from preserved code or logs; if calibration is inferred, "
+            "label it DERIVED_FROM_LEGACY_LOG. For feature attribution, use actual model or explanation evidence only; otherwise emit "
+            "FEATURE_ATTRIBUTION_INCOMPLETE and keep full parity blocked. Add missing, stale, and unused feature flags from the V2 "
+            "feature snapshot payload. Never fabricate SHAP or importance values.\n\n"
+            "Update v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json with prediction_id, "
+            "feature_snapshot_id, feature_snapshot_link_mode, raw_confidence, calibrated_confidence, confidence_calibration_mode, "
+            "top_positive_features, top_negative_features, missing_feature_flags, stale_feature_flags, unused_feature_flags, "
+            "checkpoint_id, model_version, symbol_universe_scope, trainer_parity_status, and remaining_parity_gaps. "
+            "Add or extend trainer bridge tests for derived feature_snapshot_id labeling, derived confidence calibration labeling, "
+            "missing attribution blocking full parity, no fake attribution, native evidence clearing only the exact native blocker, "
+            "live_gate remaining blocked_human_only, old Redis absence, and exchange method absence.\n\n"
+            "If code, test, or payload changes are needed, emit BEGIN_FILE blocks for those files before the report. "
+            "Output these required files exactly:\n"
+            f"BEGIN_FILE: {out}/V2_TRAINER_LINEAGE_ATTRIBUTION_PARITY_REPORT.md\n"
+            "...report with inspected evidence, classification table, tests run, and remaining gaps...\n"
+            "END_FILE\n\n"
+            f"BEGIN_FILE: {out}/trainer_lineage_attribution_status.json\n"
+            "{\"task_id\":\"claude_v2_trainer_lineage_attribution_parity_remediation\",\"live_gate\":\"blocked_human_only\","
+            "\"trainer_lineage_attribution_status\":\"BLOCKED_OR_READY\",\"remaining_parity_gaps\":[]}\n"
+            "END_FILE\n\n"
+            "The GO_NO_GO.md body must contain exactly one line. Use READY only if native evidence clears the blockers; "
+            "otherwise keep BLOCKED.\n"
+            f"BEGIN_FILE: {out}/GO_NO_GO.md\n"
+            "V2_TRAINER_LINEAGE_ATTRIBUTION_PARITY_BLOCKED\n"
+            "END_FILE\n"
+        )
     if task_id == "claude_resolve_remaining_unresolved_local_imports":
         body = (
             "Task: resolve or explicitly classify the remaining full-closure local import gaps: "
@@ -1182,6 +1246,48 @@ def claude_task_descriptor(task_id: str) -> Dict[str, Any]:
         rel(CLOSURE_DIR) + "/",
         "claude_worklog/tools/",
     ]
+    if task_id == TRAINER_LINEAGE_ATTRIBUTION_TASK_ID:
+        allowed = [
+            out + "/",
+            "v2/backend/app/",
+            "v2/backend/tests/",
+            "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/",
+            "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/",
+        ]
+        return {
+            "task_id": task_id,
+            "agent": "claude",
+            "risk_level": "L2",
+            "live_gate": LIVE_GATE,
+            "status": "pending",
+            "cwd": str(ROOT),
+            "emit_files": True,
+            "lane": "shutdown_readiness_remediation",
+            "managed_by": "codex_legacy_shutdown_readiness_takeover",
+            "allowed_paths": ["v2/**", "claude_worklog/**", "requirements/**"],
+            "forbidden": [
+                "legacy_mutation",
+                "old_redis_write",
+                "exchange_action",
+                "leverage_change",
+                "margin_mode_change",
+                "live_gate_unlock",
+                "approval_token_creation",
+                "redis_trim_approval_creation",
+                "fabricated_feature_attribution",
+                "derived_evidence_mislabeled_native",
+                "full_trainer_parity_while_blockers_remain",
+            ],
+            "allowed_output_prefixes": allowed,
+            "required_output_files": [
+                f"{out}/V2_TRAINER_LINEAGE_ATTRIBUTION_PARITY_REPORT.md",
+                f"{out}/trainer_lineage_attribution_status.json",
+                f"{out}/GO_NO_GO.md",
+            ],
+            "task_timeout_seconds": 1800,
+            "max_attempts": 1,
+            "prompt": claude_prompt(task_id),
+        }
     return {
         "task_id": task_id,
         "agent": "claude",
@@ -1223,6 +1329,40 @@ def claude_task_descriptor(task_id: str) -> Dict[str, Any]:
 def codex_review_descriptor(task_id: str) -> Dict[str, Any]:
     review_id = review_task_id_for(task_id)
     out = rel(codex_output_dir(task_id))
+    if task_id == TRAINER_LINEAGE_ATTRIBUTION_TASK_ID:
+        pass_token = "CODEX_REVIEW_V2_TRAINER_LINEAGE_ATTRIBUTION_PARITY_PASS"
+        fail_token = "CODEX_REVIEW_V2_TRAINER_LINEAGE_ATTRIBUTION_PARITY_FAIL"
+        prompt = (
+            "You are Codex running the trainer lineage attribution parity review. "
+            "Review the Claude remediation outputs, V2 trainer bridge code/tests, current trainer bridge payload, "
+            "and read-only preserved legacy trainer evidence. Do not modify source files. Do not mutate legacy, old Redis, "
+            "exchange state, leverage, margin mode, or live trading. Keep live_gate=blocked_human_only.\n\n"
+            "Fail if derived log evidence is mislabeled as native, feature attribution is fabricated, missing/stale/unused "
+            "feature flags are hidden, trainer parity is marked full while any lineage blocker remains, legacy Redis mutation evidence appears, "
+            "exchange mutation appears, or live_gate changes. Verify GO_NO_GO.md has exactly one allowed token and that "
+            "READY is used only when native evidence genuinely clears the three known blockers.\n\n"
+            "Emit exactly two BEGIN_FILE blocks:\n"
+            f"BEGIN_FILE: {out}/CODEX_REVIEW.md\n...findings with PASS/FAIL rationale...\nEND_FILE\n\n"
+            f"BEGIN_FILE: {out}/CODEX_GO_NO_GO.md\n{fail_token}\nEND_FILE\n"
+            f"Use {pass_token} instead only if every review condition passes.\n"
+        )
+        return {
+            "task_id": review_id,
+            "agent": "codex",
+            "risk_level": "L1",
+            "live_gate": LIVE_GATE,
+            "status": "pending",
+            "cwd": str(ROOT),
+            "emit_files": True,
+            "lane": "shutdown_readiness_remediation",
+            "managed_by": "codex_legacy_shutdown_readiness_takeover",
+            "allowed_output_prefixes": [out + "/"],
+            "required_output_files": [f"{out}/CODEX_REVIEW.md", f"{out}/CODEX_GO_NO_GO.md"],
+            "depends_on": [task_id],
+            "task_timeout_seconds": 1200,
+            "max_attempts": 1,
+            "prompt": prompt,
+        }
     pass_token = upper_token(task_id, "CODEX_PASS")
     fail_token = upper_token(task_id, "CODEX_FAIL")
     prompt = (
@@ -1279,11 +1419,15 @@ def required_outputs_exist(descriptor: Dict[str, Any]) -> bool:
 
 def codex_passed(task_id: str) -> bool:
     path = codex_output_dir(task_id) / "CODEX_GO_NO_GO.md"
+    if task_id == TRAINER_LINEAGE_ATTRIBUTION_TASK_ID:
+        return path.exists() and "CODEX_REVIEW_V2_TRAINER_LINEAGE_ATTRIBUTION_PARITY_PASS" in read_text(path)
     return path.exists() and upper_token(task_id, "CODEX_PASS") in read_text(path)
 
 
 def codex_failed(task_id: str) -> bool:
     path = codex_output_dir(task_id) / "CODEX_GO_NO_GO.md"
+    if task_id == TRAINER_LINEAGE_ATTRIBUTION_TASK_ID:
+        return path.exists() and "CODEX_REVIEW_V2_TRAINER_LINEAGE_ATTRIBUTION_PARITY_FAIL" in read_text(path)
     return path.exists() and upper_token(task_id, "CODEX_FAIL") in read_text(path)
 
 

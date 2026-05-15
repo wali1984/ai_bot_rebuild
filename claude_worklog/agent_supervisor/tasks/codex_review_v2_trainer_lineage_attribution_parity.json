@@ -1,0 +1,24 @@
+{
+  "agent": "codex",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/trainer_lineage_attribution_parity/latest/codex_review/"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [
+    "claude_v2_trainer_lineage_attribution_parity_remediation"
+  ],
+  "emit_files": true,
+  "lane": "shutdown_readiness_remediation",
+  "live_gate": "blocked_human_only",
+  "managed_by": "codex_legacy_shutdown_readiness_takeover",
+  "max_attempts": 1,
+  "prompt": "You are Codex running the trainer lineage attribution parity review. Review the Claude remediation outputs, V2 trainer bridge code/tests, current trainer bridge payload, and read-only preserved legacy trainer evidence. Do not modify source files. Do not mutate legacy, old Redis, exchange state, leverage, margin mode, or live trading. Keep live_gate=blocked_human_only.\n\nFail if derived log evidence is mislabeled as native, feature attribution is fabricated, missing/stale/unused feature flags are hidden, trainer parity is marked full while any lineage blocker remains, legacy Redis mutation evidence appears, exchange mutation appears, or live_gate changes. Verify GO_NO_GO.md has exactly one allowed token and that READY is used only when native evidence genuinely clears the three known blockers.\n\nEmit exactly two BEGIN_FILE blocks:\nBEGIN_FILE: claude_worklog/final_readiness/trainer_lineage_attribution_parity/latest/codex_review/CODEX_REVIEW.md\n...findings with PASS/FAIL rationale...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/trainer_lineage_attribution_parity/latest/codex_review/CODEX_GO_NO_GO.md\nCODEX_REVIEW_V2_TRAINER_LINEAGE_ATTRIBUTION_PARITY_FAIL\nEND_FILE\nUse CODEX_REVIEW_V2_TRAINER_LINEAGE_ATTRIBUTION_PARITY_PASS instead only if every review condition passes.\n",
+  "required_output_files": [
+    "claude_worklog/final_readiness/trainer_lineage_attribution_parity/latest/codex_review/CODEX_REVIEW.md",
+    "claude_worklog/final_readiness/trainer_lineage_attribution_parity/latest/codex_review/CODEX_GO_NO_GO.md"
+  ],
+  "risk_level": "L1",
+  "status": "pending",
+  "task_id": "codex_review_v2_trainer_lineage_attribution_parity",
+  "task_timeout_seconds": 1200
+}
