@@ -856,6 +856,25 @@ def paper_position_lifecycle_from_entry(
     }
 
 
+def _recent_events_with_last_closed_loss(
+    recent_events: list[dict[str, Any]],
+    last_closed_position: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    if not isinstance(last_closed_position, dict):
+        return recent_events
+    if _float_or_none(last_closed_position.get("realized_delta_usdt")) is None:
+        return recent_events
+    close_event = {
+        "generated_at": last_closed_position.get("closed_at"),
+        "symbol": last_closed_position.get("symbol"),
+        "ledger_action": "PAPER_POSITION_CLOSED",
+        "paper_result": "POSITION_CLOSED_PAPER_ONLY",
+        "realized_delta_usdt": last_closed_position.get("realized_delta_usdt"),
+        "paper_pnl_delta": last_closed_position.get("realized_delta_usdt"),
+    }
+    return [*recent_events, close_event]
+
+
 def build_risk_runtime_payload(
     *,
     generated_at: str,
@@ -1013,7 +1032,10 @@ def build_runtime_payload(symbol: str, interval: int) -> tuple[dict[str, Any], d
     lineage = apply_paper_tightening_gate(
         lineage,
         generated_at=generated_at,
-        recent_events=_read_jsonl_tail(LOCAL_RUNTIME_DIR / "paper_events.jsonl"),
+        recent_events=_recent_events_with_last_closed_loss(
+            _read_jsonl_tail(LOCAL_RUNTIME_DIR / "paper_events.jsonl"),
+            previous_last_closed_position,
+        ),
     )
     if previous_position:
         ledger_entry, paper_account, position_lifecycle = build_position_lifecycle_entry(

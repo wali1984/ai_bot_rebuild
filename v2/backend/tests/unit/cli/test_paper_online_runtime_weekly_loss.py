@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -439,6 +440,69 @@ def test_runtime_payload_retains_last_closed_position_after_flat_blocked_tick(
 
     payload, _ = paper_runtime.build_runtime_payload("BTCUSDT", 30)
 
+    assert payload["paper_position_lifecycle"]["last_closed_position"] == last_closed
+    assert payload["live_gate"] == "blocked_human_only"
+    assert payload["live_symbols"] == []
+
+
+def test_runtime_uses_last_closed_loss_for_loss_cooldown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    last_closed = {
+        "status": "CLOSED",
+        "symbol": "BTCUSDT",
+        "closed_at": "2026-05-13T07:29:00Z",
+        "realized_delta_usdt": -0.031919,
+    }
+    (runtime_dir / "paper_runtime_status.json").write_text(
+        json.dumps(
+            {
+                "paper_account": {"equity": 9950.771904, "realized_pnl": -49.228096},
+                "paper_loop": {"paper_event_count": 10},
+                "paper_position_lifecycle": {
+                    "status": "FLAT",
+                    "open_position": None,
+                    "last_closed_position": last_closed,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    bridge_status = tmp_path / "v2_trainer_bridge_status.json"
+    monkeypatch.setattr(paper_runtime, "TRAINER_BRIDGE_STATUS_FILE", bridge_status)
+    bridge_status.write_text(
+        json.dumps(
+            {
+                "prediction_symbol": "BTCUSDT",
+                "prediction_timeframe": "1m",
+                "prediction_id": "legacy_redis_pred_unit",
+                "prediction_source_type": "LEGACY_HYBRID_TRAINER_REDIS_READONLY",
+                "trainer_parity_status": "BLOCKS_LEGACY_SHUTDOWN",
+                "model_version": "legacy_hybrid_trainer_live_legacy",
+                "checkpoint_id": "legacy_live_checkpoint_unit",
+                "expected_move_bps": 24.0,
+                "expected_move_source": "native_legacy_trainer_price_target",
+                "expected_move_evidence_mode": "NATIVE_FIELD_PRESENT",
+                "live_gate": "blocked_human_only",
+                "live_symbols": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(paper_runtime, "LOCAL_RUNTIME_DIR", runtime_dir)
+    monkeypatch.setattr(paper_runtime, "fetch_market_snapshot", lambda symbol: _market())
+    monkeypatch.setattr(paper_runtime, "iso_now", lambda: "2026-05-13T07:30:00Z")
+    fixed_now = datetime.fromisoformat("2026-05-13T07:30:00+00:00").timestamp()
+    monkeypatch.setattr(paper_runtime.time, "time", lambda: fixed_now)
+
+    payload, _ = paper_runtime.build_runtime_payload("BTCUSDT", 30)
+
+    blockers = payload["current_risk_decision"]["canary_profile_tightening_blockers"]
+    assert "loss_cooldown_active" in blockers
+    assert payload["paper_ledger_tail"][0]["paper_result"] == "NO_FILL_RISK_BLOCKED"
     assert payload["paper_position_lifecycle"]["last_closed_position"] == last_closed
     assert payload["live_gate"] == "blocked_human_only"
     assert payload["live_symbols"] == []
