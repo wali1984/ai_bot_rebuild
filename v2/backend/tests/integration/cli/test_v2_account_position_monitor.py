@@ -188,6 +188,7 @@ def test_no_credentials_fallback_emits_missing_credentials(tmp_path: Path, monke
     status = run_once(parse_args(["--once"]))
 
     assert status["runtime_evidence_status"] == "MISSING_CREDENTIALS"
+    assert status["generated_at"] == status["last_run_ts"]
     assert status["credentials_status_one_of_PRESENT_MISSING_INVALID"] == "MISSING"
     assert status["fail_closed"] is True
     assert status["open_positions_count"] == 0

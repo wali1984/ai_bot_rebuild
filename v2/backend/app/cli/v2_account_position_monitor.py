@@ -287,6 +287,7 @@ def build_missing_credentials_status(credentials: ReadOnlyCredentials) -> Dict[s
     symbol_scope = build_symbol_scope(observed_symbols=[])
     status: Dict[str, Any] = {
         "worker_id": WORKER_ID,
+        "generated_at": now,
         "last_run_ts": now,
         "last_successful_account_fetch_ts": "",
         "last_successful_positions_fetch_ts": "",
@@ -341,6 +342,7 @@ def build_exchange_error_status(
     status.update(
         {
             "last_run_ts": now,
+            "generated_at": now,
             "credentials_status_one_of_PRESENT_MISSING_INVALID": credentials.status,
             "credentials_status": credentials.status,
             "fail_closed_reason": reason,
@@ -383,9 +385,11 @@ def build_success_status(
     if blockers:
         blockers.append("CANARY_BLOCKED_BY_ACCOUNT_EVIDENCE")
 
+    now = iso_now()
     status: Dict[str, Any] = {
         "worker_id": WORKER_ID,
-        "last_run_ts": iso_now(),
+        "generated_at": now,
+        "last_run_ts": now,
         "last_successful_account_fetch_ts": account_ts,
         "last_successful_positions_fetch_ts": positions_ts,
         "credentials_status_one_of_PRESENT_MISSING_INVALID": credentials.status,
