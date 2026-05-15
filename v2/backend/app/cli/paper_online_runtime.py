@@ -47,6 +47,8 @@ PAPER_TIGHTENING_COOLDOWN_SECONDS = 300
 PAPER_TIGHTENING_LOSS_COOLDOWN_SECONDS = 600
 PAPER_TIGHTENING_MAX_SIGNAL_AGE_SECONDS = 120
 PAPER_TIGHTENING_MAX_FEATURE_AGE_SECONDS = 120
+PAPER_OUTCOME_MODEL_READY = False
+PAPER_OUTCOME_MODEL_BLOCKER = "paper_outcome_model_missing"
 
 
 @dataclass(frozen=True, slots=True)
@@ -487,16 +489,36 @@ def apply_paper_tightening_gate(
     risk["paper_edge_gate"] = paper_edge_gate
     risk["paper_edge_gate_classification"] = paper_edge_gate.get("classification")
     risk["paper_edge_gate_blockers"] = list(paper_edge_gate.get("blockers") or [])
-    if gate.get("blockers") or paper_edge_gate.get("blockers"):
+    paper_outcome_model_blockers: list[str] = [] if PAPER_OUTCOME_MODEL_READY else [PAPER_OUTCOME_MODEL_BLOCKER]
+    risk["paper_outcome_model"] = {
+        "status": "READY" if PAPER_OUTCOME_MODEL_READY else "MISSING_EXIT_LIFECYCLE_SIMULATOR",
+        "paper_fill_allowed": PAPER_OUTCOME_MODEL_READY,
+        "blockers": paper_outcome_model_blockers,
+        "detail": (
+            "paper fill recording is blocked until V2 has a non-live exit/outcome simulator; "
+            "qualified intents remain shadow-observed so fee-only ledger drift cannot masquerade as edge"
+        ),
+    }
+    if gate.get("blockers") or paper_edge_gate.get("blockers") or paper_outcome_model_blockers:
         risk["risk_action"] = "deny"
         risk["risk_result"] = "BLOCKED"
-        risk["risk_reason_code"] = "deny_canary_profile_tightening"
-        risk["canary_profile_tightening_blockers"] = list(gate.get("blockers") or [])
+        risk["risk_reason_code"] = (
+            "deny_paper_outcome_model_missing"
+            if paper_outcome_model_blockers and not gate.get("blockers") and not paper_edge_gate.get("blockers")
+            else "deny_canary_profile_tightening"
+        )
+        risk["canary_profile_tightening_blockers"] = [
+            *list(gate.get("blockers") or []),
+            *paper_outcome_model_blockers,
+        ]
+        risk["paper_outcome_model_blockers"] = paper_outcome_model_blockers
         required = list(risk.get("required_blocks_checked") or [])
         if "canary_profile_tightening" not in required:
             required.append("canary_profile_tightening")
         if "paper_edge_scoring" not in required:
             required.append("paper_edge_scoring")
+        if "paper_outcome_model" not in required:
+            required.append("paper_outcome_model")
         risk["required_blocks_checked"] = required
         intent["intent_action"] = "paper_noop_blocked"
         intent["exchange_order_allowed"] = False
@@ -649,6 +671,8 @@ def append_paper_event(root: Path, payload: dict[str, Any], risk_runtime_payload
         "weekly_loss_breach": risk_runtime_payload["weekly_loss_breach"],
         "canary_profile_tightening_blockers": risk.get("canary_profile_tightening_blockers", []),
         "paper_edge_gate_blockers": risk.get("paper_edge_gate_blockers", []),
+        "paper_outcome_model_status": (risk.get("paper_outcome_model") or {}).get("status"),
+        "paper_outcome_model_blockers": risk.get("paper_outcome_model_blockers", []),
         "live_gate_status": LIVE_GATE_STATUS,
         "live_gate": LIVE_GATE_STATUS,
         "live_symbols": [],

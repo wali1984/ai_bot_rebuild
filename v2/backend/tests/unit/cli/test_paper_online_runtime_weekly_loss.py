@@ -201,6 +201,68 @@ def test_native_trainer_bridge_expected_move_flows_to_paper_gate(
     assert gated["risk_decision"]["canary_profile_tightening"]["safe_for_live"] is False
 
 
+def test_native_expected_move_shadows_when_paper_outcome_model_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bridge_status = tmp_path / "v2_trainer_bridge_status.json"
+    monkeypatch.setattr(paper_runtime, "TRAINER_BRIDGE_STATUS_FILE", bridge_status)
+    bridge_status.write_text(
+        json.dumps(
+            {
+                "prediction_symbol": "BTCUSDT",
+                "prediction_timeframe": "1m",
+                "prediction_id": "legacy_redis_pred_unit",
+                "prediction_source_type": "LEGACY_HYBRID_TRAINER_REDIS_READONLY",
+                "trainer_parity_status": "BLOCKS_LEGACY_SHUTDOWN",
+                "model_version": "legacy_hybrid_trainer_live_legacy",
+                "checkpoint_id": "legacy_live_checkpoint_unit",
+                "expected_move_bps": 20.0,
+                "expected_move_source": "native_legacy_trainer_price_target",
+                "expected_move_evidence_mode": "NATIVE_FIELD_PRESENT",
+                "live_gate": "blocked_human_only",
+                "live_symbols": [],
+            }
+        )
+    )
+    market = _market()
+    feature = build_feature_snapshot(market, "tick_unit")
+    prediction = build_trainer_prediction(feature, "tick_unit")
+    prediction["confidence_calibrated"] = 0.78
+    lineage = build_signal_lineage(
+        tick_id="tick_unit",
+        generated_at="2026-05-13T07:30:00Z",
+        feature_snapshot=feature,
+        prediction=prediction,
+        market=market,
+    )
+
+    gated = apply_paper_tightening_gate(
+        lineage,
+        generated_at="2026-05-13T07:30:00Z",
+        recent_events=[],
+        now_ms=1_778_648_401_000,
+    )
+    ledger, account = build_paper_ledger_entry(
+        tick_id="tick_unit",
+        generated_at="2026-05-13T07:30:00Z",
+        market=market,
+        lineage=gated,
+        previous_equity=10000.0,
+    )
+
+    assert gated["risk_decision"]["paper_edge_gate"]["fill_allowed"] is True
+    assert gated["risk_decision"]["risk_action"] == "deny"
+    assert gated["risk_decision"]["risk_reason_code"] == "deny_paper_outcome_model_missing"
+    assert gated["risk_decision"]["paper_outcome_model"]["status"] == "MISSING_EXIT_LIFECYCLE_SIMULATOR"
+    assert "paper_outcome_model_missing" in gated["risk_decision"]["paper_outcome_model_blockers"]
+    assert "paper_outcome_model" in gated["risk_decision"]["required_blocks_checked"]
+    assert ledger["paper_result"] == "NO_FILL_RISK_BLOCKED"
+    assert ledger["fee_usdt"] == 0.0
+    assert account["realized_pnl"] == 0.0
+    assert account["open_position_count"] == 0
+
+
 def test_native_expected_move_below_paper_edge_threshold_still_blocks_fill(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
