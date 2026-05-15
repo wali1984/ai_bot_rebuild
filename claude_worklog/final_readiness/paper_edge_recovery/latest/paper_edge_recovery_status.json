@@ -3,7 +3,8 @@
   "approves_legacy_shutdown": false,
   "approves_live": false,
   "edge_proven": false,
-  "edge_status": "EDGE_PENDING_POSITION_OPEN",
+  "edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
+  "false_block_count": 19,
   "forbidden_action_scan_summary": {
     "approval_token_created": false,
     "exchange_mutations": "absent_in_touched_runtime_code_and_audited_events",
@@ -11,24 +12,25 @@
     "old_redis_writes": "absent_in_touched_runtime_code_and_audited_events",
     "redis_trim_approval_created": false
   },
-  "generated_at": "2026-05-15T11:04:24Z",
+  "generated_at": "2026-05-15T11:18:55Z",
   "go_no_go": "V2_PAPER_EDGE_RECOVERY_READY_NO_UNSAFE_FILLS_EDGE_PENDING",
   "live_gate": "blocked_human_only",
   "live_symbols": [],
+  "no_trade_correct_count": 61,
   "paper_edge_positive_proven": false,
   "paper_fill_boundary_status": "HARD_GATE_PLUS_POSITION_LIFECYCLE_AND_PROTECTIVE_GUARDS_IMPLEMENTED",
   "paper_pnl": {
-    "current_cumulative_paper_pnl_usdt": -49.196177,
-    "current_unrealized_pnl_usdt": -0.012406,
+    "current_cumulative_paper_pnl_usdt": -49.228096,
+    "current_unrealized_pnl_usdt": 0.0,
     "expected_move_after_cost_false_block_model_review": {
       "classification": "EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_READY_EDGE_PENDING",
-      "false_block_count": 14,
+      "false_block_count": 19,
       "sample_status": "PRELIMINARY_SAMPLE"
     },
-    "last_closed_position_realized_delta_usdt": 0.021232,
+    "last_closed_position_realized_delta_usdt": -0.031919,
     "observed_pre_filter_loss_usdt": -22.75,
-    "open_position_count": 1,
-    "open_position_pending": true,
+    "open_position_count": 0,
+    "open_position_pending": false,
     "source_limited_prior_baseline_usdt": -26.37
   },
   "phase_status": {
