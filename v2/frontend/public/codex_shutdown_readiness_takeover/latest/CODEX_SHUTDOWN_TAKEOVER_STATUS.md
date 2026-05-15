@@ -1,6 +1,6 @@
 # CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP
 
-As of: 2026-05-15T01:57:25Z
+As of: 2026-05-15T02:21:28Z
 
 Loop marker: `CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP_READY`
 Shutdown recommendation: `BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE`
@@ -35,7 +35,7 @@ Legacy shutdown remains blocked because required parity, edge, dependency, or sa
 - paper runtime: `fresh`, PnL=`-49.12`, action=`None`
 - trainer bridge: `LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT`, accepted=`True`
 - trade permission: `TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY`
-- symbol universe age seconds: `1`, live_symbols=`[]`
+- symbol universe age seconds: `3`, live_symbols=`[]`
 
 ## Hard constraints held
 

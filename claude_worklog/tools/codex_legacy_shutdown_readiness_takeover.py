@@ -51,6 +51,7 @@ CLOSURE_FULL_MANIFEST = CLOSURE_DIR / "full_runtime_copied_source_manifest.json"
 PAPER_RUNTIME = ROOT / "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json"
 PAPER_SHADOW = ROOT / "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json"
 PAPER_EDGE = ROOT / "claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/paper_shadow_24h_continuation.json"
+PAPER_POST_FILTER = ROOT / "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/paper_edge_post_filter_observation_status.json"
 TRADE_PERMISSION = ROOT / "claude_worklog/final_readiness/paper_strategy_edge_tightening/latest/account_permission_margin_blockers_status.json"
 TRAINER_BRIDGE = ROOT / "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json"
 SYMBOL_UNIVERSE = ROOT / "v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json"
@@ -84,6 +85,7 @@ ACTIVE_PUBLIC_FRESHNESS_PREFIXES = (
     "operator_runtime/v2_signal_lineage_worker/latest/",
     "operator_runtime/v2_trainer_bridge/latest/",
     "operator_truth/latest/",
+    "paper_edge_post_filter_observation_window/latest/",
     "v2_worker_porting_orchestrator/latest/",
 )
 
@@ -656,24 +658,116 @@ def paper_shadow_evidence() -> Dict[str, Any]:
     }
 
 
+def paper_post_filter_evidence() -> Dict[str, Any]:
+    payload = read_json(PAPER_POST_FILTER)
+    if not isinstance(payload, dict) or not payload:
+        return {
+            "path": rel(PAPER_POST_FILTER),
+            "status": "missing",
+            "classification": "MISSING_EVIDENCE",
+            "blockers": ["paper_post_filter_observation_missing"],
+        }
+    generated_at = payload.get("generated_at")
+    age = age_seconds(generated_at)
+    classification = str(payload.get("classification") or "")
+    safety_classification = str(payload.get("post_filter_safety_classification") or "")
+    post_filter_fills = payload.get("post_filter_simulated_fills")
+    post_filter_allowed = payload.get("post_filter_allowed_intents")
+    post_filter_pnl = payload.get("post_filter_realized_pnl_delta_usdt")
+    post_filter_fees = payload.get("post_filter_fees_usdt")
+    post_filter_churn = payload.get("post_filter_churn_events")
+    cumulative_pnl = payload.get("cumulative_paper_pnl_usdt_pre_plus_post")
+    blocked_1h = payload.get("post_filter_blocked_intents_1h")
+    blocked_6h = payload.get("post_filter_blocked_intents_6h_window")
+    no_unsafe_fills = (
+        safety_classification == "POST_FILTER_NO_UNSAFE_FILLS"
+        or (
+            post_filter_fills == 0
+            and post_filter_fees == 0
+            and post_filter_churn == 0
+        )
+    )
+    zero_fill_observation = post_filter_fills == 0 and (blocked_1h or blocked_6h)
+    positive_edge_proven = classification == "POST_FILTER_POSITIVE_EDGE_PROVEN" and payload.get("paper_edge_positive_proven") is True
+    historical_negative_pnl_isolated = (
+        isinstance(cumulative_pnl, (int, float))
+        and cumulative_pnl < 0
+        and isinstance(post_filter_pnl, (int, float))
+        and post_filter_pnl >= 0
+        and no_unsafe_fills
+    )
+    if positive_edge_proven:
+        paper_only_interpretation = "POST_FILTER_POSITIVE_EDGE_PROVEN"
+    elif zero_fill_observation and no_unsafe_fills:
+        paper_only_interpretation = "POST_FILTER_NO_UNSAFE_FILLS_EDGE_PENDING"
+    elif classification:
+        paper_only_interpretation = classification
+    else:
+        paper_only_interpretation = "MISSING_EVIDENCE"
+    return {
+        "path": rel(PAPER_POST_FILTER),
+        "generated_at": generated_at,
+        "age_seconds": age,
+        "status": "fresh" if age is not None and age <= 1800 else "stale_or_missing",
+        "classification": classification,
+        "post_filter_safety_classification": safety_classification,
+        "paper_only_interpretation": paper_only_interpretation,
+        "post_filter_window_start_utc": payload.get("post_filter_window_start_utc"),
+        "post_filter_window_end_utc": payload.get("post_filter_window_end_utc"),
+        "post_filter_window_seconds": payload.get("post_filter_window_seconds"),
+        "cumulative_paper_pnl_usdt_pre_plus_post": cumulative_pnl,
+        "post_filter_realized_pnl_delta_usdt": post_filter_pnl,
+        "post_filter_simulated_fills": post_filter_fills,
+        "post_filter_allowed_intents": post_filter_allowed,
+        "post_filter_blocked_intents_1h": blocked_1h,
+        "post_filter_blocked_intents_6h_window": blocked_6h,
+        "post_filter_fees_usdt": post_filter_fees,
+        "post_filter_churn_events": post_filter_churn,
+        "no_unsafe_fills": no_unsafe_fills,
+        "zero_fill_observation": bool(zero_fill_observation),
+        "positive_edge_proven": positive_edge_proven,
+        "historical_negative_pnl_isolated": historical_negative_pnl_isolated,
+        "approves_live": payload.get("approves_live") is True,
+        "approves_legacy_shutdown": payload.get("approves_legacy_shutdown") is True,
+        "blockers": [] if classification else ["paper_post_filter_observation_missing"],
+    }
+
+
 def trade_permission_evidence() -> Dict[str, Any]:
     payload = read_json(TRADE_PERMISSION)
     if not isinstance(payload, dict):
         return {"path": rel(TRADE_PERMISSION), "status": "missing", "blockers": ["trade_permission_payload_missing"]}
+    account_payload = read_json(ACCOUNT_POSITION)
     blockers = []
     trade_status = str(payload.get("trade_permission_status") or "")
     readonly_status = str(payload.get("readonly_account_evidence_status") or "")
     classes = payload.get("classifications") if isinstance(payload.get("classifications"), list) else []
+    account_fail_closed = bool(isinstance(account_payload, dict) and account_payload.get("fail_closed") is True)
+    readonly_account_monitor = bool(
+        isinstance(account_payload, dict)
+        and account_payload.get("exchange_call_invariant") == "READONLY_ACCOUNT_AND_POSITION_ENDPOINTS_ONLY"
+        and account_payload.get("exchange_mutation_performed") is False
+        and account_payload.get("exchange_action_taken") is False
+        and account_payload.get("live_gate") == LIVE_GATE
+        and account_payload.get("live_symbols") == []
+    )
     if "UNKNOWN" in trade_status or "UNKNOWN" in " ".join(map(str, classes)):
         blockers.append("trade_permission_readonly_unknown")
     if "STALE" in readonly_status or "STALE" in " ".join(map(str, classes)):
         blockers.append("readonly_account_evidence_stale")
+    operator_decision_required = "trade_permission_readonly_unknown" in blockers and account_fail_closed and readonly_account_monitor
     return {
         "path": rel(TRADE_PERMISSION),
+        "account_position_path": rel(ACCOUNT_POSITION),
         "generated_at": payload.get("generated_at"),
         "age_seconds": age_seconds(payload.get("generated_at")),
         "trade_permission_status": trade_status,
         "readonly_account_evidence_status": readonly_status,
+        "account_monitor_fail_closed": account_fail_closed,
+        "account_monitor_readonly_no_mutation": readonly_account_monitor,
+        "paper_only_operator_decision_required": operator_decision_required,
+        "paper_only_classification": "OPERATOR_DECISION_REQUIRED" if operator_decision_required else "BLOCKS_LEGACY_SHUTDOWN",
+        "live_canary_classification": "P2_LIVE_ONLY_BLOCKED" if blockers else "INFO_ONLY",
         "margin_leverage_classifications": payload.get("margin_leverage_classifications", []),
         "classifications": classes,
         "blockers": blockers,
@@ -985,6 +1079,7 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
         )
 
     paper = evidence["paper_runtime"]
+    post_filter = evidence.get("paper_post_filter", {})
     paper_task_id = (
         PAPER_EDGE_POST_FILTER_TASK_ID
         if codex_passed("claude_replay_paper_edge_repair_from_legacy_trainer_output")
@@ -997,7 +1092,21 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
             bid = "PAPER_EDGE_UNPROVEN"
         else:
             bid = item.upper()
-        blockers.append(blocker(bid, "P0_SHUTDOWN_BLOCKER", f"paper_runtime: {item}", paper_task_id))
+        category = "P0_SHUTDOWN_BLOCKER"
+        evidence_text = f"paper_runtime: {item}"
+        if bid == "PAPER_PNL_NEGATIVE_BLOCKS_CANARY" and post_filter.get("historical_negative_pnl_isolated"):
+            category = "P2_LIVE_ONLY_BLOCKED"
+            evidence_text = (
+                f"paper_runtime: {item}; cumulative loss is pre-filter/historical while "
+                f"post_filter_pnl_delta={post_filter.get('post_filter_realized_pnl_delta_usdt')} and "
+                f"post_filter_safety={post_filter.get('post_filter_safety_classification')}"
+            )
+        elif bid == "PAPER_EDGE_UNPROVEN" and post_filter.get("no_unsafe_fills") and not post_filter.get("positive_edge_proven"):
+            evidence_text = (
+                "post_filter_edge_pending: no unsafe post-filter fills observed, but zero fills means "
+                "positive edge is not proven"
+            )
+        blockers.append(blocker(bid, category, evidence_text, paper_task_id))
 
     paper_shadow = evidence["paper_shadow"]
     for item in paper_shadow.get("blockers", []):
@@ -1006,15 +1115,36 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
     edge = evidence["paper_edge"]
     for item in edge.get("blockers", []):
         bid = "PAPER_PNL_NEGATIVE_BLOCKS_CANARY" if "negative" in item else "PAPER_EDGE_UNPROVEN"
-        blockers.append(blocker(bid, "P0_SHUTDOWN_BLOCKER", f"paper_edge: {item}", paper_task_id))
+        category = "P0_SHUTDOWN_BLOCKER"
+        evidence_text = f"paper_edge: {item}"
+        if bid == "PAPER_PNL_NEGATIVE_BLOCKS_CANARY" and post_filter.get("historical_negative_pnl_isolated"):
+            category = "P2_LIVE_ONLY_BLOCKED"
+            evidence_text = (
+                f"paper_edge: {item}; historical negative PnL remains visible, but post-filter "
+                f"window has pnl_delta={post_filter.get('post_filter_realized_pnl_delta_usdt')}, "
+                f"fills={post_filter.get('post_filter_simulated_fills')}, and no unsafe fills"
+            )
+        elif bid == "PAPER_EDGE_UNPROVEN" and post_filter.get("no_unsafe_fills") and not post_filter.get("positive_edge_proven"):
+            evidence_text = (
+                "paper_edge: post-filter no unsafe fills, but edge remains pending because "
+                "there are no positive post-filter fill outcomes"
+            )
+        blockers.append(blocker(bid, category, evidence_text, paper_task_id))
 
     trade = evidence["trade_permission"]
     for item in trade.get("blockers", []):
+        category = "OPERATOR_DECISION_REQUIRED" if trade.get("paper_only_operator_decision_required") else "P0_SHUTDOWN_BLOCKER"
+        evidence_text = f"trade_permission: {item}"
+        if trade.get("paper_only_operator_decision_required"):
+            evidence_text = (
+                f"trade_permission: {item}; account monitor is fail-closed/read-only with no exchange mutation, "
+                "so this blocks live/canary and requires explicit operator decision for paper-only shutdown"
+            )
         blockers.append(
             blocker(
                 "TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY" if "permission" in item else item.upper(),
-                "P0_SHUTDOWN_BLOCKER",
-                f"trade_permission: {item}",
+                category,
+                evidence_text,
                 "claude_remediate_account_position_monitor_shutdown_parity",
             )
         )
@@ -1218,8 +1348,9 @@ def claude_prompt(task_id: str) -> str:
             "Read current paper runtime, paper shadow observation, paper execution worker status, execution ledger, signal lineage, trainer "
             "payload, and paper_strategy_edge_tightening artifacts. Identify the filter activation evidence, post-filter observation start, "
             "post-filter fills, post-filter denials, blocked intents, fees, churn, and realized/unrealized PnL deltas. Classify the result as "
-            "exactly one of: POST_FILTER_EDGE_PENDING, POST_FILTER_NO_UNSAFE_FILLS, POST_FILTER_POSITIVE_EDGE_PROVEN, "
-            "POST_FILTER_EDGE_STILL_UNPROVEN.\n\n"
+            "exactly one of: POST_FILTER_EDGE_PENDING, POST_FILTER_NO_UNSAFE_FILLS, POST_FILTER_NO_UNSAFE_FILLS_EDGE_PENDING, "
+            "POST_FILTER_NO_TRADE_CONDITION_CONFIRMED, POST_FILTER_POSITIVE_EDGE_PROVEN, POST_FILTER_EDGE_STILL_UNPROVEN. "
+            "Use POST_FILTER_NO_UNSAFE_FILLS_EDGE_PENDING when unsafe fills are absent but zero fills prevent positive-edge proof.\n\n"
             "Output these required files exactly:\n"
             f"BEGIN_FILE: {out}/PAPER_EDGE_POST_FILTER_OBSERVATION_REPORT.md\n"
             "...report with post-filter window definition, fill/denial counts, PnL split, and blocker impact...\n"
@@ -1858,6 +1989,7 @@ def build_evidence(no_service_remediation: bool) -> Dict[str, Any]:
         "paper_runtime": paper_runtime_evidence(),
         "paper_shadow": paper_shadow_evidence(),
         "paper_edge": paper_edge_evidence(),
+        "paper_post_filter": paper_post_filter_evidence(),
         "trade_permission": trade_permission_evidence(),
         "symbol_universe": symbol_evidence(),
         "public_freshness": public_freshness(),
@@ -1930,10 +2062,22 @@ def render_report(state: Dict[str, Any]) -> str:
     lines.append(f"- Redis users / exchange API users / config importers: `{closure.get('redis_users')}` / `{closure.get('exchange_api_users')}` / `{closure.get('config_importers')}`")
     paper = state["evidence"]["paper_runtime"]
     lines.append(f"- paper runtime: `{paper.get('status')}`, PnL=`{paper.get('realized_pnl')}`, action=`{paper.get('latest_paper_action')}`")
+    post_filter = state["evidence"].get("paper_post_filter", {})
+    lines.append(
+        "- post-filter paper: "
+        f"`{post_filter.get('paper_only_interpretation')}`, "
+        f"delta=`{post_filter.get('post_filter_realized_pnl_delta_usdt')}`, "
+        f"fills=`{post_filter.get('post_filter_simulated_fills')}`, "
+        f"no_unsafe_fills=`{post_filter.get('no_unsafe_fills')}`"
+    )
     trainer = state["evidence"]["trainer_bridge"]
     lines.append(f"- trainer bridge: `{trainer.get('runtime_evidence_status')}`, accepted=`{trainer.get('accepted_as_legacy_hybrid_prediction')}`")
     trade = state["evidence"]["trade_permission"]
-    lines.append(f"- trade permission: `{trade.get('trade_permission_status')}`")
+    lines.append(
+        f"- trade permission: `{trade.get('trade_permission_status')}`, "
+        f"paper_only=`{trade.get('paper_only_classification')}`, "
+        f"live_canary=`{trade.get('live_canary_classification')}`"
+    )
     symbol = state["evidence"]["symbol_universe"]
     lines.append(f"- symbol universe age seconds: `{symbol.get('age_seconds')}`, live_symbols=`{symbol.get('live_symbols')}`")
     lines.append("")
@@ -1954,6 +2098,7 @@ def dashboard_payload(state: Dict[str, Any]) -> Dict[str, Any]:
     evidence = state["evidence"]
     paper = evidence["paper_runtime"]
     edge = evidence["paper_edge"]
+    post_filter = evidence.get("paper_post_filter", {})
     services = evidence["service_liveness"]
     active_claude = state["next_action"].get("task_id") if state["next_action"].get("kind") in {"dispatch_claude_remediation", "wait_for_claude_remediation"} else None
     active_codex = state["next_action"].get("task_id") if state["next_action"].get("kind") in {"dispatch_codex_review", "wait_for_codex_review"} else None
@@ -1981,6 +2126,14 @@ def dashboard_payload(state: Dict[str, Any]) -> Dict[str, Any]:
         "symbol_universe": evidence["symbol_universe"],
         "symbol_universe_freshness": evidence["symbol_universe"],
         "paper_shadow_freshness": evidence["paper_shadow"],
+        "paper_post_filter_observation": post_filter,
+        "paper_pnl_split": {
+            "cumulative_paper_pnl_usdt_pre_plus_post": post_filter.get("cumulative_paper_pnl_usdt_pre_plus_post"),
+            "post_filter_realized_pnl_delta_usdt": post_filter.get("post_filter_realized_pnl_delta_usdt"),
+            "historical_negative_pnl_isolated": post_filter.get("historical_negative_pnl_isolated"),
+            "post_filter_no_unsafe_fills": post_filter.get("no_unsafe_fills"),
+            "paper_edge_positive_proven": post_filter.get("positive_edge_proven"),
+        },
         "trainer_parity_state": evidence["trainer_bridge"],
         "paper_pnl": paper.get("realized_pnl") if paper.get("realized_pnl") is not None else edge.get("paper_pnl_current_usdt"),
         "fill_count": paper.get("fill_count") if paper.get("fill_count") is not None else edge.get("simulated_fills"),
