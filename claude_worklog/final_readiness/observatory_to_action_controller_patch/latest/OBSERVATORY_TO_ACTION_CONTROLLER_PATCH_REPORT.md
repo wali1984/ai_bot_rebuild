@@ -1,6 +1,6 @@
 # Observatory To Action Controller Patch
 
-Generated: `2026-05-15T05:07:08Z`
+Generated: `2026-05-15T05:13:45Z`
 
 This patch makes observatory findings actionable. It does not approve live trading, canary trading, or legacy shutdown.
 
@@ -18,9 +18,9 @@ This patch makes observatory findings actionable. It does not approve live tradi
 
 ## Action Routing
 
-- next action: `dispatch_claude_remediation`
+- next action: `wait_for_claude_remediation`
 - next task: `claude_v2_paper_edge_recovery_and_cost_aware_trade_selection`
-- paper edge recovery status: `pending`
+- paper edge recovery status: `running`
 - trainer full parity status: `human_attention_required`
 - trainer derived/native packet status: `superseded_by_evidence`
 

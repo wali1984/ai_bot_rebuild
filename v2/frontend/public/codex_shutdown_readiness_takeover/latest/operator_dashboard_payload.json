@@ -1,76 +1,54 @@
 {
-  "active_claude_task": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection",
+  "active_claude_task": null,
   "active_codex_task": null,
   "approval_token_status": {
     "final_approval_token": "absent",
     "redis_trim_approval": "absent"
   },
-  "as_of_utc": "2026-05-15T05:07:08Z",
+  "as_of_utc": "2026-05-15T05:13:50Z",
   "blocked_intent_count": 1810,
-  "blocker_count": 10,
+  "blocker_count": 7,
   "blocker_counts": {
-    "INFO_ONLY": 2,
-    "OPERATOR_DECISION_REQUIRED": 4,
-    "P0_SHUTDOWN_BLOCKER": 3,
+    "INFO_ONLY": 0,
+    "OPERATOR_DECISION_REQUIRED": 0,
+    "P0_SHUTDOWN_BLOCKER": 7,
     "P1_SHUTDOWN_SUPPORT": 0,
-    "P2_LIVE_ONLY_BLOCKED": 1
+    "P2_LIVE_ONLY_BLOCKED": 0
   },
   "blockers": [
     {
-      "category": "OPERATOR_DECISION_REQUIRED",
-      "decision_packet": "claude_worklog/final_readiness/trainer_derived_evidence_acceptance/latest/TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_PACKET.md",
-      "evidence": "trainer_bridge: legacy_log_confidence_calibration_derived; native trainer evidence was not found and TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_PACKET requires explicit operator acceptance for V2 paper-only shutdown evaluation; live/canary remain blocked",
-      "go_no_go": "V2_TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_REQUIRED",
+      "category": "P0_SHUTDOWN_BLOCKER",
+      "evidence": "trainer_bridge: legacy_log_confidence_calibration_derived",
       "id": "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
-      "remediation_task_id": "claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet"
+      "remediation_task_id": "claude_v2_trainer_lineage_attribution_parity_remediation"
     },
     {
-      "category": "OPERATOR_DECISION_REQUIRED",
-      "decision_packet": "claude_worklog/final_readiness/trainer_derived_evidence_acceptance/latest/TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_PACKET.md",
-      "evidence": "trainer_bridge: legacy_log_feature_attribution_incomplete; native trainer evidence was not found and TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_PACKET requires explicit operator acceptance for V2 paper-only shutdown evaluation; live/canary remain blocked",
-      "go_no_go": "V2_TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_REQUIRED",
+      "category": "P0_SHUTDOWN_BLOCKER",
+      "evidence": "trainer_bridge: legacy_log_feature_attribution_incomplete",
       "id": "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
-      "remediation_task_id": "claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet"
+      "remediation_task_id": "claude_v2_trainer_lineage_attribution_parity_remediation"
     },
     {
-      "category": "OPERATOR_DECISION_REQUIRED",
-      "decision_packet": "claude_worklog/final_readiness/trainer_derived_evidence_acceptance/latest/TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_PACKET.md",
-      "evidence": "trainer_bridge: legacy_log_feature_snapshot_id_derived; native trainer evidence was not found and TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_PACKET requires explicit operator acceptance for V2 paper-only shutdown evaluation; live/canary remain blocked",
-      "go_no_go": "V2_TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_REQUIRED",
+      "category": "P0_SHUTDOWN_BLOCKER",
+      "evidence": "trainer_bridge: legacy_log_feature_snapshot_id_derived",
       "id": "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED",
-      "remediation_task_id": "claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet"
+      "remediation_task_id": "claude_v2_trainer_lineage_attribution_parity_remediation"
     },
     {
-      "category": "P2_LIVE_ONLY_BLOCKED",
-      "evidence": "paper_runtime: paper_realized_pnl_negative; cumulative loss is pre-filter/historical while post_filter_pnl_delta=0.0 and post_filter_safety=POST_FILTER_NO_UNSAFE_FILLS",
+      "category": "P0_SHUTDOWN_BLOCKER",
+      "evidence": "paper_runtime: paper_realized_pnl_negative",
       "id": "PAPER_PNL_NEGATIVE_BLOCKS_CANARY",
-      "remediation_task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
+      "remediation_task_id": "claude_replay_paper_edge_repair_from_legacy_trainer_output"
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "post_filter_edge_pending: no unsafe post-filter fills observed, but zero fills means positive edge is not proven",
+      "evidence": "paper_runtime: current_paper_intent_blocked_or_unfilled",
       "id": "PAPER_EDGE_UNPROVEN",
-      "remediation_task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
+      "remediation_task_id": "claude_replay_paper_edge_repair_from_legacy_trainer_output"
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "observatory: decision_quality=EDGE_PENDING_INSUFFICIENT_SAMPLE paper_edge=EDGE_PENDING requires cost-aware paper edge recovery; post-filter no-fill is not positive edge",
-      "id": "OBSERVATORY_PAPER_EDGE_RECOVERY_REQUIRED",
-      "remediation_task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
-    },
-    {
-      "category": "INFO_ONLY",
-      "evidence": "observatory: legacy signals are stale; classify comparison as MISSING_EVIDENCE_CANNOT_COMPARE and do not invent outcomes",
-      "id": "OBSERVATORY_LEGACY_SIGNALS_STALE_SOURCE_LIMITED"
-    },
-    {
-      "category": "INFO_ONLY",
-      "evidence": "observatory: insufficient acted-trade sample; keep no-trade/outcome observation active and do not claim 99% correctness",
-      "id": "OBSERVATORY_DECISION_QUALITY_INSUFFICIENT_SAMPLE"
-    },
-    {
-      "category": "OPERATOR_DECISION_REQUIRED",
-      "evidence": "trade_permission: trade_permission_readonly_unknown; account monitor is fail-closed/read-only with no exchange mutation, so this blocks live/canary and requires explicit operator decision for paper-only shutdown",
+      "evidence": "trade_permission: trade_permission_readonly_unknown",
       "id": "TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY",
       "remediation_task_id": "claude_remediate_account_position_monitor_shutdown_parity"
     },
@@ -88,7 +66,7 @@
   "git_dirty_classification": {
     "buckets": {
       "agent_supervisor_state": 0,
-      "runtime_or_dashboard_artifact": 435,
+      "runtime_or_dashboard_artifact": 431,
       "source_or_tooling": 6,
       "unknown": 10
     },
@@ -157,150 +135,37 @@
         "claude_worklog/final_readiness/tonight_v2_live_like_paper_shadow_and_canary_preflight/"
       ]
     },
-    "total_dirty": 451
+    "total_dirty": 447
   },
   "go_no_go": "CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP_READY",
   "last_commit": "0df8a9c4 Full rl/risk/trader/services/utils dependency closure audit",
-  "legacy_v2_realtime_decision_observatory": {
-    "blockers": [
-      "observatory_edge_pending_requires_paper_edge_recovery",
-      "observatory_trainer_full_parity_not_ready",
-      "observatory_legacy_signals_stale"
-    ],
-    "edge_action_required": true,
-    "generated_at": "2026-05-15T05:06:40Z",
-    "go_no_go": "CODEX_LEGACY_V2_REALTIME_DECISION_OBSERVATORY_READY",
-    "legacy_signal_comparison_classification": "MISSING_EVIDENCE_CANNOT_COMPARE",
-    "legacy_signal_health": "STALE",
-    "legacy_trainer_health": "RUNNING_READONLY_OBSERVED",
-    "legacy_v2_agreement": "LEGACY_SIGNAL_MISSING_V2_PRESENT",
-    "minimum_sample_policy": "EDGE_PENDING_INSUFFICIENT_SAMPLE cannot claim 99% correctness",
-    "paper_edge_pending": true,
-    "paper_edge_status": "EDGE_PENDING",
-    "paper_pnl_visible": -49.12,
-    "path": "claude_worklog/final_readiness/legacy_v2_realtime_decision_observatory/latest/operator_dashboard_payload.json",
-    "post_filter_fill_interpretation": "POST_FILTER_NO_UNSAFE_FILLS_EDGE_PENDING",
-    "status": "present",
-    "trainer_action_required": true,
-    "trainer_parity_gaps": [
-      "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
-      "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
-      "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED"
-    ],
-    "trainer_parity_status": "BLOCKS_LEGACY_SHUTDOWN",
-    "v2_decision_quality": "EDGE_PENDING_INSUFFICIENT_SAMPLE"
-  },
   "live_gate": "blocked_human_only",
   "live_gate_status": "blocked_human_only",
   "live_symbols": [],
   "next_action": {
-    "blocker_id": "PAPER_PNL_NEGATIVE_BLOCKS_CANARY",
-    "follow_up": "Codex review codex_review_v2_paper_edge_recovery_and_cost_aware_trade_selection failed; dispatch implementation remediation before rerunning claude_v2_paper_edge_recovery_and_cost_aware_trade_selection",
-    "kind": "dispatch_claude_remediation",
-    "task_descriptor": "claude_worklog/agent_supervisor/tasks/claude_v2_paper_edge_recovery_and_cost_aware_trade_selection.json",
-    "task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
+    "kind": "monitor_only_no_dispatchable_blocker",
+    "task_id": null
   },
   "next_automatic_action": {
-    "blocker_id": "PAPER_PNL_NEGATIVE_BLOCKS_CANARY",
-    "follow_up": "Codex review codex_review_v2_paper_edge_recovery_and_cost_aware_trade_selection failed; dispatch implementation remediation before rerunning claude_v2_paper_edge_recovery_and_cost_aware_trade_selection",
-    "kind": "dispatch_claude_remediation",
-    "task_descriptor": "claude_worklog/agent_supervisor/tasks/claude_v2_paper_edge_recovery_and_cost_aware_trade_selection.json",
-    "task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
-  },
-  "observatory_to_action_controller_patch": {
-    "active_or_next_task_is_paper_edge_recovery": true,
-    "approves_legacy_shutdown": false,
-    "approves_live": false,
-    "exchange_action_status": "absent",
-    "final_approval_token": "absent",
-    "generated_at": "2026-05-15T05:07:08Z",
-    "go_no_go": "OBSERVATORY_TO_ACTION_CONTROLLER_PATCH_READY",
-    "legacy_signal_comparison_classification": "MISSING_EVIDENCE_CANNOT_COMPARE",
-    "legacy_signal_health": "STALE",
-    "legacy_trainer_health": "RUNNING_READONLY_OBSERVED",
-    "live_gate": "blocked_human_only",
-    "live_symbols": [],
-    "next_action": {
-      "blocker_id": "PAPER_PNL_NEGATIVE_BLOCKS_CANARY",
-      "follow_up": "Codex review codex_review_v2_paper_edge_recovery_and_cost_aware_trade_selection failed; dispatch implementation remediation before rerunning claude_v2_paper_edge_recovery_and_cost_aware_trade_selection",
-      "kind": "dispatch_claude_remediation",
-      "task_descriptor": "claude_worklog/agent_supervisor/tasks/claude_v2_paper_edge_recovery_and_cost_aware_trade_selection.json",
-      "task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
-    },
-    "observatory_go_no_go": "CODEX_LEGACY_V2_REALTIME_DECISION_OBSERVATORY_READY",
-    "old_redis_write_status": "absent",
-    "paper_edge_action_required": true,
-    "paper_edge_recovery_action_state": "implementation_dispatch_required",
-    "paper_edge_recovery_review_status": "completed",
-    "paper_edge_recovery_review_task_id": "codex_review_v2_paper_edge_recovery_and_cost_aware_trade_selection",
-    "paper_edge_recovery_task_status": "pending",
-    "paper_edge_status": "EDGE_PENDING",
-    "post_filter_fill_interpretation": "POST_FILTER_NO_UNSAFE_FILLS_EDGE_PENDING",
-    "redis_trim_approval": "absent",
-    "shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
-    "task_id": "observatory_to_action_controller_patch",
-    "trainer_action_required": true,
-    "trainer_derived_acceptance_task_status": "superseded_by_evidence",
-    "trainer_full_parity_remains_queued_or_resolved": true,
-    "trainer_full_parity_task_status": "human_attention_required",
-    "trainer_parity_gaps": [
-      "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
-      "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
-      "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED"
-    ],
-    "trainer_parity_status": "BLOCKS_LEGACY_SHUTDOWN",
-    "v2_decision_quality": "EDGE_PENDING_INSUFFICIENT_SAMPLE"
+    "kind": "monitor_only_no_dispatchable_blocker",
+    "task_id": null
   },
   "old_redis_write_status": "absent",
   "paper_pnl": -49.12,
-  "paper_pnl_split": {
-    "cumulative_paper_pnl_usdt_pre_plus_post": -49.12,
-    "historical_negative_pnl_isolated": true,
-    "paper_edge_positive_proven": false,
-    "post_filter_no_unsafe_fills": true,
-    "post_filter_realized_pnl_delta_usdt": 0.0
-  },
-  "paper_post_filter_observation": {
-    "age_seconds": 11217,
-    "approves_legacy_shutdown": false,
-    "approves_live": false,
-    "blockers": [],
-    "classification": "POST_FILTER_EDGE_PENDING",
-    "cumulative_paper_pnl_usdt_pre_plus_post": -49.12,
-    "generated_at": "2026-05-15T02:00:11Z",
-    "historical_negative_pnl_isolated": true,
-    "no_unsafe_fills": true,
-    "paper_only_interpretation": "POST_FILTER_NO_UNSAFE_FILLS_EDGE_PENDING",
-    "path": "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/paper_edge_post_filter_observation_status.json",
-    "positive_edge_proven": false,
-    "post_filter_allowed_intents": 0,
-    "post_filter_blocked_intents_1h": 109,
-    "post_filter_blocked_intents_6h_window": 654,
-    "post_filter_churn_events": 0,
-    "post_filter_fees_usdt": 0.0,
-    "post_filter_realized_pnl_delta_usdt": 0.0,
-    "post_filter_safety_classification": "POST_FILTER_NO_UNSAFE_FILLS",
-    "post_filter_simulated_fills": 0,
-    "post_filter_window_end_utc": "2026-05-15T02:00:11Z",
-    "post_filter_window_seconds": 11965,
-    "post_filter_window_start_utc": "2026-05-14T22:40:46Z",
-    "status": "stale_or_missing",
-    "zero_fill_observation": true
-  },
   "paper_shadow_freshness": {
-    "age_seconds": 45,
+    "age_seconds": 26,
     "blockers": [],
-    "generated_at": "2026-05-15T05:06:23Z",
+    "generated_at": "2026-05-15T05:13:24Z",
     "path": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
     "status": "fresh"
   },
   "redis_trim_approval": "absent",
   "services": {
-    "active_count": 13,
+    "active_count": 11,
     "inactive_units": [],
     "remediation_actions": [],
     "systemd_user_available": true,
-    "total_count": 13,
+    "total_count": 11,
     "units": [
       {
         "active_state": "active",
@@ -326,11 +191,6 @@
         "active_state": "active",
         "enabled_state": "enabled",
         "unit": "ai-bot-v2-codex-shutdown-readiness-takeover.service"
-      },
-      {
-        "active_state": "active",
-        "enabled_state": "enabled",
-        "unit": "ai-bot-v2-readonly-decision-observatory.service"
       },
       {
         "active_state": "active",
@@ -361,17 +221,12 @@
         "active_state": "active",
         "enabled_state": "enabled",
         "unit": "ai-bot-v2-codex-shutdown-readiness-takeover.timer"
-      },
-      {
-        "active_state": "active",
-        "enabled_state": "enabled",
-        "unit": "ai-bot-v2-readonly-decision-observatory.timer"
       }
     ]
   },
-  "services_active_count": 13,
+  "services_active_count": 11,
   "services_inactive": [],
-  "services_total_count": 13,
+  "services_total_count": 11,
   "source_paths": [
     "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/codex_shutdown_takeover_status.json",
     "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/CODEX_SHUTDOWN_TAKEOVER_STATUS.md",
@@ -381,9 +236,9 @@
     "v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json"
   ],
   "symbol_universe": {
-    "age_seconds": 37,
+    "age_seconds": 19,
     "blockers": [],
-    "generated_at": "2026-05-15T05:06:31Z",
+    "generated_at": "2026-05-15T05:13:31Z",
     "live_gate": "blocked_human_only",
     "live_symbols": [],
     "paper_symbols": [
@@ -396,9 +251,9 @@
     ]
   },
   "symbol_universe_freshness": {
-    "age_seconds": 37,
+    "age_seconds": 19,
     "blockers": [],
-    "generated_at": "2026-05-15T05:06:31Z",
+    "generated_at": "2026-05-15T05:13:31Z",
     "live_gate": "blocked_human_only",
     "live_symbols": [],
     "paper_symbols": [
@@ -411,125 +266,23 @@
     ]
   },
   "task_id": "codex_shutdown_readiness_takeover",
-  "trainer_derived_acceptance": {
-    "codex_go_no_go": "CLAUDE_V2_TRAINER_DERIVED_EVIDENCE_ACCEPTANCE_OR_NATIVE_PARITY_PACKET_CODEX_PASS",
-    "codex_review_path": "claude_worklog/final_readiness/trainer_derived_evidence_acceptance/latest/codex_review/CODEX_GO_NO_GO.md",
-    "field_matrix": [
-      {
-        "blocker": "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED",
-        "classification": "DERIVED_FROM_LEGACY_LOG",
-        "current_value": "legacy_log_feature_ALICEUSDT_15m_1778809835",
-        "evidence_source": "v2_trainer_bridge legacy PPO log bridge",
-        "field": "feature_snapshot_id",
-        "live_ready": false,
-        "native_evidence_found": false,
-        "paper_only_acceptance_required": true
-      },
-      {
-        "blocker": null,
-        "classification": "NATIVE_FIELD_PRESENT",
-        "current_value": 0.5957,
-        "evidence_source": "legacy PPO_DECISION_RAW ppo_conf",
-        "field": "confidence_raw",
-        "live_ready": false,
-        "native_evidence_found": true,
-        "paper_only_acceptance_required": false
-      },
-      {
-        "blocker": "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
-        "classification": "DERIVED_FROM_LEGACY_LOG",
-        "current_value": 0.5957,
-        "evidence_source": "active legacy PPO log has no separate calibrated confidence field; V2 bridge currently mirrors ppo_conf",
-        "field": "confidence_calibrated",
-        "live_ready": false,
-        "native_evidence_found": false,
-        "paper_only_acceptance_required": true
-      },
-      {
-        "blocker": "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
-        "classification": "INCOMPLETE_ATTRIBUTION",
-        "current_value": [],
-        "evidence_source": "no active model explanation, SHAP, or feature-importance evidence available for the legacy-log prediction",
-        "field": "top_positive_features",
-        "live_ready": false,
-        "native_evidence_found": false,
-        "paper_only_acceptance_required": true
-      },
-      {
-        "blocker": "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
-        "classification": "INCOMPLETE_ATTRIBUTION",
-        "current_value": [],
-        "evidence_source": "no active model explanation, SHAP, or feature-importance evidence available for the legacy-log prediction",
-        "field": "top_negative_features",
-        "live_ready": false,
-        "native_evidence_found": false,
-        "paper_only_acceptance_required": true
-      },
-      {
-        "blocker": null,
-        "classification": "NATIVE_FIELD_PRESENT",
-        "current_value": [],
-        "evidence_source": "v2_feature_snapshot_builder payload",
-        "field": "missing_feature_flags",
-        "live_ready": false,
-        "native_evidence_found": true,
-        "paper_only_acceptance_required": false
-      },
-      {
-        "blocker": null,
-        "classification": "NATIVE_FIELD_PRESENT",
-        "current_value": [],
-        "evidence_source": "v2_feature_snapshot_builder payload",
-        "field": "stale_feature_flags",
-        "live_ready": false,
-        "native_evidence_found": true,
-        "paper_only_acceptance_required": false
-      },
-      {
-        "blocker": null,
-        "classification": "NATIVE_FIELD_PRESENT",
-        "current_value": [],
-        "evidence_source": "v2_feature_snapshot_builder payload",
-        "field": "unused_feature_flags",
-        "live_ready": false,
-        "native_evidence_found": true,
-        "paper_only_acceptance_required": false
-      }
-    ],
-    "generated_at": "2026-05-15T01:50:29Z",
-    "go_no_go": "V2_TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_REQUIRED",
-    "go_no_go_path": "claude_worklog/final_readiness/trainer_derived_evidence_acceptance/latest/GO_NO_GO.md",
-    "live_gate": "blocked_human_only",
-    "live_ready": false,
-    "live_symbols": [],
-    "native_evidence_ready": false,
-    "operator_acceptance_required": true,
-    "operator_acceptance_scope": "V2_PAPER_ONLY_SHUTDOWN_LIMITATION",
-    "packet_path": "claude_worklog/final_readiness/trainer_derived_evidence_acceptance/latest/TRAINER_DERIVED_EVIDENCE_PAPER_ONLY_ACCEPTANCE_PACKET.md",
-    "path": "claude_worklog/final_readiness/trainer_derived_evidence_acceptance/latest/trainer_field_evidence_matrix.json",
-    "remaining_parity_gaps": [
-      "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
-      "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
-      "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED"
-    ]
-  },
   "trainer_parity_state": {
     "accepted_as_legacy_hybrid_prediction": true,
-    "age_seconds": 5,
+    "age_seconds": 47,
     "blockers": [
       "legacy_log_confidence_calibration_derived",
       "legacy_log_feature_attribution_incomplete",
       "legacy_log_feature_snapshot_id_derived"
     ],
-    "checkpoint_id": "legacy_live_checkpoint_1778821612",
-    "generated_at": "2026-05-15T05:07:03Z",
+    "checkpoint_id": "legacy_live_checkpoint_1778821906",
+    "generated_at": "2026-05-15T05:13:03Z",
     "lineage_derivation_warnings": [
       "feature_snapshot_id_bridge_derived_from_legacy_log_line",
       "confidence_calibrated_bridge_derived_from_ppo_conf",
       "top_features_are_action_probability_evidence_not_full_feature_attribution",
       "top_negative_features_absent_from_legacy_log_line"
     ],
-    "model_checkpoint_id": "legacy_live_checkpoint_1778821612",
+    "model_checkpoint_id": "legacy_live_checkpoint_1778821906",
     "model_version": "legacy_hybrid_trainer_live_legacy",
     "path": "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json",
     "prediction_evidence_status": "LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT",

@@ -226,6 +226,7 @@ def test_failed_paper_edge_review_requeues_paper_edge_implementation(monkeypatch
         "codex_failed",
         lambda task_id: task_id == controller.PAPER_EDGE_RECOVERY_TASK_ID,
     )
+    monkeypatch.setattr(controller, "current_task_running", lambda task_id: {})
     monkeypatch.setattr(controller, "write_task_descriptors", lambda task_ids: [])
     pending_calls = []
     monkeypatch.setattr(
@@ -240,6 +241,78 @@ def test_failed_paper_edge_review_requeues_paper_edge_implementation(monkeypatch
     assert action["task_id"] == controller.PAPER_EDGE_RECOVERY_TASK_ID
     assert "Codex review" in action["follow_up"]
     assert pending_calls == [(controller.PAPER_EDGE_RECOVERY_TASK_ID, True)]
+
+
+def test_failed_paper_edge_review_waits_when_remediation_already_running(monkeypatch):
+    controller = _load_controller()
+    blockers = [
+        {
+            "id": "OBSERVATORY_PAPER_EDGE_RECOVERY_REQUIRED",
+            "category": "P0_SHUTDOWN_BLOCKER",
+            "evidence": "paper edge recovery remains required",
+            "remediation_task_id": controller.PAPER_EDGE_RECOVERY_TASK_ID,
+        }
+    ]
+
+    monkeypatch.setattr(controller, "required_outputs_exist", lambda descriptor: True)
+    monkeypatch.setattr(
+        controller,
+        "task_effective_status",
+        lambda task_id: "running"
+        if task_id == controller.PAPER_EDGE_RECOVERY_TASK_ID
+        else "completed",
+    )
+    monkeypatch.setattr(
+        controller,
+        "codex_passed",
+        lambda task_id: task_id != controller.PAPER_EDGE_RECOVERY_TASK_ID,
+    )
+    monkeypatch.setattr(
+        controller,
+        "codex_failed",
+        lambda task_id: task_id == controller.PAPER_EDGE_RECOVERY_TASK_ID,
+    )
+    monkeypatch.setattr(controller, "current_task_running", lambda task_id: {})
+    monkeypatch.setattr(controller, "task_running_stale", lambda task_id: False)
+    monkeypatch.setattr(controller, "set_task_pending", lambda task_id, force=False: (_ for _ in ()).throw(AssertionError))
+
+    action = controller.select_next_action(blockers, dry_run=False)
+
+    assert action["kind"] == "wait_for_claude_remediation"
+    assert action["task_id"] == controller.PAPER_EDGE_RECOVERY_TASK_ID
+    assert "already running" in action["follow_up"]
+
+
+def test_failed_paper_edge_review_waits_when_current_status_has_running_child(monkeypatch):
+    controller = _load_controller()
+    blockers = [
+        {
+            "id": "OBSERVATORY_PAPER_EDGE_RECOVERY_REQUIRED",
+            "category": "P0_SHUTDOWN_BLOCKER",
+            "evidence": "paper edge recovery remains required",
+            "remediation_task_id": controller.PAPER_EDGE_RECOVERY_TASK_ID,
+        }
+    ]
+
+    monkeypatch.setattr(controller, "required_outputs_exist", lambda descriptor: True)
+    monkeypatch.setattr(controller, "task_effective_status", lambda task_id: "pending")
+    monkeypatch.setattr(
+        controller,
+        "codex_passed",
+        lambda task_id: task_id != controller.PAPER_EDGE_RECOVERY_TASK_ID,
+    )
+    monkeypatch.setattr(
+        controller,
+        "codex_failed",
+        lambda task_id: task_id == controller.PAPER_EDGE_RECOVERY_TASK_ID,
+    )
+    monkeypatch.setattr(controller, "current_task_running", lambda task_id: {"run_pid": 123})
+    monkeypatch.setattr(controller, "set_task_pending", lambda task_id, force=False: (_ for _ in ()).throw(AssertionError))
+
+    action = controller.select_next_action(blockers, dry_run=False)
+
+    assert action["kind"] == "wait_for_claude_remediation"
+    assert action["task_id"] == controller.PAPER_EDGE_RECOVERY_TASK_ID
 
 
 def test_observatory_trainer_not_full_routes_to_derived_packet_after_full_task_pass(monkeypatch):

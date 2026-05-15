@@ -303,6 +303,19 @@ def task_running_stale(task_id: str) -> bool:
     return not pid_alive(state.get("run_pid"))
 
 
+def current_task_running(task_id: str) -> Dict[str, Any]:
+    current = read_json(CURRENT_STATUS)
+    if not isinstance(current, dict):
+        return {}
+    if str(current.get("task_id") or "") != task_id:
+        return {}
+    if str(current.get("status") or "") != "running":
+        return {}
+    if not pid_alive(current.get("run_pid")):
+        return {}
+    return current
+
+
 def set_task_pending(task_id: str, *, force: bool = False) -> None:
     path = task_state_path(task_id)
     data = read_json(path)
@@ -2318,6 +2331,23 @@ def select_next_action(blockers: List[Dict[str, Any]], dry_run: bool) -> Dict[st
             review_status = task_effective_status(review_id)
             followup_task_id = failed_review_followup_task(task_id) if codex_failed(task_id) else None
             if followup_task_id:
+                if current_task_running(followup_task_id):
+                    return {
+                        "kind": "wait_for_claude_remediation",
+                        "task_id": followup_task_id,
+                        "task_descriptor": rel(TASKS_DIR / f"{followup_task_id}.json"),
+                        "blocker_id": item["id"],
+                        "follow_up": f"Codex review {review_id} failed; implementation remediation is already running",
+                    }
+                followup_status = task_effective_status(followup_task_id)
+                if followup_status == "running" and not task_running_stale(followup_task_id):
+                    return {
+                        "kind": "wait_for_claude_remediation",
+                        "task_id": followup_task_id,
+                        "task_descriptor": rel(TASKS_DIR / f"{followup_task_id}.json"),
+                        "blocker_id": item["id"],
+                        "follow_up": f"Codex review {review_id} failed; implementation remediation is already running",
+                    }
                 if not dry_run:
                     write_task_descriptors([followup_task_id])
                     set_task_pending(followup_task_id, force=True)
@@ -2622,7 +2652,10 @@ def observatory_to_action_payload(state: Dict[str, Any]) -> Dict[str, Any]:
     trainer_derived_task_status = task_effective_status(TRAINER_DERIVED_ACCEPTANCE_TASK_ID)
     action_task_id = str(action.get("task_id") or "")
     paper_edge_is_current_action = action_task_id in {PAPER_EDGE_RECOVERY_TASK_ID, paper_edge_review_id}
-    if action_task_id == PAPER_EDGE_RECOVERY_TASK_ID:
+    action_kind = str(action.get("kind") or "")
+    if action_task_id == PAPER_EDGE_RECOVERY_TASK_ID and action_kind == "wait_for_claude_remediation":
+        paper_edge_action_state = "implementation_running"
+    elif action_task_id == PAPER_EDGE_RECOVERY_TASK_ID:
         paper_edge_action_state = "implementation_dispatch_required"
     elif action_task_id == paper_edge_review_id:
         paper_edge_action_state = "codex_review_required"
