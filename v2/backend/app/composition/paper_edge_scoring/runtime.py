@@ -62,7 +62,7 @@ def _symbols(value: Any) -> list[str]:
     return sorted({_string(item).upper() for item in raw if _string(item)})
 
 
-def _bool_with_default(value: Any, default: bool = True) -> bool:
+def _bool_with_default(value: Any, default: bool = False) -> bool:
     if value is None:
         return default
     if isinstance(value, bool):
@@ -137,11 +137,10 @@ def score_paper_edge(
         blockers.append(EDGE_AFTER_COSTS_NEGATIVE_BLOCK)
     if confidence is None or confidence < cfg.min_confidence_calibrated:
         blockers.append(CONFIDENCE_TOO_LOW_BLOCK)
-    if not _bool_with_default(record.get("cooldown_clear"), True):
+    if not _bool_with_default(record.get("cooldown_clear")):
         blockers.append(COOLDOWN_BLOCK)
     if not _bool_with_default(
         _first(record, "flip_churn_clear", "churn_clear", "flip_clear"),
-        True,
     ):
         blockers.append(FLIP_CHURN_BLOCK)
     if _string(record.get("risk_action")).lower() != "allow":

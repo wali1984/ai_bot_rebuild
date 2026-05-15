@@ -1,6 +1,8 @@
 {
+  "approves_canary": false,
   "approves_legacy_shutdown": false,
   "approves_live": false,
+  "behavior_count": 15,
   "behaviors": [
     {
       "behavior": "same_side_cooldown",
@@ -143,10 +145,40 @@
     "IMPLEMENTED_IN_V2_PAPER": 6,
     "NOT_REQUIRED_FOR_PAPER_ONLY_WITH_REASON": 2
   },
+  "code_hardening": {
+    "file": "v2/backend/app/composition/paper_edge_scoring/runtime.py",
+    "paper_edge_scoring_missing_cooldown_defaults_fail_closed": true,
+    "tests": "v2/backend/tests/unit/composition/test_paper_edge_scoring.py"
+  },
+  "does_not_approve_canary": true,
+  "does_not_approve_legacy_shutdown": true,
+  "does_not_approve_live": true,
+  "exchange_action_taken": false,
   "generated_at": "2026-05-15T10:47:25Z",
   "go_no_go": "LEGACY_PROTECTIVE_BEHAVIOR_TO_V2_PAPER_MAP_READY_EDGE_PENDING",
+  "leverage_or_margin_change": false,
   "live_gate": "blocked_human_only",
   "live_symbols": [],
+  "mapping_status": "READY_EDGE_PENDING_WITH_EXPLICIT_GAPS",
+  "old_redis_write_performed": false,
+  "operator_decision_required_behaviors": [],
+  "paper_edge_positive_proven": false,
+  "remaining_protective_behavior_gaps": [
+    "minimum_hold_time",
+    "exit_coordinator",
+    "dynamic_tp_simulation",
+    "dynamic_stop_simulation",
+    "reduce_only_protection",
+    "intelligent_close_guard",
+    "microstructure_toxicity"
+  ],
   "silently_dropped_behaviors": [],
-  "task_id": "legacy_protective_behavior_to_v2_paper_map"
+  "task_id": "claude_map_legacy_protective_behaviors_to_v2_paper",
+  "validation": {
+    "forbidden_mutation_scan": "PENDING_THIS_PACKET",
+    "json_validation": "PENDING_THIS_PACKET",
+    "py_compile": "PASS",
+    "secret_scan": "PENDING_THIS_PACKET",
+    "targeted_pytest": "PASS_23_TESTS"
+  }
 }

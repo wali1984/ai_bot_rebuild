@@ -1,0 +1,25 @@
+{
+  "agent": "codex",
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**"
+  ],
+  "forbidden": [
+    "legacy_mutation",
+    "old_redis_write",
+    "exchange_action",
+    "leverage_change",
+    "margin_mode_change",
+    "live_gate_unlock",
+    "approval_token_creation",
+    "redis_trim_approval_creation",
+    "dropping_legacy_behavior_silently",
+    "paper_edge_proven_without_positive_net_post_filter_fills"
+  ],
+  "lane": "shutdown_readiness_review",
+  "live_gate": "blocked_human_only",
+  "risk_level": "L1",
+  "status": "pending",
+  "task": "Review legacy protective behavior to V2 paper mapping. Fail on silent drops, fake full parity, live/canary/shutdown approval claims, old Redis writes, exchange mutations, or live gate changes.",
+  "task_id": "codex_review_legacy_protective_behaviors_to_v2_paper"
+}

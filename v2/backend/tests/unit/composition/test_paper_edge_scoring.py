@@ -14,8 +14,10 @@ from v2.backend.app.composition.paper_edge_scoring import (
     EDGE_AFTER_COSTS_NEGATIVE_BLOCK,
     EDGE_AFTER_COSTS_PASS,
     CONFIDENCE_TOO_LOW_BLOCK,
+    COOLDOWN_BLOCK,
     FEATURE_FRESHNESS_MISSING_BLOCK,
     FEATURE_STALE_BLOCK,
+    FLIP_CHURN_BLOCK,
     SYMBOL_NOT_PAPER_ELIGIBLE_BLOCK,
     TRAINER_SOURCE_MISSING_BLOCK,
     score_paper_edge,
@@ -35,6 +37,8 @@ def _record(**overrides):
         "spread_bps": 1.0,
         "slippage_bps": 2.0,
         "funding_risk_bps": 0.5,
+        "cooldown_clear": True,
+        "flip_churn_clear": True,
     }
     base.update(overrides)
     return base
@@ -119,3 +123,14 @@ def test_confidence_alone_cannot_allow_fill() -> None:
     assert FEATURE_FRESHNESS_MISSING_BLOCK in result["blockers"]
     assert EDGE_AFTER_COSTS_MISSING_BLOCK in result["blockers"]
     assert CONFIDENCE_TOO_LOW_BLOCK not in result["blockers"]
+
+
+def test_missing_cooldown_and_churn_evidence_blocks_fill() -> None:
+    record = _record()
+    record.pop("cooldown_clear")
+    record.pop("flip_churn_clear")
+    result = score_paper_edge(record, paper_symbols=["BTCUSDT"])
+
+    assert result["fill_allowed"] is False
+    assert COOLDOWN_BLOCK in result["blockers"]
+    assert FLIP_CHURN_BLOCK in result["blockers"]
