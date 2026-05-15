@@ -1,6 +1,6 @@
 # Legacy V2 Realtime Decision Observatory Report
 
-Generated: `2026-05-15T16:46:43Z`
+Generated: `2026-05-15T17:52:32Z`
 
 This observatory is read-only against legacy evidence. It does not approve live trading, canary trading, or legacy shutdown.
 
@@ -30,7 +30,7 @@ This observatory is read-only against legacy evidence. It does not approve live 
 
 ## Recommendations
 
-- recommendations generated: `2`
+- recommendations generated: `1`
 - Claude tasks dispatched: `[]`
 - Codex reviews passed/failed: `{'passed': 0, 'failed': 0, 'pending': ['paper_edge_recovery']}`
 

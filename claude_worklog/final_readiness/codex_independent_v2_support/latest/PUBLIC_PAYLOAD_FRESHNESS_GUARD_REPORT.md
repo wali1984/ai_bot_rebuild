@@ -1,10 +1,10 @@
 # Public Payload Freshness Guard Report
 
-Generated: 2026-05-15T10:21:23Z
+Generated: 2026-05-15T17:49:44Z
 Result: `BLOCKED`
 Live gate: `blocked_human_only`
-Payloads checked: 120
-GO/NO-GO files checked: 97
+Payloads checked: 122
+GO/NO-GO files checked: 99
 Approval token created: `False`
 
 Findings:
@@ -22,7 +22,6 @@ Findings:
 - `v2/frontend/public/codex_env_repo_parity/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
 - `v2/frontend/public/codex_independent_v2_support/latest/operator_dashboard_payload.json`: STALE_PAYLOAD
 - `v2/frontend/public/codex_parallel_audit_plan/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
-- `v2/frontend/public/coinank_plan3_runtime_remediation/latest/operator_dashboard_payload.json`: STALE_PAYLOAD
 - `v2/frontend/public/control_plane_supervisor_persistence/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
 - `v2/frontend/public/current_data_migration_sprint/latest/operator_dashboard_payload.json`: STALE_PAYLOAD
 - `v2/frontend/public/decision_explainability_lineage/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
@@ -53,7 +52,6 @@ Findings:
 - `v2/frontend/public/operator_runtime/live_observer/latest/shadow_signal_twin.json`: STALE_PAYLOAD
 - `v2/frontend/public/operator_runtime/live_observer/latest/trainer_bridge_parity_status.json`: STALE_PAYLOAD
 - `v2/frontend/public/operator_runtime/live_observer/latest/v2_data_plane_bridge_status.json`: MISSING_SOURCE, STALE_PAYLOAD
-- `v2/frontend/public/operator_runtime/v2_account_position_monitor/latest/v2_account_position_monitor_status.json`: STALE_PAYLOAD
 - `v2/frontend/public/operator_runtime/v2_binance_usdm_adapter/latest/v2_binance_usdm_adapter_status.json`: STALE_PAYLOAD
 - `v2/frontend/public/operator_runtime/v2_config_admin_manager/latest/v2_config_admin_manager_status.json`: STALE_PAYLOAD
 - `v2/frontend/public/operator_runtime/v2_default_blocked_execution_adapter/latest/v2_default_blocked_execution_adapter_status.json`: STALE_PAYLOAD
@@ -71,8 +69,10 @@ Findings:
 - `v2/frontend/public/operator_ui_hard_fail_recovery/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
 - `v2/frontend/public/orchestrator_decision_evidence_reconciliation/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
 - `v2/frontend/public/paper_edge_post_filter_observation_window/latest/operator_dashboard_payload.json`: MISSING_SOURCE
-- `v2/frontend/public/paper_edge_recovery/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
+- `v2/frontend/public/paper_edge_recovery/latest/operator_dashboard_payload.json`: STALE_PAYLOAD
 - `v2/frontend/public/paper_expected_move_coverage/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
+- `v2/frontend/public/paper_loss_attribution/latest/operator_dashboard_payload.json`: STALE_PAYLOAD
+- `v2/frontend/public/paper_shadow_outcome_learning/latest/operator_dashboard_payload.json`: MISSING_SOURCE, STALE_PAYLOAD
 - `v2/frontend/public/paper_shadow_outcome_observer/latest/operator_dashboard_payload.json`: MISSING_SOURCE
 - `v2/frontend/public/paper_shadow_persistence_and_ports/latest/operator_dashboard_payload.json`: STALE_PAYLOAD
 - `v2/frontend/public/paper_shadow_soak_negative_pnl/latest/operator_dashboard_payload.json`: STALE_PAYLOAD
