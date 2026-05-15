@@ -13,14 +13,14 @@
   "duration_ms": 0,
   "endpoint_freshness_ms": {
     "funding_rate_avg": 0,
-    "global_aggregator": 1778823726860,
+    "global_aggregator": 1778840483489,
     "long_short_ratio": 0,
     "total_oi": 0
   },
   "exchange_actions_by_codex": false,
   "freshness_seconds": 0,
   "funding_freshness": -1,
-  "generated_at": "2026-05-15T05:42:06Z",
+  "generated_at": "2026-05-15T10:21:23Z",
   "global_11_key_contract": [
     "features:global_coinank:total_oi:latest",
     "features:global_coinank:total_volume:latest",
@@ -61,7 +61,7 @@
     ],
     "volatility_index": 0.0
   },
-  "last_run_ts": "2026-05-15T05:42:06Z",
+  "last_run_ts": "2026-05-15T10:21:23Z",
   "legacy_baseline_source_paths": [
     "v2/legacy_preserved/startup_baseline/ingest/liquidation_bridge.py",
     "v2/legacy_preserved/startup_baseline/ingest/liquidation_levels_engine.py",
@@ -96,23 +96,24 @@
   "liquidations_persisted_total": 0,
   "live_gate": "blocked_human_only",
   "live_gate_status": "blocked_human_only",
+  "live_symbols": [],
   "long_short_freshness": -1,
   "manual_redis_mutation_by_codex": false,
   "missing_api_blockers": [
     {
       "category": "v2_unified_features_empty",
       "detail": "no unified-feature input \u2014 V2 worker does not read legacy Redis",
-      "ts": 1778823726860
+      "ts": 1778840483489
     },
     {
       "category": "v2_liquidation_event_source_empty",
       "detail": "no coinank liquidation_orders source available this cycle",
-      "ts": 1778823726860
+      "ts": 1778840483489
     },
     {
       "category": "binance_force_order_ws_owner_unbound",
       "detail": "no binance force_order events provided; WS owner=separate_v2_ws_worker",
-      "ts": 1778823726860
+      "ts": 1778840483489
     }
   ],
   "oi_freshness": -1,
