@@ -1,0 +1,276 @@
+{
+  "all_event_detail": {
+    "blocked_count": 2173,
+    "canary_profile_tightening_blocker_distribution": {
+      "confidence_below_canary_threshold": 589,
+      "fill_frequency_exceeds_canary_limit": 85,
+      "flip_churn_cooldown": 3,
+      "missing_expected_move_after_costs": 1770,
+      "same_symbol_same_direction_cooldown": 6
+    },
+    "confidence_bucket_distribution": {
+      "0.58_to_0.65": 712,
+      "0.65_to_0.75": 873,
+      "0.75_plus": 2454,
+      "below_0.58": 403
+    },
+    "cumulative_pnl_delta_usdt": -22.75,
+    "event_count": 4442,
+    "exchange_order_events": 0,
+    "fee_usdt": 22.69,
+    "fill_confidence_bucket_distribution": {
+      "0.58_to_0.65": 454,
+      "0.65_to_0.75": 542,
+      "0.75_plus": 1273
+    },
+    "fill_count": 2269,
+    "fill_risk_reason_distribution": {
+      "allow_proceed_long": 1156,
+      "allow_proceed_short": 1113
+    },
+    "fill_symbol_distribution": {
+      "BTCUSDT": 2269
+    },
+    "first_cumulative_pnl_usdt": -26.37,
+    "first_event_at": "2026-05-13T07:21:34Z",
+    "last_cumulative_pnl_usdt": -49.12,
+    "last_event_at": "2026-05-15T03:33:41Z",
+    "live_gate_values": {
+      "blocked_human_only": 4442
+    },
+    "notional_usdt": 56725.0,
+    "old_redis_write_events": 0,
+    "risk_reason_distribution": {
+      "allow_proceed_long": 1156,
+      "allow_proceed_short": 1113,
+      "deny_canary_profile_tightening": 1770,
+      "deny_low_confidence": 250,
+      "deny_orchestrator_held": 150,
+      "deny_stale_market_feed": 3
+    },
+    "slippage_bps_assumption_values": {
+      "2.0": 2269
+    },
+    "slippage_usdt_estimate_not_separately_booked": 11.345,
+    "symbol_distribution": {
+      "BTCUSDT": 4442
+    }
+  },
+  "classification": "PAPER_LOSS_ATTRIBUTION_READY_SOURCE_LIMITED",
+  "feature_freshness": {
+    "current_market_age_seconds": 10,
+    "current_paper_runtime_feature_freshness": "CURRENT",
+    "feature_pipeline_freshness_seconds": 12,
+    "feature_pipeline_last_run_ts": "2026-05-14T22:42:09Z",
+    "per_fill_feature_freshness": "MISSING_IN_PAPER_EVENTS",
+    "stale_market_feed_denials_post_filter": 2,
+    "stale_market_feed_denials_pre_filter": 1
+  },
+  "generated_at": "2026-05-15T03:34:08Z",
+  "go_no_go": "PAPER_LOSS_ATTRIBUTION_READY_SOURCE_LIMITED",
+  "observed_pre_filter_loss_breakdown": {
+    "churn_flip_count": 193,
+    "fees_usdt": 22.69,
+    "gross_pnl_if_fees_added_back_usdt": -0.06,
+    "paper_engine_assumption": "Current paper engine realizes fee-only PnL per fill and does not model exit edge; negative PnL is not profitability proof.",
+    "pnl_by_action": {
+      "long": -11.56,
+      "short": -11.19
+    },
+    "pnl_by_confidence_bucket": {
+      "0.58_to_0.65": -4.54,
+      "0.65_to_0.75": -5.42,
+      "0.75_plus": -12.79
+    },
+    "pnl_by_risk_decision": {
+      "allow_proceed_long": -11.56,
+      "allow_proceed_short": -11.19
+    },
+    "pnl_by_symbol": {
+      "BTCUSDT": -22.75
+    },
+    "pnl_per_fill_avg_usdt": -0.01002644,
+    "repeated_same_direction_fills": {
+      "long": 1156,
+      "short": 1113
+    },
+    "repeated_same_symbol_fills": {
+      "BTCUSDT": 2269
+    },
+    "slippage_assumption_bps": 2.0,
+    "source_scope": "observed_pre_filter_delta_only",
+    "stricter_canary_profile_would_block_count": 996
+  },
+  "pnl_waterfall": {
+    "current_cumulative_paper_pnl_usdt": -49.12,
+    "note": "Only the observed pre-filter event delta has per-fill dimensional attribution. The prior baseline is cumulative source-limited evidence.",
+    "observed_pre_filter_pnl_delta_usdt": -22.75,
+    "post_filter_pnl_delta_usdt": 0.0,
+    "reconciles_to_current_cumulative_pnl": true,
+    "source_limited_prior_baseline_loss_usdt": -26.37
+  },
+  "post_filter_classification": {
+    "classification": "POST_FILTER_EDGE_PENDING",
+    "paper_edge_positive_proven": false,
+    "post_filter_churn_events": 0,
+    "post_filter_safety_classification": "POST_FILTER_NO_UNSAFE_FILLS",
+    "post_filter_window_end_utc": "2026-05-15T02:00:11Z",
+    "post_filter_window_start_utc": "2026-05-14T22:40:46Z"
+  },
+  "post_filter_event_detail": {
+    "blocked_count": 532,
+    "canary_profile_tightening_blocker_distribution": {
+      "confidence_below_canary_threshold": 163,
+      "missing_expected_move_after_costs": 494
+    },
+    "confidence_bucket_distribution": {
+      "0.58_to_0.65": 64,
+      "0.65_to_0.75": 99,
+      "0.75_plus": 331,
+      "below_0.58": 38
+    },
+    "cumulative_pnl_delta_usdt": 0.0,
+    "event_count": 532,
+    "exchange_order_events": 0,
+    "fee_usdt": 0.0,
+    "fill_confidence_bucket_distribution": {},
+    "fill_count": 0,
+    "fill_risk_reason_distribution": {},
+    "fill_symbol_distribution": {},
+    "first_cumulative_pnl_usdt": -49.12,
+    "first_event_at": "2026-05-14T22:41:02Z",
+    "last_cumulative_pnl_usdt": -49.12,
+    "last_event_at": "2026-05-15T03:33:41Z",
+    "live_gate_values": {
+      "blocked_human_only": 532
+    },
+    "notional_usdt": 0.0,
+    "old_redis_write_events": 0,
+    "risk_reason_distribution": {
+      "deny_canary_profile_tightening": 494,
+      "deny_low_confidence": 17,
+      "deny_orchestrator_held": 19,
+      "deny_stale_market_feed": 2
+    },
+    "slippage_bps_assumption_values": {},
+    "slippage_usdt_estimate_not_separately_booked": 0.0,
+    "symbol_distribution": {
+      "BTCUSDT": 532
+    }
+  },
+  "pre_filter_event_detail": {
+    "blocked_count": 1641,
+    "canary_profile_tightening_blocker_distribution": {
+      "confidence_below_canary_threshold": 426,
+      "fill_frequency_exceeds_canary_limit": 85,
+      "flip_churn_cooldown": 3,
+      "missing_expected_move_after_costs": 1276,
+      "same_symbol_same_direction_cooldown": 6
+    },
+    "confidence_bucket_distribution": {
+      "0.58_to_0.65": 648,
+      "0.65_to_0.75": 774,
+      "0.75_plus": 2123,
+      "below_0.58": 365
+    },
+    "cumulative_pnl_delta_usdt": -22.75,
+    "event_count": 3910,
+    "exchange_order_events": 0,
+    "fee_usdt": 22.69,
+    "fill_confidence_bucket_distribution": {
+      "0.58_to_0.65": 454,
+      "0.65_to_0.75": 542,
+      "0.75_plus": 1273
+    },
+    "fill_count": 2269,
+    "fill_risk_reason_distribution": {
+      "allow_proceed_long": 1156,
+      "allow_proceed_short": 1113
+    },
+    "fill_symbol_distribution": {
+      "BTCUSDT": 2269
+    },
+    "first_cumulative_pnl_usdt": -26.37,
+    "first_event_at": "2026-05-13T07:21:34Z",
+    "last_cumulative_pnl_usdt": -49.12,
+    "last_event_at": "2026-05-14T22:40:29Z",
+    "live_gate_values": {
+      "blocked_human_only": 3910
+    },
+    "notional_usdt": 56725.0,
+    "old_redis_write_events": 0,
+    "risk_reason_distribution": {
+      "allow_proceed_long": 1156,
+      "allow_proceed_short": 1113,
+      "deny_canary_profile_tightening": 1276,
+      "deny_low_confidence": 233,
+      "deny_orchestrator_held": 131,
+      "deny_stale_market_feed": 1
+    },
+    "slippage_bps_assumption_values": {
+      "2.0": 2269
+    },
+    "slippage_usdt_estimate_not_separately_booked": 11.345,
+    "symbol_distribution": {
+      "BTCUSDT": 3910
+    }
+  },
+  "recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
+  "safety": {
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "exchange_order_events": 0,
+    "final_approval_token": "absent",
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "old_redis_write_events": 0,
+    "redis_trim_approval": "absent"
+  },
+  "source_files": {
+    "feature_pipeline_status": "v2/frontend/public/operator_runtime/v2_feature_pipeline_and_ta_worker/latest/v2_feature_pipeline_and_ta_worker_status.json",
+    "fill_quality_audit": "claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/paper_fill_quality_and_overtrading_audit.json",
+    "negative_pnl_diagnosis": "claude_worklog/final_readiness/paper_shadow_soak_negative_pnl/latest/negative_paper_pnl_diagnosis.json",
+    "paper_events_jsonl": "v2/runtime/paper_online/latest/paper_events.jsonl",
+    "paper_runtime_status": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
+    "paper_shadow_observation_status": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
+    "post_filter_observation_status": "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/paper_edge_post_filter_observation_status.json",
+    "trainer_bridge_status": "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json"
+  },
+  "source_integrity": {
+    "invalid_jsonl_row_samples": [
+      {
+        "error": "line_does_not_start_with_json_object",
+        "line_number": 1388,
+        "prefix_repr": "'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'"
+      }
+    ],
+    "invalid_jsonl_rows": 1,
+    "source_limited_prior_baseline_present": true,
+    "valid_jsonl_events": 4442
+  },
+  "source_limitations": {
+    "cooldown_violation_for_pre_filter_allowed_fills": "SOURCE_LIMITED_TO_CANARY_BLOCKER_COUNTS_AND_AUDIT",
+    "edge_after_costs_for_allowed_pre_filter_fills": "MISSING_EXPECTED_MOVE_AFTER_COSTS_FIELD",
+    "feature_freshness_per_fill": "MISSING_IN_PAPER_EVENTS",
+    "flip_churn_violation_for_pre_filter_allowed_fills": "SOURCE_LIMITED_TO_CANARY_BLOCKER_COUNTS_AND_AUDIT",
+    "prior_baseline_attribution": "SOURCE_LIMITED_PRIOR_CUMULATIVE_PNL_WITHOUT_EVENT_DETAIL",
+    "trainer_source_per_fill": "MISSING_IN_PAPER_EVENTS"
+  },
+  "task_id": "paper_loss_attribution",
+  "trainer_source": {
+    "current_paper_runtime_trainer_source": "V2_PAPER_TRAINER_WRAPPER",
+    "current_prediction_id": "pred_paper_tick_1778816021586",
+    "per_fill_trainer_source": "MISSING_IN_PAPER_EVENTS",
+    "trainer_bridge_field_classification": {
+      "confidence_calibration": "DERIVED_FROM_LEGACY_LOG",
+      "feature_attribution": "INCOMPLETE_ATTRIBUTION",
+      "feature_snapshot_id": "DERIVED_FROM_LEGACY_LOG"
+    },
+    "trainer_bridge_remaining_parity_gaps": [
+      "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
+      "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
+      "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED"
+    ],
+    "trainer_bridge_source": "LEGACY_HYBRID_TRAINER_LOG_READONLY"
+  }
+}
