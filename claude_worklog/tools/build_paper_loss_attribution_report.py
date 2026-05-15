@@ -167,6 +167,11 @@ def summarize_events(events: list[dict[str, Any]]) -> dict[str, Any]:
         "notional_usdt": round_money(notional),
         "slippage_bps_assumption_values": counter_dict(Counter(event.get("slippage_bps", "missing") for event in fills)),
         "slippage_usdt_estimate_not_separately_booked": round_money(slippage_estimate),
+        "fill_trainer_source_present_count": sum(1 for event in fills if event.get("trainer_source")),
+        "fill_feature_freshness_present_count": sum(1 for event in fills if event.get("feature_freshness_state")),
+        "fill_expected_move_after_cost_present_count": sum(
+            1 for event in fills if event.get("expected_move_after_cost_bps") is not None
+        ),
         "old_redis_write_events": sum(1 for event in events if event.get("legacy_redis_write")),
         "exchange_order_events": sum(1 for event in events if event.get("exchange_order")),
         "live_gate_values": counter_dict(Counter(event.get("live_gate_status", "missing_live_gate") for event in events)),
@@ -187,6 +192,21 @@ def build_markdown(status: dict[str, Any]) -> str:
     observed = status["observed_pre_filter_loss_breakdown"]
     limitations = status["source_limitations"]
     source_integrity = status["source_integrity"]
+    post_fill_count = post["fill_count"]
+    post_delta = waterfall["post_filter_pnl_delta_usdt"]
+    if post_fill_count == 0 and post_delta == 0:
+        split_note = (
+            "The important split is that the cumulative paper PnL is historical/pre-filter. "
+            "The post-filter window has no fills and no additional realized loss, so it proves no unsafe fills "
+            "in the observed window, not positive edge."
+        )
+    else:
+        split_note = (
+            "The important split is that most cumulative paper PnL is historical/pre-filter, while the current "
+            f"post-filter window now has `{post_fill_count}` observed fills and `{post_delta}` USDT realized delta. "
+            "That does not prove positive edge; it keeps paper edge blocked until strict-gate fills close net-positive "
+            "after fees/slippage over a sufficient sample."
+        )
 
     lines = [
         "# Paper Loss Attribution Report",
@@ -202,7 +222,7 @@ def build_markdown(status: dict[str, Any]) -> str:
         f"- Post-filter safety classification: `{status['post_filter_classification']['post_filter_safety_classification']}`.",
         f"- Edge classification: `{status['post_filter_classification']['classification']}`.",
         "",
-        "The important split is that the current `-49.12` paper PnL is historical/pre-filter. The post-filter window has no fills and no additional realized loss, so it proves no unsafe fills in the observed window, not positive edge.",
+        split_note,
         "",
         "## PnL Waterfall",
         "",
@@ -374,10 +394,10 @@ def build_markdown(status: dict[str, Any]) -> str:
         table(
             ["Dimension", "Classification", "Evidence"],
             [
-                ["Per-fill trainer source", limitations["trainer_source_per_fill"], "Paper JSONL has prediction_id but no trainer source field"],
+                ["Per-fill trainer source", limitations["trainer_source_per_fill"], "Coverage is measured on observed post-filter fills; older events remain source-limited"],
                 ["Current paper runtime trainer source", status["trainer_source"]["current_paper_runtime_trainer_source"], "paper runtime status"],
                 ["Trainer bridge source", status["trainer_source"]["trainer_bridge_source"], "trainer bridge status"],
-                ["Per-fill feature freshness", limitations["feature_freshness_per_fill"], "Paper JSONL has feature_snapshot_id but no freshness field"],
+                ["Per-fill feature freshness", limitations["feature_freshness_per_fill"], "Coverage is measured on observed post-filter fills; older events remain source-limited"],
                 ["Current feature freshness", status["feature_freshness"]["current_paper_runtime_feature_freshness"], "paper runtime current lineage"],
                 ["Stale market feed risk decisions", pre["risk_reason_distribution"].get("deny_stale_market_feed", 0), "Pre-filter denials, not filled-loss attribution"],
                 ["Post-filter stale market feed risk decisions", post["risk_reason_distribution"].get("deny_stale_market_feed", 0), "Post-filter denials, no fills"],
@@ -433,8 +453,9 @@ def build_markdown(status: dict[str, Any]) -> str:
         "",
         "## Source Limitations",
         "",
-        "- Per-fill trainer source is missing from paper events.",
-        "- Per-fill feature freshness is missing from paper events.",
+        f"- Per-fill trainer source coverage: `{limitations['trainer_source_per_fill']}`.",
+        f"- Per-fill feature freshness coverage: `{limitations['feature_freshness_per_fill']}`.",
+        f"- Edge-after-cost coverage for observed post-filter fills: `{limitations['edge_after_costs_for_observed_post_filter_fills']}`.",
         "- Edge-after-costs value is missing for pre-filter allowed fills; post-filter denials carry `missing_expected_move_after_costs` blockers.",
         "- Cooldown and flip/churn are explicit only when the canary tightening filter emits blockers; the pre-filter loss audit also reports aggregate churn.",
         f"- Invalid JSONL rows skipped: `{source_integrity['invalid_jsonl_rows']}`.",
@@ -443,7 +464,7 @@ def build_markdown(status: dict[str, Any]) -> str:
         "",
         f"`{status['go_no_go']}`",
         "",
-        "This report does not approve live trading, canary trading, or legacy shutdown. It narrows the paper loss blocker to historical/pre-filter loss plus source-limited attribution gaps, while post-filter behavior remains no-fill/no-loss and edge-pending.",
+        "This report does not approve live trading, canary trading, or legacy shutdown. It narrows the paper loss blocker to historical/pre-filter loss plus current post-filter edge evidence, which remains insufficient and edge-pending.",
         "",
     ]
     return "\n".join(lines)
@@ -486,6 +507,28 @@ def main() -> int:
     current_lineage = paper_status.get("current_signal_lineage") or {}
     current_trainer = current_lineage.get("trainer_prediction") or paper_status.get("trainer_prediction") or {}
     current_feature = current_lineage.get("feature_snapshot") or paper_status.get("feature_snapshot") or {}
+    post_fill_count = int(post_summary.get("fill_count") or 0)
+    trainer_source_fill_count = int(post_summary.get("fill_trainer_source_present_count") or 0)
+    feature_freshness_fill_count = int(post_summary.get("fill_feature_freshness_present_count") or 0)
+    expected_move_fill_count = int(post_summary.get("fill_expected_move_after_cost_present_count") or 0)
+    if post_fill_count and trainer_source_fill_count == post_fill_count:
+        per_fill_trainer_source = "PRESENT_FOR_OBSERVED_POST_FILTER_FILLS"
+    elif trainer_source_fill_count:
+        per_fill_trainer_source = "SOURCE_LIMITED_MIXED_POST_FILTER_COVERAGE"
+    else:
+        per_fill_trainer_source = "MISSING_IN_OBSERVED_POST_FILTER_FILLS"
+    if post_fill_count and feature_freshness_fill_count == post_fill_count:
+        per_fill_feature_freshness = "PRESENT_FOR_OBSERVED_POST_FILTER_FILLS"
+    elif feature_freshness_fill_count:
+        per_fill_feature_freshness = "SOURCE_LIMITED_MIXED_POST_FILTER_COVERAGE"
+    else:
+        per_fill_feature_freshness = "MISSING_IN_OBSERVED_POST_FILTER_FILLS"
+    if post_fill_count and expected_move_fill_count == post_fill_count:
+        edge_after_cost_fill_coverage = "PRESENT_FOR_OBSERVED_POST_FILTER_FILLS"
+    elif expected_move_fill_count:
+        edge_after_cost_fill_coverage = "SOURCE_LIMITED_MIXED_POST_FILTER_COVERAGE"
+    else:
+        edge_after_cost_fill_coverage = "MISSING_IN_OBSERVED_POST_FILTER_FILLS"
 
     status: dict[str, Any] = {
         "task_id": "paper_loss_attribution",
@@ -551,15 +594,16 @@ def main() -> int:
             "paper_engine_assumption": negative.get("paper_engine_assumption"),
         },
         "trainer_source": {
-            "per_fill_trainer_source": "MISSING_IN_PAPER_EVENTS",
-            "current_paper_runtime_trainer_source": current_trainer.get("source_type", "MISSING_CURRENT_TRAINER_SOURCE"),
+            "per_fill_trainer_source": per_fill_trainer_source,
+            "current_paper_runtime_trainer_source": current_trainer.get("trainer_source")
+            or current_trainer.get("source_type", "MISSING_CURRENT_TRAINER_SOURCE"),
             "current_prediction_id": current_trainer.get("prediction_id"),
             "trainer_bridge_source": trainer.get("prediction_source_type") or trainer.get("model_version") or "MISSING_TRAINER_BRIDGE_SOURCE",
             "trainer_bridge_remaining_parity_gaps": trainer.get("remaining_parity_gaps", []),
             "trainer_bridge_field_classification": trainer.get("field_classification", {}),
         },
         "feature_freshness": {
-            "per_fill_feature_freshness": "MISSING_IN_PAPER_EVENTS",
+            "per_fill_feature_freshness": per_fill_feature_freshness,
             "current_paper_runtime_feature_freshness": current_feature.get("freshness_state", "MISSING_CURRENT_FEATURE_FRESHNESS"),
             "current_market_age_seconds": current_feature.get("market_age_seconds"),
             "feature_pipeline_freshness_seconds": feature.get("freshness_seconds"),
@@ -568,9 +612,10 @@ def main() -> int:
             "stale_market_feed_denials_post_filter": post_summary["risk_reason_distribution"].get("deny_stale_market_feed", 0),
         },
         "source_limitations": {
-            "trainer_source_per_fill": "MISSING_IN_PAPER_EVENTS",
-            "feature_freshness_per_fill": "MISSING_IN_PAPER_EVENTS",
+            "trainer_source_per_fill": per_fill_trainer_source,
+            "feature_freshness_per_fill": per_fill_feature_freshness,
             "edge_after_costs_for_allowed_pre_filter_fills": "MISSING_EXPECTED_MOVE_AFTER_COSTS_FIELD",
+            "edge_after_costs_for_observed_post_filter_fills": edge_after_cost_fill_coverage,
             "cooldown_violation_for_pre_filter_allowed_fills": "SOURCE_LIMITED_TO_CANARY_BLOCKER_COUNTS_AND_AUDIT",
             "flip_churn_violation_for_pre_filter_allowed_fills": "SOURCE_LIMITED_TO_CANARY_BLOCKER_COUNTS_AND_AUDIT",
             "prior_baseline_attribution": "SOURCE_LIMITED_PRIOR_CUMULATIVE_PNL_WITHOUT_EVENT_DETAIL",

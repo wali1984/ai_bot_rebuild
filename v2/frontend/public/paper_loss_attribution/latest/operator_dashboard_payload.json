@@ -1,72 +1,78 @@
 {
   "all_event_detail": {
-    "blocked_count": 2173,
+    "blocked_count": 2851,
     "canary_profile_tightening_blocker_distribution": {
-      "confidence_below_canary_threshold": 589,
+      "confidence_below_canary_threshold": 835,
+      "expected_edge_below_costs": 52,
       "fill_frequency_exceeds_canary_limit": 85,
-      "flip_churn_cooldown": 3,
-      "missing_expected_move_after_costs": 1770,
-      "same_symbol_same_direction_cooldown": 6
+      "flip_churn_cooldown": 5,
+      "missing_expected_move_after_costs": 2200,
+      "paper_outcome_model_missing": 25,
+      "same_symbol_same_direction_cooldown": 37
     },
     "confidence_bucket_distribution": {
-      "0.58_to_0.65": 712,
-      "0.65_to_0.75": 873,
-      "0.75_plus": 2454,
-      "below_0.58": 403
+      "0.58_to_0.65": 811,
+      "0.65_to_0.75": 1020,
+      "0.75_plus": 2814,
+      "below_0.58": 479
     },
-    "cumulative_pnl_delta_usdt": -22.75,
-    "event_count": 4442,
+    "cumulative_pnl_delta_usdt": -22.827409,
+    "event_count": 5124,
     "exchange_order_events": 0,
-    "fee_usdt": 22.69,
+    "fee_usdt": 22.73,
     "fill_confidence_bucket_distribution": {
       "0.58_to_0.65": 454,
       "0.65_to_0.75": 542,
-      "0.75_plus": 1273
+      "0.75_plus": 1277
     },
-    "fill_count": 2269,
+    "fill_count": 2273,
+    "fill_expected_move_after_cost_present_count": 3,
+    "fill_feature_freshness_present_count": 3,
     "fill_risk_reason_distribution": {
-      "allow_proceed_long": 1156,
-      "allow_proceed_short": 1113
+      "allow_proceed_long": 1157,
+      "allow_proceed_short": 1116
     },
     "fill_symbol_distribution": {
-      "BTCUSDT": 2269
+      "BTCUSDT": 2273
     },
+    "fill_trainer_source_present_count": 3,
     "first_cumulative_pnl_usdt": -26.37,
     "first_event_at": "2026-05-13T07:21:34Z",
-    "last_cumulative_pnl_usdt": -49.12,
-    "last_event_at": "2026-05-15T03:33:41Z",
+    "last_cumulative_pnl_usdt": -49.197409,
+    "last_event_at": "2026-05-15T09:43:46Z",
     "live_gate_values": {
-      "blocked_human_only": 4442
+      "blocked_human_only": 5124
     },
-    "notional_usdt": 56725.0,
+    "notional_usdt": 56825.0,
     "old_redis_write_events": 0,
     "risk_reason_distribution": {
-      "allow_proceed_long": 1156,
-      "allow_proceed_short": 1113,
-      "deny_canary_profile_tightening": 1770,
-      "deny_low_confidence": 250,
-      "deny_orchestrator_held": 150,
+      "allow_proceed_long": 1157,
+      "allow_proceed_short": 1116,
+      "deny_canary_profile_tightening": 2367,
+      "deny_low_confidence": 299,
+      "deny_orchestrator_held": 177,
+      "deny_paper_outcome_model_missing": 5,
       "deny_stale_market_feed": 3
     },
     "slippage_bps_assumption_values": {
-      "2.0": 2269
+      "2.0": 2273
     },
-    "slippage_usdt_estimate_not_separately_booked": 11.345,
+    "slippage_usdt_estimate_not_separately_booked": 11.365,
     "symbol_distribution": {
-      "BTCUSDT": 4442
+      "BTCUSDT": 5124
     }
   },
   "classification": "PAPER_LOSS_ATTRIBUTION_READY_SOURCE_LIMITED",
   "feature_freshness": {
-    "current_market_age_seconds": 10,
+    "current_market_age_seconds": 9,
     "current_paper_runtime_feature_freshness": "CURRENT",
     "feature_pipeline_freshness_seconds": 12,
     "feature_pipeline_last_run_ts": "2026-05-14T22:42:09Z",
-    "per_fill_feature_freshness": "MISSING_IN_PAPER_EVENTS",
+    "per_fill_feature_freshness": "SOURCE_LIMITED_MIXED_POST_FILTER_COVERAGE",
     "stale_market_feed_denials_post_filter": 2,
     "stale_market_feed_denials_pre_filter": 1
   },
-  "generated_at": "2026-05-15T03:34:08Z",
+  "generated_at": "2026-05-15T09:43:55Z",
   "go_no_go": "PAPER_LOSS_ATTRIBUTION_READY_SOURCE_LIMITED",
   "observed_pre_filter_loss_breakdown": {
     "churn_flip_count": 193,
@@ -102,60 +108,79 @@
     "stricter_canary_profile_would_block_count": 996
   },
   "pnl_waterfall": {
-    "current_cumulative_paper_pnl_usdt": -49.12,
+    "current_cumulative_paper_pnl_usdt": -49.197409,
     "note": "Only the observed pre-filter event delta has per-fill dimensional attribution. The prior baseline is cumulative source-limited evidence.",
     "observed_pre_filter_pnl_delta_usdt": -22.75,
-    "post_filter_pnl_delta_usdt": 0.0,
+    "post_filter_pnl_delta_usdt": -0.03,
     "reconciles_to_current_cumulative_pnl": true,
-    "source_limited_prior_baseline_loss_usdt": -26.37
+    "source_limited_prior_baseline_loss_usdt": -26.417409
   },
   "post_filter_classification": {
     "classification": "POST_FILTER_EDGE_PENDING",
     "paper_edge_positive_proven": false,
     "post_filter_churn_events": 0,
-    "post_filter_safety_classification": "POST_FILTER_NO_UNSAFE_FILLS",
-    "post_filter_window_end_utc": "2026-05-15T02:00:11Z",
+    "post_filter_safety_classification": "POST_CANARY_FILTER_HAD_ONE_SOURCE_LIMITED_UNSAFE_FILL",
+    "post_filter_window_end_utc": "2026-05-15T08:36:17Z",
     "post_filter_window_start_utc": "2026-05-14T22:40:46Z"
   },
   "post_filter_event_detail": {
-    "blocked_count": 532,
+    "blocked_count": 1210,
     "canary_profile_tightening_blocker_distribution": {
-      "confidence_below_canary_threshold": 163,
-      "missing_expected_move_after_costs": 494
+      "confidence_below_canary_threshold": 409,
+      "expected_edge_below_costs": 52,
+      "flip_churn_cooldown": 2,
+      "missing_expected_move_after_costs": 924,
+      "paper_outcome_model_missing": 25,
+      "same_symbol_same_direction_cooldown": 31
     },
     "confidence_bucket_distribution": {
-      "0.58_to_0.65": 64,
-      "0.65_to_0.75": 99,
-      "0.75_plus": 331,
-      "below_0.58": 38
+      "0.58_to_0.65": 163,
+      "0.65_to_0.75": 246,
+      "0.75_plus": 691,
+      "below_0.58": 114
     },
-    "cumulative_pnl_delta_usdt": 0.0,
-    "event_count": 532,
+    "cumulative_pnl_delta_usdt": -0.077409,
+    "event_count": 1214,
     "exchange_order_events": 0,
-    "fee_usdt": 0.0,
-    "fill_confidence_bucket_distribution": {},
-    "fill_count": 0,
-    "fill_risk_reason_distribution": {},
-    "fill_symbol_distribution": {},
+    "fee_usdt": 0.04,
+    "fill_confidence_bucket_distribution": {
+      "0.75_plus": 4
+    },
+    "fill_count": 4,
+    "fill_expected_move_after_cost_present_count": 3,
+    "fill_feature_freshness_present_count": 3,
+    "fill_risk_reason_distribution": {
+      "allow_proceed_long": 1,
+      "allow_proceed_short": 3
+    },
+    "fill_symbol_distribution": {
+      "BTCUSDT": 4
+    },
+    "fill_trainer_source_present_count": 3,
     "first_cumulative_pnl_usdt": -49.12,
     "first_event_at": "2026-05-14T22:41:02Z",
-    "last_cumulative_pnl_usdt": -49.12,
-    "last_event_at": "2026-05-15T03:33:41Z",
+    "last_cumulative_pnl_usdt": -49.197409,
+    "last_event_at": "2026-05-15T09:43:46Z",
     "live_gate_values": {
-      "blocked_human_only": 532
+      "blocked_human_only": 1214
     },
-    "notional_usdt": 0.0,
+    "notional_usdt": 100.0,
     "old_redis_write_events": 0,
     "risk_reason_distribution": {
-      "deny_canary_profile_tightening": 494,
-      "deny_low_confidence": 17,
-      "deny_orchestrator_held": 19,
+      "allow_proceed_long": 1,
+      "allow_proceed_short": 3,
+      "deny_canary_profile_tightening": 1091,
+      "deny_low_confidence": 66,
+      "deny_orchestrator_held": 46,
+      "deny_paper_outcome_model_missing": 5,
       "deny_stale_market_feed": 2
     },
-    "slippage_bps_assumption_values": {},
-    "slippage_usdt_estimate_not_separately_booked": 0.0,
+    "slippage_bps_assumption_values": {
+      "2.0": 4
+    },
+    "slippage_usdt_estimate_not_separately_booked": 0.02,
     "symbol_distribution": {
-      "BTCUSDT": 532
+      "BTCUSDT": 1214
     }
   },
   "pre_filter_event_detail": {
@@ -183,6 +208,8 @@
       "0.75_plus": 1273
     },
     "fill_count": 2269,
+    "fill_expected_move_after_cost_present_count": 0,
+    "fill_feature_freshness_present_count": 0,
     "fill_risk_reason_distribution": {
       "allow_proceed_long": 1156,
       "allow_proceed_short": 1113
@@ -190,6 +217,7 @@
     "fill_symbol_distribution": {
       "BTCUSDT": 2269
     },
+    "fill_trainer_source_present_count": 0,
     "first_cumulative_pnl_usdt": -26.37,
     "first_event_at": "2026-05-13T07:21:34Z",
     "last_cumulative_pnl_usdt": -49.12,
@@ -246,21 +274,22 @@
     ],
     "invalid_jsonl_rows": 1,
     "source_limited_prior_baseline_present": true,
-    "valid_jsonl_events": 4442
+    "valid_jsonl_events": 5124
   },
   "source_limitations": {
     "cooldown_violation_for_pre_filter_allowed_fills": "SOURCE_LIMITED_TO_CANARY_BLOCKER_COUNTS_AND_AUDIT",
     "edge_after_costs_for_allowed_pre_filter_fills": "MISSING_EXPECTED_MOVE_AFTER_COSTS_FIELD",
-    "feature_freshness_per_fill": "MISSING_IN_PAPER_EVENTS",
+    "edge_after_costs_for_observed_post_filter_fills": "SOURCE_LIMITED_MIXED_POST_FILTER_COVERAGE",
+    "feature_freshness_per_fill": "SOURCE_LIMITED_MIXED_POST_FILTER_COVERAGE",
     "flip_churn_violation_for_pre_filter_allowed_fills": "SOURCE_LIMITED_TO_CANARY_BLOCKER_COUNTS_AND_AUDIT",
     "prior_baseline_attribution": "SOURCE_LIMITED_PRIOR_CUMULATIVE_PNL_WITHOUT_EVENT_DETAIL",
-    "trainer_source_per_fill": "MISSING_IN_PAPER_EVENTS"
+    "trainer_source_per_fill": "SOURCE_LIMITED_MIXED_POST_FILTER_COVERAGE"
   },
   "task_id": "paper_loss_attribution",
   "trainer_source": {
-    "current_paper_runtime_trainer_source": "V2_PAPER_TRAINER_WRAPPER",
-    "current_prediction_id": "pred_paper_tick_1778816021586",
-    "per_fill_trainer_source": "MISSING_IN_PAPER_EVENTS",
+    "current_paper_runtime_trainer_source": "LEGACY_HYBRID_TRAINER_REDIS_READONLY",
+    "current_prediction_id": "pred_paper_tick_1778838226568",
+    "per_fill_trainer_source": "SOURCE_LIMITED_MIXED_POST_FILTER_COVERAGE",
     "trainer_bridge_field_classification": {
       "confidence_calibration": "DERIVED_FROM_LEGACY_LOG",
       "feature_attribution": "INCOMPLETE_ATTRIBUTION",
@@ -271,6 +300,6 @@
       "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
       "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED"
     ],
-    "trainer_bridge_source": "LEGACY_HYBRID_TRAINER_LOG_READONLY"
+    "trainer_bridge_source": "LEGACY_HYBRID_TRAINER_REDIS_READONLY"
   }
 }
