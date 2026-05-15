@@ -1,0 +1,39 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "blocking_findings": [],
+  "evidence": {
+    "completed_observations": 58,
+    "edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
+    "false_block_count": 9,
+    "no_trade_correct_count": 49,
+    "observations_total": 106,
+    "outcome_status": "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED",
+    "pending_observations": 48
+  },
+  "findings": [],
+  "generated_at": "2026-05-15T10:32:40Z",
+  "go_no_go": "CODEX_REVIEW_SHADOW_OUTCOME_LEARNING_FOR_BLOCKED_INTENTS_PASS",
+  "review_status": "PASS",
+  "reviewed_task": "claude_add_shadow_outcome_learning_for_blocked_intents",
+  "task_id": "codex_review_shadow_outcome_learning_for_blocked_intents",
+  "validation": {
+    "forbidden_mutation_scan": "PASS_NO_MUTATION_CALLS_TEXTUAL_FORBIDDEN_LIST_ONLY",
+    "json_validation": "PASS",
+    "py_compile": "PASS",
+    "secret_scan": "PASS_HIGH_CONFIDENCE_NO_SECRET_VALUES_FALSE_POSITIVE_LABEL_ONLY",
+    "targeted_pytest": "PASS_18_TESTS"
+  },
+  "verified_invariants": {
+    "exchange_action_taken": false,
+    "future_outcomes_authorize_fills": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "no_trade_correctness_tracked_separately": true,
+    "old_redis_write_performed": false,
+    "positive_edge_claimed": false,
+    "shadow_learning_charges_fees": false,
+    "shadow_learning_records_paper_fill": false
+  }
+}

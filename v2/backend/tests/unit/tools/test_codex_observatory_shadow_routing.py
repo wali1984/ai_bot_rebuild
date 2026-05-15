@@ -23,17 +23,25 @@ def test_observatory_routes_shadow_outcome_status_to_recommender(monkeypatch) ->
         "live_gate": "blocked_human_only",
         "live_symbols": [],
     }
+    shadow_learning_status = {
+        "go_no_go": "SHADOW_OUTCOME_LEARNING_READY_EDGE_PENDING",
+        "live_gate": "blocked_human_only",
+        "live_symbols": [],
+    }
     captured: dict[str, Any] = {}
 
     def load_first(paths: list[Path]) -> dict[str, Any]:
         if any("paper_shadow_outcome_observer_status.json" in str(path) for path in paths):
             return shadow_status
+        if any("paper_shadow_outcome_learning" in str(path) for path in paths):
+            return shadow_learning_status
         if any("current_recommendation.json" in str(path) for path in paths):
             return {"current_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE"}
         return {}
 
     def recommendations(**kwargs: Any) -> dict[str, Any]:
         captured["shadow_outcome_status"] = kwargs["shadow_outcome_status"]
+        captured["shadow_learning_status"] = kwargs["shadow_learning_status"]
         return {
             "generated_at": "2026-05-15T00:00:00Z",
             "next_tasks": [
@@ -83,6 +91,7 @@ def test_observatory_routes_shadow_outcome_status_to_recommender(monkeypatch) ->
     dashboard = observatory.run_once(dry_run=True)
 
     assert captured["shadow_outcome_status"] == shadow_status
+    assert captured["shadow_learning_status"] == shadow_learning_status
     assert dashboard["paper_shadow_false_block_count"] == 15
     assert (
         dashboard["paper_shadow_outcome_observer_status"]

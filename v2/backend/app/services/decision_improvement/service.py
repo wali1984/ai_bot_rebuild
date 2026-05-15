@@ -21,10 +21,12 @@ def build_decision_improvement_recommendations(
     trainer_status: Mapping[str, Any] | None = None,
     paper_edge_status: Mapping[str, Any] | None = None,
     shadow_outcome_status: Mapping[str, Any] | None = None,
+    shadow_learning_status: Mapping[str, Any] | None = None,
     symbol_status: Mapping[str, Any] | None = None,
     risk_status: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     shadow_outcome_status = shadow_outcome_status or {}
+    shadow_learning_status = shadow_learning_status or {}
     paper_edge_status = paper_edge_status or {}
     false_block_count = int(shadow_outcome_status.get("false_block_count") or 0)
     resolved_controls = set(paper_edge_status.get("resolved_controls") or [])
@@ -38,6 +40,12 @@ def build_decision_improvement_recommendations(
         == "EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_READY_EDGE_PENDING"
         or expected_move_review.get("remediation_status")
         == "PAPER_EXPECTED_MOVE_COVERAGE_REMEDIATION_READY"
+    )
+    shadow_learning_ready = (
+        shadow_learning_status.get("go_no_go")
+        == "SHADOW_OUTCOME_LEARNING_READY_EDGE_PENDING"
+        or shadow_learning_status.get("learning_status")
+        == "SHADOW_OUTCOME_LEARNING_READY_EDGE_PENDING"
     )
     core_edge_controls = {
         "missing_expected_move_after_cost_bps_blocks_fill",
@@ -56,21 +64,22 @@ def build_decision_improvement_recommendations(
                 "required_result": "Confidence alone cannot permit paper fills; missing expected edge blocks and records shadow observation.",
             }
         )
-    tasks.extend(
-        [
+    if not shadow_learning_ready:
+        tasks.append(
             {
                 "task_id": "claude_add_shadow_outcome_learning_for_blocked_intents",
                 "priority": "P1",
                 "reason": "Post-filter no-fill state is safe but cannot prove edge without outcome observations.",
                 "required_result": "Blocked intents collect 5m/15m/30m/1h after-cost outcomes without paper fees.",
-            },
-            {
-                "task_id": "claude_map_legacy_protective_behaviors_to_v2_paper",
-                "priority": "P1",
-                "reason": "Legacy closure includes churn, lifecycle, TP/stop, reduce-only, and adaptive gate behavior not silently droppable.",
-                "required_result": "Each protective behavior is implemented in paper-only form or emitted as an explicit blocker.",
-            },
-        ]
+            }
+        )
+    tasks.append(
+        {
+            "task_id": "claude_map_legacy_protective_behaviors_to_v2_paper",
+            "priority": "P1",
+            "reason": "Legacy closure includes churn, lifecycle, TP/stop, reduce-only, and adaptive gate behavior not silently droppable.",
+            "required_result": "Each protective behavior is implemented in paper-only form or emitted as an explicit blocker.",
+        }
     )
     if not {
         "missing_trainer_source_blocks_fill",
@@ -116,6 +125,8 @@ def build_decision_improvement_recommendations(
             "risk_gateway",
         ],
         "shadow_outcome_status": shadow_outcome_status.get("outcome_status"),
+        "shadow_learning_status": shadow_learning_status.get("go_no_go")
+        or shadow_learning_status.get("learning_status"),
         "shadow_false_block_count": false_block_count,
         "shadow_false_block_reason_counts": shadow_outcome_status.get("false_block_reason_counts") or {},
         "next_tasks": tasks,

@@ -1,0 +1,26 @@
+{
+  "agent": "codex",
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**"
+  ],
+  "created_by": "codex",
+  "forbidden": [
+    "legacy_mutation",
+    "old_redis_write",
+    "exchange_action",
+    "leverage_change",
+    "margin_mode_change",
+    "live_gate_unlock",
+    "approval_token_creation",
+    "redis_trim_approval_creation",
+    "future_outcome_used_to_authorize_fill",
+    "positive_edge_claim_without_qualified_sample"
+  ],
+  "lane": "shutdown_readiness_review",
+  "live_gate": "blocked_human_only",
+  "risk_level": "L1",
+  "status": "pending",
+  "task_id": "codex_review_shadow_outcome_learning_for_blocked_intents",
+  "task": "Review paper shadow outcome learning evidence. Fail if future outcome labels can permit paper/live fills, if no-trade correctness is hidden, if positive edge or shutdown/live readiness is claimed without qualified sample evidence, or if old Redis/exchange/live-gate safety regresses."
+}

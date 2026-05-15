@@ -107,6 +107,18 @@ def _payload_paths() -> dict[str, list[Path]]:
             / "latest"
             / "paper_shadow_outcome_observer_status.json",
         ],
+        "paper_shadow_outcome_learning": [
+            REPO_ROOT
+            / "claude_worklog"
+            / "final_readiness"
+            / "paper_shadow_outcome_learning"
+            / "latest"
+            / "shadow_outcome_learning_status.json",
+            public
+            / "paper_shadow_outcome_learning"
+            / "latest"
+            / "operator_dashboard_payload.json",
+        ],
         "shutdown": [
             REPO_ROOT
             / "claude_worklog"
@@ -225,6 +237,7 @@ def run_once(*, dry_run: bool = False) -> dict[str, Any]:
     paper_loss = _load_first(paths["paper_loss"])
     paper_edge = _load_first(paths["paper_edge"])
     paper_shadow_outcome = _load_first(paths["paper_shadow_outcome"])
+    paper_shadow_outcome_learning = _load_first(paths["paper_shadow_outcome_learning"])
     shutdown = _load_first(paths["shutdown"])
 
     legacy = build_legacy_runtime_observer_status()
@@ -252,6 +265,7 @@ def run_once(*, dry_run: bool = False) -> dict[str, Any]:
         trainer_status=trainer,
         paper_edge_status=paper_edge,
         shadow_outcome_status=paper_shadow_outcome,
+        shadow_learning_status=paper_shadow_outcome_learning,
         symbol_status=symbol,
         risk_status=risk,
     )
@@ -268,6 +282,7 @@ def run_once(*, dry_run: bool = False) -> dict[str, Any]:
             risk,
             paper_exec,
             paper_shadow_outcome,
+            paper_shadow_outcome_learning,
         ]
     )
     go_no_go = (
