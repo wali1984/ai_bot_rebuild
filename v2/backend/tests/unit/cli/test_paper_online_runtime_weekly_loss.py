@@ -351,7 +351,7 @@ def test_paper_outcome_model_opens_and_closes_non_live_position(
 
     entry = float(open_position["entry_price"])
     close_price = entry * (0.998 if open_position["side"] == "short" else 1.002)
-    close_market = MarketSnapshot(
+    early_close_market = MarketSnapshot(
         symbol="BTCUSDT",
         price=close_price,
         source_type="READONLY_MARKET_FEED",
@@ -364,13 +364,39 @@ def test_paper_outcome_model_opens_and_closes_non_live_position(
         errors=[],
         candles=[],
     )
-    close_ledger, close_account, close_lifecycle = build_position_lifecycle_entry(
-        tick_id="tick_close",
+    held_ledger, held_account, held_lifecycle = build_position_lifecycle_entry(
+        tick_id="tick_hold",
         generated_at="2026-05-13T07:31:00Z",
-        market=close_market,
+        market=early_close_market,
         lineage=gated,
         previous_position=open_position,
         previous_account=open_account,
+    )
+
+    assert held_ledger["paper_result"] == "POSITION_HELD_PAPER_ONLY"
+    assert held_account["open_position_count"] == 1
+    assert held_lifecycle["open_position"]["minimum_hold_active"] is True
+
+    close_market = MarketSnapshot(
+        symbol="BTCUSDT",
+        price=close_price,
+        source_type="READONLY_MARKET_FEED",
+        source="unit_test",
+        source_pointer="unit_test",
+        generated_at="2026-05-13T07:33:01Z",
+        last_event_at="2026-05-13T07:33:00Z",
+        age_seconds=1,
+        freshness_state="CURRENT",
+        errors=[],
+        candles=[],
+    )
+    close_ledger, close_account, close_lifecycle = build_position_lifecycle_entry(
+        tick_id="tick_close",
+        generated_at="2026-05-13T07:33:01Z",
+        market=close_market,
+        lineage=gated,
+        previous_position=held_lifecycle["open_position"],
+        previous_account=held_account,
     )
 
     assert close_ledger["paper_result"] == "POSITION_CLOSED_PAPER_ONLY"

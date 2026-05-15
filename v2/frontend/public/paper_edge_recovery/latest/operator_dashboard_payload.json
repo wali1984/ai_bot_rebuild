@@ -131,7 +131,7 @@
   },
   "false_block_count": 15,
   "final_approval_token": "absent",
-  "generated_at": "2026-05-15T10:47:25Z",
+  "generated_at": "2026-05-15T10:57:30Z",
   "go_no_go": "V2_PAPER_EDGE_RECOVERY_READY_NO_UNSAFE_FILLS_EDGE_PENDING",
   "live_gate": "blocked_human_only",
   "live_symbols": [],
@@ -147,12 +147,11 @@
     "post_lifecycle_pnl_delta_usdt": 0.0
   },
   "protective_behavior_classification_counts": {
-    "EXPLICIT_BLOCKER": 7,
-    "IMPLEMENTED_IN_V2_PAPER": 6,
+    "IMPLEMENTED_IN_V2_PAPER": 13,
     "NOT_REQUIRED_FOR_PAPER_ONLY_WITH_REASON": 2
   },
   "protective_behavior_mapping_go_no_go": "LEGACY_PROTECTIVE_BEHAVIOR_TO_V2_PAPER_MAP_READY_EDGE_PENDING",
-  "protective_behavior_mapping_status": "READY_EDGE_PENDING_WITH_EXPLICIT_GAPS",
+  "protective_behavior_mapping_status": "READY_EDGE_PENDING_WITH_PAPER_ONLY_EQUIVALENTS",
   "redis_trim_approval": "absent",
   "remaining_blockers": [
     "POST_FILTER_POSITIVE_EDGE_NOT_PROVEN_INSUFFICIENT_POST_LIFECYCLE_SAMPLE",
@@ -160,15 +159,7 @@
     "TRAINER_PARITY_DERIVED_EVIDENCE_OPERATOR_DECISION_STILL_OPEN",
     "TRADE_PERMISSION_UNKNOWN_REMAINS_LIVE_CANARY_BLOCKER"
   ],
-  "remaining_protective_behavior_gaps": [
-    "minimum_hold_time",
-    "exit_coordinator",
-    "dynamic_tp_simulation",
-    "dynamic_stop_simulation",
-    "reduce_only_protection",
-    "intelligent_close_guard",
-    "microstructure_toxicity"
-  ],
+  "remaining_protective_behavior_gaps": [],
   "silently_dropped_protective_behaviors": [],
   "source_status_path": "claude_worklog/final_readiness/paper_edge_recovery/latest/paper_edge_recovery_status.json",
   "task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"

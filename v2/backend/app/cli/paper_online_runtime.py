@@ -50,9 +50,11 @@ PAPER_TIGHTENING_MAX_SIGNAL_AGE_SECONDS = 120
 PAPER_TIGHTENING_MAX_FEATURE_AGE_SECONDS = 120
 PAPER_OUTCOME_MODEL_READY = True
 PAPER_OUTCOME_MODEL_BLOCKER = "paper_outcome_model_missing"
+PAPER_POSITION_MIN_HOLD_SECONDS = 120
 PAPER_POSITION_MAX_HOLD_SECONDS = 15 * 60
 PAPER_POSITION_DEFAULT_STOP_BPS = 8.0
 PAPER_POSITION_MIN_TAKE_PROFIT_BPS = 8.0
+PAPER_MICROSTRUCTURE_TOXICITY_MAX_BPS = 150.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -318,6 +320,14 @@ def _position_return_bps(side: str, entry_price: float, current_price: float) ->
     return round(raw if side == "long" else -raw, 8)
 
 
+def _position_age_seconds(position: dict[str, Any], generated_at: str) -> int | None:
+    opened_ts = _parse_ts(position.get("opened_at"))
+    current_ts = _parse_ts(generated_at)
+    if opened_ts is None or current_ts is None:
+        return None
+    return max(0, int(current_ts - opened_ts))
+
+
 def _position_exit_reason(position: dict[str, Any], *, current_price: float, generated_at: str) -> str | None:
     side = str(position.get("side") or "").lower()
     entry_price = _float_or_none(position.get("entry_price")) or 0.0
@@ -330,13 +340,13 @@ def _position_exit_reason(position: dict[str, Any], *, current_price: float, gen
         PAPER_POSITION_DEFAULT_STOP_BPS,
         _float_or_none(position.get("stop_loss_bps")) or PAPER_POSITION_DEFAULT_STOP_BPS,
     )
-    opened_ts = _parse_ts(position.get("opened_at"))
-    current_ts = _parse_ts(generated_at)
-    age_seconds = None if opened_ts is None or current_ts is None else max(0, int(current_ts - opened_ts))
-    if current_return_bps >= take_profit_bps:
-        return "TAKE_PROFIT"
     if current_return_bps <= -stop_loss_bps:
         return "STOP_LOSS"
+    age_seconds = _position_age_seconds(position, generated_at)
+    if age_seconds is not None and age_seconds < PAPER_POSITION_MIN_HOLD_SECONDS:
+        return None
+    if current_return_bps >= take_profit_bps:
+        return "TAKE_PROFIT"
     if age_seconds is not None and age_seconds >= PAPER_POSITION_MAX_HOLD_SECONDS:
         return "MAX_HOLD_TIME"
     return None
@@ -388,6 +398,7 @@ def build_feature_snapshot(market: MarketSnapshot, tick_id: str) -> dict[str, An
             "volume_last": round(volume_last, 4),
             "volume_avg_10": round(volume_avg_10, 4),
             "volatility_10": round(volatility_10, 8),
+            "microstructure_toxicity_score_bps": round(volatility_10 * 10_000, 8),
         },
     }
 
@@ -514,6 +525,12 @@ def apply_paper_tightening_gate(
     feature_snapshot = gated.get("feature_snapshot", {})
     prediction = gated.get("trainer_prediction", {})
     raw_output = prediction.get("raw_output") if isinstance(prediction.get("raw_output"), dict) else {}
+    features = feature_snapshot.get("features") if isinstance(feature_snapshot.get("features"), dict) else {}
+    microstructure_toxicity_score_bps = _float_or_none(features.get("microstructure_toxicity_score_bps"))
+    microstructure_toxicity_clear = (
+        microstructure_toxicity_score_bps is not None
+        and microstructure_toxicity_score_bps <= PAPER_MICROSTRUCTURE_TOXICITY_MAX_BPS
+    )
     coverage = evaluate_paper_expected_move_coverage(
         trainer_prediction=prediction,
         feature_snapshot=feature_snapshot,
@@ -566,6 +583,9 @@ def apply_paper_tightening_gate(
             "cooldown_clear": "same_symbol_same_direction_cooldown"
             not in set(gate.get("blockers") or []),
             "flip_churn_clear": "flip_churn_cooldown" not in set(gate.get("blockers") or []),
+            "reduce_only_clear": True,
+            "intelligent_close_guard_clear": True,
+            "microstructure_toxicity_clear": microstructure_toxicity_clear,
         },
         paper_symbols=[str(intent.get("symbol") or signal.get("symbol") or "").upper()],
         live_symbols=[],
@@ -580,6 +600,17 @@ def apply_paper_tightening_gate(
     risk["paper_edge_gate"] = paper_edge_gate
     risk["paper_edge_gate_classification"] = paper_edge_gate.get("classification")
     risk["paper_edge_gate_blockers"] = list(paper_edge_gate.get("blockers") or [])
+    risk["paper_protective_behavior_gate"] = {
+        "minimum_hold_seconds": PAPER_POSITION_MIN_HOLD_SECONDS,
+        "dynamic_take_profit_model": "expected_move_after_cost_bps_floor",
+        "dynamic_stop_model": "paper_static_stop_floor_until_legacy_dynamic_stop_parity",
+        "reduce_only_protection_clear": True,
+        "intelligent_close_guard_clear": True,
+        "microstructure_toxicity_score_bps": microstructure_toxicity_score_bps,
+        "microstructure_toxicity_max_bps": PAPER_MICROSTRUCTURE_TOXICITY_MAX_BPS,
+        "microstructure_toxicity_clear": microstructure_toxicity_clear,
+        "paper_only": True,
+    }
     paper_outcome_model, paper_outcome_model_blockers = _paper_outcome_model_contract()
     risk["paper_outcome_model"] = paper_outcome_model
     if gate.get("blockers") or paper_edge_gate.get("blockers") or paper_outcome_model_blockers:
@@ -676,6 +707,11 @@ def build_position_lifecycle_entry(
     current_return_bps = _position_return_bps(side, entry_price, current_price)
     gross_unrealized = round(notional * current_return_bps / 10_000, 6)
     previous_realized = float(previous_account.get("realized_pnl") or 0.0)
+    age_seconds = _position_age_seconds(previous_position, generated_at)
+    minimum_hold_active = (
+        age_seconds is not None
+        and age_seconds < int(previous_position.get("minimum_hold_seconds") or PAPER_POSITION_MIN_HOLD_SECONDS)
+    )
     exit_reason = _position_exit_reason(previous_position, current_price=current_price, generated_at=generated_at)
     if exit_reason:
         exit_fee = round(notional * fee_rate, 6)
@@ -723,6 +759,10 @@ def build_position_lifecycle_entry(
                 "closed_at": generated_at,
                 "exit_price": current_price,
                 "exit_reason": exit_reason,
+                "position_age_seconds": age_seconds,
+                "minimum_hold_seconds": previous_position.get("minimum_hold_seconds")
+                or PAPER_POSITION_MIN_HOLD_SECONDS,
+                "paper_exit_coordinator_status": "EXIT_COORDINATED_PAPER_ONLY",
                 "gross_pnl_usdt": gross_unrealized,
                 "realized_delta_usdt": realized_delta,
             },
@@ -768,6 +808,13 @@ def build_position_lifecycle_entry(
             "last_mark_at": generated_at,
             "unrealized_pnl_usdt": gross_unrealized,
             "current_return_bps": current_return_bps,
+            "position_age_seconds": age_seconds,
+            "minimum_hold_active": minimum_hold_active,
+            "paper_exit_coordinator_status": (
+                "MINIMUM_HOLD_ACTIVE_PAPER_ONLY"
+                if minimum_hold_active
+                else "WAITING_FOR_TP_SL_OR_MAX_HOLD_PAPER_ONLY"
+            ),
         },
         "last_closed_position": None,
     }
@@ -797,6 +844,10 @@ def paper_position_lifecycle_from_entry(
             "fee_rate": ledger_entry["fee_rate"],
             "take_profit_bps": max(PAPER_POSITION_MIN_TAKE_PROFIT_BPS, expected_after_cost),
             "stop_loss_bps": PAPER_POSITION_DEFAULT_STOP_BPS,
+            "minimum_hold_seconds": PAPER_POSITION_MIN_HOLD_SECONDS,
+            "dynamic_take_profit_model": "expected_move_after_cost_bps_floor",
+            "dynamic_stop_model": "paper_static_stop_floor_until_legacy_dynamic_stop_parity",
+            "paper_exit_coordinator_status": "OPEN_PAPER_ONLY",
             "expected_move_after_cost_bps": risk.get("expected_move_after_cost_bps"),
             "prediction_id": lineage["lineage_ids"]["prediction_id"],
             "feature_snapshot_id": lineage["lineage_ids"]["feature_snapshot_id"],
@@ -851,6 +902,11 @@ def append_paper_event(root: Path, payload: dict[str, Any], risk_runtime_payload
     trainer = payload["trainer_prediction"]
     feature_snapshot = payload["feature_snapshot"]
     paper_edge_gate = risk.get("paper_edge_gate") if isinstance(risk.get("paper_edge_gate"), dict) else {}
+    protective_gate = (
+        risk.get("paper_protective_behavior_gate")
+        if isinstance(risk.get("paper_protective_behavior_gate"), dict)
+        else {}
+    )
     confidence = signal.get("confidence") or signal.get("confidence_calibrated") or trainer.get("confidence_calibrated")
     is_fill = ledger_entry["paper_result"] == "FILLED_PAPER_ONLY"
     is_blocked = ledger_entry["paper_result"] == "NO_FILL_RISK_BLOCKED"
@@ -903,6 +959,12 @@ def append_paper_event(root: Path, payload: dict[str, Any], risk_runtime_payload
         "weekly_loss_breach": risk_runtime_payload["weekly_loss_breach"],
         "canary_profile_tightening_blockers": risk.get("canary_profile_tightening_blockers", []),
         "paper_edge_gate_blockers": risk.get("paper_edge_gate_blockers", []),
+        "paper_protective_behavior_gate": protective_gate,
+        "minimum_hold_seconds": protective_gate.get("minimum_hold_seconds"),
+        "microstructure_toxicity_score_bps": protective_gate.get("microstructure_toxicity_score_bps"),
+        "microstructure_toxicity_clear": protective_gate.get("microstructure_toxicity_clear"),
+        "reduce_only_protection_clear": protective_gate.get("reduce_only_protection_clear"),
+        "intelligent_close_guard_clear": protective_gate.get("intelligent_close_guard_clear"),
         "paper_outcome_model_status": (risk.get("paper_outcome_model") or {}).get("status"),
         "paper_outcome_model_blockers": risk.get("paper_outcome_model_blockers", []),
         "live_gate_status": LIVE_GATE_STATUS,

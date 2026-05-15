@@ -19,6 +19,9 @@ SYMBOL_NOT_PAPER_ELIGIBLE_BLOCK = "SYMBOL_NOT_PAPER_ELIGIBLE_BLOCK"
 RISK_GATE_BLOCK = "RISK_GATE_BLOCK"
 LIVE_GATE_BLOCK = "LIVE_GATE_BLOCK"
 LIVE_SYMBOLS_BLOCK = "LIVE_SYMBOLS_BLOCK"
+REDUCE_ONLY_PROTECTION_BLOCK = "REDUCE_ONLY_PROTECTION_BLOCK"
+INTELLIGENT_CLOSE_GUARD_BLOCK = "INTELLIGENT_CLOSE_GUARD_BLOCK"
+MICROSTRUCTURE_TOXICITY_BLOCK = "MICROSTRUCTURE_TOXICITY_BLOCK"
 
 
 @dataclass(frozen=True)
@@ -143,6 +146,21 @@ def score_paper_edge(
         _first(record, "flip_churn_clear", "churn_clear", "flip_clear"),
     ):
         blockers.append(FLIP_CHURN_BLOCK)
+    reduce_only_clear = _bool_with_default(
+        _first(record, "reduce_only_clear", "reduce_only_protection_clear")
+    )
+    intelligent_close_clear = _bool_with_default(
+        _first(record, "intelligent_close_guard_clear", "close_guard_clear")
+    )
+    microstructure_clear = _bool_with_default(
+        _first(record, "microstructure_toxicity_clear", "toxicity_clear")
+    )
+    if not reduce_only_clear:
+        blockers.append(REDUCE_ONLY_PROTECTION_BLOCK)
+    if not intelligent_close_clear:
+        blockers.append(INTELLIGENT_CLOSE_GUARD_BLOCK)
+    if not microstructure_clear:
+        blockers.append(MICROSTRUCTURE_TOXICITY_BLOCK)
     if _string(record.get("risk_action")).lower() != "allow":
         blockers.append(RISK_GATE_BLOCK)
 
@@ -167,6 +185,9 @@ def score_paper_edge(
         "paper_symbol_allowed": symbol in set(_symbols(paper_symbols)),
         "live_gate": live_gate,
         "live_symbols": _symbols(live_symbols or []),
+        "reduce_only_clear": reduce_only_clear,
+        "intelligent_close_guard_clear": intelligent_close_clear,
+        "microstructure_toxicity_clear": microstructure_clear,
         "min_expected_move_after_cost_bps": cfg.min_expected_move_after_cost_bps,
         "min_confidence_calibrated": cfg.min_confidence_calibrated,
     }

@@ -54,6 +54,8 @@ def build_decision_improvement_recommendations(
         == "LEGACY_PROTECTIVE_BEHAVIOR_TO_V2_PAPER_MAP_READY_EDGE_PENDING"
         or protective_behavior_status.get("mapping_status")
         == "READY_EDGE_PENDING_WITH_EXPLICIT_GAPS"
+        or protective_behavior_status.get("mapping_status")
+        == "READY_EDGE_PENDING_WITH_PAPER_ONLY_EQUIVALENTS"
     )
     remaining_protective_gaps = list(
         protective_behavior_status.get("remaining_protective_behavior_gaps")
@@ -138,6 +140,21 @@ def build_decision_improvement_recommendations(
                     "do not use future outcome labels to permit fills and do not loosen the strict paper fill gate."
                 ),
             },
+        )
+    if not tasks:
+        tasks.append(
+            {
+                "task_id": "monitor_shadow_outcome_observer_and_trainer_parity",
+                "priority": "INFO",
+                "reason": (
+                    "Paper fill boundary, shadow learning, and protective behavior routing have no immediate "
+                    "implementation task; edge sample and trainer parity evidence remain unresolved."
+                ),
+                "required_result": (
+                    "Keep V2 paper/shadow observing after-cost outcomes, keep live blocked, and route trainer "
+                    "native/derived evidence decisions through shutdown-readiness control."
+                ),
+            }
         )
     status = {
         "worker_id": "v2_decision_improvement_recommender",

@@ -18,6 +18,9 @@ from v2.backend.app.composition.paper_edge_scoring import (
     FEATURE_FRESHNESS_MISSING_BLOCK,
     FEATURE_STALE_BLOCK,
     FLIP_CHURN_BLOCK,
+    INTELLIGENT_CLOSE_GUARD_BLOCK,
+    MICROSTRUCTURE_TOXICITY_BLOCK,
+    REDUCE_ONLY_PROTECTION_BLOCK,
     SYMBOL_NOT_PAPER_ELIGIBLE_BLOCK,
     TRAINER_SOURCE_MISSING_BLOCK,
     score_paper_edge,
@@ -39,6 +42,9 @@ def _record(**overrides):
         "funding_risk_bps": 0.5,
         "cooldown_clear": True,
         "flip_churn_clear": True,
+        "reduce_only_clear": True,
+        "intelligent_close_guard_clear": True,
+        "microstructure_toxicity_clear": True,
     }
     base.update(overrides)
     return base
@@ -134,3 +140,16 @@ def test_missing_cooldown_and_churn_evidence_blocks_fill() -> None:
     assert result["fill_allowed"] is False
     assert COOLDOWN_BLOCK in result["blockers"]
     assert FLIP_CHURN_BLOCK in result["blockers"]
+
+
+def test_missing_legacy_protective_evidence_blocks_fill() -> None:
+    record = _record()
+    record.pop("reduce_only_clear")
+    record.pop("intelligent_close_guard_clear")
+    record.pop("microstructure_toxicity_clear")
+    result = score_paper_edge(record, paper_symbols=["BTCUSDT"])
+
+    assert result["fill_allowed"] is False
+    assert REDUCE_ONLY_PROTECTION_BLOCK in result["blockers"]
+    assert INTELLIGENT_CLOSE_GUARD_BLOCK in result["blockers"]
+    assert MICROSTRUCTURE_TOXICITY_BLOCK in result["blockers"]

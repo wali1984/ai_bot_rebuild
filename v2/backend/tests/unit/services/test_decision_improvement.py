@@ -164,3 +164,40 @@ def test_ready_protective_map_routes_to_remaining_gap_implementation() -> None:
     ]
     assert status["live_gate"] == "blocked_human_only"
     assert status["live_symbols"] == []
+
+
+def test_ready_protective_equivalents_route_to_monitoring_when_no_task_remains() -> None:
+    status = build_decision_improvement_recommendations(
+        scoreboard_status={},
+        paper_edge_status={
+            "resolved_controls": [
+                "missing_expected_move_after_cost_bps_blocks_fill",
+                "missing_trainer_source_blocks_fill",
+                "missing_feature_freshness_state_blocks_fill",
+                "symbol_not_in_paper_symbols_blocks_fill",
+                "confidence_alone_cannot_allow_fill",
+            ],
+            "paper_pnl": {
+                "expected_move_after_cost_false_block_model_review": {
+                    "classification": "EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_READY_EDGE_PENDING"
+                }
+            },
+        },
+        shadow_outcome_status={
+            "false_block_count": 8,
+            "outcome_status": "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED",
+        },
+        shadow_learning_status={
+            "go_no_go": "SHADOW_OUTCOME_LEARNING_READY_EDGE_PENDING",
+        },
+        protective_behavior_status={
+            "mapping_status": "READY_EDGE_PENDING_WITH_PAPER_ONLY_EQUIVALENTS",
+            "remaining_protective_behavior_gaps": [],
+        },
+    )
+
+    assert status["claude_task_ready"] == "monitor_shadow_outcome_observer_and_trainer_parity"
+    assert status["next_tasks"][0]["priority"] == "INFO"
+    assert status["remaining_protective_behavior_gaps"] == []
+    assert status["live_gate"] == "blocked_human_only"
+    assert status["live_symbols"] == []
