@@ -64,6 +64,7 @@ REQUIRED_PUBLIC_PAYLOAD_FIELDS: tuple = (
     "legacy_baseline_source_paths",
     "legacy_baseline_source_sha256_list",
     "live_gate",
+    "live_symbols",
     "current_gate_state",
     "freshness_seconds",
 )

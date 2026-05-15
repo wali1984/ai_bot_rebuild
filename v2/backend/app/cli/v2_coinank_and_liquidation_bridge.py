@@ -177,6 +177,7 @@ def build_status(
         "source": "V2_COINANK_AND_LIQUIDATION_BRIDGE",
         "live_gate": LIVE_GATE_STATUS,
         "live_gate_status": LIVE_GATE_STATUS,
+        "live_symbols": [],
         "current_gate_state": LIVE_GATE_STATUS,
         "liquidations_persisted_total": service.liquidations_persisted_total,
         "funding_freshness": funding_freshness,
