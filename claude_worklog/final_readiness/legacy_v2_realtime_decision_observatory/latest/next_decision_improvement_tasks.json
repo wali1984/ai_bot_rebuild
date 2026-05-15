@@ -4,7 +4,7 @@
   "does_not_approve_legacy_shutdown": true,
   "does_not_approve_live": true,
   "exchange_action_taken": false,
-  "generated_at": "2026-05-15T10:00:52Z",
+  "generated_at": "2026-05-15T10:04:52Z",
   "legacy_mutation_performed": false,
   "live_blocked": true,
   "live_gate": "blocked_human_only",

@@ -19,26 +19,39 @@ def build_decision_improvement_recommendations(
     paper_edge_status = paper_edge_status or {}
     false_block_count = int(shadow_outcome_status.get("false_block_count") or 0)
     resolved_controls = set(paper_edge_status.get("resolved_controls") or [])
-    tasks = [
-        {
-            "task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection",
-            "priority": "P0",
-            "reason": "Paper loss attribution found fee/slippage/churn loss and missing edge-after-cost evidence.",
-            "required_result": "Confidence alone cannot permit paper fills; missing expected edge blocks and records shadow observation.",
-        },
-        {
-            "task_id": "claude_add_shadow_outcome_learning_for_blocked_intents",
-            "priority": "P1",
-            "reason": "Post-filter no-fill state is safe but cannot prove edge without outcome observations.",
-            "required_result": "Blocked intents collect 5m/15m/30m/1h after-cost outcomes without paper fees.",
-        },
-        {
-            "task_id": "claude_map_legacy_protective_behaviors_to_v2_paper",
-            "priority": "P1",
-            "reason": "Legacy closure includes churn, lifecycle, TP/stop, reduce-only, and adaptive gate behavior not silently droppable.",
-            "required_result": "Each protective behavior is implemented in paper-only form or emitted as an explicit blocker.",
-        },
-    ]
+    core_edge_controls = {
+        "missing_expected_move_after_cost_bps_blocks_fill",
+        "missing_trainer_source_blocks_fill",
+        "missing_feature_freshness_state_blocks_fill",
+        "symbol_not_in_paper_symbols_blocks_fill",
+        "confidence_alone_cannot_allow_fill",
+    }
+    tasks = []
+    if not core_edge_controls.issubset(resolved_controls):
+        tasks.append(
+            {
+                "task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection",
+                "priority": "P0",
+                "reason": "Paper loss attribution found fee/slippage/churn loss and missing edge-after-cost evidence.",
+                "required_result": "Confidence alone cannot permit paper fills; missing expected edge blocks and records shadow observation.",
+            }
+        )
+    tasks.extend(
+        [
+            {
+                "task_id": "claude_add_shadow_outcome_learning_for_blocked_intents",
+                "priority": "P1",
+                "reason": "Post-filter no-fill state is safe but cannot prove edge without outcome observations.",
+                "required_result": "Blocked intents collect 5m/15m/30m/1h after-cost outcomes without paper fees.",
+            },
+            {
+                "task_id": "claude_map_legacy_protective_behaviors_to_v2_paper",
+                "priority": "P1",
+                "reason": "Legacy closure includes churn, lifecycle, TP/stop, reduce-only, and adaptive gate behavior not silently droppable.",
+                "required_result": "Each protective behavior is implemented in paper-only form or emitted as an explicit blocker.",
+            },
+        ]
+    )
     if not {
         "missing_trainer_source_blocks_fill",
         "missing_feature_freshness_state_blocks_fill",

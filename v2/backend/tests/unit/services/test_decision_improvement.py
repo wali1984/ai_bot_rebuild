@@ -38,8 +38,11 @@ def test_resolved_per_fill_fields_are_not_requeued() -> None:
         scoreboard_status={},
         paper_edge_status={
             "resolved_controls": [
+                "missing_expected_move_after_cost_bps_blocks_fill",
                 "missing_trainer_source_blocks_fill",
                 "missing_feature_freshness_state_blocks_fill",
+                "symbol_not_in_paper_symbols_blocks_fill",
+                "confidence_alone_cannot_allow_fill",
             ]
         },
         shadow_outcome_status={"false_block_count": 0},
@@ -47,5 +50,6 @@ def test_resolved_per_fill_fields_are_not_requeued() -> None:
 
     task_ids = [task["task_id"] for task in status["next_tasks"]]
     assert "claude_add_per_fill_trainer_source_and_feature_freshness" not in task_ids
+    assert "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection" not in task_ids
     assert status["live_gate"] == "blocked_human_only"
     assert status["live_symbols"] == []
