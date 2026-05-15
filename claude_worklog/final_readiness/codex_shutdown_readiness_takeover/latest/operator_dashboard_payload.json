@@ -5,7 +5,7 @@
     "final_approval_token": "absent",
     "redis_trim_approval": "absent"
   },
-  "as_of_utc": "2026-05-15T11:24:41Z",
+  "as_of_utc": "2026-05-15T11:28:42Z",
   "blocked_intent_count": 1810,
   "blocker_count": 8,
   "blocker_counts": {
@@ -48,7 +48,7 @@
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "post_filter_edge_pending: no unsafe post-filter fills observed, but positive edge is not proven; shadow_outcome=BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED completed=83 pending=51",
+      "evidence": "post_filter_edge_pending: no unsafe post-filter fills observed, but positive edge is not proven; shadow_outcome=BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED completed=85 pending=51",
       "id": "PAPER_EDGE_UNPROVEN",
       "remediation_task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
     },
@@ -76,7 +76,7 @@
   "git_dirty_classification": {
     "buckets": {
       "agent_supervisor_state": 0,
-      "runtime_or_dashboard_artifact": 443,
+      "runtime_or_dashboard_artifact": 447,
       "source_or_tooling": 4,
       "unknown": 10
     },
@@ -143,7 +143,7 @@
         "claude_worklog/final_readiness/tonight_v2_live_like_paper_shadow_and_canary_preflight/"
       ]
     },
-    "total_dirty": 457
+    "total_dirty": 461
   },
   "go_no_go": "CODEX_LEGACY_SHUTDOWN_READINESS_TAKEOVER_LOOP_READY",
   "last_commit": "0df8a9c4 Full rl/risk/trader/services/utils dependency closure audit",
@@ -154,7 +154,7 @@
       "observatory_legacy_signals_stale"
     ],
     "edge_action_required": true,
-    "generated_at": "2026-05-15T11:24:30Z",
+    "generated_at": "2026-05-15T11:28:30Z",
     "go_no_go": "CODEX_LEGACY_V2_REALTIME_DECISION_OBSERVATORY_READY",
     "legacy_signal_comparison_classification": "MISSING_EVIDENCE_CANNOT_COMPARE",
     "legacy_signal_health": "STALE",
@@ -197,7 +197,7 @@
     "approves_live": false,
     "exchange_action_status": "absent",
     "final_approval_token": "absent",
-    "generated_at": "2026-05-15T11:24:41Z",
+    "generated_at": "2026-05-15T11:28:42Z",
     "go_no_go": "OBSERVATORY_TO_ACTION_CONTROLLER_PATCH_READY",
     "legacy_signal_comparison_classification": "MISSING_EVIDENCE_CANNOT_COMPARE",
     "legacy_signal_health": "STALE",
@@ -246,7 +246,7 @@
     "post_filter_realized_pnl_delta_usdt": 0.0
   },
   "paper_post_filter_observation": {
-    "age_seconds": 76,
+    "age_seconds": 317,
     "approves_legacy_shutdown": false,
     "approves_live": false,
     "blockers": [],
@@ -281,9 +281,9 @@
     "zero_fill_observation": false
   },
   "paper_shadow_freshness": {
-    "age_seconds": 51,
+    "age_seconds": 52,
     "blockers": [],
-    "generated_at": "2026-05-15T11:23:50Z",
+    "generated_at": "2026-05-15T11:27:50Z",
     "path": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
     "status": "fresh"
   },
@@ -381,7 +381,7 @@
   "symbol_universe": {
     "age_seconds": 56,
     "blockers": [],
-    "generated_at": "2026-05-15T11:23:45Z",
+    "generated_at": "2026-05-15T11:27:46Z",
     "live_gate": "blocked_human_only",
     "live_symbols": [],
     "paper_symbols": [
@@ -396,7 +396,7 @@
   "symbol_universe_freshness": {
     "age_seconds": 56,
     "blockers": [],
-    "generated_at": "2026-05-15T11:23:45Z",
+    "generated_at": "2026-05-15T11:27:46Z",
     "live_gate": "blocked_human_only",
     "live_symbols": [],
     "paper_symbols": [
@@ -529,15 +529,15 @@
       "legacy_log_feature_attribution_incomplete",
       "legacy_log_feature_snapshot_id_derived"
     ],
-    "checkpoint_id": "legacy_live_checkpoint_1778844180",
-    "generated_at": "2026-05-15T11:24:27Z",
+    "checkpoint_id": "legacy_live_checkpoint_1778844475",
+    "generated_at": "2026-05-15T11:28:28Z",
     "lineage_derivation_warnings": [
       "feature_snapshot_id_bridge_derived_from_legacy_redis_prediction_hash",
       "confidence_calibrated_bridge_derived_from_legacy_prediction_confidence",
       "top_features_absent_from_legacy_prediction_hash",
       "top_negative_features_absent_from_legacy_prediction_hash"
     ],
-    "model_checkpoint_id": "legacy_live_checkpoint_1778844180",
+    "model_checkpoint_id": "legacy_live_checkpoint_1778844475",
     "model_version": "legacy_hybrid_trainer_live_legacy",
     "path": "v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json",
     "prediction_evidence_status": "LEGACY_HYBRID_TRAINER_PREDICTION_PRESENT",
