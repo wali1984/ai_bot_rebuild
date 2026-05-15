@@ -1409,13 +1409,21 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
             bid = item.upper()
         category = "P0_SHUTDOWN_BLOCKER"
         evidence_text = f"paper_runtime: {item}"
-        if bid == "PAPER_PNL_NEGATIVE_BLOCKS_CANARY" and post_filter.get("historical_negative_pnl_isolated"):
+        if bid == "PAPER_PNL_NEGATIVE_BLOCKS_CANARY" and post_filter.get("status") != "missing":
             category = "P2_LIVE_ONLY_BLOCKED"
-            evidence_text = (
-                f"paper_runtime: {item}; cumulative loss is pre-filter/historical while "
-                f"post_filter_pnl_delta={post_filter.get('post_filter_realized_pnl_delta_usdt')} and "
-                f"post_filter_safety={post_filter.get('post_filter_safety_classification')}"
-            )
+            if post_filter.get("historical_negative_pnl_isolated"):
+                evidence_text = (
+                    f"paper_runtime: {item}; cumulative loss is pre-filter/historical while "
+                    f"post_filter_pnl_delta={post_filter.get('post_filter_realized_pnl_delta_usdt')} and "
+                    f"post_filter_safety={post_filter.get('post_filter_safety_classification')}"
+                )
+            else:
+                evidence_text = (
+                    f"paper_runtime: {item}; negative cumulative PnL blocks live/canary, while paper-only "
+                    "shutdown remains blocked separately by PAPER_EDGE_UNPROVEN until post-filter "
+                    f"outcomes prove positive edge; post_filter_pnl_delta="
+                    f"{post_filter.get('post_filter_realized_pnl_delta_usdt')}"
+                )
         elif bid == "PAPER_EDGE_UNPROVEN" and post_filter.get("no_unsafe_fills") and not post_filter.get("positive_edge_proven"):
             if item == "paper_position_outcome_pending":
                 evidence_text = (
@@ -1442,13 +1450,21 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
         bid = "PAPER_PNL_NEGATIVE_BLOCKS_CANARY" if "negative" in item else "PAPER_EDGE_UNPROVEN"
         category = "P0_SHUTDOWN_BLOCKER"
         evidence_text = f"paper_edge: {item}"
-        if bid == "PAPER_PNL_NEGATIVE_BLOCKS_CANARY" and post_filter.get("historical_negative_pnl_isolated"):
+        if bid == "PAPER_PNL_NEGATIVE_BLOCKS_CANARY" and post_filter.get("status") != "missing":
             category = "P2_LIVE_ONLY_BLOCKED"
-            evidence_text = (
-                f"paper_edge: {item}; historical negative PnL remains visible, but post-filter "
-                f"window has pnl_delta={post_filter.get('post_filter_realized_pnl_delta_usdt')}, "
-                f"fills={post_filter.get('post_filter_simulated_fills')}, and no unsafe fills"
-            )
+            if post_filter.get("historical_negative_pnl_isolated"):
+                evidence_text = (
+                    f"paper_edge: {item}; historical negative PnL remains visible, but post-filter "
+                    f"window has pnl_delta={post_filter.get('post_filter_realized_pnl_delta_usdt')}, "
+                    f"fills={post_filter.get('post_filter_simulated_fills')}, and no unsafe fills"
+                )
+            else:
+                evidence_text = (
+                    f"paper_edge: {item}; negative PnL remains a live/canary blocker, while "
+                    "PAPER_EDGE_UNPROVEN carries the paper-only shutdown blocker until post-filter "
+                    f"outcomes prove positive edge; post_filter_pnl_delta="
+                    f"{post_filter.get('post_filter_realized_pnl_delta_usdt')}"
+                )
         elif bid == "PAPER_EDGE_UNPROVEN" and post_filter.get("no_unsafe_fills") and not post_filter.get("positive_edge_proven"):
             evidence_text = (
                 "paper_edge: post-filter no unsafe fills, but edge remains pending because "

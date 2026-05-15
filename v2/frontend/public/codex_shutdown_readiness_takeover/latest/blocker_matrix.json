@@ -1,5 +1,5 @@
 {
-  "as_of_utc": "2026-05-15T10:22:31Z",
+  "as_of_utc": "2026-05-15T11:02:37Z",
   "blockers": [
     {
       "category": "OPERATOR_DECISION_REQUIRED",
@@ -26,14 +26,14 @@
       "remediation_task_id": "claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet"
     },
     {
-      "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "paper_runtime: paper_realized_pnl_negative",
+      "category": "P2_LIVE_ONLY_BLOCKED",
+      "evidence": "paper_runtime: paper_realized_pnl_negative; negative cumulative PnL blocks live/canary, while paper-only shutdown remains blocked separately by PAPER_EDGE_UNPROVEN until post-filter outcomes prove positive edge; post_filter_pnl_delta=-0.066177",
       "id": "PAPER_PNL_NEGATIVE_BLOCKS_CANARY",
       "remediation_task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "paper_runtime: current_paper_intent_blocked_or_unfilled",
+      "evidence": "paper_runtime: paper_position_outcome_pending",
       "id": "PAPER_EDGE_UNPROVEN",
       "remediation_task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
     },
@@ -57,9 +57,9 @@
   "counts": {
     "INFO_ONLY": 2,
     "OPERATOR_DECISION_REQUIRED": 4,
-    "P0_SHUTDOWN_BLOCKER": 2,
+    "P0_SHUTDOWN_BLOCKER": 1,
     "P1_SHUTDOWN_SUPPORT": 0,
-    "P2_LIVE_ONLY_BLOCKED": 0
+    "P2_LIVE_ONLY_BLOCKED": 1
   },
   "current_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE"
 }
