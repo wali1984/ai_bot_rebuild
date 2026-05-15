@@ -11,7 +11,6 @@
   "emit_files": true,
   "forbidden": [
     "legacy_mutation",
-    "old_redis_write",
     "exchange_action",
     "leverage_change",
     "margin_mode_change",
@@ -27,7 +26,7 @@
   "live_gate": "blocked_human_only",
   "managed_by": "codex_shadow_outcome_monitor",
   "max_attempts": 1,
-  "prompt": "Review PAPER_EXPECTED_MOVE_AFTER_COST_COVERAGE_REMEDIATION_READY. Fail if missing expected_move_after_cost_bps can permit fills, future shadow outcomes are used as fill permission, unvalidated proxy edge can permit fills, live readiness is implied, old Redis writes appear, exchange mutation appears, live_gate changes, or live_symbols is not []. Verify tests and JSON outputs. Emit CODEX_REVIEW.md and CODEX_GO_NO_GO.md.",
+  "prompt": "Review PAPER_EXPECTED_MOVE_AFTER_COST_COVERAGE_REMEDIATION_READY. Fail if missing expected_move_after_cost_bps can permit fills, future shadow outcomes are used as fill permission, unvalidated proxy edge can permit fills, live readiness is implied, legacy datastore mutation appears, exchange mutation appears, live_gate changes, or live_symbols is not []. Verify tests and JSON outputs. Emit CODEX_REVIEW.md and CODEX_GO_NO_GO.md.",
   "required_output_files": [
     "claude_worklog/final_readiness/paper_expected_move_coverage/latest/codex_review/CODEX_REVIEW.md",
     "claude_worklog/final_readiness/paper_expected_move_coverage/latest/codex_review/CODEX_GO_NO_GO.md"

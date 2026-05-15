@@ -2,57 +2,59 @@
   "approves_canary": false,
   "approves_legacy_shutdown": false,
   "approves_live": false,
-  "completed_observations": 9,
+  "completed_observations": 16,
   "edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
   "exchange_action_taken": false,
-  "false_block_count": 2,
+  "false_block_count": 4,
   "false_block_reason_counts": {
-    "missing_expected_move_after_costs": 2
+    "confidence_below_canary_threshold": 1,
+    "missing_expected_move_after_costs": 4
   },
-  "generated_at": "2026-05-15T07:34:08Z",
+  "generated_at": "2026-05-15T07:46:10Z",
   "go_no_go": "PAPER_SHADOW_OUTCOME_OBSERVER_READY_MODEL_REVIEW_REQUIRED",
   "latest_observation": {
     "after_cost_correct": "PENDING_OUTCOME",
     "block_reason": [
+      "confidence_below_canary_threshold",
       "missing_expected_move_after_costs"
     ],
     "completed": false,
     "cost_bps": 6.0,
-    "entry_reference_price": 80753.0,
-    "event_id": "paper_tick_1778830435108",
-    "event_ts": "2026-05-15T07:33:55Z",
+    "entry_reference_price": 80765.1,
+    "event_id": "paper_tick_1778831161559",
+    "event_ts": "2026-05-15T07:46:01Z",
     "expected_move_after_cost_bps": null,
     "expected_move_bps": null,
-    "feature_snapshot_id": "fs_paper_tick_1778830435108",
+    "feature_snapshot_id": "fs_paper_tick_1778831161559",
     "fee_charged_usdt": 0.0,
     "fill_allowed": false,
     "horizons": {
       "horizon_15m": {
-        "deadline": "2026-05-15T07:48:55Z",
+        "deadline": "2026-05-15T08:01:01Z",
         "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
       },
       "horizon_1h": {
-        "deadline": "2026-05-15T08:33:55Z",
+        "deadline": "2026-05-15T08:46:01Z",
         "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
       },
       "horizon_30m": {
-        "deadline": "2026-05-15T08:03:55Z",
+        "deadline": "2026-05-15T08:16:01Z",
         "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
       },
       "horizon_5m": {
-        "deadline": "2026-05-15T07:38:55Z",
+        "deadline": "2026-05-15T07:51:01Z",
         "status": "PENDING_INSUFFICIENT_FUTURE_DATA"
       }
     },
-    "intent_id": "pei_paper_tick_1778830435108",
+    "intent_id": "pei_paper_tick_1778831161559",
     "max_adverse_excursion_bps": null,
     "max_favorable_excursion_bps": null,
     "no_trade_correct": "PENDING_OUTCOME",
-    "observation_id": "shadow_pei_paper_tick_1778830435108",
+    "observation_id": "shadow_pei_paper_tick_1778831161559",
     "outcome_status": "PENDING_INSUFFICIENT_FUTURE_DATA",
     "paper_fill_recorded": false,
-    "prediction_id": "pred_paper_tick_1778830435108",
-    "risk_decision_id": "risk_paper_tick_1778830435108",
+    "prediction_id": "pred_paper_tick_1778831161559",
+    "risk_decision_id": "risk_paper_tick_1778831161559",
     "side": "short",
     "symbol": "BTCUSDT",
     "would_have_beaten_costs": "PENDING_OUTCOME"
@@ -60,11 +62,11 @@
   "live_gate": "blocked_human_only",
   "live_symbols": [],
   "minimum_sample_status": "INSUFFICIENT_SAMPLE",
-  "no_trade_correct_count": 7,
-  "observations_total": 14,
+  "no_trade_correct_count": 12,
+  "observations_total": 20,
   "old_redis_write_performed": false,
   "outcome_status": "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED",
-  "pending_observations": 5,
+  "pending_observations": 4,
   "recommended_next_action": "EXPECTED_MOVE_MODEL_REVIEW_REQUIRED_KEEP_FILL_GATE_STRICT",
   "task_id": "paper_shadow_outcome_observer"
 }
