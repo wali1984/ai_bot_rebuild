@@ -1,0 +1,77 @@
+{
+  "task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection",
+  "generated_at": "2026-05-14T00:00:00Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_legacy_shutdown": false,
+  "approves_canary": false,
+  "edge_status": "EDGE_PENDING",
+  "edge_proven": false,
+  "no_trade_status": "NO_TRADE_CLASSIFICATION_PENDING_THRESHOLD_REPLAY",
+  "go_no_go": "V2_PAPER_EDGE_RECOVERY_BLOCKED",
+  "paper_pnl": {
+    "cumulative_paper_pnl_usdt": -49.12,
+    "source_limited_prior_baseline_usdt": -26.37,
+    "pre_filter_pnl_usdt": -22.75,
+    "post_filter_pnl_usdt": 0.0,
+    "post_filter_fills": 0,
+    "post_filter_unsafe_fills": 0,
+    "pre_filter_explicit_fees_usdt": 22.69,
+    "pre_filter_estimated_slippage_usdt": 11.345,
+    "gross_pnl_if_fees_added_back_usdt": -0.06
+  },
+  "threshold_replay_best_safe_profile": {
+    "status": "NOT_YET_RUN",
+    "min_expected_move_after_cost_bps": null,
+    "min_confidence": null,
+    "cooldown_seconds": null,
+    "flip_churn_window_seconds": null,
+    "max_fills_per_symbol_per_hour": null,
+    "simulated_fill_count": null,
+    "simulated_pnl_usdt": null,
+    "win_rate": null,
+    "profit_factor": null
+  },
+  "blocked_intent_counts": {
+    "edge_after_costs_missing_block": null,
+    "edge_after_costs_negative_block": null,
+    "trainer_source_missing_block": null,
+    "feature_freshness_missing_block": null,
+    "feature_stale_block": null,
+    "confidence_too_low_block": null,
+    "cooldown_block": null,
+    "flip_churn_block": null,
+    "symbol_not_paper_eligible_block": null,
+    "risk_gate_block": null
+  },
+  "shadow_observations_pending": null,
+  "coverage": {
+    "trainer_source_coverage": "MISSING_IN_PAPER_EVENTS",
+    "feature_freshness_coverage": "MISSING_IN_PAPER_EVENTS",
+    "edge_after_costs_coverage": "MISSING_ON_PRE_FILTER_ALLOWED_FILLS"
+  },
+  "remaining_blockers": [
+    "phase_a_schema_extension_not_yet_merged",
+    "phase_b_paper_edge_scoring_module_not_yet_created",
+    "phase_c_paper_shadow_outcome_observer_not_yet_created",
+    "phase_d_threshold_replay_not_yet_run",
+    "phase_e_paper_only_equivalents_pending",
+    "codex_adversarial_review_pending"
+  ],
+  "phase_status": {
+    "phase_a_extend_paper_event_schema": "SPECIFIED_NOT_YET_IMPLEMENTED",
+    "phase_b_cost_aware_scoring_module": "SPECIFIED_NOT_YET_IMPLEMENTED",
+    "phase_c_shadow_outcome_observer": "SPECIFIED_NOT_YET_IMPLEMENTED",
+    "phase_d_threshold_replay": "SPECIFIED_NOT_YET_RUN",
+    "phase_e_legacy_protective_behavior_map": "MAPPED_EQUIVALENTS_PENDING",
+    "phase_f_dashboard_payload": "PARTIAL_STRUCTURAL_FIELDS_PRESENT_RUNTIME_PENDING"
+  },
+  "source_evidence": {
+    "paper_loss_attribution_report": "claude_worklog/final_readiness/paper_loss_attribution/latest/PAPER_LOSS_ATTRIBUTION_REPORT.md",
+    "paper_events_jsonl": "v2/runtime/paper_online/latest/paper_events.jsonl",
+    "paper_events_jsonl_lines_at_audit": 4474,
+    "legacy_protective_behavior_map": "claude_worklog/final_readiness/paper_edge_recovery/latest/legacy_protective_behavior_to_v2_paper_map.json",
+    "threshold_replay_status": "claude_worklog/final_readiness/paper_edge_recovery/latest/paper_edge_threshold_replay.json"
+  }
+}

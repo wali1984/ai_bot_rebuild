@@ -1,0 +1,60 @@
+{
+  "task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection",
+  "generated_at": "2026-05-14T00:00:00Z",
+  "go_no_go": "V2_PAPER_EDGE_RECOVERY_BLOCKED",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_legacy_shutdown": false,
+  "approves_canary": false,
+  "approval_token_present": false,
+  "redis_trim_approval_present": false,
+  "phase_status": {
+    "phase_a_extend_paper_event_schema": "SPECIFIED_NOT_YET_IMPLEMENTED",
+    "phase_b_cost_aware_scoring_module": "SPECIFIED_NOT_YET_IMPLEMENTED",
+    "phase_c_shadow_outcome_observer": "SPECIFIED_NOT_YET_IMPLEMENTED",
+    "phase_d_threshold_replay": "SPECIFIED_NOT_YET_RUN",
+    "phase_e_legacy_protective_behavior_map": "MAPPED_EQUIVALENTS_PENDING",
+    "phase_f_dashboard_payload": "PARTIAL_STRUCTURAL_FIELDS_PRESENT_RUNTIME_PENDING"
+  },
+  "preserved_evidence": {
+    "cumulative_paper_pnl_usdt": -49.12,
+    "source_limited_prior_baseline_usdt": -26.37,
+    "observed_pre_filter_loss_usdt": -22.75,
+    "post_filter_pnl_delta_usdt": 0.0,
+    "post_filter_fills": 0,
+    "post_filter_unsafe_fills": 0,
+    "explicit_booked_fees_pre_filter_usdt": 22.69,
+    "estimated_slippage_pre_filter_usdt": 11.345,
+    "gross_pnl_if_fees_added_back_usdt": -0.06,
+    "confidence_bucket_0_75_plus_pre_filter_pnl_usdt": -12.79,
+    "per_fill_trainer_source": "MISSING_IN_PAPER_EVENTS",
+    "per_fill_feature_freshness": "MISSING_IN_PAPER_EVENTS",
+    "per_fill_edge_after_costs_on_allowed_fills": "MISSING"
+  },
+  "edge_status": "EDGE_PENDING",
+  "edge_proven": false,
+  "no_trade_status": "NO_TRADE_CLASSIFICATION_PENDING_THRESHOLD_REPLAY",
+  "remaining_blockers": [
+    "phase_a_schema_extension_not_yet_merged",
+    "phase_b_paper_edge_scoring_module_not_yet_created",
+    "phase_c_paper_shadow_outcome_observer_not_yet_created",
+    "phase_d_threshold_replay_not_yet_run",
+    "phase_e_paper_only_equivalents_pending",
+    "codex_adversarial_review_pending"
+  ],
+  "source_evidence": {
+    "paper_loss_attribution_report": "claude_worklog/final_readiness/paper_loss_attribution/latest/PAPER_LOSS_ATTRIBUTION_REPORT.md",
+    "paper_loss_attribution_status_json": "claude_worklog/final_readiness/paper_loss_attribution/latest/paper_loss_attribution_status.json",
+    "paper_events_jsonl": "v2/runtime/paper_online/latest/paper_events.jsonl",
+    "paper_events_jsonl_lines_at_audit": 4474
+  },
+  "forbidden_action_scan": {
+    "exchange_order_events": 0,
+    "leverage_change_events": 0,
+    "margin_mode_change_events": 0,
+    "live_trader_restart_events": 0,
+    "live_trainer_restart_events": 0,
+    "old_redis_write_events": 0
+  }
+}

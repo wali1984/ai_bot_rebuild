@@ -69,6 +69,9 @@ PAPER_EXECUTION = ROOT / "v2/frontend/public/operator_runtime/v2_paper_execution
 EXECUTION_LEDGER = ROOT / "v2/frontend/public/operator_runtime/v2_execution_ledger_worker/latest/v2_execution_ledger_worker_status.json"
 SIGNAL_LINEAGE = ROOT / "v2/frontend/public/operator_runtime/v2_signal_lineage_worker/latest/v2_signal_lineage_worker_status.json"
 ACCOUNT_POSITION = ROOT / "v2/frontend/public/operator_runtime/v2_account_position_monitor/latest/v2_account_position_monitor_status.json"
+OBSERVATORY_PAYLOAD = ROOT / "claude_worklog/final_readiness/legacy_v2_realtime_decision_observatory/latest/operator_dashboard_payload.json"
+OBSERVATORY_TO_ACTION_OUT = ROOT / "claude_worklog/final_readiness/observatory_to_action_controller_patch/latest"
+OBSERVATORY_TO_ACTION_PUBLIC = ROOT / "v2/frontend/public/observatory_to_action_controller_patch/latest"
 QUEUE_STATUS = ROOT / "claude_worklog/agent_supervisor/status/queue_status.json"
 CURRENT_STATUS = ROOT / "claude_worklog/agent_supervisor/status/current_status.json"
 NON_DRIFT_LOCK = ROOT / "claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json"
@@ -90,6 +93,8 @@ ACTIVE_PUBLIC_FRESHNESS_PREFIXES = (
     "operator_runtime/v2_signal_lineage_worker/latest/",
     "operator_runtime/v2_trainer_bridge/latest/",
     "operator_truth/latest/",
+    "legacy_v2_realtime_decision_observatory/latest/",
+    "observatory_to_action_controller_patch/latest/",
     "paper_edge_post_filter_observation_window/latest/",
     "v2_worker_porting_orchestrator/latest/",
 )
@@ -123,6 +128,7 @@ SERVICE_UNITS = [
     "ai-bot-v2-parallel-scheduler.service",
     "ai-bot-v2-codex-watchdog.service",
     "ai-bot-v2-codex-shutdown-readiness-takeover.service",
+    "ai-bot-v2-readonly-decision-observatory.service",
     "ai-bot-v2-paper-online-runtime.service",
     "ai-bot-v2-paper-shadow-observation.service",
     "ai-bot-v2-feature-snapshot-builder.service",
@@ -130,12 +136,16 @@ SERVICE_UNITS = [
     "ai-bot-v2-trainer-bridge.service",
 ]
 
-TIMER_UNITS = ["ai-bot-v2-codex-shutdown-readiness-takeover.timer"]
+TIMER_UNITS = [
+    "ai-bot-v2-codex-shutdown-readiness-takeover.timer",
+    "ai-bot-v2-readonly-decision-observatory.timer",
+]
 
 REMEDIATION_PRIORITY = [
     "claude_resolve_remaining_unresolved_local_imports",
     "claude_port_v2_risk_gateway_legacy_gate_implementations_from_legacy_action_map",
     "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map",
+    PAPER_EDGE_RECOVERY_TASK_ID,
     "claude_port_v2_trainer_bridge_full_legacy_parity",
     TRAINER_LINEAGE_ATTRIBUTION_TASK_ID,
     TRAINER_DERIVED_ACCEPTANCE_TASK_ID,
@@ -148,7 +158,6 @@ REMEDIATION_PRIORITY = [
     "claude_audit_stale_public_payloads_and_freshness_guard",
     "claude_replay_paper_edge_repair_from_legacy_trainer_output",
     PAPER_EDGE_POST_FILTER_TASK_ID,
-    PAPER_EDGE_RECOVERY_TASK_ID,
 ]
 
 TEMPLATE_TASKS = [
@@ -999,6 +1008,81 @@ def queue_evidence() -> Dict[str, Any]:
     }
 
 
+def observatory_evidence() -> Dict[str, Any]:
+    payload = read_json(OBSERVATORY_PAYLOAD)
+    if not isinstance(payload, dict) or not payload:
+        return {
+            "path": rel(OBSERVATORY_PAYLOAD),
+            "status": "missing",
+            "go_no_go": None,
+            "blockers": ["observatory_payload_missing"],
+            "edge_action_required": False,
+            "trainer_action_required": False,
+            "legacy_signal_comparison_classification": "MISSING_EVIDENCE_CANNOT_COMPARE",
+        }
+    go_no_go = str(payload.get("go_no_go") or "")
+    paper_edge_status = str(payload.get("paper_edge_status") or "")
+    decision_quality = str(payload.get("v2_decision_quality") or "")
+    legacy_signal_health = str(payload.get("legacy_signal_health") or "")
+    trainer_gaps = [str(item) for item in payload.get("trainer_parity_gaps") or []]
+    edge_action_required = (
+        go_no_go == "CODEX_LEGACY_V2_REALTIME_DECISION_OBSERVATORY_READY"
+        and (
+            paper_edge_status in {"EDGE_PENDING", "POST_FILTER_EDGE_PENDING", "POST_FILTER_NO_UNSAFE_FILLS_EDGE_PENDING"}
+            or decision_quality == "EDGE_PENDING_INSUFFICIENT_SAMPLE"
+        )
+    )
+    trainer_status = read_json(TRAINER_BRIDGE)
+    trainer_parity_status = (
+        str(trainer_status.get("trainer_parity_status") or "")
+        if isinstance(trainer_status, dict)
+        else ""
+    )
+    trainer_action_required = (
+        trainer_parity_status != "FULL_LEGACY_PARITY_READY"
+        or bool(trainer_gaps)
+    )
+    signal_comparison = (
+        "MISSING_EVIDENCE_CANNOT_COMPARE"
+        if legacy_signal_health == "STALE"
+        else str(payload.get("legacy_v2_agreement") or "MISSING_EVIDENCE_CANNOT_COMPARE")
+    )
+    blockers: List[str] = []
+    if go_no_go != "CODEX_LEGACY_V2_REALTIME_DECISION_OBSERVATORY_READY":
+        blockers.append("observatory_not_ready")
+    if edge_action_required:
+        blockers.append("observatory_edge_pending_requires_paper_edge_recovery")
+    if trainer_action_required:
+        blockers.append("observatory_trainer_full_parity_not_ready")
+    if legacy_signal_health == "STALE":
+        blockers.append("observatory_legacy_signals_stale")
+    return {
+        "path": rel(OBSERVATORY_PAYLOAD),
+        "status": "present",
+        "generated_at": payload.get("generated_at"),
+        "go_no_go": go_no_go,
+        "legacy_trainer_health": payload.get("legacy_trainer_health"),
+        "legacy_signal_health": legacy_signal_health,
+        "legacy_signal_comparison_classification": signal_comparison,
+        "legacy_v2_agreement": payload.get("legacy_v2_agreement"),
+        "v2_decision_quality": decision_quality,
+        "paper_pnl_visible": payload.get("paper_pnl_visible"),
+        "paper_edge_status": paper_edge_status,
+        "paper_edge_pending": edge_action_required,
+        "edge_action_required": edge_action_required,
+        "trainer_parity_status": trainer_parity_status,
+        "trainer_parity_gaps": trainer_gaps,
+        "trainer_action_required": trainer_action_required,
+        "post_filter_fill_interpretation": (
+            "POST_FILTER_NO_UNSAFE_FILLS_EDGE_PENDING"
+            if paper_edge_status in {"EDGE_PENDING", "POST_FILTER_EDGE_PENDING"}
+            else paper_edge_status
+        ),
+        "minimum_sample_policy": "EDGE_PENDING_INSUFFICIENT_SAMPLE cannot claim 99% correctness",
+        "blockers": blockers,
+    }
+
+
 def blocker(blocker_id: str, category: str, evidence: str, remediation_task_id: Optional[str] = None) -> Dict[str, Any]:
     item: Dict[str, Any] = {"id": blocker_id, "category": category, "evidence": evidence}
     if remediation_task_id:
@@ -1191,6 +1275,58 @@ def collect_blockers(evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "there are no positive post-filter fill outcomes"
             )
         blockers.append(blocker(bid, category, evidence_text, paper_task_id))
+
+    observatory = evidence.get("observatory", {})
+    if observatory.get("edge_action_required") and not codex_passed(PAPER_EDGE_RECOVERY_TASK_ID):
+        blockers.append(
+            blocker(
+                "OBSERVATORY_PAPER_EDGE_RECOVERY_REQUIRED",
+                "P0_SHUTDOWN_BLOCKER",
+                "observatory: "
+                f"decision_quality={observatory.get('v2_decision_quality')} "
+                f"paper_edge={observatory.get('paper_edge_status')} "
+                "requires cost-aware paper edge recovery; post-filter no-fill is not positive edge",
+                PAPER_EDGE_RECOVERY_TASK_ID,
+            )
+        )
+    if (
+        observatory.get("trainer_action_required")
+        and not observatory.get("trainer_parity_status") == "FULL_LEGACY_PARITY_READY"
+        and not (
+            trainer_acceptance.get("operator_acceptance_required")
+            and codex_passed(TRAINER_DERIVED_ACCEPTANCE_TASK_ID)
+        )
+    ):
+        trainer_task = (
+            TRAINER_DERIVED_ACCEPTANCE_TASK_ID
+            if codex_passed("claude_port_v2_trainer_bridge_full_legacy_parity")
+            else "claude_port_v2_trainer_bridge_full_legacy_parity"
+        )
+        blockers.append(
+            blocker(
+                "OBSERVATORY_TRAINER_FULL_PARITY_REQUIRED",
+                "P0_SHUTDOWN_BLOCKER",
+                "observatory: trainer parity is not FULL_LEGACY_PARITY_READY; "
+                f"remaining_gaps={observatory.get('trainer_parity_gaps')}",
+                trainer_task,
+            )
+        )
+    if observatory.get("legacy_signal_health") == "STALE":
+        blockers.append(
+            blocker(
+                "OBSERVATORY_LEGACY_SIGNALS_STALE_SOURCE_LIMITED",
+                "INFO_ONLY",
+                "observatory: legacy signals are stale; classify comparison as MISSING_EVIDENCE_CANNOT_COMPARE and do not invent outcomes",
+            )
+        )
+    if observatory.get("v2_decision_quality") == "EDGE_PENDING_INSUFFICIENT_SAMPLE":
+        blockers.append(
+            blocker(
+                "OBSERVATORY_DECISION_QUALITY_INSUFFICIENT_SAMPLE",
+                "INFO_ONLY",
+                "observatory: insufficient acted-trade sample; keep no-trade/outcome observation active and do not claim 99% correctness",
+            )
+        )
 
     trade = evidence["trade_permission"]
     for item in trade.get("blockers", []):
@@ -2071,6 +2207,12 @@ def codex_failed(task_id: str) -> bool:
 def failed_review_followup_task(task_id: str) -> Optional[str]:
     if task_id == "claude_expand_v2_risk_gateway_test_suite_from_legacy_action_map":
         return "claude_port_v2_risk_gateway_legacy_gate_implementations_from_legacy_action_map"
+    if task_id in {
+        PAPER_EDGE_RECOVERY_TASK_ID,
+        TRAINER_DERIVED_ACCEPTANCE_TASK_ID,
+        TRAINER_LINEAGE_ATTRIBUTION_TASK_ID,
+    }:
+        return task_id
     return None
 
 
@@ -2178,7 +2320,7 @@ def select_next_action(blockers: List[Dict[str, Any]], dry_run: bool) -> Dict[st
             if followup_task_id:
                 if not dry_run:
                     write_task_descriptors([followup_task_id])
-                    set_task_pending(followup_task_id)
+                    set_task_pending(followup_task_id, force=True)
                 return {
                     "kind": "dispatch_claude_remediation",
                     "task_id": followup_task_id,
@@ -2259,6 +2401,7 @@ def build_evidence(no_service_remediation: bool) -> Dict[str, Any]:
         "paper_shadow": paper_shadow_evidence(),
         "paper_edge": paper_edge_evidence(),
         "paper_post_filter": paper_post_filter_evidence(),
+        "observatory": observatory_evidence(),
         "trade_permission": trade_permission_evidence(),
         "symbol_universe": symbol_evidence(),
         "public_freshness": public_freshness(),
@@ -2402,6 +2545,8 @@ def dashboard_payload(state: Dict[str, Any]) -> Dict[str, Any]:
         "symbol_universe_freshness": evidence["symbol_universe"],
         "paper_shadow_freshness": evidence["paper_shadow"],
         "paper_post_filter_observation": post_filter,
+        "legacy_v2_realtime_decision_observatory": evidence.get("observatory", {}),
+        "observatory_to_action_controller_patch": observatory_to_action_payload(state),
         "paper_pnl_split": {
             "cumulative_paper_pnl_usdt_pre_plus_post": post_filter.get("cumulative_paper_pnl_usdt_pre_plus_post"),
             "post_filter_realized_pnl_delta_usdt": post_filter.get("post_filter_realized_pnl_delta_usdt"),
@@ -2467,6 +2612,124 @@ def paper_post_filter_public_payload(state: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def observatory_to_action_payload(state: Dict[str, Any]) -> Dict[str, Any]:
+    observatory = state["evidence"].get("observatory", {})
+    action = state["next_action"]
+    paper_edge_task_status = task_effective_status(PAPER_EDGE_RECOVERY_TASK_ID)
+    paper_edge_review_id = review_task_id_for(PAPER_EDGE_RECOVERY_TASK_ID)
+    paper_edge_review_status = task_effective_status(paper_edge_review_id)
+    trainer_full_task_status = task_effective_status("claude_port_v2_trainer_bridge_full_legacy_parity")
+    trainer_derived_task_status = task_effective_status(TRAINER_DERIVED_ACCEPTANCE_TASK_ID)
+    action_task_id = str(action.get("task_id") or "")
+    paper_edge_is_current_action = action_task_id in {PAPER_EDGE_RECOVERY_TASK_ID, paper_edge_review_id}
+    if action_task_id == PAPER_EDGE_RECOVERY_TASK_ID:
+        paper_edge_action_state = "implementation_dispatch_required"
+    elif action_task_id == paper_edge_review_id:
+        paper_edge_action_state = "codex_review_required"
+    elif paper_edge_task_status == "running":
+        paper_edge_action_state = "implementation_running"
+    elif paper_edge_review_status == "running":
+        paper_edge_action_state = "codex_review_running"
+    elif observatory.get("edge_action_required") and codex_failed(PAPER_EDGE_RECOVERY_TASK_ID):
+        paper_edge_action_state = "implementation_remediation_required"
+    elif observatory.get("edge_action_required") and not codex_passed(PAPER_EDGE_RECOVERY_TASK_ID):
+        paper_edge_action_state = "paper_edge_recovery_required"
+    else:
+        paper_edge_action_state = "not_current_action"
+    return {
+        "task_id": "observatory_to_action_controller_patch",
+        "generated_at": state["as_of_utc"],
+        "go_no_go": "OBSERVATORY_TO_ACTION_CONTROLLER_PATCH_READY",
+        "observatory_go_no_go": observatory.get("go_no_go"),
+        "legacy_trainer_health": observatory.get("legacy_trainer_health"),
+        "legacy_signal_health": observatory.get("legacy_signal_health"),
+        "legacy_signal_comparison_classification": observatory.get("legacy_signal_comparison_classification"),
+        "v2_decision_quality": observatory.get("v2_decision_quality"),
+        "paper_edge_status": observatory.get("paper_edge_status"),
+        "paper_edge_action_required": observatory.get("edge_action_required"),
+        "trainer_parity_status": observatory.get("trainer_parity_status"),
+        "trainer_parity_gaps": observatory.get("trainer_parity_gaps"),
+        "trainer_action_required": observatory.get("trainer_action_required"),
+        "post_filter_fill_interpretation": observatory.get("post_filter_fill_interpretation"),
+        "next_action": action,
+        "paper_edge_recovery_task_status": paper_edge_task_status,
+        "paper_edge_recovery_review_task_id": paper_edge_review_id,
+        "paper_edge_recovery_review_status": paper_edge_review_status,
+        "paper_edge_recovery_action_state": paper_edge_action_state,
+        "trainer_full_parity_task_status": trainer_full_task_status,
+        "trainer_derived_acceptance_task_status": trainer_derived_task_status,
+        "active_or_next_task_is_paper_edge_recovery": paper_edge_is_current_action
+        or paper_edge_task_status == "running"
+        or paper_edge_review_status == "running",
+        "trainer_full_parity_remains_queued_or_resolved": trainer_full_task_status in {
+            "pending",
+            "running",
+            "completed",
+            "superseded_by_evidence",
+        }
+        or trainer_derived_task_status in {"pending", "running", "completed", "superseded_by_evidence"},
+        "shutdown_recommendation": state["shutdown_recommendation"],
+        "live_gate": state["live_gate"],
+        "live_symbols": state["live_symbols"],
+        "final_approval_token": state["final_approval_token"],
+        "redis_trim_approval": state["redis_trim_approval"],
+        "old_redis_write_status": "absent" if state["evidence"]["runtime_safety"].get("old_redis_writes_absent") else "observed_or_unknown",
+        "exchange_action_status": "absent" if state["evidence"]["runtime_safety"].get("exchange_actions_absent") else "observed_or_unknown",
+        "approves_live": False,
+        "approves_legacy_shutdown": False,
+    }
+
+
+def render_observatory_to_action_report(state: Dict[str, Any]) -> str:
+    payload = observatory_to_action_payload(state)
+    lines = [
+        "# Observatory To Action Controller Patch",
+        "",
+        f"Generated: `{payload['generated_at']}`",
+        "",
+        "This patch makes observatory findings actionable. It does not approve live trading, canary trading, or legacy shutdown.",
+        "",
+        "## Current Findings",
+        "",
+        f"- observatory: `{payload['observatory_go_no_go']}`",
+        f"- legacy trainer: `{payload['legacy_trainer_health']}`",
+        f"- legacy signals: `{payload['legacy_signal_health']}`",
+        f"- signal comparison classification: `{payload['legacy_signal_comparison_classification']}`",
+        f"- V2 decision quality: `{payload['v2_decision_quality']}`",
+        f"- paper edge: `{payload['paper_edge_status']}`",
+        f"- post-filter interpretation: `{payload['post_filter_fill_interpretation']}`",
+        f"- trainer parity: `{payload['trainer_parity_status']}`",
+        f"- trainer gaps: `{payload['trainer_parity_gaps']}`",
+        "",
+        "## Action Routing",
+        "",
+        f"- next action: `{payload['next_action'].get('kind')}`",
+        f"- next task: `{payload['next_action'].get('task_id')}`",
+        f"- paper edge recovery status: `{payload['paper_edge_recovery_task_status']}`",
+        f"- trainer full parity status: `{payload['trainer_full_parity_task_status']}`",
+        f"- trainer derived/native packet status: `{payload['trainer_derived_acceptance_task_status']}`",
+        "",
+        "Rules now enforced:",
+        "",
+        "- `EDGE_PENDING` or `EDGE_PENDING_INSUFFICIENT_SAMPLE` dispatches/unsticks paper edge recovery.",
+        "- trainer parity not equal to `FULL_LEGACY_PARITY_READY` keeps full parity or derived/native acceptance work queued.",
+        "- stale legacy signals are source-limited and classified as `MISSING_EVIDENCE_CANNOT_COMPARE`.",
+        "- zero post-filter fills remain `POST_FILTER_NO_UNSAFE_FILLS_EDGE_PENDING`, not positive edge.",
+        "- insufficient sample never claims 99% correctness.",
+        "",
+        "## Safety",
+        "",
+        f"- live_gate: `{payload['live_gate']}`",
+        f"- live_symbols: `{payload['live_symbols']}`",
+        f"- final approval token: `{payload['final_approval_token']}`",
+        f"- Redis trim approval: `{payload['redis_trim_approval']}`",
+        f"- old Redis write status: `{payload['old_redis_write_status']}`",
+        f"- exchange action status: `{payload['exchange_action_status']}`",
+        "",
+    ]
+    return "\n".join(lines)
+
+
 def blocker_counts(blockers: List[Dict[str, Any]]) -> Dict[str, int]:
     counts = {
         "P0_SHUTDOWN_BLOCKER": 0,
@@ -2512,6 +2775,14 @@ def write_outputs(state: Dict[str, Any]) -> None:
     write_text(PUBLIC / "CODEX_SHUTDOWN_TAKEOVER_STATUS.md", render_report(state))
     write_text(PUBLIC / "CODEX_GO_NO_GO.md", state["loop_marker"] + "\n")
     write_json(PUBLIC_PAPER_POST_FILTER, paper_post_filter_public_payload(state))
+    observatory_action_payload = observatory_to_action_payload(state)
+    write_text(OBSERVATORY_TO_ACTION_OUT / "GO_NO_GO.md", "OBSERVATORY_TO_ACTION_CONTROLLER_PATCH_READY\n")
+    write_text(
+        OBSERVATORY_TO_ACTION_OUT / "OBSERVATORY_TO_ACTION_CONTROLLER_PATCH_REPORT.md",
+        render_observatory_to_action_report(state),
+    )
+    write_json(OBSERVATORY_TO_ACTION_OUT / "operator_dashboard_payload.json", observatory_action_payload)
+    write_json(OBSERVATORY_TO_ACTION_PUBLIC / "operator_dashboard_payload.json", observatory_action_payload)
     if state["next_action"].get("kind", "").startswith("dispatch_"):
         line = {"as_of_utc": state["as_of_utc"], **state["next_action"]}
         with (OUT / "claude_delegation_log.jsonl").open("a", encoding="utf-8") as fh:

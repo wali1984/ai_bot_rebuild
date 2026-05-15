@@ -1,6 +1,6 @@
 {
-  "as_of_utc": "2026-05-15T03:51:39Z",
-  "blocker_count": 6,
+  "as_of_utc": "2026-05-15T05:07:08Z",
+  "blocker_count": 10,
   "final_approval_token": "absent",
   "live_gate": "blocked_human_only",
   "recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",

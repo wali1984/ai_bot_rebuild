@@ -70,6 +70,17 @@ def _base_evidence():
         "symbol_universe": {"blockers": []},
         "public_freshness": {"stale_count": 0},
         "service_liveness": {"inactive_units": []},
+        "observatory": {
+            "go_no_go": "CODEX_LEGACY_V2_REALTIME_DECISION_OBSERVATORY_READY",
+            "legacy_signal_health": "CURRENT",
+            "legacy_signal_comparison_classification": "BOTH_BLOCK",
+            "v2_decision_quality": "PENDING_OUTCOME",
+            "paper_edge_status": "POST_FILTER_NO_UNSAFE_FILLS",
+            "edge_action_required": False,
+            "trainer_parity_status": "FULL_LEGACY_PARITY_READY",
+            "trainer_parity_gaps": [],
+            "trainer_action_required": False,
+        },
     }
 
 
@@ -131,7 +142,7 @@ def test_trainer_derived_acceptance_packet_turns_lineage_into_operator_decision(
     assert all("native trainer evidence was not found" in item["evidence"] for item in trainer)
 
 
-def test_next_action_surfaces_operator_decision_when_no_dispatchable_task_remains():
+def test_next_action_surfaces_operator_decision_when_no_dispatchable_task_remains(monkeypatch):
     controller = _load_controller()
     blockers = [
         {
@@ -143,8 +154,150 @@ def test_next_action_surfaces_operator_decision_when_no_dispatchable_task_remain
         }
     ]
 
+    monkeypatch.setattr(controller, "required_outputs_exist", lambda descriptor: True)
+    monkeypatch.setattr(controller, "task_effective_status", lambda task_id: "completed")
+    monkeypatch.setattr(controller, "codex_passed", lambda task_id: True)
+    monkeypatch.setattr(controller, "codex_failed", lambda task_id: False)
+
     action = controller.select_next_action(blockers, dry_run=True)
 
     assert action["kind"] == "operator_decision_required"
     assert action["blocker_id"] == "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED"
     assert action["decision_packet"] == "acceptance.md"
+
+
+def test_observatory_edge_pending_dispatches_paper_edge_recovery(monkeypatch):
+    controller = _load_controller()
+    evidence = _base_evidence()
+    evidence["observatory"] = {
+        "go_no_go": "CODEX_LEGACY_V2_REALTIME_DECISION_OBSERVATORY_READY",
+        "legacy_signal_health": "STALE",
+        "legacy_signal_comparison_classification": "MISSING_EVIDENCE_CANNOT_COMPARE",
+        "v2_decision_quality": "EDGE_PENDING_INSUFFICIENT_SAMPLE",
+        "paper_edge_status": "EDGE_PENDING",
+        "edge_action_required": True,
+        "trainer_parity_status": "FULL_LEGACY_PARITY_READY",
+        "trainer_parity_gaps": [],
+        "trainer_action_required": False,
+    }
+    monkeypatch.setattr(
+        controller,
+        "codex_passed",
+        lambda task_id: task_id != controller.PAPER_EDGE_RECOVERY_TASK_ID,
+    )
+    blockers = controller.collect_blockers(evidence)
+
+    assert any(item["id"] == "OBSERVATORY_PAPER_EDGE_RECOVERY_REQUIRED" for item in blockers)
+    assert any(
+        item.get("remediation_task_id") == controller.PAPER_EDGE_RECOVERY_TASK_ID
+        for item in blockers
+    )
+
+    monkeypatch.setattr(controller, "required_outputs_exist", lambda descriptor: False)
+    monkeypatch.setattr(controller, "task_effective_status", lambda task_id: "pending")
+    monkeypatch.setattr(controller, "write_task_descriptors", lambda task_ids: [])
+
+    action = controller.select_next_action(blockers, dry_run=True)
+
+    assert action["kind"] == "dispatch_claude_remediation"
+    assert action["task_id"] == controller.PAPER_EDGE_RECOVERY_TASK_ID
+
+
+def test_failed_paper_edge_review_requeues_paper_edge_implementation(monkeypatch):
+    controller = _load_controller()
+    blockers = [
+        {
+            "id": "OBSERVATORY_PAPER_EDGE_RECOVERY_REQUIRED",
+            "category": "P0_SHUTDOWN_BLOCKER",
+            "evidence": "paper edge recovery remains required",
+            "remediation_task_id": controller.PAPER_EDGE_RECOVERY_TASK_ID,
+        }
+    ]
+
+    monkeypatch.setattr(controller, "required_outputs_exist", lambda descriptor: True)
+    monkeypatch.setattr(controller, "task_effective_status", lambda task_id: "completed")
+    monkeypatch.setattr(
+        controller,
+        "codex_passed",
+        lambda task_id: task_id != controller.PAPER_EDGE_RECOVERY_TASK_ID,
+    )
+    monkeypatch.setattr(
+        controller,
+        "codex_failed",
+        lambda task_id: task_id == controller.PAPER_EDGE_RECOVERY_TASK_ID,
+    )
+    monkeypatch.setattr(controller, "write_task_descriptors", lambda task_ids: [])
+    pending_calls = []
+    monkeypatch.setattr(
+        controller,
+        "set_task_pending",
+        lambda task_id, force=False: pending_calls.append((task_id, force)),
+    )
+
+    action = controller.select_next_action(blockers, dry_run=False)
+
+    assert action["kind"] == "dispatch_claude_remediation"
+    assert action["task_id"] == controller.PAPER_EDGE_RECOVERY_TASK_ID
+    assert "Codex review" in action["follow_up"]
+    assert pending_calls == [(controller.PAPER_EDGE_RECOVERY_TASK_ID, True)]
+
+
+def test_observatory_trainer_not_full_routes_to_derived_packet_after_full_task_pass(monkeypatch):
+    controller = _load_controller()
+    evidence = _base_evidence()
+    evidence["paper_runtime"] = {"blockers": []}
+    evidence["paper_edge"] = {"blockers": []}
+    evidence["trade_permission"] = {"blockers": [], "paper_only_operator_decision_required": False}
+    evidence["observatory"] = {
+        "go_no_go": "CODEX_LEGACY_V2_REALTIME_DECISION_OBSERVATORY_READY",
+        "legacy_signal_health": "STALE",
+        "legacy_signal_comparison_classification": "MISSING_EVIDENCE_CANNOT_COMPARE",
+        "v2_decision_quality": "EDGE_PENDING_INSUFFICIENT_SAMPLE",
+        "paper_edge_status": "POST_FILTER_NO_UNSAFE_FILLS",
+        "edge_action_required": False,
+        "trainer_parity_status": "BLOCKS_LEGACY_SHUTDOWN",
+        "trainer_parity_gaps": ["LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE"],
+        "trainer_action_required": True,
+    }
+    monkeypatch.setattr(
+        controller,
+        "codex_passed",
+        lambda task_id: task_id == "claude_port_v2_trainer_bridge_full_legacy_parity",
+    )
+
+    blockers = controller.collect_blockers(evidence)
+    trainer = [
+        item
+        for item in blockers
+        if item["id"] == "OBSERVATORY_TRAINER_FULL_PARITY_REQUIRED"
+    ]
+
+    assert len(trainer) == 1
+    assert trainer[0]["remediation_task_id"] == controller.TRAINER_DERIVED_ACCEPTANCE_TASK_ID
+
+
+def test_observatory_stale_legacy_signals_are_source_limited_info_only():
+    controller = _load_controller()
+    evidence = _base_evidence()
+    evidence["observatory"] = {
+        "go_no_go": "CODEX_LEGACY_V2_REALTIME_DECISION_OBSERVATORY_READY",
+        "legacy_signal_health": "STALE",
+        "legacy_signal_comparison_classification": "MISSING_EVIDENCE_CANNOT_COMPARE",
+        "v2_decision_quality": "PENDING_OUTCOME",
+        "paper_edge_status": "POST_FILTER_NO_UNSAFE_FILLS",
+        "edge_action_required": False,
+        "trainer_parity_status": "FULL_LEGACY_PARITY_READY",
+        "trainer_parity_gaps": [],
+        "trainer_action_required": False,
+    }
+
+    blockers = controller.collect_blockers(evidence)
+    stale = [
+        item
+        for item in blockers
+        if item["id"] == "OBSERVATORY_LEGACY_SIGNALS_STALE_SOURCE_LIMITED"
+    ]
+
+    assert len(stale) == 1
+    assert stale[0]["category"] == "INFO_ONLY"
+    assert "MISSING_EVIDENCE_CANNOT_COMPARE" in stale[0]["evidence"]
