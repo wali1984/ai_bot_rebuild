@@ -1,6 +1,6 @@
 {
   "task_id": "claude_improve_expected_move_after_cost_coverage_from_shadow_false_blocks",
-  "generated_at": "2026-05-15T07:45:00Z",
+  "generated_at": "2026-05-15T08:11:06Z",
   "live_gate": "blocked_human_only",
   "live_symbols": [],
   "approves_live": false,
@@ -11,68 +11,41 @@
   "old_redis_write_performed": false,
   "redis_trim_approval_created": false,
   "approval_token_created": false,
-  "remediation_status": "REMEDIATION_PARTIAL_PROXY_NON_FILL_ELIGIBLE_BLOCKED",
-  "expected_move_coverage_status": "EXPECTED_MOVE_MISSING_NON_FILL_ELIGIBLE",
-  "expected_move_source_observed_in_paper_runtime": "missing",
-  "native_expected_move_evidence_present": false,
+  "remediation_status": "PAPER_EXPECTED_MOVE_COVERAGE_REMEDIATION_READY",
+  "expected_move_coverage_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+  "expected_move_source_observed_in_paper_runtime": "native_trainer_expected_move_bps",
+  "native_expected_move_evidence_present": true,
+  "native_expected_move_source": "legacy_readonly_redis_prediction_price_target",
+  "native_expected_move_bps_latest": 4.36588893,
+  "native_expected_move_after_cost_bps_latest": -1.63411107,
+  "latest_paper_gate_block_reason": "expected_edge_below_costs",
+  "paper_edge_gate_classification": "EDGE_AFTER_COSTS_NEGATIVE_BLOCK",
+  "paper_edge_gate_min_expected_move_after_cost_bps": 8.0,
   "proxy_candidate_emitted": false,
   "proxy_candidate_fill_eligible": false,
   "fill_gate_strictness_preserved": true,
   "future_shadow_outcomes_used_as_entry_signal": false,
-  "false_block_reason_counts": {
-    "missing_expected_move_after_costs": 2
-  },
-  "false_block_examples": [
-    {
-      "observation_id": "shadow_pei_paper_tick_1778829709459",
-      "block_reason": ["missing_expected_move_after_costs"],
-      "expected_move_after_cost_bps": null,
-      "max_favorable_excursion_bps": 24.67439212,
-      "would_have_beaten_costs": true,
-      "event_ts": "2026-05-15T07:21:49Z",
-      "symbol": "BTCUSDT",
-      "side": "long"
-    },
-    {
-      "observation_id": "shadow_pei_paper_tick_1778829742419",
-      "block_reason": ["missing_expected_move_after_costs"],
-      "expected_move_after_cost_bps": null,
-      "max_favorable_excursion_bps": 24.64957003,
-      "would_have_beaten_costs": true,
-      "event_ts": "2026-05-15T07:22:22Z",
-      "symbol": "BTCUSDT",
-      "side": "long"
-    }
-  ],
-  "implementation_artifacts": {
-    "new_composition_module": "v2/backend/app/composition/paper_expected_move_coverage.py",
-    "new_unit_test": "v2/backend/tests/unit/composition/test_paper_expected_move_coverage.py",
-    "paper_online_runtime_wiring": "v2/backend/app/cli/paper_online_runtime.py",
-    "paper_execution_worker_wiring": "v2/backend/app/cli/v2_paper_execution_worker.py",
-    "shadow_outcome_observer_false_block_summary": "v2/backend/app/services/paper_shadow_outcome_observer/service.py (already emits false_block_reason_counts and false_block_examples)"
-  },
-  "invariants_enforced": [
-    "missing_expected_move_after_cost_bps_blocks_paper_fill",
-    "proxy_expected_move_unvalidated_blocks_paper_fill",
-    "future_shadow_outcomes_not_used_as_entry_signal_or_fill_permission",
-    "native_expected_move_only_passes_when_all_other_gates_pass",
-    "legacy_redis_writes_absent",
-    "exchange_methods_absent",
-    "live_gate_remains_blocked_human_only",
-    "live_symbols_remains_empty"
-  ],
+  "qualified_post_filter_positive_edge_proven": false,
+  "paper_fill_allowed_by_this_change": false,
+  "paper_edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
   "remaining_blockers": [
-    "trainer_wrapper_emits_no_native_expected_move_bps",
-    "legacy_hybrid_trainer_expected_move_extraction_not_yet_ported",
-    "proxy_validation_pipeline_not_yet_built",
-    "qualified_post_filter_fills_net_positive_after_costs_unproven"
+    "expected_move_after_cost_currently_below_cost_threshold",
+    "qualified_post_filter_fills_net_positive_after_costs_unproven",
+    "trainer_feature_snapshot_confidence_attribution_lineage_still_derived_or_incomplete",
+    "historical_false_blocks_remain_in_shadow_outcome_window"
   ],
-  "recommended_next_actions": [
-    "PORT_LEGACY_HYBRID_TRAINER_EXPECTED_MOVE_BPS_EXTRACTION_TO_TRAINER_BRIDGE",
-    "EMIT_NATIVE_EXPECTED_MOVE_BPS_FROM_V2_TRAINER_BRIDGE_PAYLOAD",
-    "BUILD_PROXY_VALIDATION_BACKTEST_HARNESS_AND_OPERATOR_APPROVAL_TOKEN_FLOW",
-    "KEEP_PAPER_FILL_GATE_STRICT_AND_CONTINUE_SHADOW_OUTCOME_OBSERVATION"
-  ],
+  "implemented_artifacts": {
+    "trainer_bridge_native_expected_move_reader": "v2/backend/app/services/trainer_bridge/service.py",
+    "trainer_bridge_status_wiring": "v2/backend/app/cli/v2_trainer_bridge.py",
+    "paper_runtime_expected_move_and_paper_edge_gate_wiring": "v2/backend/app/cli/paper_online_runtime.py",
+    "shadow_outcome_expected_move_capture": "v2/backend/app/services/paper_shadow_outcome_observer/service.py",
+    "tests": [
+      "v2/backend/tests/integration/cli/test_v2_trainer_bridge.py",
+      "v2/backend/tests/unit/cli/test_paper_online_runtime_weekly_loss.py",
+      "v2/backend/tests/integration/cli/test_paper_shadow_outcome_observer.py",
+      "v2/backend/tests/unit/composition/test_paper_expected_move_coverage.py"
+    ]
+  },
   "safety": {
     "live_trading": "blocked_human_only",
     "orders": "BLOCKED_NO_EXCHANGE_MUTATION",

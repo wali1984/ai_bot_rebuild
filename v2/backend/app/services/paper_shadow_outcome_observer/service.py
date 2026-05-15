@@ -243,6 +243,22 @@ def _request_from_paper_runtime(paper_status: Mapping[str, Any]) -> dict[str, An
         return None
     side = intent.get("side") or signal.get("side") or nested_get(trainer, "raw_output.side")
     price = last_event.get("observed_price") or market.get("last_price")
+    trainer_expected_move = nested_get(trainer, "raw_output.expected_move_bps")
+    expected_move_bps = (
+        nested_get(risk, "canary_profile_tightening.expected_move_bps")
+        or nested_get(risk, "expected_move_bps")
+        or trainer_expected_move
+    )
+    cost_bps = round(
+        (_num(nested_get(risk, "canary_profile_tightening.fee_bps"), 4.0) or 0.0)
+        + (_num(nested_get(risk, "canary_profile_tightening.spread_bps"), 0.0) or 0.0)
+        + (_num(last_event.get("slippage_bps") or nested_get(risk, "canary_profile_tightening.slippage_bps"), 2.0) or 0.0)
+        + (_num(nested_get(risk, "canary_profile_tightening.funding_risk_bps"), 0.0) or 0.0),
+        8,
+    )
+    expected_after_cost = nested_get(risk, "expected_move_after_cost_bps")
+    if expected_after_cost is None and _num(expected_move_bps) is not None:
+        expected_after_cost = round((_num(expected_move_bps) or 0.0) - cost_bps, 8)
     block_reason = (
         risk.get("canary_profile_tightening_blockers")
         or risk.get("risk_reason_code")
@@ -258,8 +274,8 @@ def _request_from_paper_runtime(paper_status: Mapping[str, Any]) -> dict[str, An
         "side": side,
         "entry_reference_price": price,
         "event_ts": risk.get("generated_at") or last_event.get("generated_at"),
-        "expected_move_bps": nested_get(risk, "canary_profile_tightening.expected_move_bps"),
-        "expected_move_after_cost_bps": nested_get(risk, "expected_move_after_cost_bps"),
+        "expected_move_bps": expected_move_bps,
+        "expected_move_after_cost_bps": expected_after_cost,
         "fee_bps": nested_get(risk, "canary_profile_tightening.fee_bps"),
         "spread_bps": nested_get(risk, "canary_profile_tightening.spread_bps"),
         "slippage_bps": last_event.get("slippage_bps") or 2.0,

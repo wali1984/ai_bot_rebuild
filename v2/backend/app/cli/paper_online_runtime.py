@@ -12,6 +12,10 @@ from pathlib import Path
 from typing import Any
 
 from v2.backend.app.composition.canary_profile_tightening import build_canary_profile_tightening_runtime
+from v2.backend.app.composition.paper_edge_scoring import score_paper_edge
+from v2.backend.app.composition.paper_expected_move_coverage import (
+    evaluate_paper_expected_move_coverage,
+)
 from v2.backend.app.services.signal_publisher import build_paper_runtime_lineage
 
 
@@ -26,6 +30,15 @@ V2_ROOT = REPO_ROOT / "v2"
 PUBLIC_RUNTIME_DIR = V2_ROOT / "frontend" / "public" / "operator_runtime" / "paper_online" / "latest"
 LOCAL_RUNTIME_DIR = V2_ROOT / "runtime" / "paper_online" / "latest"
 FINAL_DIR = REPO_ROOT / "claude_worklog" / "final_readiness" / "v2_paper_online_recovery" / "latest"
+TRAINER_BRIDGE_STATUS_FILE = (
+    V2_ROOT
+    / "frontend"
+    / "public"
+    / "operator_runtime"
+    / "v2_trainer_bridge"
+    / "latest"
+    / "v2_trainer_bridge_status.json"
+)
 WEEKLY_LOSS_LIMIT_USDT = -250.0
 DAILY_LOSS_LIMIT_USDT = -75.0
 PAPER_TIGHTENING_MIN_CONFIDENCE = 0.75
@@ -67,6 +80,59 @@ def _http_json(url: str) -> Any:
     )
     with urllib.request.urlopen(request, timeout=8) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def _read_json_file(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _float_or_none(value: Any) -> float | None:
+    if value in (None, "") or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _trainer_bridge_expected_move(feature_snapshot: dict[str, Any]) -> dict[str, Any]:
+    bridge = _read_json_file(TRAINER_BRIDGE_STATUS_FILE)
+    expected_move = _float_or_none(bridge.get("expected_move_bps"))
+    if expected_move is None:
+        return {"status": "MISSING_NATIVE_EXPECTED_MOVE"}
+    if str(bridge.get("expected_move_evidence_mode") or "") != "NATIVE_FIELD_PRESENT":
+        return {"status": "EXPECTED_MOVE_NOT_NATIVE"}
+    bridge_symbol = str(bridge.get("prediction_symbol") or "").strip().upper()
+    bridge_timeframe = str(bridge.get("prediction_timeframe") or "").strip()
+    feature_symbol = str(feature_snapshot.get("symbol") or "").strip().upper()
+    feature_timeframe = "1m"
+    if bridge_symbol != feature_symbol:
+        return {
+            "status": "EXPECTED_MOVE_SYMBOL_MISMATCH",
+            "prediction_symbol": bridge_symbol,
+            "prediction_timeframe": bridge_timeframe,
+            "feature_symbol": feature_symbol,
+            "feature_timeframe": feature_timeframe,
+        }
+    if bridge.get("live_gate") != LIVE_GATE_STATUS or bridge.get("live_symbols") not in ([], None):
+        return {"status": "TRAINER_BRIDGE_LIVE_SCOPE_UNSAFE"}
+    return {
+        "status": "NATIVE_EXPECTED_MOVE_PRESENT",
+        "expected_move_bps": expected_move,
+        "expected_move_source": str(bridge.get("expected_move_source") or ""),
+        "expected_move_timeframe": bridge_timeframe,
+        "feature_timeframe": feature_timeframe,
+        "cross_timeframe_expected_move": bridge_timeframe != feature_timeframe,
+        "trainer_source": str(bridge.get("prediction_source_type") or ""),
+        "trainer_bridge_status": str(bridge.get("trainer_parity_status") or ""),
+        "model_version": str(bridge.get("model_version") or ""),
+        "checkpoint_id": str(bridge.get("checkpoint_id") or ""),
+        "bridge_prediction_id": str(bridge.get("prediction_id") or ""),
+    }
 
 
 def _freshness(age_seconds: int | None) -> str:
@@ -212,6 +278,19 @@ def _clamp(value: float, lower: float, upper: float) -> float:
     return max(lower, min(value, upper))
 
 
+def _confidence_bucket(value: Any) -> str:
+    confidence = _float_or_none(value)
+    if confidence is None:
+        return "missing"
+    if confidence < 0.58:
+        return "below_0.58"
+    if confidence < 0.65:
+        return "0.58_to_0.65"
+    if confidence < 0.75:
+        return "0.65_to_0.75"
+    return "0.75_plus"
+
+
 def build_feature_snapshot(market: MarketSnapshot, tick_id: str) -> dict[str, Any]:
     closes = [float(candle["close"]) for candle in market.candles if "close" in candle]
     volumes = [float(candle["volume"]) for candle in market.candles if "volume" in candle]
@@ -259,19 +338,33 @@ def build_trainer_prediction(feature_snapshot: dict[str, Any], tick_id: str) -> 
         side = "short"
     raw_confidence = _clamp(0.56 + abs(momentum_score), 0.50, 0.84)
     calibrated_confidence = _clamp(raw_confidence - 0.02, 0.50, 0.80)
+    bridge_expected_move = _trainer_bridge_expected_move(feature_snapshot)
+    raw_output: dict[str, Any] = {
+        "side": side,
+        "momentum_score": round(momentum_score, 8),
+    }
+    if bridge_expected_move.get("status") == "NATIVE_EXPECTED_MOVE_PRESENT":
+        raw_output["expected_move_bps"] = bridge_expected_move["expected_move_bps"]
+        raw_output["expected_move_source"] = bridge_expected_move["expected_move_source"]
+        raw_output["expected_move_timeframe"] = bridge_expected_move["expected_move_timeframe"]
+        raw_output["cross_timeframe_expected_move"] = bridge_expected_move["cross_timeframe_expected_move"]
+        raw_output["expected_move_bridge_prediction_id"] = bridge_expected_move["bridge_prediction_id"]
     return {
         "prediction_id": f"pred_{tick_id}",
         "generated_at": feature_snapshot["generated_at"],
         "source_type": "V2_PAPER_TRAINER_WRAPPER",
+        "trainer_source": bridge_expected_move.get("trainer_source") or "V2_PAPER_TRAINER_WRAPPER",
+        "trainer_bridge_status": bridge_expected_move.get("trainer_bridge_status") or "MISSING_NATIVE_EXPECTED_MOVE",
         "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT",
         "symbol": feature_snapshot["symbol"],
         "timeframe": "1m",
-        "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
+        "model_checkpoint": bridge_expected_move.get("checkpoint_id") or "v2_paper_readonly_momentum_wrapper_v1",
+        "model_version": bridge_expected_move.get("model_version") or "v2_paper_readonly_momentum_wrapper_v1",
         "feature_snapshot_id": feature_snapshot["feature_snapshot_id"],
-        "raw_output": {
-            "side": side,
-            "momentum_score": round(momentum_score, 8),
-        },
+        "raw_output": raw_output,
+        "expected_move_bps": bridge_expected_move.get("expected_move_bps"),
+        "expected_move_source": bridge_expected_move.get("expected_move_source"),
+        "expected_move_bridge_status": bridge_expected_move.get("status"),
         "confidence_raw": round(raw_confidence, 6),
         "confidence_calibrated": round(calibrated_confidence, 6),
         "top_features": [
@@ -328,6 +421,16 @@ def apply_paper_tightening_gate(
     feature_snapshot = gated.get("feature_snapshot", {})
     prediction = gated.get("trainer_prediction", {})
     raw_output = prediction.get("raw_output") if isinstance(prediction.get("raw_output"), dict) else {}
+    coverage = evaluate_paper_expected_move_coverage(
+        trainer_prediction=prediction,
+        feature_snapshot=feature_snapshot,
+        risk_payload=risk,
+        signal_record=signal,
+        fee_bps=4.0,
+        spread_bps=0.0,
+        slippage_bps=2.0,
+        funding_bps=0.0,
+    )
     runtime = build_canary_profile_tightening_runtime(
         now_ms_clock=lambda: now_ms if now_ms is not None else int(time.time() * 1000),
         min_confidence=PAPER_TIGHTENING_MIN_CONFIDENCE,
@@ -344,7 +447,7 @@ def apply_paper_tightening_gate(
             "confidence": signal.get("confidence") or signal.get("confidence_calibrated") or prediction.get("confidence_calibrated"),
             "signal_generated_at": signal.get("generated_at") or generated_at,
             "feature_snapshot_generated_at": feature_snapshot.get("generated_at") or feature_snapshot.get("generated_ts"),
-            "expected_move_bps": raw_output.get("expected_move_bps"),
+            "expected_move_bps": coverage.get("expected_move_bps_for_fill_gate"),
             "fee_bps": 4.0,
             "slippage_bps": 2.0,
             "funding_bps": 0.0,
@@ -352,8 +455,39 @@ def apply_paper_tightening_gate(
         recent_events=recent_events,
         approval_token_present=False,
     )
+    paper_edge_gate = score_paper_edge(
+        {
+            "symbol": intent.get("symbol") or signal.get("symbol"),
+            "risk_action": "allow",
+            "trainer_source": prediction.get("trainer_source") or raw_output.get("trainer_source"),
+            "feature_freshness_state": feature_snapshot.get("freshness_state"),
+            "confidence_calibrated": signal.get("confidence_calibrated")
+            or signal.get("confidence")
+            or prediction.get("confidence_calibrated"),
+            "expected_move_bps": coverage.get("expected_move_bps_for_fill_gate"),
+            "expected_move_after_cost_bps": coverage.get("expected_move_after_cost_bps_for_fill_gate"),
+            "fee_bps": 4.0,
+            "spread_bps": 0.0,
+            "slippage_bps": 2.0,
+            "funding_risk_bps": 0.0,
+            "cooldown_clear": "same_symbol_same_direction_cooldown"
+            not in set(gate.get("blockers") or []),
+            "flip_churn_clear": "flip_churn_cooldown" not in set(gate.get("blockers") or []),
+        },
+        paper_symbols=[str(intent.get("symbol") or signal.get("symbol") or "").upper()],
+        live_symbols=[],
+        live_gate=LIVE_GATE_STATUS,
+    )
     risk["canary_profile_tightening"] = gate
-    if gate.get("blockers"):
+    risk["expected_move_coverage"] = coverage
+    risk["expected_move_source"] = coverage.get("expected_move_source")
+    risk["expected_move_coverage_status"] = coverage.get("expected_move_coverage_status")
+    risk["expected_move_bps"] = coverage.get("expected_move_bps_for_fill_gate")
+    risk["expected_move_after_cost_bps"] = coverage.get("expected_move_after_cost_bps_for_fill_gate")
+    risk["paper_edge_gate"] = paper_edge_gate
+    risk["paper_edge_gate_classification"] = paper_edge_gate.get("classification")
+    risk["paper_edge_gate_blockers"] = list(paper_edge_gate.get("blockers") or [])
+    if gate.get("blockers") or paper_edge_gate.get("blockers"):
         risk["risk_action"] = "deny"
         risk["risk_result"] = "BLOCKED"
         risk["risk_reason_code"] = "deny_canary_profile_tightening"
@@ -361,6 +495,8 @@ def apply_paper_tightening_gate(
         required = list(risk.get("required_blocks_checked") or [])
         if "canary_profile_tightening" not in required:
             required.append("canary_profile_tightening")
+        if "paper_edge_scoring" not in required:
+            required.append("paper_edge_scoring")
         risk["required_blocks_checked"] = required
         intent["intent_action"] = "paper_noop_blocked"
         intent["exchange_order_allowed"] = False
@@ -459,6 +595,11 @@ def build_risk_runtime_payload(
 def append_paper_event(root: Path, payload: dict[str, Any], risk_runtime_payload: dict[str, Any]) -> None:
     ledger_entry = payload["paper_ledger_tail"][0]
     signal = payload["current_signal_lineage"]["signal"]
+    risk = payload["current_risk_decision"]
+    trainer = payload["trainer_prediction"]
+    feature_snapshot = payload["feature_snapshot"]
+    paper_edge_gate = risk.get("paper_edge_gate") if isinstance(risk.get("paper_edge_gate"), dict) else {}
+    confidence = signal.get("confidence") or signal.get("confidence_calibrated") or trainer.get("confidence_calibrated")
     event = {
         "generated_at": payload["generated_at"],
         "tick_id": payload["paper_loop"]["tick_id"],
@@ -469,12 +610,35 @@ def append_paper_event(root: Path, payload: dict[str, Any], risk_runtime_payload
         "risk_decision_id": ledger_entry["risk_decision_id"],
         "execution_intent_id": ledger_entry["execution_intent_id"],
         "paper_ledger_entry_id": ledger_entry["paper_ledger_entry_id"],
-        "risk_action": payload["current_risk_decision"]["risk_action"],
-        "risk_result": payload["current_risk_decision"]["risk_result"],
-        "risk_reason_code": payload["current_risk_decision"]["risk_reason_code"],
+        "trainer_source": trainer.get("trainer_source"),
+        "trainer_bridge_status": trainer.get("trainer_bridge_status"),
+        "model_version": trainer.get("model_version"),
+        "checkpoint_id": trainer.get("model_checkpoint"),
+        "confidence_raw": trainer.get("confidence_raw"),
+        "confidence_calibrated": trainer.get("confidence_calibrated"),
+        "confidence_bucket": _confidence_bucket(confidence),
+        "expected_move_bps": risk.get("expected_move_bps"),
+        "expected_move_after_cost_bps": risk.get("expected_move_after_cost_bps"),
+        "expected_move_source": risk.get("expected_move_source"),
+        "fee_bps": paper_edge_gate.get("fee_bps"),
+        "spread_bps": paper_edge_gate.get("spread_bps"),
+        "funding_risk_bps": paper_edge_gate.get("funding_risk_bps"),
+        "edge_score": paper_edge_gate.get("edge_score"),
+        "feature_freshness_state": feature_snapshot.get("freshness_state"),
+        "stale_feature_flags": feature_snapshot.get("stale_feature_flags", []),
+        "missing_feature_flags": feature_snapshot.get("missing_feature_flags", []),
+        "symbol_universe_state": "PAPER_SYMBOL_SCOPE_LOCAL",
+        "paper_symbol_allowed": paper_edge_gate.get("paper_symbol_allowed"),
+        "risk_action": risk["risk_action"],
+        "risk_result": risk["risk_result"],
+        "risk_reason_code": risk["risk_reason_code"],
+        "risk_reason": risk["risk_reason_code"],
+        "block_reason": risk["risk_reason_code"] if risk["risk_action"] != "allow" else None,
+        "fill_allowed": risk["risk_action"] == "allow",
+        "fill_rejected_reason": risk["risk_reason_code"] if risk["risk_action"] != "allow" else None,
         "ledger_action": ledger_entry["ledger_action"],
         "paper_result": ledger_entry["paper_result"],
-        "confidence": signal.get("confidence") or signal.get("confidence_calibrated"),
+        "confidence": confidence,
         "notional_usdt": ledger_entry["notional_usdt"],
         "fee_usdt": ledger_entry["fee_usdt"],
         "slippage_bps": ledger_entry["slippage_bps"],
@@ -483,8 +647,11 @@ def append_paper_event(root: Path, payload: dict[str, Any], risk_runtime_payload
         "paper_realized_pnl": payload["paper_account"]["realized_pnl"],
         "weekly_loss_gate_required": risk_runtime_payload["weekly_loss_gate_required"],
         "weekly_loss_breach": risk_runtime_payload["weekly_loss_breach"],
-        "canary_profile_tightening_blockers": payload["current_risk_decision"].get("canary_profile_tightening_blockers", []),
+        "canary_profile_tightening_blockers": risk.get("canary_profile_tightening_blockers", []),
+        "paper_edge_gate_blockers": risk.get("paper_edge_gate_blockers", []),
         "live_gate_status": LIVE_GATE_STATUS,
+        "live_gate": LIVE_GATE_STATUS,
+        "live_symbols": [],
         "exchange_order": False,
         "legacy_redis_write": False,
         "source_type": "V2_PAPER_RUNTIME_JSONL_EVENT",

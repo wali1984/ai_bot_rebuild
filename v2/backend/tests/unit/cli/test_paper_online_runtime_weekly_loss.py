@@ -4,10 +4,13 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[5]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from v2.backend.app.cli import paper_online_runtime as paper_runtime
 from v2.backend.app.cli.paper_online_runtime import (
     MarketSnapshot,
     apply_paper_tightening_gate,
@@ -18,6 +21,15 @@ from v2.backend.app.cli.paper_online_runtime import (
     build_signal_lineage,
     build_trainer_prediction,
 )
+
+
+@pytest.fixture(autouse=True)
+def _isolate_trainer_bridge_status(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        paper_runtime,
+        "TRAINER_BRIDGE_STATUS_FILE",
+        tmp_path / "missing_v2_trainer_bridge_status.json",
+    )
 
 
 def _market() -> MarketSnapshot:
@@ -131,6 +143,123 @@ def test_paper_tightening_blocks_allow_when_expected_edge_is_missing() -> None:
     assert gated["execution_intent"]["exchange_order_allowed"] is False
 
 
+def test_native_trainer_bridge_expected_move_flows_to_paper_gate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bridge_status = tmp_path / "v2_trainer_bridge_status.json"
+    monkeypatch.setattr(paper_runtime, "TRAINER_BRIDGE_STATUS_FILE", bridge_status)
+    bridge_status.write_text(
+        json.dumps(
+            {
+                "prediction_symbol": "BTCUSDT",
+                "prediction_timeframe": "1m",
+                "prediction_id": "legacy_redis_pred_unit",
+                "prediction_source_type": "LEGACY_HYBRID_TRAINER_REDIS_READONLY",
+                "trainer_parity_status": "BLOCKS_LEGACY_SHUTDOWN",
+                "model_version": "legacy_hybrid_trainer_live_legacy",
+                "checkpoint_id": "legacy_live_checkpoint_unit",
+                "expected_move_bps": 20.0,
+                "expected_move_source": "native_legacy_trainer_price_target",
+                "expected_move_evidence_mode": "NATIVE_FIELD_PRESENT",
+                "live_gate": "blocked_human_only",
+                "live_symbols": [],
+            }
+        )
+    )
+    market = _market()
+    feature = build_feature_snapshot(market, "tick_unit")
+    prediction = build_trainer_prediction(feature, "tick_unit")
+    prediction["confidence_calibrated"] = 0.78
+    lineage = build_signal_lineage(
+        tick_id="tick_unit",
+        generated_at="2026-05-13T07:30:00Z",
+        feature_snapshot=feature,
+        prediction=prediction,
+        market=market,
+    )
+
+    gated = apply_paper_tightening_gate(
+        lineage,
+        generated_at="2026-05-13T07:30:00Z",
+        recent_events=[],
+        now_ms=1_778_648_401_000,
+    )
+
+    assert prediction["raw_output"]["expected_move_bps"] == 20.0
+    assert prediction["trainer_source"] == "LEGACY_HYBRID_TRAINER_REDIS_READONLY"
+    assert gated["risk_decision"]["expected_move_source"] == "native_trainer_expected_move_bps"
+    assert gated["risk_decision"]["expected_move_bps"] == 20.0
+    assert gated["risk_decision"]["expected_move_after_cost_bps"] == 14.0
+    assert gated["risk_decision"]["paper_edge_gate"]["fill_allowed"] is True
+    assert gated["risk_decision"]["paper_edge_gate"]["min_expected_move_after_cost_bps"] == 8.0
+    assert "missing_expected_move_after_costs" not in gated["risk_decision"].get(
+        "canary_profile_tightening_blockers",
+        [],
+    )
+    assert gated["risk_decision"]["canary_profile_tightening"]["expected_move_bps"] == 20.0
+    assert gated["risk_decision"]["canary_profile_tightening"]["safe_for_live"] is False
+
+
+def test_native_expected_move_below_paper_edge_threshold_still_blocks_fill(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bridge_status = tmp_path / "v2_trainer_bridge_status.json"
+    monkeypatch.setattr(paper_runtime, "TRAINER_BRIDGE_STATUS_FILE", bridge_status)
+    bridge_status.write_text(
+        json.dumps(
+            {
+                "prediction_symbol": "BTCUSDT",
+                "prediction_timeframe": "1m",
+                "prediction_id": "legacy_redis_pred_unit",
+                "prediction_source_type": "LEGACY_HYBRID_TRAINER_REDIS_READONLY",
+                "trainer_parity_status": "BLOCKS_LEGACY_SHUTDOWN",
+                "model_version": "legacy_hybrid_trainer_live_legacy",
+                "checkpoint_id": "legacy_live_checkpoint_unit",
+                "expected_move_bps": 10.0,
+                "expected_move_source": "native_legacy_trainer_price_target",
+                "expected_move_evidence_mode": "NATIVE_FIELD_PRESENT",
+                "live_gate": "blocked_human_only",
+                "live_symbols": [],
+            }
+        )
+    )
+    market = _market()
+    feature = build_feature_snapshot(market, "tick_unit")
+    prediction = build_trainer_prediction(feature, "tick_unit")
+    prediction["confidence_calibrated"] = 0.78
+    lineage = build_signal_lineage(
+        tick_id="tick_unit",
+        generated_at="2026-05-13T07:30:00Z",
+        feature_snapshot=feature,
+        prediction=prediction,
+        market=market,
+    )
+
+    gated = apply_paper_tightening_gate(
+        lineage,
+        generated_at="2026-05-13T07:30:00Z",
+        recent_events=[],
+        now_ms=1_778_648_401_000,
+    )
+    ledger, account = build_paper_ledger_entry(
+        tick_id="tick_unit",
+        generated_at="2026-05-13T07:30:00Z",
+        market=market,
+        lineage=gated,
+        previous_equity=10000.0,
+    )
+
+    assert gated["risk_decision"]["expected_move_after_cost_bps"] == 4.0
+    assert gated["risk_decision"]["canary_profile_tightening"]["blockers"] == []
+    assert gated["risk_decision"]["paper_edge_gate"]["fill_allowed"] is False
+    assert "EDGE_AFTER_COSTS_NEGATIVE_BLOCK" in gated["risk_decision"]["paper_edge_gate_blockers"]
+    assert gated["risk_decision"]["risk_action"] == "deny"
+    assert ledger["paper_result"] == "NO_FILL_RISK_BLOCKED"
+    assert account["realized_pnl"] == 0.0
+
+
 def test_append_paper_event_accepts_signal_confidence_calibrated(tmp_path: Path) -> None:
     payload = {
         "generated_at": "2026-05-13T07:30:00Z",
@@ -150,6 +279,21 @@ def test_append_paper_event_accepts_signal_confidence_calibrated(tmp_path: Path)
             "risk_result": "BLOCKED",
             "risk_reason_code": "deny_canary_profile_tightening",
             "canary_profile_tightening_blockers": ["missing_expected_move_after_costs"],
+            "expected_move_bps": None,
+            "expected_move_after_cost_bps": None,
+        },
+        "trainer_prediction": {
+            "trainer_source": "LEGACY_HYBRID_TRAINER_REDIS_READONLY",
+            "trainer_bridge_status": "BLOCKS_LEGACY_SHUTDOWN",
+            "model_version": "legacy_hybrid_trainer_live_legacy",
+            "model_checkpoint": "legacy_live_checkpoint_unit",
+            "confidence_raw": 0.8,
+            "confidence_calibrated": 0.77,
+        },
+        "feature_snapshot": {
+            "freshness_state": "CURRENT",
+            "stale_feature_flags": [],
+            "missing_feature_flags": [],
         },
         "paper_account": {"equity": 10000.0, "realized_pnl": 0.0},
         "paper_ledger_tail": [
@@ -174,5 +318,10 @@ def test_append_paper_event_accepts_signal_confidence_calibrated(tmp_path: Path)
 
     event = json.loads((tmp_path / "paper_events.jsonl").read_text())
     assert event["confidence"] == 0.77
+    assert event["trainer_source"] == "LEGACY_HYBRID_TRAINER_REDIS_READONLY"
+    assert event["feature_freshness_state"] == "CURRENT"
+    assert "expected_move_after_cost_bps" in event
+    assert event["live_gate"] == "blocked_human_only"
+    assert event["live_symbols"] == []
     assert event["canary_profile_tightening_blockers"] == ["missing_expected_move_after_costs"]
     assert event["exchange_order"] is False

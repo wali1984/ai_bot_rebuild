@@ -29,6 +29,7 @@ class PaperEdgeScoringConfig:
         default_factory=lambda: frozenset(
             {
                 "LEGACY_HYBRID_TRAINER_LOG_READONLY",
+                "LEGACY_HYBRID_TRAINER_REDIS_READONLY",
                 "LEGACY_HYBRID_TRAINER",
                 "V2_PAPER_TRAINER_WRAPPER",
                 "V2_TRAINER_BRIDGE",

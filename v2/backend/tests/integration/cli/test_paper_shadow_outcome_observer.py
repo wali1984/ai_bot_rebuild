@@ -175,6 +175,70 @@ def test_shadow_observer_keeps_insufficient_sample_without_future_prices(
     assert status["recommended_next_action"] == "CONTINUE_SHADOW_OUTCOME_OBSERVATION"
 
 
+def test_shadow_observer_captures_native_trainer_expected_move_from_paper_runtime(
+    tmp_path: Path,
+) -> None:
+    paper_status = _write_json(
+        tmp_path / "paper_status.json",
+        {
+            "current_risk_decision": {
+                "risk_action": "deny",
+                "risk_decision_id": "risk_4",
+                "prediction_id": "pred_4",
+                "feature_snapshot_id": "fs_4",
+                "generated_at": "2026-01-01T00:00:00Z",
+                "risk_reason_code": "deny_low_confidence",
+            },
+            "current_signal_lineage": {
+                "execution_intent": {
+                    "execution_intent_id": "intent_4",
+                    "symbol": "BTCUSDT",
+                    "side": "long",
+                },
+                "signal": {"symbol": "BTCUSDT", "side": "long"},
+                "trainer_prediction": {
+                    "prediction_id": "pred_4",
+                    "feature_snapshot_id": "fs_4",
+                    "expected_move_bridge_status": "NATIVE_EXPECTED_MOVE_PRESENT",
+                    "raw_output": {
+                        "side": "long",
+                        "expected_move_bps": 20.0,
+                    },
+                },
+            },
+            "market_feed": {"last_price": 100.0},
+            "last_paper_event": {
+                "tick_id": "evt_4",
+                "observed_price": 100.0,
+                "generated_at": "2026-01-01T00:00:00Z",
+                "paper_reason": "deny_low_confidence",
+                "slippage_bps": 2.0,
+            },
+        },
+    )
+    empty_status = _write_json(tmp_path / "empty_status.json", {})
+
+    status = worker.run_once(
+        worker.parse_args(
+            [
+                "--once",
+                "--worker-status-file",
+                str(empty_status),
+                "--paper-status-file",
+                str(paper_status),
+            ]
+        )
+    )
+
+    latest = status["latest_observation"]
+    assert latest["expected_move_bps"] == 20.0
+    assert latest["expected_move_after_cost_bps"] == 14.0
+    assert latest["cost_bps"] == 6.0
+    assert latest["paper_fill_recorded"] is False
+    assert status["exchange_action_taken"] is False
+    assert status["old_redis_write_performed"] is False
+
+
 def test_shadow_observer_rechecks_prior_pending_observations(
     tmp_path: Path,
     monkeypatch,

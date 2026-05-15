@@ -37,6 +37,7 @@ from v2.backend.app.services.trainer_bridge.service import (
     find_current_prediction,
     inspect_legacy_trainer_source,
     legacy_log_prediction_payload,
+    legacy_redis_prediction_payload,
     utc_now,
 )
 
@@ -246,11 +247,28 @@ def build_status() -> Dict[str, Any]:
     legacy = inspect_legacy_trainer_source(repo_root=REPO_ROOT)
     feature_path = _first_existing(FEATURE_SNAPSHOT_CANDIDATES) or FEATURE_SNAPSHOT_CANDIDATES[0]
     feature = evaluate_feature_snapshot(feature_path, repo_root=REPO_ROOT)
+    preliminary_symbol_scope = build_symbol_scope(observed_symbols=[])
+    feature_symbol = str(feature.get("feature_snapshot_symbol") or "").strip().upper()
+    feature_timeframe = str(feature.get("feature_snapshot_timeframe") or "").strip()
+    paper_symbols = _as_symbol_list(preliminary_symbol_scope.get("paper_symbols"))
+    redis_symbols = [feature_symbol] if feature_symbol and feature_symbol in paper_symbols else paper_symbols
+    legacy_redis_payload = legacy_redis_prediction_payload(
+        symbols=redis_symbols,
+        checkpoint_metadata_path=LEGACY_READONLY_CHECKPOINT_METADATA,
+        timeframes=None,
+    )
     legacy_log_payload = legacy_log_prediction_payload(
         log_path=LEGACY_READONLY_TRAINER_LOG,
         checkpoint_metadata_path=LEGACY_READONLY_CHECKPOINT_METADATA,
     )
     extra_prediction_payloads: List[Tuple[str, Dict[str, Any]]] = []
+    if legacy_redis_payload:
+        extra_prediction_payloads.append(
+            (
+                "legacy_readonly_redis:prediction:{symbol}:{timeframe}",
+                legacy_redis_payload,
+            )
+        )
     if legacy_log_payload:
         extra_prediction_payloads.append(
             (
@@ -334,6 +352,8 @@ def build_status() -> Dict[str, Any]:
         "freshness_seconds": prediction.get("prediction_age_seconds"),
         "predictions_emitted_total": 1 if accepted_prediction else 0,
         "prediction_id": prediction.get("prediction_id", ""),
+        "prediction_symbol": prediction.get("prediction_symbol", ""),
+        "prediction_timeframe": prediction.get("prediction_timeframe", ""),
         "feature_snapshot_id": resolved_feature_snapshot_id,
         "feature_snapshot_link_mode": feature_snapshot_link_mode,
         "feature_snapshot_id_classification": prediction.get("feature_snapshot_id_classification", ""),
@@ -347,6 +367,11 @@ def build_status() -> Dict[str, Any]:
         "confidence_raw": prediction.get("raw_confidence"),
         "confidence_calibrated": prediction.get("calibrated_confidence"),
         "confidence_calibration_mode": prediction.get("confidence_calibration_mode", ""),
+        "expected_move_bps": prediction.get("expected_move_bps"),
+        "native_expected_move_bps": prediction.get("native_expected_move_bps"),
+        "expected_move_after_cost_bps": prediction.get("expected_move_after_cost_bps"),
+        "expected_move_source": prediction.get("expected_move_source", ""),
+        "expected_move_evidence_mode": prediction.get("expected_move_evidence_mode", ""),
         "feature_attribution_status": prediction.get("feature_attribution_status", ""),
         "field_classification": prediction.get("field_classification", {}),
         "top_positive_features": prediction.get("top_positive_features", []),
@@ -375,6 +400,14 @@ def build_status() -> Dict[str, Any]:
             "status": "PRESENT" if legacy_log_payload else "MISSING_OR_UNPARSEABLE",
             "log_path": str(LEGACY_READONLY_TRAINER_LOG),
             "checkpoint_metadata_path": str(LEGACY_READONLY_CHECKPOINT_METADATA),
+        },
+        "legacy_readonly_redis_prediction_bridge": {
+            "status": "PRESENT" if legacy_redis_payload else "MISSING_OR_UNPARSEABLE",
+            "read_only": True,
+            "redis_write": False,
+            "symbols": redis_symbols,
+            "timeframes": list(("1m", "5m", "15m", "1h", "4h")),
+            "source": "prediction:{symbol}:{timeframe}",
         },
         "trainer_readiness": "READY" if accepted_prediction and not blockers else "BLOCKED",
         "feature_snapshot_trainer_readiness_signal": feature.get("trainer_readiness_signal", "UNKNOWN"),

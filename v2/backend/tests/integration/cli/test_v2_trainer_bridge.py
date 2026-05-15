@@ -34,9 +34,11 @@ from v2.backend.app.services.trainer_bridge.service import (
     LEGACY_EXPECTED_SHA256,
     LEGACY_HYBRID_TRAINER_PREDICTION_PRESENT,
     LEGACY_HYBRID_TRAINER_LOG_EVIDENCE_PRESENT,
+    NATIVE_LEGACY_TRAINER_PRICE_TARGET,
     NATIVE_FIELD_PRESENT,
     WRAPPER_NOT_LEGACY_HYBRID_PARITY,
     inspect_legacy_trainer_source,
+    legacy_redis_prediction_payload_from_hash,
     utc_now,
 )
 
@@ -62,6 +64,7 @@ def _route_worker_io(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[st
     monkeypatch.setattr(worker, "UPSTREAM_SYMBOL_SCOPE_CANDIDATES", [scope])
     monkeypatch.setattr(worker, "LEGACY_READONLY_TRAINER_LOG", legacy_log)
     monkeypatch.setattr(worker, "LEGACY_READONLY_CHECKPOINT_METADATA", checkpoint_metadata)
+    monkeypatch.setattr(worker, "legacy_redis_prediction_payload", lambda **_: None)
     monkeypatch.setattr(worker, "detect_trainer_process", lambda: {
         "trainer_process_state": "RUNNING_READONLY_OBSERVED",
         "trainer_process_count": 1,
@@ -318,6 +321,99 @@ def test_legacy_log_feature_snapshot_link_is_labeled_derived_when_v2_snapshot_ma
     assert status["field_classification"]["feature_snapshot_id"] == DERIVED_FROM_LEGACY_LOG
     assert "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED" in status["remaining_parity_gaps"]
     assert status["trainer_parity_status"] == BLOCKS_LEGACY_SHUTDOWN
+
+
+def test_legacy_redis_prediction_hash_maps_native_expected_move_without_clearing_lineage_blockers(
+    tmp_path: Path,
+) -> None:
+    checkpoint_metadata = tmp_path / "checkpoint_metadata_latest.json"
+    checkpoint_metadata.write_text(json.dumps({"timestamp": 1778800487}))
+
+    payload = legacy_redis_prediction_payload_from_hash(
+        key="prediction:BTCUSDT:1m",
+        data={
+            "action": "OPEN_LONG",
+            "direction": "LONG",
+            "confidence": "0.72",
+            "price_target": "101.0",
+            "entry_price": "100.0",
+            "timestamp": "1778831520",
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+        },
+        checkpoint_metadata_path=checkpoint_metadata,
+    )
+
+    assert payload is not None
+    assert payload["source_type"] == "LEGACY_HYBRID_TRAINER_REDIS_READONLY"
+    assert payload["expected_move_source"] == NATIVE_LEGACY_TRAINER_PRICE_TARGET
+    assert payload["expected_move_evidence_mode"] == NATIVE_FIELD_PRESENT
+    assert payload["expected_move_bps"] == pytest.approx(100.0)
+    assert payload["native_expected_move_bps"] == pytest.approx(100.0)
+    assert payload["field_classification"]["feature_snapshot_id"] == DERIVED_FROM_LEGACY_LOG
+    assert payload["field_classification"]["confidence_calibration"] == DERIVED_FROM_LEGACY_LOG
+    assert payload["field_classification"]["feature_attribution"] == INCOMPLETE_ATTRIBUTION
+    assert "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE" in payload["trainer_full_parity_blockers"]
+
+
+def test_legacy_redis_prediction_supplies_expected_move_but_keeps_trainer_parity_blocked(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths = _route_worker_io(tmp_path, monkeypatch)
+    _write_ready_feature(paths["feature"], symbol="BTCUSDT", timeframe="1m")
+    _write_scope(paths["scope"])
+    paths["prediction"].write_text(
+        json.dumps(
+            {
+                "source_type": "V2_PAPER_TRAINER_WRAPPER",
+                "prediction_id": "pred_wrapper_001",
+                "feature_snapshot_id": "feature_snapshot_test_001",
+                "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
+                "confidence_raw": 0.73,
+                "confidence_calibrated": 0.71,
+                "generated_at": utc_now(),
+                "symbol": "BTCUSDT",
+            }
+        )
+    )
+    checkpoint_metadata = tmp_path / "checkpoint_metadata_latest.json"
+    checkpoint_metadata.write_text(json.dumps({"timestamp": 1778800487}))
+    current_legacy_ts = str(int(datetime.now(tz=ZoneInfo("UTC")).timestamp()))
+    redis_payload = legacy_redis_prediction_payload_from_hash(
+        key="prediction:BTCUSDT:1m",
+        data={
+            "action": "OPEN_LONG",
+            "direction": "LONG",
+            "confidence": "0.72",
+            "price_target": "101.0",
+            "entry_price": "100.0",
+            "timestamp": current_legacy_ts,
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+        },
+        checkpoint_metadata_path=checkpoint_metadata,
+    )
+    assert redis_payload is not None
+    monkeypatch.setattr(worker, "legacy_redis_prediction_payload", lambda **_: redis_payload)
+
+    status = run_once(parse_args(["--once"]))
+
+    assert status["accepted_as_legacy_hybrid_prediction"] is True
+    assert status["prediction_source_type"] == "LEGACY_HYBRID_TRAINER_REDIS_READONLY"
+    assert status["expected_move_source"] == NATIVE_LEGACY_TRAINER_PRICE_TARGET
+    assert status["expected_move_evidence_mode"] == NATIVE_FIELD_PRESENT
+    assert status["expected_move_bps"] == pytest.approx(100.0)
+    assert status["native_expected_move_bps"] == pytest.approx(100.0)
+    assert status["trainer_readiness"] == "BLOCKED"
+    assert status["trainer_parity_status"] == BLOCKS_LEGACY_SHUTDOWN
+    assert "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED" in status["remaining_parity_gaps"]
+    assert "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED" in status["remaining_parity_gaps"]
+    assert "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE" in status["remaining_parity_gaps"]
+    assert status["live_gate"] == "blocked_human_only"
+    assert status["live_symbols"] == []
+    assert status["exchange_action_taken"] is False
+    assert status["old_redis_write_performed"] is False
 
 
 def test_accepted_legacy_hybrid_prediction_maps_required_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

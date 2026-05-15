@@ -10,6 +10,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -62,6 +63,8 @@ ACTION_NAME_BY_ID = {
     "6": "REDUCE_SHORT",
 }
 LEGACY_LOG_TAIL_BYTES = 2 * 1024 * 1024
+LEGACY_REDIS_READONLY_COMMANDS = {"TYPE", "HGETALL"}
+LEGACY_REDIS_PREDICTION_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
 NATIVE_FIELD_PRESENT = "NATIVE_FIELD_PRESENT"
 DERIVED_FROM_LEGACY_LOG = "DERIVED_FROM_LEGACY_LOG"
 MISSING_EVIDENCE = "MISSING_EVIDENCE"
@@ -69,6 +72,7 @@ INCOMPLETE_ATTRIBUTION = "INCOMPLETE_ATTRIBUTION"
 ACCEPTED_FOR_PAPER_ONLY = "ACCEPTED_FOR_PAPER_ONLY"
 BLOCKS_LEGACY_SHUTDOWN = "BLOCKS_LEGACY_SHUTDOWN"
 DERIVED_FEATURE_SNAPSHOT_LINK = "derived_feature_snapshot_link"
+NATIVE_LEGACY_TRAINER_PRICE_TARGET = "native_legacy_trainer_price_target"
 
 
 def utc_now() -> str:
@@ -151,6 +155,192 @@ def latest_checkpoint_id(metadata_path: Path) -> str:
     if ppo_path:
         return Path(ppo_path).stem
     return ""
+
+
+def _redis_base_command() -> List[str]:
+    redis_url = os.environ.get("LEGACY_REDIS_URL") or os.environ.get("REDIS_URL")
+    if redis_url:
+        return ["redis-cli", "-u", redis_url, "--raw"]
+    return ["redis-cli", "--raw"]
+
+
+def _run_legacy_redis_readonly(command: str, *args: str) -> subprocess.CompletedProcess[str]:
+    upper = command.upper()
+    if upper not in LEGACY_REDIS_READONLY_COMMANDS:
+        raise ValueError(f"legacy Redis command is not read-only for trainer bridge: {command}")
+    return subprocess.run(
+        [*_redis_base_command(), command, *args],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=5,
+    )
+
+
+def _decode_hgetall_raw(stdout: str) -> Dict[str, str]:
+    lines = [line for line in stdout.splitlines() if line != ""]
+    return {lines[index]: lines[index + 1] for index in range(0, len(lines) - 1, 2)}
+
+
+def _epoch_to_utc_iso(value: Any) -> str:
+    number = _to_float(value)
+    if number is None or number <= 0:
+        return ""
+    if number > 1e12:
+        number = number / 1000.0
+    return dt.datetime.fromtimestamp(number, tz=dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _expected_move_bps_from_target(data: Mapping[str, Any]) -> Optional[float]:
+    pct = _to_float(data.get("price_target_pct"))
+    if pct is not None and pct > 0:
+        return round(abs(pct) * 10000.0, 8)
+    target = _to_float(data.get("price_target"))
+    entry = _to_float(data.get("entry_price") or data.get("current_price") or data.get("price"))
+    if target is None or entry is None or target <= 0 or entry <= 0:
+        return None
+    return round(abs(target - entry) / entry * 10000.0, 8)
+
+
+def legacy_redis_prediction_payload_from_hash(
+    *,
+    key: str,
+    data: Mapping[str, Any],
+    checkpoint_metadata_path: Path,
+) -> Optional[Dict[str, Any]]:
+    """Map a read-only legacy prediction hash into bridge evidence.
+
+    The legacy trainer writes ``price_target`` / ``price_target_pct`` into
+    ``prediction:{symbol}:{tf}`` hashes. Those are native trainer outputs,
+    but they do not clear separate feature-snapshot, calibration, or
+    attribution blockers.
+    """
+    symbol = str(data.get("symbol") or "").strip().upper()
+    timeframe = str(data.get("timeframe") or "").strip()
+    if not symbol or not timeframe:
+        parts = key.split(":")
+        if len(parts) >= 3:
+            symbol = symbol or parts[1].strip().upper()
+            timeframe = timeframe or parts[2].strip()
+    generated_at = _epoch_to_utc_iso(data.get("timestamp") or data.get("ts_ms"))
+    if not symbol or not timeframe or not generated_at:
+        return None
+    confidence_raw = _to_float(
+        data.get("model_confidence")
+        or data.get("confidence")
+        or data.get("ppo_confidence")
+    )
+    if confidence_raw is None:
+        return None
+    expected_move_bps = _expected_move_bps_from_target(data)
+    digest = hashlib.sha256(
+        json.dumps(dict(data), sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()
+    checkpoint_id = latest_checkpoint_id(checkpoint_metadata_path)
+    raw_model_output = {
+        "key": key,
+        "action": str(data.get("action") or data.get("action_name") or "").upper(),
+        "direction": str(data.get("direction") or "").upper(),
+        "confidence": data.get("confidence"),
+        "model_confidence": data.get("model_confidence"),
+        "ppo_confidence": data.get("ppo_confidence"),
+        "masa_confidence": data.get("masa_confidence"),
+        "price_target": data.get("price_target"),
+        "price_target_pct": data.get("price_target_pct"),
+        "entry_price": data.get("entry_price"),
+        "predicted_return": data.get("predicted_return"),
+        "published": data.get("published"),
+        "threshold_passed": data.get("threshold_passed"),
+        "why": data.get("why"),
+        "evidence_hash_sha256": digest,
+    }
+    warnings = [
+        "feature_snapshot_id_bridge_derived_from_legacy_redis_prediction_hash",
+        "confidence_calibrated_bridge_derived_from_legacy_prediction_confidence",
+        "top_features_absent_from_legacy_prediction_hash",
+        "top_negative_features_absent_from_legacy_prediction_hash",
+    ]
+    if expected_move_bps is None:
+        warnings.append("expected_move_bps_absent_from_legacy_prediction_hash")
+    return {
+        "source_type": "LEGACY_HYBRID_TRAINER_REDIS_READONLY",
+        "generated_at": generated_at,
+        "prediction_id": f"legacy_redis_pred_{digest[:20]}",
+        "feature_snapshot_id": f"legacy_redis_feature_{symbol}_{timeframe}_{int(parse_ts(generated_at).timestamp())}",
+        "model_version": "legacy_hybrid_trainer_live_legacy",
+        "model_checkpoint": checkpoint_id,
+        "checkpoint_id": checkpoint_id,
+        "confidence_raw": confidence_raw,
+        "confidence_calibrated": confidence_raw,
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "top_features": [],
+        "feature_snapshot_link_mode": DERIVED_FROM_LEGACY_LOG,
+        "feature_snapshot_id_classification": DERIVED_FROM_LEGACY_LOG,
+        "confidence_calibration_mode": DERIVED_FROM_LEGACY_LOG,
+        "feature_attribution_status": INCOMPLETE_ATTRIBUTION,
+        "expected_move_bps": expected_move_bps,
+        "native_expected_move_bps": expected_move_bps,
+        "expected_move_source": NATIVE_LEGACY_TRAINER_PRICE_TARGET if expected_move_bps is not None else "missing",
+        "expected_move_evidence_mode": NATIVE_FIELD_PRESENT if expected_move_bps is not None else MISSING_EVIDENCE,
+        "field_classification": {
+            "feature_snapshot_id": DERIVED_FROM_LEGACY_LOG,
+            "confidence_calibration": DERIVED_FROM_LEGACY_LOG,
+            "feature_attribution": INCOMPLETE_ATTRIBUTION,
+        },
+        "raw_model_output": raw_model_output,
+        "lineage_derivation_warnings": warnings,
+        "trainer_full_parity_blockers": [
+            "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED",
+            "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
+            "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
+        ],
+    }
+
+
+def legacy_redis_prediction_payload(
+    *,
+    symbols: Iterable[str],
+    checkpoint_metadata_path: Path,
+    timeframes: Iterable[str] | None = None,
+) -> Optional[Dict[str, Any]]:
+    candidates: List[Dict[str, Any]] = []
+    for symbol in symbols:
+        symbol_text = str(symbol or "").strip().upper()
+        if not symbol_text:
+            continue
+        for timeframe in (timeframes or LEGACY_REDIS_PREDICTION_TIMEFRAMES):
+            timeframe_text = str(timeframe or "").strip()
+            if not timeframe_text:
+                continue
+            key = f"prediction:{symbol_text}:{timeframe_text}"
+            try:
+                type_result = _run_legacy_redis_readonly("TYPE", key)
+                if type_result.returncode != 0 or type_result.stdout.strip() != "hash":
+                    continue
+                hash_result = _run_legacy_redis_readonly("HGETALL", key)
+                if hash_result.returncode != 0 or not hash_result.stdout.strip():
+                    continue
+            except Exception:
+                continue
+            payload = legacy_redis_prediction_payload_from_hash(
+                key=key,
+                data=_decode_hgetall_raw(hash_result.stdout),
+                checkpoint_metadata_path=checkpoint_metadata_path,
+            )
+            if isinstance(payload, dict):
+                candidates.append(payload)
+    if not candidates:
+        return None
+    def _candidate_rank(item: Mapping[str, Any]) -> tuple[int, float, dt.datetime]:
+        generated = parse_ts(item.get("generated_at")) or dt.datetime.min.replace(tzinfo=dt.timezone.utc)
+        return (
+            1 if _to_float(item.get("expected_move_bps")) is not None else 0,
+            _to_float(item.get("confidence_raw")) or 0.0,
+            generated,
+        )
+
+    return max(candidates, key=_candidate_rank)
 
 
 def legacy_log_prediction_payload(
@@ -503,6 +693,17 @@ def evaluate_prediction_payload(payload: Mapping[str, Any], source_path: str) ->
         status = LEGACY_HYBRID_TRAINER_PREDICTION_PRESENT
     raw_conf = payload.get("confidence_raw", payload.get("confidence"))
     calibrated_conf = payload.get("confidence_calibrated", payload.get("calibrated_confidence"))
+    raw_model_output = payload.get("raw_model_output") if isinstance(payload.get("raw_model_output"), Mapping) else {}
+    expected_move_bps = _to_float(
+        payload.get("expected_move_bps")
+        or payload.get("native_expected_move_bps")
+        or raw_model_output.get("expected_move_bps")
+        or raw_model_output.get("native_expected_move_bps")
+    )
+    expected_move_after_cost_bps = _to_float(
+        payload.get("expected_move_after_cost_bps")
+        or raw_model_output.get("expected_move_after_cost_bps")
+    )
     top_features = payload.get("top_features") if isinstance(payload.get("top_features"), list) else []
     feature_attribution_is_native = field_classification["feature_attribution"] == NATIVE_FIELD_PRESENT
     top_positive = (
@@ -529,6 +730,8 @@ def evaluate_prediction_payload(payload: Mapping[str, Any], source_path: str) ->
         "prediction_source_path": source_path,
         "prediction_source_type": payload.get("source_type") or payload.get("trainer_state") or "",
         "prediction_id": payload.get("prediction_id") or "",
+        "prediction_symbol": str(payload.get("symbol") or "").strip().upper(),
+        "prediction_timeframe": str(payload.get("timeframe") or "").strip(),
         "feature_snapshot_id": payload.get("feature_snapshot_id") or "",
         "model_checkpoint_id": checkpoint,
         "model_version": payload.get("model_version") or "",
@@ -537,6 +740,11 @@ def evaluate_prediction_payload(payload: Mapping[str, Any], source_path: str) ->
         "prediction_age_seconds": prediction_age_seconds,
         "raw_confidence": raw_conf,
         "calibrated_confidence": calibrated_conf,
+        "expected_move_bps": expected_move_bps,
+        "native_expected_move_bps": expected_move_bps,
+        "expected_move_after_cost_bps": expected_move_after_cost_bps,
+        "expected_move_source": payload.get("expected_move_source") or "",
+        "expected_move_evidence_mode": payload.get("expected_move_evidence_mode") or "",
         "top_positive_features": top_positive,
         "top_negative_features": top_negative,
         "action_probability_evidence": list(payload.get("action_probability_evidence") or []),
@@ -588,6 +796,8 @@ def find_current_prediction(
         "prediction_source_path": "",
         "prediction_source_type": "",
         "prediction_id": "",
+        "prediction_symbol": "",
+        "prediction_timeframe": "",
         "feature_snapshot_id": "",
         "model_checkpoint_id": "",
         "latest_prediction_timestamp": "",
