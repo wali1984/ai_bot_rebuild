@@ -1,136 +1,1852 @@
 {
-  "binance_force_ws_owner": {
-    "baseline_path": "v2/legacy_preserved/startup_baseline/ingest/live_binance_liquidations.py",
-    "legacy_function": "consume_force_orders",
-    "legacy_stream_url": "wss://fstream.binance.com/stream?streams=!forceOrder@arr",
-    "missing_api_blocker_when_unbound": "binance_force_order_ws_owner_unbound",
-    "v2_bridge_mode": "in_memory_event_intake_only",
-    "v2_owner": "separate_v2_ws_worker"
+  "api_availability_blockers": {
+    "instruments_liquidationRank": "API_AVAILABILITY_BLOCKER_MANIFEST_PRESENT_NO_CURRENT_KEY"
   },
-  "current_gate_state": "blocked_human_only",
-  "cycle_id": 1,
+  "current_blockers": [
+    "COINANK_GLOBAL_11_KEY_CONTRACT_STALE",
+    "COINANK_CONTRACT_BLOCKED"
+  ],
+  "cycle_id_status": {
+    "age_seconds": null,
+    "key": "coinank:runtime:last_cycle_id",
+    "sample": 997,
+    "status": "OBSERVED_NO_TIMESTAMP",
+    "type": "string"
+  },
   "destructive_redis_mutation_by_codex": false,
-  "duration_ms": 0,
-  "endpoint_freshness_ms": {
-    "funding_rate_avg": 0,
-    "global_aggregator": 1778823726860,
-    "long_short_ratio": 0,
-    "total_oi": 0
+  "endpoint_availability": {
+    "fundingRate_getWeiFr": "CURRENT",
+    "indicator_smc": "CURRENT",
+    "instruments_liquidationRank": "API_AVAILABILITY_BLOCKER_MANIFEST_PRESENT_NO_CURRENT_KEY",
+    "ls_buy_sell": "CURRENT",
+    "ls_toptrader_positions": "CURRENT",
+    "marketOrder_getAggCvd": "CURRENT",
+    "marketOrder_getCvd": "CURRENT"
+  },
+  "endpoint_manifest_version": "3.0.0",
+  "endpoint_scans": {
+    "agg_cvd": {
+      "current_count": 6,
+      "freshest": [
+        {
+          "age_seconds": 2,
+          "key": "features:coinank_endpoint:marketOrder_getAggCvd:1000FLOKIUSDT:Binance:1h:latest",
+          "sample": {
+            "_truncated": 11,
+            "baseCoin": "1000FLOKIUSDT",
+            "coinank_marketOrder_getAggCvd_data_col0_mean": 1778812200000.0,
+            "endpoint": "marketOrder_getAggCvd",
+            "exchange": "Binance",
+            "family": "market_order_flow",
+            "interval": "1h",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "code": "1",
+                "data": "[truncated]",
+                "success": true
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832888894,
+            "timestamp": 1778832888894,
+            "ts_epoch_ms": 1778832888894,
+            "ts_ms": 1778832888894
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 3,
+          "key": "features:coinank_endpoint:marketOrder_getAggCvd:1000FLOKIUSDT:Binance:15m:latest",
+          "sample": {
+            "_truncated": 11,
+            "baseCoin": "1000FLOKIUSDT",
+            "coinank_marketOrder_getAggCvd_data_col0_mean": 1778824350000.0,
+            "endpoint": "marketOrder_getAggCvd",
+            "exchange": "Binance",
+            "family": "market_order_flow",
+            "interval": "15m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "code": "1",
+                "data": "[truncated]",
+                "success": true
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832887683,
+            "timestamp": 1778832887683,
+            "ts_epoch_ms": 1778832887683,
+            "ts_ms": 1778832887683
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 3,
+          "key": "features:coinank_endpoint:marketOrder_getAggCvd:1000FLOKIUSDT:Binance:30m:latest",
+          "sample": {
+            "_truncated": 11,
+            "baseCoin": "1000FLOKIUSDT",
+            "coinank_marketOrder_getAggCvd_data_col0_mean": 1778820300000.0,
+            "endpoint": "marketOrder_getAggCvd",
+            "exchange": "Binance",
+            "family": "market_order_flow",
+            "interval": "30m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "code": "1",
+                "data": "[truncated]",
+                "success": true
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832888277,
+            "timestamp": 1778832888277,
+            "ts_epoch_ms": 1778832888277,
+            "ts_ms": 1778832888277
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 4,
+          "key": "features:coinank_endpoint:marketOrder_getAggCvd:1000FLOKIUSDT:Binance:5m:latest",
+          "sample": {
+            "_truncated": 11,
+            "baseCoin": "1000FLOKIUSDT",
+            "coinank_marketOrder_getAggCvd_data_col0_mean": 1778827650000.0,
+            "endpoint": "marketOrder_getAggCvd",
+            "exchange": "Binance",
+            "family": "market_order_flow",
+            "interval": "5m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "code": "1",
+                "data": "[truncated]",
+                "success": true
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832887093,
+            "timestamp": 1778832887093,
+            "ts_epoch_ms": 1778832887093,
+            "ts_ms": 1778832887093
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 112,
+          "key": "features:coinank_endpoint:marketOrder_getAggCvd:1000FLOKIUSDT:Binance:1d:latest",
+          "sample": {
+            "_truncated": 11,
+            "baseCoin": "1000FLOKIUSDT",
+            "coinank_marketOrder_getAggCvd_data_col0_mean": 1778414400000.0,
+            "endpoint": "marketOrder_getAggCvd",
+            "exchange": "Binance",
+            "family": "market_order_flow",
+            "interval": "1d",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "code": "1",
+                "data": "[truncated]",
+                "success": true
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832778909,
+            "timestamp": 1778832778909,
+            "ts_epoch_ms": 1778832778909,
+            "ts_ms": 1778832778909
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 113,
+          "key": "features:coinank_endpoint:marketOrder_getAggCvd:1000FLOKIUSDT:Binance:4h:latest",
+          "sample": {
+            "_truncated": 11,
+            "baseCoin": "1000FLOKIUSDT",
+            "coinank_marketOrder_getAggCvd_data_col0_mean": 1778752800000.0,
+            "endpoint": "marketOrder_getAggCvd",
+            "exchange": "Binance",
+            "family": "market_order_flow",
+            "interval": "4h",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "code": "1",
+                "data": "[truncated]",
+                "success": true
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832778256,
+            "timestamp": 1778832778256,
+            "ts_epoch_ms": 1778832778256,
+            "ts_ms": 1778832778256
+          },
+          "status": "CURRENT",
+          "type": "string"
+        }
+      ],
+      "key_count": 6,
+      "pattern": "features:coinank_endpoint:marketOrder_getAggCvd:*:latest",
+      "sample_keys": [
+        "features:coinank_endpoint:marketOrder_getAggCvd:1000FLOKIUSDT:Binance:15m:latest",
+        "features:coinank_endpoint:marketOrder_getAggCvd:1000FLOKIUSDT:Binance:1d:latest",
+        "features:coinank_endpoint:marketOrder_getAggCvd:1000FLOKIUSDT:Binance:1h:latest",
+        "features:coinank_endpoint:marketOrder_getAggCvd:1000FLOKIUSDT:Binance:30m:latest",
+        "features:coinank_endpoint:marketOrder_getAggCvd:1000FLOKIUSDT:Binance:4h:latest",
+        "features:coinank_endpoint:marketOrder_getAggCvd:1000FLOKIUSDT:Binance:5m:latest"
+      ]
+    },
+    "indicator_smc": {
+      "current_count": 4,
+      "freshest": [
+        {
+          "age_seconds": 63,
+          "key": "features:coinank_endpoint:indicator_smc:DOGEUSDT:Binance:1d:latest",
+          "sample": {
+            "_truncated": 26,
+            "baseCoin": "DOGEUSDT",
+            "coinank_indicator_smc_klineTs": 1778716800000.0,
+            "endpoint": "indicator_smc",
+            "exchange": "Binance",
+            "family": "indicators",
+            "interval": "1d",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "_truncated": 10,
+                "baseCoin": "DOGE",
+                "bos": "[truncated]",
+                "choch": "[truncated]",
+                "contractCode": "DOGEUSDT",
+                "contractType": "SWAP",
+                "exchangeName": "Binance",
+                "fvgData": "[truncated]",
+                "interval": "1d",
+                "klineTs": 1778716800000,
+                "quoteCoin": "USDT",
+                "swingHighs": "[truncated]",
+                "swingLows": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832828040,
+            "timestamp": 1778832828040,
+            "ts_epoch_ms": 1778832828040,
+            "ts_ms": 1778832828040
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 63,
+          "key": "features:coinank_endpoint:indicator_smc:DOGEUSDT:Binance:4h:latest",
+          "sample": {
+            "_truncated": 50,
+            "baseCoin": "DOGEUSDT",
+            "coinank_indicator_smc_klineTs": 1778774400000.0,
+            "endpoint": "indicator_smc",
+            "exchange": "Binance",
+            "family": "indicators",
+            "interval": "4h",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "_truncated": 10,
+                "baseCoin": "DOGE",
+                "bos": "[truncated]",
+                "choch": "[truncated]",
+                "contractCode": "DOGEUSDT",
+                "contractType": "SWAP",
+                "exchangeName": "Binance",
+                "fvgData": "[truncated]",
+                "interval": "4h",
+                "klineTs": 1778774400000,
+                "quoteCoin": "USDT",
+                "swingHighs": "[truncated]",
+                "swingLows": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832827433,
+            "timestamp": 1778832827433,
+            "ts_epoch_ms": 1778832827433,
+            "ts_ms": 1778832827433
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 64,
+          "key": "features:coinank_endpoint:indicator_smc:DOGEUSDT:Binance:1h:latest",
+          "sample": {
+            "_truncated": 58,
+            "baseCoin": "DOGEUSDT",
+            "coinank_indicator_smc_klineTs": 1778828400000.0,
+            "endpoint": "indicator_smc",
+            "exchange": "Binance",
+            "family": "indicators",
+            "interval": "1h",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "_truncated": 10,
+                "baseCoin": "DOGE",
+                "bos": "[truncated]",
+                "choch": "[truncated]",
+                "contractCode": "DOGEUSDT",
+                "contractType": "SWAP",
+                "exchangeName": "Binance",
+                "fvgData": "[truncated]",
+                "interval": "1h",
+                "klineTs": 1778828400000,
+                "quoteCoin": "USDT",
+                "swingHighs": "[truncated]",
+                "swingLows": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832826806,
+            "timestamp": 1778832826806,
+            "ts_epoch_ms": 1778832826806,
+            "ts_ms": 1778832826806
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 65,
+          "key": "features:coinank_endpoint:indicator_smc:DOGEUSDT:Binance:30m:latest",
+          "sample": {
+            "_truncated": 58,
+            "baseCoin": "DOGEUSDT",
+            "coinank_indicator_smc_klineTs": 1778830200000.0,
+            "endpoint": "indicator_smc",
+            "exchange": "Binance",
+            "family": "indicators",
+            "interval": "30m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "_truncated": 10,
+                "baseCoin": "DOGE",
+                "bos": "[truncated]",
+                "choch": "[truncated]",
+                "contractCode": "DOGEUSDT",
+                "contractType": "SWAP",
+                "exchangeName": "Binance",
+                "fvgData": "[truncated]",
+                "interval": "30m",
+                "klineTs": 1778830200000,
+                "quoteCoin": "USDT",
+                "swingHighs": "[truncated]",
+                "swingLows": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832826180,
+            "timestamp": 1778832826180,
+            "ts_epoch_ms": 1778832826180,
+            "ts_ms": 1778832826180
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 174,
+          "key": "features:coinank_endpoint:indicator_smc:DOGEUSDT:Binance:15m:latest",
+          "sample": {
+            "_truncated": 58,
+            "baseCoin": "DOGEUSDT",
+            "coinank_indicator_smc_klineTs": 1778831100000.0,
+            "endpoint": "indicator_smc",
+            "exchange": "Binance",
+            "family": "indicators",
+            "interval": "15m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "_truncated": 10,
+                "baseCoin": "DOGE",
+                "bos": "[truncated]",
+                "choch": "[truncated]",
+                "contractCode": "DOGEUSDT",
+                "contractType": "SWAP",
+                "exchangeName": "Binance",
+                "fvgData": "[truncated]",
+                "interval": "15m",
+                "klineTs": 1778831100000,
+                "quoteCoin": "USDT",
+                "swingHighs": "[truncated]",
+                "swingLows": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832717251,
+            "timestamp": 1778832717251,
+            "ts_epoch_ms": 1778832717251,
+            "ts_ms": 1778832717251
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 174,
+          "key": "features:coinank_endpoint:indicator_smc:DOGEUSDT:Binance:5m:latest",
+          "sample": {
+            "baseCoin": "DOGEUSDT",
+            "endpoint": "indicator_smc",
+            "exchange": "Binance",
+            "family": "indicators",
+            "interval": "5m",
+            "raw_data": {
+              "code": "1",
+              "data": {},
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832716668,
+            "timestamp": 1778832716668,
+            "ts_epoch_ms": 1778832716668,
+            "ts_ms": 1778832716668
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 175,
+          "key": "features:coinank_endpoint:indicator_smc:1000SHIBUSDT:Binance:1d:latest",
+          "sample": {
+            "_truncated": 31,
+            "baseCoin": "1000SHIBUSDT",
+            "coinank_indicator_smc_klineTs": 1778544000000.0,
+            "endpoint": "indicator_smc",
+            "exchange": "Binance",
+            "family": "indicators",
+            "interval": "1d",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "_truncated": 10,
+                "baseCoin": "1000SHIB",
+                "bos": "[truncated]",
+                "choch": "[truncated]",
+                "contractCode": "1000SHIBUSDT",
+                "contractType": "SWAP",
+                "exchangeName": "Binance",
+                "fvgData": "[truncated]",
+                "interval": "1d",
+                "klineTs": 1778544000000,
+                "quoteCoin": "USDT",
+                "swingHighs": "[truncated]",
+                "swingLows": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832716069,
+            "timestamp": 1778832716069,
+            "ts_epoch_ms": 1778832716069,
+            "ts_ms": 1778832716069
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 175,
+          "key": "features:coinank_endpoint:indicator_smc:1000SHIBUSDT:Binance:4h:latest",
+          "sample": {
+            "_truncated": 58,
+            "baseCoin": "1000SHIBUSDT",
+            "coinank_indicator_smc_klineTs": 1778760000000.0,
+            "endpoint": "indicator_smc",
+            "exchange": "Binance",
+            "family": "indicators",
+            "interval": "4h",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "_truncated": 10,
+                "baseCoin": "1000SHIB",
+                "bos": "[truncated]",
+                "choch": "[truncated]",
+                "contractCode": "1000SHIBUSDT",
+                "contractType": "SWAP",
+                "exchangeName": "Binance",
+                "fvgData": "[truncated]",
+                "interval": "4h",
+                "klineTs": 1778760000000,
+                "quoteCoin": "USDT",
+                "swingHighs": "[truncated]",
+                "swingLows": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832715472,
+            "timestamp": 1778832715472,
+            "ts_epoch_ms": 1778832715472,
+            "ts_ms": 1778832715472
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 289,
+          "key": "features:coinank_endpoint:indicator_smc:1000SHIBUSDT:Binance:1h:latest",
+          "sample": {
+            "_truncated": 58,
+            "baseCoin": "1000SHIBUSDT",
+            "coinank_indicator_smc_klineTs": 1778828400000.0,
+            "endpoint": "indicator_smc",
+            "exchange": "Binance",
+            "family": "indicators",
+            "interval": "1h",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "_truncated": 10,
+                "baseCoin": "1000SHIB",
+                "bos": "[truncated]",
+                "choch": "[truncated]",
+                "contractCode": "1000SHIBUSDT",
+                "contractType": "SWAP",
+                "exchangeName": "Binance",
+                "fvgData": "[truncated]",
+                "interval": "1h",
+                "klineTs": 1778828400000,
+                "quoteCoin": "USDT",
+                "swingHighs": "[truncated]",
+                "swingLows": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832602126,
+            "timestamp": 1778832602126,
+            "ts_epoch_ms": 1778832602126,
+            "ts_ms": 1778832602126
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 289,
+          "key": "features:coinank_endpoint:indicator_smc:1000SHIBUSDT:Binance:30m:latest",
+          "sample": {
+            "_truncated": 58,
+            "baseCoin": "1000SHIBUSDT",
+            "coinank_indicator_smc_klineTs": 1778830200000.0,
+            "endpoint": "indicator_smc",
+            "exchange": "Binance",
+            "family": "indicators",
+            "interval": "30m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "_truncated": 10,
+                "baseCoin": "1000SHIB",
+                "bos": "[truncated]",
+                "choch": "[truncated]",
+                "contractCode": "1000SHIBUSDT",
+                "contractType": "SWAP",
+                "exchangeName": "Binance",
+                "fvgData": "[truncated]",
+                "interval": "30m",
+                "klineTs": 1778830200000,
+                "quoteCoin": "USDT",
+                "swingHighs": "[truncated]",
+                "swingLows": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832601480,
+            "timestamp": 1778832601480,
+            "ts_epoch_ms": 1778832601480,
+            "ts_ms": 1778832601480
+          },
+          "status": "CURRENT",
+          "type": "string"
+        }
+      ],
+      "key_count": 60,
+      "pattern": "features:coinank_endpoint:indicator_smc:*:latest",
+      "sample_keys": [
+        "features:coinank_endpoint:indicator_smc:1000SHIBUSDT:Binance:15m:latest",
+        "features:coinank_endpoint:indicator_smc:1000SHIBUSDT:Binance:1d:latest",
+        "features:coinank_endpoint:indicator_smc:1000SHIBUSDT:Binance:1h:latest",
+        "features:coinank_endpoint:indicator_smc:1000SHIBUSDT:Binance:30m:latest",
+        "features:coinank_endpoint:indicator_smc:1000SHIBUSDT:Binance:4h:latest",
+        "features:coinank_endpoint:indicator_smc:1000SHIBUSDT:Binance:5m:latest",
+        "features:coinank_endpoint:indicator_smc:ASTERUSDT:Binance:1d:latest",
+        "features:coinank_endpoint:indicator_smc:ASTERUSDT:Binance:1h:latest",
+        "features:coinank_endpoint:indicator_smc:ASTERUSDT:Binance:30m:latest",
+        "features:coinank_endpoint:indicator_smc:ASTERUSDT:Binance:4h:latest",
+        "features:coinank_endpoint:indicator_smc:AVNTUSDT:Binance:15m:latest",
+        "features:coinank_endpoint:indicator_smc:AVNTUSDT:Binance:1d:latest",
+        "features:coinank_endpoint:indicator_smc:AVNTUSDT:Binance:1h:latest",
+        "features:coinank_endpoint:indicator_smc:AVNTUSDT:Binance:30m:latest",
+        "features:coinank_endpoint:indicator_smc:AVNTUSDT:Binance:4h:latest",
+        "features:coinank_endpoint:indicator_smc:BTCUSDT:Binance:15m:latest",
+        "features:coinank_endpoint:indicator_smc:BTCUSDT:Binance:1d:latest",
+        "features:coinank_endpoint:indicator_smc:BTCUSDT:Binance:1h:latest",
+        "features:coinank_endpoint:indicator_smc:BTCUSDT:Binance:30m:latest",
+        "features:coinank_endpoint:indicator_smc:BTCUSDT:Binance:4h:latest"
+      ]
+    },
+    "lastprice": {
+      "current_count": 0,
+      "freshest": [],
+      "key_count": 0,
+      "pattern": "features:coinank_endpoint:instruments_getLastPrice:*:latest",
+      "sample_keys": []
+    },
+    "liquidation_rank": {
+      "current_count": 0,
+      "freshest": [],
+      "key_count": 0,
+      "pattern": "features:coinank_endpoint:instruments_liquidationRank:*:latest",
+      "sample_keys": []
+    },
+    "long_short_buy_sell": {
+      "current_count": 4,
+      "freshest": [
+        {
+          "age_seconds": 78,
+          "key": "features:coinank_endpoint:ls_buy_sell:1000FLOKIUSDT:Binance:4h:latest",
+          "sample": {
+            "_truncated": 5,
+            "baseCoin": "1000FLOKIUSDT",
+            "coinank_ls_buy_sell_longRatios_mean": 486332.09280482255,
+            "endpoint": "ls_buy_sell",
+            "exchange": "Binance",
+            "family": "long_short",
+            "interval": "4h",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "baseCoin": "1000FLOKI",
+                "interval": "4h",
+                "longRatios": "[truncated]",
+                "shortRatios": "[truncated]",
+                "tss": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832813262,
+            "timestamp": 1778832813262,
+            "ts_epoch_ms": 1778832813262,
+            "ts_ms": 1778832813262
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 79,
+          "key": "features:coinank_endpoint:ls_buy_sell:1000FLOKIUSDT:Binance:1h:latest",
+          "sample": {
+            "_truncated": 5,
+            "baseCoin": "1000FLOKIUSDT",
+            "coinank_ls_buy_sell_longRatios_mean": 100758.40639527889,
+            "endpoint": "ls_buy_sell",
+            "exchange": "Binance",
+            "family": "long_short",
+            "interval": "1h",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "baseCoin": "1000FLOKI",
+                "interval": "1h",
+                "longRatios": "[truncated]",
+                "shortRatios": "[truncated]",
+                "tss": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832812623,
+            "timestamp": 1778832812623,
+            "ts_epoch_ms": 1778832812623,
+            "ts_ms": 1778832812623
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 79,
+          "key": "features:coinank_endpoint:ls_buy_sell:1000FLOKIUSDT:Binance:30m:latest",
+          "sample": {
+            "_truncated": 5,
+            "baseCoin": "1000FLOKIUSDT",
+            "coinank_ls_buy_sell_longRatios_mean": 57550.633656118625,
+            "endpoint": "ls_buy_sell",
+            "exchange": "Binance",
+            "family": "long_short",
+            "interval": "30m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "baseCoin": "1000FLOKI",
+                "interval": "30m",
+                "longRatios": "[truncated]",
+                "shortRatios": "[truncated]",
+                "tss": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832811965,
+            "timestamp": 1778832811965,
+            "ts_epoch_ms": 1778832811965,
+            "ts_ms": 1778832811965
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 80,
+          "key": "features:coinank_endpoint:ls_buy_sell:1000FLOKIUSDT:Binance:15m:latest",
+          "sample": {
+            "_truncated": 5,
+            "baseCoin": "1000FLOKIUSDT",
+            "coinank_ls_buy_sell_longRatios_mean": 37415.51681478772,
+            "endpoint": "ls_buy_sell",
+            "exchange": "Binance",
+            "family": "long_short",
+            "interval": "15m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "baseCoin": "1000FLOKI",
+                "interval": "15m",
+                "longRatios": "[truncated]",
+                "shortRatios": "[truncated]",
+                "tss": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832811329,
+            "timestamp": 1778832811329,
+            "ts_epoch_ms": 1778832811329,
+            "ts_ms": 1778832811329
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 191,
+          "key": "features:coinank_endpoint:ls_buy_sell:1000FLOKIUSDT:Binance:5m:latest",
+          "sample": {
+            "_truncated": 5,
+            "baseCoin": "1000FLOKIUSDT",
+            "coinank_ls_buy_sell_longRatios_mean": 19179.210971531968,
+            "endpoint": "ls_buy_sell",
+            "exchange": "Binance",
+            "family": "long_short",
+            "interval": "5m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "baseCoin": "1000FLOKI",
+                "interval": "5m",
+                "longRatios": "[truncated]",
+                "shortRatios": "[truncated]",
+                "tss": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832700269,
+            "timestamp": 1778832700269,
+            "ts_epoch_ms": 1778832700269,
+            "ts_ms": 1778832700269
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 192,
+          "key": "features:coinank_endpoint:ls_buy_sell:1000FLOKIUSDT:Binance:1d:latest",
+          "sample": {
+            "_truncated": 5,
+            "baseCoin": "1000FLOKIUSDT",
+            "coinank_ls_buy_sell_longRatios_mean": 5944708.000532122,
+            "endpoint": "ls_buy_sell",
+            "exchange": "Binance",
+            "family": "long_short",
+            "interval": "1d",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "baseCoin": "1000FLOKI",
+                "interval": "1d",
+                "longRatios": "[truncated]",
+                "shortRatios": "[truncated]",
+                "tss": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832699599,
+            "timestamp": 1778832699599,
+            "ts_epoch_ms": 1778832699599,
+            "ts_ms": 1778832699599
+          },
+          "status": "CURRENT",
+          "type": "string"
+        }
+      ],
+      "key_count": 6,
+      "pattern": "features:coinank_endpoint:ls_buy_sell:*:latest",
+      "sample_keys": [
+        "features:coinank_endpoint:ls_buy_sell:1000FLOKIUSDT:Binance:15m:latest",
+        "features:coinank_endpoint:ls_buy_sell:1000FLOKIUSDT:Binance:1d:latest",
+        "features:coinank_endpoint:ls_buy_sell:1000FLOKIUSDT:Binance:1h:latest",
+        "features:coinank_endpoint:ls_buy_sell:1000FLOKIUSDT:Binance:30m:latest",
+        "features:coinank_endpoint:ls_buy_sell:1000FLOKIUSDT:Binance:4h:latest",
+        "features:coinank_endpoint:ls_buy_sell:1000FLOKIUSDT:Binance:5m:latest"
+      ]
+    },
+    "market_cvd": {
+      "current_count": 5,
+      "freshest": [
+        {
+          "age_seconds": 5,
+          "key": "features:coinank_endpoint:marketOrder_getCvd:ALICEUSDT:Binance:15m:latest",
+          "sample": {
+            "_truncated": 11,
+            "baseCoin": "ALICEUSDT",
+            "coinank_marketOrder_getCvd_data_col0_mean": 1778783850000.0,
+            "endpoint": "marketOrder_getCvd",
+            "exchange": "Binance",
+            "family": "market_order_flow",
+            "interval": "15m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "code": "1",
+                "data": "[truncated]",
+                "success": true
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832886472,
+            "timestamp": 1778832886472,
+            "ts_epoch_ms": 1778832886472,
+            "ts_ms": 1778832886472
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 5,
+          "key": "features:coinank_endpoint:marketOrder_getCvd:AUCTIONUSDT:Binance:15m:latest",
+          "sample": {
+            "_truncated": 11,
+            "baseCoin": "AUCTIONUSDT",
+            "coinank_marketOrder_getCvd_data_col0_mean": 1778783850000.0,
+            "endpoint": "marketOrder_getCvd",
+            "exchange": "Binance",
+            "family": "market_order_flow",
+            "interval": "15m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "code": "1",
+                "data": "[truncated]",
+                "success": true
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832885837,
+            "timestamp": 1778832885837,
+            "ts_epoch_ms": 1778832885837,
+            "ts_ms": 1778832885837
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 6,
+          "key": "features:coinank_endpoint:marketOrder_getCvd:BANKUSDT:Binance:15m:latest",
+          "sample": {
+            "_truncated": 11,
+            "baseCoin": "BANKUSDT",
+            "coinank_marketOrder_getCvd_data_col0_mean": 1778783850000.0,
+            "endpoint": "marketOrder_getCvd",
+            "exchange": "Binance",
+            "family": "market_order_flow",
+            "interval": "15m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "code": "1",
+                "data": "[truncated]",
+                "success": true
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832885110,
+            "timestamp": 1778832885110,
+            "ts_epoch_ms": 1778832885110,
+            "ts_ms": 1778832885110
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 7,
+          "key": "features:coinank_endpoint:marketOrder_getCvd:BARDUSDT:Binance:15m:latest",
+          "sample": {
+            "_truncated": 11,
+            "baseCoin": "BARDUSDT",
+            "coinank_marketOrder_getCvd_data_col0_mean": 1778783850000.0,
+            "endpoint": "marketOrder_getCvd",
+            "exchange": "Binance",
+            "family": "market_order_flow",
+            "interval": "15m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "code": "1",
+                "data": "[truncated]",
+                "success": true
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832884465,
+            "timestamp": 1778832884465,
+            "ts_epoch_ms": 1778832884465,
+            "ts_ms": 1778832884465
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 116,
+          "key": "features:coinank_endpoint:marketOrder_getCvd:HIGHUSDT:Binance:15m:latest",
+          "sample": {
+            "_truncated": 11,
+            "baseCoin": "HIGHUSDT",
+            "coinank_marketOrder_getCvd_data_col0_mean": 1778783850000.0,
+            "endpoint": "marketOrder_getCvd",
+            "exchange": "Binance",
+            "family": "market_order_flow",
+            "interval": "15m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "code": "1",
+                "data": "[truncated]",
+                "success": true
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832775616,
+            "timestamp": 1778832775616,
+            "ts_epoch_ms": 1778832775616,
+            "ts_ms": 1778832775616
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 228,
+          "key": "features:coinank_endpoint:marketOrder_getCvd:1000FLOKIUSDT:Binance:15m:latest",
+          "sample": {
+            "_truncated": 11,
+            "baseCoin": "1000FLOKIUSDT",
+            "coinank_marketOrder_getCvd_data_col0_mean": 1778783850000.0,
+            "endpoint": "marketOrder_getCvd",
+            "exchange": "Binance",
+            "family": "market_order_flow",
+            "interval": "15m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "code": "1",
+                "data": "[truncated]",
+                "success": true
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832663370,
+            "timestamp": 1778832663370,
+            "ts_epoch_ms": 1778832663370,
+            "ts_ms": 1778832663370
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 229,
+          "key": "features:coinank_endpoint:marketOrder_getCvd:1000BONKUSDT:Binance:15m:latest",
+          "sample": {
+            "_truncated": 11,
+            "baseCoin": "1000BONKUSDT",
+            "coinank_marketOrder_getCvd_data_col0_mean": 1778783850000.0,
+            "endpoint": "marketOrder_getCvd",
+            "exchange": "Binance",
+            "family": "market_order_flow",
+            "interval": "15m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "code": "1",
+                "data": "[truncated]",
+                "success": true
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832661814,
+            "timestamp": 1778832661814,
+            "ts_epoch_ms": 1778832661814,
+            "ts_ms": 1778832661814
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 229,
+          "key": "features:coinank_endpoint:marketOrder_getCvd:FARTCOINUSDT:Binance:15m:latest",
+          "sample": {
+            "_truncated": 11,
+            "baseCoin": "FARTCOINUSDT",
+            "coinank_marketOrder_getCvd_data_col0_mean": 1778783850000.0,
+            "endpoint": "marketOrder_getCvd",
+            "exchange": "Binance",
+            "family": "market_order_flow",
+            "interval": "15m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "code": "1",
+                "data": "[truncated]",
+                "success": true
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832662632,
+            "timestamp": 1778832662632,
+            "ts_epoch_ms": 1778832662632,
+            "ts_ms": 1778832662632
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 230,
+          "key": "features:coinank_endpoint:marketOrder_getCvd:1000PEPEUSDT:Binance:15m:latest",
+          "sample": {
+            "_truncated": 11,
+            "baseCoin": "1000PEPEUSDT",
+            "coinank_marketOrder_getCvd_data_col0_mean": 1778783850000.0,
+            "endpoint": "marketOrder_getCvd",
+            "exchange": "Binance",
+            "family": "market_order_flow",
+            "interval": "15m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "code": "1",
+                "data": "[truncated]",
+                "success": true
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832661154,
+            "timestamp": 1778832661154,
+            "ts_epoch_ms": 1778832661154,
+            "ts_ms": 1778832661154
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 343,
+          "key": "features:coinank_endpoint:marketOrder_getCvd:AVNTUSDT:Binance:15m:latest",
+          "sample": {
+            "_truncated": 11,
+            "baseCoin": "AVNTUSDT",
+            "coinank_marketOrder_getCvd_data_col0_mean": 1778783850000.0,
+            "endpoint": "marketOrder_getCvd",
+            "exchange": "Binance",
+            "family": "market_order_flow",
+            "interval": "15m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "code": "1",
+                "data": "[truncated]",
+                "success": true
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832547894,
+            "timestamp": 1778832547894,
+            "ts_epoch_ms": 1778832547894,
+            "ts_ms": 1778832547894
+          },
+          "status": "STALE",
+          "type": "string"
+        }
+      ],
+      "key_count": 99,
+      "pattern": "features:coinank_endpoint:marketOrder_getCvd:*:latest",
+      "sample_keys": [
+        "features:coinank_endpoint:marketOrder_getCvd:1000BONKUSDT:Binance:15m:latest",
+        "features:coinank_endpoint:marketOrder_getCvd:1000BONKUSDT:Binance:1d:latest",
+        "features:coinank_endpoint:marketOrder_getCvd:1000BONKUSDT:Binance:1h:latest",
+        "features:coinank_endpoint:marketOrder_getCvd:1000BONKUSDT:Binance:4h:latest",
+        "features:coinank_endpoint:marketOrder_getCvd:1000FLOKIUSDT:Binance:15m:latest",
+        "features:coinank_endpoint:marketOrder_getCvd:1000FLOKIUSDT:Binance:1d:latest",
+        "features:coinank_endpoint:marketOrder_getCvd:1000FLOKIUSDT:Binance:1h:latest",
+        "features:coinank_endpoint:marketOrder_getCvd:1000FLOKIUSDT:Binance:4h:latest",
+        "features:coinank_endpoint:marketOrder_getCvd:1000PEPEUSDT:Binance:15m:latest",
+        "features:coinank_endpoint:marketOrder_getCvd:1000PEPEUSDT:Binance:1d:latest",
+        "features:coinank_endpoint:marketOrder_getCvd:1000PEPEUSDT:Binance:1h:latest",
+        "features:coinank_endpoint:marketOrder_getCvd:1000PEPEUSDT:Binance:4h:latest",
+        "features:coinank_endpoint:marketOrder_getCvd:1000SHIBUSDT:Binance:15m:latest",
+        "features:coinank_endpoint:marketOrder_getCvd:1000SHIBUSDT:Binance:1d:latest",
+        "features:coinank_endpoint:marketOrder_getCvd:1000SHIBUSDT:Binance:1h:latest",
+        "features:coinank_endpoint:marketOrder_getCvd:1000SHIBUSDT:Binance:4h:latest",
+        "features:coinank_endpoint:marketOrder_getCvd:ALICEUSDT:Binance:15m:latest",
+        "features:coinank_endpoint:marketOrder_getCvd:ALICEUSDT:Binance:1d:latest",
+        "features:coinank_endpoint:marketOrder_getCvd:ALICEUSDT:Binance:1h:latest",
+        "features:coinank_endpoint:marketOrder_getCvd:ALICEUSDT:Binance:4h:latest"
+      ]
+    },
+    "orderbook": {
+      "current_count": 0,
+      "freshest": [],
+      "key_count": 0,
+      "pattern": "features:coinank_endpoint:*orderBook*:latest",
+      "sample_keys": []
+    },
+    "toptrader_positions": {
+      "current_count": 3,
+      "freshest": [
+        {
+          "age_seconds": 81,
+          "key": "features:coinank_endpoint:ls_toptrader_positions:FARTCOINUSDT:Binance:1d:latest",
+          "sample": {
+            "_truncated": 3,
+            "baseCoin": "FARTCOINUSDT",
+            "coinank_ls_toptrader_positions_tss_mean": 1774526400000.0,
+            "endpoint": "ls_toptrader_positions",
+            "exchange": "Binance",
+            "family": "long_short",
+            "interval": "1d",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "longShortRatio": "[truncated]",
+                "tss": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832810698,
+            "timestamp": 1778832810698,
+            "ts_epoch_ms": 1778832810698,
+            "ts_ms": 1778832810698
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 82,
+          "key": "features:coinank_endpoint:ls_toptrader_positions:FARTCOINUSDT:Binance:1h:latest",
+          "sample": {
+            "_truncated": 3,
+            "baseCoin": "FARTCOINUSDT",
+            "coinank_ls_toptrader_positions_tss_mean": 1778650200000.0,
+            "endpoint": "ls_toptrader_positions",
+            "exchange": "Binance",
+            "family": "long_short",
+            "interval": "1h",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "longShortRatio": "[truncated]",
+                "tss": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832809376,
+            "timestamp": 1778832809376,
+            "ts_epoch_ms": 1778832809376,
+            "ts_ms": 1778832809376
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 83,
+          "key": "features:coinank_endpoint:ls_toptrader_positions:FARTCOINUSDT:Binance:30m:latest",
+          "sample": {
+            "_truncated": 3,
+            "baseCoin": "FARTCOINUSDT",
+            "coinank_ls_toptrader_positions_tss_mean": 1778739300000.0,
+            "endpoint": "ls_toptrader_positions",
+            "exchange": "Binance",
+            "family": "long_short",
+            "interval": "30m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "longShortRatio": "[truncated]",
+                "tss": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832808777,
+            "timestamp": 1778832808777,
+            "ts_epoch_ms": 1778832808777,
+            "ts_ms": 1778832808777
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 194,
+          "key": "features:coinank_endpoint:ls_toptrader_positions:FARTCOINUSDT:Binance:15m:latest",
+          "sample": {
+            "_truncated": 3,
+            "baseCoin": "FARTCOINUSDT",
+            "coinank_ls_toptrader_positions_tss_mean": 1778783850000.0,
+            "endpoint": "ls_toptrader_positions",
+            "exchange": "Binance",
+            "family": "long_short",
+            "interval": "15m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "longShortRatio": "[truncated]",
+                "tss": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832697648,
+            "timestamp": 1778832697648,
+            "ts_epoch_ms": 1778832697648,
+            "ts_ms": 1778832697648
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 195,
+          "key": "features:coinank_endpoint:ls_toptrader_positions:1000BONKUSDT:Binance:1d:latest",
+          "sample": {
+            "_truncated": 3,
+            "baseCoin": "1000BONKUSDT",
+            "coinank_ls_toptrader_positions_tss_mean": 1774526400000.0,
+            "endpoint": "ls_toptrader_positions",
+            "exchange": "Binance",
+            "family": "long_short",
+            "interval": "1d",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "longShortRatio": "[truncated]",
+                "tss": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832696401,
+            "timestamp": 1778832696401,
+            "ts_epoch_ms": 1778832696401,
+            "ts_ms": 1778832696401
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 196,
+          "key": "features:coinank_endpoint:ls_toptrader_positions:1000BONKUSDT:Binance:4h:latest",
+          "sample": {
+            "_truncated": 3,
+            "baseCoin": "1000BONKUSDT",
+            "coinank_ls_toptrader_positions_tss_mean": 1778104800000.0,
+            "endpoint": "ls_toptrader_positions",
+            "exchange": "Binance",
+            "family": "long_short",
+            "interval": "4h",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "longShortRatio": "[truncated]",
+                "tss": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832695777,
+            "timestamp": 1778832695777,
+            "ts_epoch_ms": 1778832695777,
+            "ts_ms": 1778832695777
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 309,
+          "key": "features:coinank_endpoint:ls_toptrader_positions:1000BONKUSDT:Binance:1h:latest",
+          "sample": {
+            "_truncated": 3,
+            "baseCoin": "1000BONKUSDT",
+            "coinank_ls_toptrader_positions_tss_mean": 1778650200000.0,
+            "endpoint": "ls_toptrader_positions",
+            "exchange": "Binance",
+            "family": "long_short",
+            "interval": "1h",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "longShortRatio": "[truncated]",
+                "tss": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832582283,
+            "timestamp": 1778832582283,
+            "ts_epoch_ms": 1778832582283,
+            "ts_ms": 1778832582283
+          },
+          "status": "STALE",
+          "type": "string"
+        },
+        {
+          "age_seconds": 310,
+          "key": "features:coinank_endpoint:ls_toptrader_positions:1000BONKUSDT:Binance:15m:latest",
+          "sample": {
+            "_truncated": 3,
+            "baseCoin": "1000BONKUSDT",
+            "coinank_ls_toptrader_positions_tss_mean": 1778783850000.0,
+            "endpoint": "ls_toptrader_positions",
+            "exchange": "Binance",
+            "family": "long_short",
+            "interval": "15m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "longShortRatio": "[truncated]",
+                "tss": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832580905,
+            "timestamp": 1778832580905,
+            "ts_epoch_ms": 1778832580905,
+            "ts_ms": 1778832580905
+          },
+          "status": "STALE",
+          "type": "string"
+        },
+        {
+          "age_seconds": 310,
+          "key": "features:coinank_endpoint:ls_toptrader_positions:1000BONKUSDT:Binance:30m:latest",
+          "sample": {
+            "_truncated": 3,
+            "baseCoin": "1000BONKUSDT",
+            "coinank_ls_toptrader_positions_tss_mean": 1778739300000.0,
+            "endpoint": "ls_toptrader_positions",
+            "exchange": "Binance",
+            "family": "long_short",
+            "interval": "30m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "longShortRatio": "[truncated]",
+                "tss": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832581521,
+            "timestamp": 1778832581521,
+            "ts_epoch_ms": 1778832581521,
+            "ts_ms": 1778832581521
+          },
+          "status": "STALE",
+          "type": "string"
+        },
+        {
+          "age_seconds": 311,
+          "key": "features:coinank_endpoint:ls_toptrader_positions:1000BONKUSDT:Binance:5m:latest",
+          "sample": {
+            "_truncated": 3,
+            "baseCoin": "1000BONKUSDT",
+            "coinank_ls_toptrader_positions_tss_mean": 1778813850000.0,
+            "endpoint": "ls_toptrader_positions",
+            "exchange": "Binance",
+            "family": "long_short",
+            "interval": "5m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "longShortRatio": "[truncated]",
+                "tss": "[truncated]"
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832580319,
+            "timestamp": 1778832580319,
+            "ts_epoch_ms": 1778832580319,
+            "ts_ms": 1778832580319
+          },
+          "status": "STALE",
+          "type": "string"
+        }
+      ],
+      "key_count": 107,
+      "pattern": "features:coinank_endpoint:ls_toptrader_positions:*:latest",
+      "sample_keys": [
+        "features:coinank_endpoint:ls_toptrader_positions:1000BONKUSDT:Binance:15m:latest",
+        "features:coinank_endpoint:ls_toptrader_positions:1000BONKUSDT:Binance:1d:latest",
+        "features:coinank_endpoint:ls_toptrader_positions:1000BONKUSDT:Binance:1h:latest",
+        "features:coinank_endpoint:ls_toptrader_positions:1000BONKUSDT:Binance:30m:latest",
+        "features:coinank_endpoint:ls_toptrader_positions:1000BONKUSDT:Binance:4h:latest",
+        "features:coinank_endpoint:ls_toptrader_positions:1000BONKUSDT:Binance:5m:latest",
+        "features:coinank_endpoint:ls_toptrader_positions:1000FLOKIUSDT:Binance:1d:latest",
+        "features:coinank_endpoint:ls_toptrader_positions:1000FLOKIUSDT:Binance:1h:latest",
+        "features:coinank_endpoint:ls_toptrader_positions:1000FLOKIUSDT:Binance:4h:latest",
+        "features:coinank_endpoint:ls_toptrader_positions:1000PEPEUSDT:Binance:15m:latest",
+        "features:coinank_endpoint:ls_toptrader_positions:1000PEPEUSDT:Binance:1d:latest",
+        "features:coinank_endpoint:ls_toptrader_positions:1000PEPEUSDT:Binance:1h:latest",
+        "features:coinank_endpoint:ls_toptrader_positions:1000PEPEUSDT:Binance:30m:latest",
+        "features:coinank_endpoint:ls_toptrader_positions:1000PEPEUSDT:Binance:4h:latest",
+        "features:coinank_endpoint:ls_toptrader_positions:1000PEPEUSDT:Binance:5m:latest",
+        "features:coinank_endpoint:ls_toptrader_positions:1000SHIBUSDT:Binance:1d:latest",
+        "features:coinank_endpoint:ls_toptrader_positions:1000SHIBUSDT:Binance:1h:latest",
+        "features:coinank_endpoint:ls_toptrader_positions:1000SHIBUSDT:Binance:30m:latest",
+        "features:coinank_endpoint:ls_toptrader_positions:1000SHIBUSDT:Binance:4h:latest",
+        "features:coinank_endpoint:ls_toptrader_positions:ALICEUSDT:Binance:1d:latest"
+      ]
+    },
+    "weighted_funding": {
+      "current_count": 4,
+      "freshest": [
+        {
+          "age_seconds": 90,
+          "key": "features:coinank_endpoint:fundingRate_getWeiFr:1000FLOKIUSDT:Binance:1d:latest",
+          "sample": {
+            "_truncated": 2,
+            "baseCoin": "1000FLOKIUSDT",
+            "coinank_fundingRate_getWeiFr_data_0_openFundingRate": 0.00515899,
+            "endpoint": "fundingRate_getWeiFr",
+            "exchange": "Binance",
+            "family": "funding",
+            "interval": "1d",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "count": 100,
+                "sample": [
+                  "[truncated]",
+                  "[truncated]",
+                  "[truncated]"
+                ]
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832801509,
+            "timestamp": 1778832801509,
+            "ts_epoch_ms": 1778832801509,
+            "ts_ms": 1778832801509
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 90,
+          "key": "features:coinank_endpoint:fundingRate_getWeiFr:1000FLOKIUSDT:Binance:4h:latest",
+          "sample": {
+            "_truncated": 2,
+            "baseCoin": "1000FLOKIUSDT",
+            "coinank_fundingRate_getWeiFr_data_0_openFundingRate": 0.00789706,
+            "endpoint": "fundingRate_getWeiFr",
+            "exchange": "Binance",
+            "family": "funding",
+            "interval": "4h",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "count": 100,
+                "sample": [
+                  "[truncated]",
+                  "[truncated]",
+                  "[truncated]"
+                ]
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832800835,
+            "timestamp": 1778832800835,
+            "ts_epoch_ms": 1778832800835,
+            "ts_ms": 1778832800835
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 91,
+          "key": "features:coinank_endpoint:fundingRate_getWeiFr:1000FLOKIUSDT:Binance:1h:latest",
+          "sample": {
+            "_truncated": 2,
+            "baseCoin": "1000FLOKIUSDT",
+            "coinank_fundingRate_getWeiFr_data_0_openFundingRate": -0.00343296,
+            "endpoint": "fundingRate_getWeiFr",
+            "exchange": "Binance",
+            "family": "funding",
+            "interval": "1h",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "count": 100,
+                "sample": [
+                  "[truncated]",
+                  "[truncated]",
+                  "[truncated]"
+                ]
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832800152,
+            "timestamp": 1778832800152,
+            "ts_epoch_ms": 1778832800152,
+            "ts_ms": 1778832800152
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 92,
+          "key": "features:coinank_endpoint:fundingRate_getWeiFr:1000FLOKIUSDT:Binance:30m:latest",
+          "sample": {
+            "_truncated": 2,
+            "baseCoin": "1000FLOKIUSDT",
+            "coinank_fundingRate_getWeiFr_data_0_openFundingRate": 0.00184276,
+            "endpoint": "fundingRate_getWeiFr",
+            "exchange": "Binance",
+            "family": "funding",
+            "interval": "30m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "count": 99,
+                "sample": [
+                  "[truncated]",
+                  "[truncated]",
+                  "[truncated]"
+                ]
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832799486,
+            "timestamp": 1778832799486,
+            "ts_epoch_ms": 1778832799486,
+            "ts_ms": 1778832799486
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 203,
+          "key": "features:coinank_endpoint:fundingRate_getWeiFr:1000FLOKIUSDT:Binance:15m:latest",
+          "sample": {
+            "_truncated": 2,
+            "baseCoin": "1000FLOKIUSDT",
+            "coinank_fundingRate_getWeiFr_data_0_openFundingRate": 0.00418888,
+            "endpoint": "fundingRate_getWeiFr",
+            "exchange": "Binance",
+            "family": "funding",
+            "interval": "15m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "count": 100,
+                "sample": [
+                  "[truncated]",
+                  "[truncated]",
+                  "[truncated]"
+                ]
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832688624,
+            "timestamp": 1778832688624,
+            "ts_epoch_ms": 1778832688624,
+            "ts_ms": 1778832688624
+          },
+          "status": "CURRENT",
+          "type": "string"
+        },
+        {
+          "age_seconds": 203,
+          "key": "features:coinank_endpoint:fundingRate_getWeiFr:1000FLOKIUSDT:Binance:5m:latest",
+          "sample": {
+            "_truncated": 2,
+            "baseCoin": "1000FLOKIUSDT",
+            "coinank_fundingRate_getWeiFr_data_0_openFundingRate": 0.00679488,
+            "endpoint": "fundingRate_getWeiFr",
+            "exchange": "Binance",
+            "family": "funding",
+            "interval": "5m",
+            "raw_data": {
+              "code": "1",
+              "data": {
+                "count": 100,
+                "sample": [
+                  "[truncated]",
+                  "[truncated]",
+                  "[truncated]"
+                ]
+              },
+              "success": true
+            },
+            "source": "coinank",
+            "source_ts_ms": 1778832687956,
+            "timestamp": 1778832687956,
+            "ts_epoch_ms": 1778832687956,
+            "ts_ms": 1778832687956
+          },
+          "status": "CURRENT",
+          "type": "string"
+        }
+      ],
+      "key_count": 6,
+      "pattern": "features:coinank_endpoint:fundingRate_getWeiFr:*:latest",
+      "sample_keys": [
+        "features:coinank_endpoint:fundingRate_getWeiFr:1000FLOKIUSDT:Binance:15m:latest",
+        "features:coinank_endpoint:fundingRate_getWeiFr:1000FLOKIUSDT:Binance:1d:latest",
+        "features:coinank_endpoint:fundingRate_getWeiFr:1000FLOKIUSDT:Binance:1h:latest",
+        "features:coinank_endpoint:fundingRate_getWeiFr:1000FLOKIUSDT:Binance:30m:latest",
+        "features:coinank_endpoint:fundingRate_getWeiFr:1000FLOKIUSDT:Binance:4h:latest",
+        "features:coinank_endpoint:fundingRate_getWeiFr:1000FLOKIUSDT:Binance:5m:latest"
+      ]
+    }
   },
   "exchange_actions_by_codex": false,
-  "freshness_seconds": 0,
-  "funding_freshness": -1,
-  "generated_at": "2026-05-15T05:42:06Z",
-  "global_11_key_contract": [
-    "features:global_coinank:total_oi:latest",
-    "features:global_coinank:total_volume:latest",
-    "features:global_coinank:total_liquidations:latest",
-    "features:global_coinank:long_short_ratio:latest",
-    "features:global_coinank:funding_rate_avg:latest",
-    "features:global_coinank:btc_dominance:latest",
-    "features:global_coinank:eth_dominance:latest",
-    "features:global_coinank:alt_season_index:latest",
-    "features:global_coinank:fear_greed:latest",
-    "features:global_coinank:market_sentiment:latest",
-    "features:global_coinank:volatility_index:latest"
-  ],
-  "global_aggregate_result": {
-    "alt_season_index": 0.0,
-    "btc_dominance": 0.0,
-    "eth_dominance": 0.0,
-    "fear_greed": 0.0,
-    "funding_rate_avg": 0.0,
-    "long_short_ratio": 0.0,
-    "market_sentiment": 0.0,
-    "n_symbols_observed": 0,
-    "total_liquidations": 0.0,
-    "total_oi": 0.0,
-    "total_volume": 0.0,
-    "v2_keys_written": [
-      "v2:coinank:global:total_oi:latest",
-      "v2:coinank:global:total_volume:latest",
-      "v2:coinank:global:total_liquidations:latest",
-      "v2:coinank:global:long_short_ratio:latest",
-      "v2:coinank:global:funding_rate_avg:latest",
-      "v2:coinank:global:btc_dominance:latest",
-      "v2:coinank:global:eth_dominance:latest",
-      "v2:coinank:global:alt_season_index:latest",
-      "v2:coinank:global:fear_greed:latest",
-      "v2:coinank:global:market_sentiment:latest",
-      "v2:coinank:global:volatility_index:latest"
-    ],
-    "volatility_index": 0.0
+  "generated_at": "2026-05-15T08:14:52Z",
+  "global_11_key_contract_status": "STALE_OR_PARTIAL",
+  "global_11_key_status": {
+    "features:global_coinank:alt_season_index:latest": {
+      "age_seconds": null,
+      "key": "features:global_coinank:alt_season_index:latest",
+      "status": "MISSING",
+      "type": "none"
+    },
+    "features:global_coinank:btc_dominance:latest": {
+      "age_seconds": null,
+      "key": "features:global_coinank:btc_dominance:latest",
+      "status": "MISSING",
+      "type": "none"
+    },
+    "features:global_coinank:eth_dominance:latest": {
+      "age_seconds": null,
+      "key": "features:global_coinank:eth_dominance:latest",
+      "status": "MISSING",
+      "type": "none"
+    },
+    "features:global_coinank:fear_greed:latest": {
+      "age_seconds": null,
+      "key": "features:global_coinank:fear_greed:latest",
+      "status": "MISSING",
+      "type": "none"
+    },
+    "features:global_coinank:funding_rate_avg:latest": {
+      "age_seconds": null,
+      "key": "features:global_coinank:funding_rate_avg:latest",
+      "status": "MISSING",
+      "type": "none"
+    },
+    "features:global_coinank:long_short_ratio:latest": {
+      "age_seconds": null,
+      "key": "features:global_coinank:long_short_ratio:latest",
+      "status": "MISSING",
+      "type": "none"
+    },
+    "features:global_coinank:market_sentiment:latest": {
+      "age_seconds": null,
+      "key": "features:global_coinank:market_sentiment:latest",
+      "status": "MISSING",
+      "type": "none"
+    },
+    "features:global_coinank:total_liquidations:latest": {
+      "age_seconds": null,
+      "key": "features:global_coinank:total_liquidations:latest",
+      "status": "MISSING",
+      "type": "none"
+    },
+    "features:global_coinank:total_oi:latest": {
+      "age_seconds": null,
+      "key": "features:global_coinank:total_oi:latest",
+      "status": "MISSING",
+      "type": "none"
+    },
+    "features:global_coinank:total_volume:latest": {
+      "age_seconds": null,
+      "key": "features:global_coinank:total_volume:latest",
+      "status": "MISSING",
+      "type": "none"
+    },
+    "features:global_coinank:volatility_index:latest": {
+      "age_seconds": null,
+      "key": "features:global_coinank:volatility_index:latest",
+      "status": "MISSING",
+      "type": "none"
+    }
   },
-  "last_run_ts": "2026-05-15T05:42:06Z",
-  "legacy_baseline_source_paths": [
-    "v2/legacy_preserved/startup_baseline/ingest/liquidation_bridge.py",
-    "v2/legacy_preserved/startup_baseline/ingest/liquidation_levels_engine.py",
-    "v2/legacy_preserved/startup_baseline/ingest/live_binance_liquidations.py",
-    "v2/legacy_preserved/startup_baseline/ingest/live_coinank.py",
-    "v2/legacy_preserved/startup_baseline/ingest/live_coinank_global_aggregator.py"
-  ],
-  "legacy_baseline_source_sha256_list": [
-    {
-      "path": "v2/legacy_preserved/startup_baseline/ingest/liquidation_bridge.py",
-      "sha256": "5d70e395938228b61162b531310cd751403ddfeebb8920429e73cdcdbe35d48a"
-    },
-    {
-      "path": "v2/legacy_preserved/startup_baseline/ingest/liquidation_levels_engine.py",
-      "sha256": "fed3c90b5193c27d24dc183089730bda49ff69a1758b597e23a154397f839df7"
-    },
-    {
-      "path": "v2/legacy_preserved/startup_baseline/ingest/live_binance_liquidations.py",
-      "sha256": "19711590a3d194fd05ae3be85ef7bd6dec397f6394d02f7e91008c44c310131b"
-    },
-    {
-      "path": "v2/legacy_preserved/startup_baseline/ingest/live_coinank.py",
-      "sha256": "cd13dab55c0906c379e4116102c05f960908dd28d6b6e883ca76347cd1f144c8"
-    },
-    {
-      "path": "v2/legacy_preserved/startup_baseline/ingest/live_coinank_global_aggregator.py",
-      "sha256": "1f85c4532e4829aa99ddadbd6a5cd2325ef9e5c4012208eb05876c1b0187eeae"
-    }
-  ],
+  "lastprice_classification": "LASTPRICE_STALE_KEY_ONLY",
   "legacy_execution_code_touched": false,
+  "legacy_reference_refresh": {
+    "files": [
+      {
+        "legacy_path": "/home/wali/Desktop/AI BOT/ingest/live_coinank.py",
+        "legacy_sha256": "cd13dab55c0906c379e4116102c05f960908dd28d6b6e883ca76347cd1f144c8",
+        "reference_after_sha256": "cd13dab55c0906c379e4116102c05f960908dd28d6b6e883ca76347cd1f144c8",
+        "reference_before_sha256": "cd13dab55c0906c379e4116102c05f960908dd28d6b6e883ca76347cd1f144c8",
+        "reference_path": "/home/wali/Desktop/AI BOT REBUILD/legacy_reference/ingest/live_coinank.py",
+        "refreshed": true
+      },
+      {
+        "legacy_path": "/home/wali/Desktop/AI BOT/ingest/coinank_pipeline_monitor.py",
+        "legacy_sha256": "55820c3eb988afd2041bc8b392db2650e297ac75ac82180068737a9d2ab96ced",
+        "reference_after_sha256": "55820c3eb988afd2041bc8b392db2650e297ac75ac82180068737a9d2ab96ced",
+        "reference_before_sha256": "55820c3eb988afd2041bc8b392db2650e297ac75ac82180068737a9d2ab96ced",
+        "reference_path": "/home/wali/Desktop/AI BOT REBUILD/legacy_reference/ingest/coinank_pipeline_monitor.py",
+        "refreshed": true
+      },
+      {
+        "legacy_path": "/home/wali/Desktop/AI BOT/ingest/live_coinank_global_aggregator.py",
+        "legacy_sha256": "1f85c4532e4829aa99ddadbd6a5cd2325ef9e5c4012208eb05876c1b0187eeae",
+        "reference_after_sha256": "1f85c4532e4829aa99ddadbd6a5cd2325ef9e5c4012208eb05876c1b0187eeae",
+        "reference_before_sha256": "1f85c4532e4829aa99ddadbd6a5cd2325ef9e5c4012208eb05876c1b0187eeae",
+        "reference_path": "/home/wali/Desktop/AI BOT REBUILD/legacy_reference/ingest/live_coinank_global_aggregator.py",
+        "refreshed": true
+      },
+      {
+        "legacy_path": "/home/wali/Desktop/AI BOT/feature_pipeline.py",
+        "legacy_sha256": "143938e735342179105155a12c50d7c495bdd1c16d570586cb369d03d7d4b2e8",
+        "reference_after_sha256": "143938e735342179105155a12c50d7c495bdd1c16d570586cb369d03d7d4b2e8",
+        "reference_before_sha256": "143938e735342179105155a12c50d7c495bdd1c16d570586cb369d03d7d4b2e8",
+        "reference_path": "/home/wali/Desktop/AI BOT REBUILD/legacy_reference/feature_pipeline.py",
+        "refreshed": true
+      }
+    ],
+    "generated_at": "2026-05-15T08:14:52Z",
+    "secrets_copied": false
+  },
   "legacy_source_file_hash": "cd13dab55c0906c379e4116102c05f960908dd28d6b6e883ca76347cd1f144c8",
-  "liquidations_persisted_total": 0,
-  "live_gate": "blocked_human_only",
   "live_gate_status": "blocked_human_only",
-  "long_short_freshness": -1,
+  "manifest_status": {
+    "age_seconds": 24,
+    "key": "coinank:feature_manifest",
+    "sample": {
+      "disabled_by_default": {
+        "kline": true,
+        "lastprice": true,
+        "orderbook": true,
+        "plan4": true
+      },
+      "endpoint_count": 54,
+      "endpoints": {
+        "count": 54,
+        "sample": [
+          "baseCoin_list",
+          "baseCoin_symbols",
+          "liquidation_orders"
+        ]
+      },
+      "required_tfs": {
+        "count": 6,
+        "sample": [
+          "5m",
+          "15m",
+          "30m"
+        ]
+      },
+      "ts_ms": 1778832867167,
+      "version": "3.0.0"
+    },
+    "status": "CURRENT",
+    "type": "string"
+  },
   "manual_redis_mutation_by_codex": false,
-  "missing_api_blockers": [
-    {
-      "category": "v2_unified_features_empty",
-      "detail": "no unified-feature input \u2014 V2 worker does not read legacy Redis",
-      "ts": 1778823726860
+  "process_state": {
+    "count": 0,
+    "rows": []
+  },
+  "raw_liquidation_global": {
+    "age_seconds": null,
+    "key": "raw:coinank:liquidation_orders:global",
+    "sample": {
+      "data": {
+        "code": "1",
+        "data": {
+          "count": 500,
+          "sample": [
+            "[truncated]",
+            "[truncated]",
+            "[truncated]"
+          ]
+        },
+        "success": true
+      },
+      "endpoint": "liquidation_orders",
+      "ts": 1778832846453
     },
-    {
-      "category": "v2_liquidation_event_source_empty",
-      "detail": "no coinank liquidation_orders source available this cycle",
-      "ts": 1778823726860
-    },
-    {
-      "category": "binance_force_order_ws_owner_unbound",
-      "detail": "no binance force_order events provided; WS owner=separate_v2_ws_worker",
-      "ts": 1778823726860
-    }
-  ],
-  "oi_freshness": -1,
-  "plan3_interval_limits": {
-    "12h": 360,
-    "15m": 60,
-    "1M": 360,
-    "1d": 360,
-    "1h": 180,
-    "1m": 7,
-    "1w": 360,
-    "2h": 180,
-    "30m": 120,
-    "3m": 15,
-    "4h": 360,
-    "5m": 30,
-    "6h": 360,
-    "8h": 360
+    "status": "OBSERVED_NO_TIMESTAMP",
+    "type": "string"
   },
   "required_tfs": [
     "5m",
@@ -140,13 +1856,135 @@
     "4h",
     "1d"
   ],
-  "source": "V2_COINANK_AND_LIQUIDATION_BRIDGE",
-  "symbols": [
-    "BTCUSDT",
-    "ETHUSDT",
-    "SOLUSDT",
-    "BNBUSDT"
+  "runtime_classifications": [
+    "LASTPRICE_STALE_KEY_ONLY",
+    "COINANK_MANIFEST_CURRENT",
+    "COINANK_GLOBAL_11_KEY_CONTRACT_STALE",
+    "NO_FORBIDDEN_ORDERBOOK_SOURCE_CURRENT",
+    "RUNTIME_CYCLES_PASSED",
+    "COINANK_PATCH_RUNTIME_CURRENT",
+    "COINANK_CONTRACT_BLOCKED"
   ],
-  "tf": "15m",
-  "worker_id": "v2_coinank_and_liquidation_bridge"
+  "runtime_cycles_passed": true,
+  "runtime_cycles_passed_count": 3,
+  "runtime_status": {
+    "age_seconds": 24,
+    "key": "coinank:runtime",
+    "sample": {
+      "cycle_id": 997,
+      "duration_ms": 122390,
+      "endpoints_active": 54,
+      "manifest_version": "3.0.0",
+      "required_tfs": {
+        "count": 6,
+        "sample": [
+          "5m",
+          "15m",
+          "30m"
+        ]
+      },
+      "ts_ms": 1778832867166
+    },
+    "status": "CURRENT",
+    "type": "string"
+  },
+  "script_migration_backlog_update": {
+    "entries_touched": [
+      "feature_pipeline.py",
+      "ingest/coinank_pipeline_monitor.py",
+      "ingest/liquidation_bridge.py",
+      "ingest/liquidation_levels_engine.py",
+      "ingest/live_coinank.py",
+      "ingest/live_coinank_global_aggregator.py"
+    ],
+    "updated": true
+  },
+  "source": "LIVE_COINANK_READONLY",
+  "source_checks": {
+    "coinank_runtime_key": true,
+    "default_tfs_plan3": true,
+    "endpoint_manifest_aliases": true,
+    "fundingRate_getWeiFr": true,
+    "indicator_smc": true,
+    "instruments_liquidationRank": true,
+    "kline_disabled_default": true,
+    "lastprice_disabled_default": true,
+    "lastprice_registry_comment_gated": true,
+    "ls_buy_sell": true,
+    "ls_toptrader_positions": true,
+    "marketOrder_getAggCvd": true,
+    "marketOrder_getCvd": true,
+    "no_hard_50_cap": true,
+    "no_obvious_hardcoded_key": true,
+    "orderbook_disabled_default": true,
+    "plan4_disabled_default": true
+  },
+  "unified_features_sample_status": {
+    "BTCUSDT:5m": {
+      "age_seconds": 0,
+      "field_count": 552,
+      "key": "unified_features:BTCUSDT:5m",
+      "sample": {
+        "_truncated": 540,
+        "btc_corr_120": 1.0,
+        "coinank_marketOrder_getCvd_data_col2_last": -14.745,
+        "coinank_netPositions_getNetPositions_data_0_begin": 1778796600000.0,
+        "ind_ind_BTCUSDT_ta_HT_TRENDMODE_5m": 0.0,
+        "ind_ind_BTCUSDT_ta_MOM_14_5m": -35.0,
+        "ind_ind_BTCUSDT_ta_T3_10_5m": 80644.98650537012,
+        "ind_ind_BTCUSDT_ta_TRIMA_50_5m": 80646.72423077008,
+        "ind_ta_HT_SINE_sine_5m": 0.08051452409098421,
+        "ind_ta_PLUS_DI_14_5m": 0.0024630647488842372,
+        "ind_ta_SMA_5_5m": 80640.55000000008,
+        "ind_ta_WCLPRICE_5m": 80641.65,
+        "xtf_1m_atr_14": 10.11125985762524
+      },
+      "status": "CURRENT",
+      "type": "hash"
+    },
+    "ETHUSDT:15m": {
+      "age_seconds": 83,
+      "field_count": 534,
+      "key": "unified_features:ETHUSDT:15m",
+      "sample": {
+        "_truncated": 522,
+        "btc_corr_120": 0.0,
+        "coinank_ls_toptrader_positions_tss_mean": 1778776650000.0,
+        "coinank_marketOrder_getCvd_data_col2_last": -1309.192,
+        "depth_trade_total_1s": 0.0,
+        "ind_ind_ETHUSDT_ta_CDLINVERTEDHAMMER_15m": 100.0,
+        "ind_ind_ETHUSDT_ta_CDLRICKSHAWMAN_15m": 100.0,
+        "ind_ind_ETHUSDT_ta_NATR_14_15m": 0.28667423174149065,
+        "ind_ind_ETHUSDT_ta_PPO_fastperiod12_slowperiod26_matype0_15m": 0.00883455222911482,
+        "ind_ind_ETHUSDT_ta_TRANGE_15m": 6.2400000000002365,
+        "ind_ta_CDLHIGHWAVE_15m": -100.0,
+        "ind_ta_HT_PHASOR_inphase_15m": 0.08523617806288371,
+        "xtf_1m_atr_14": 0.5619103555949825
+      },
+      "status": "CURRENT",
+      "type": "hash"
+    },
+    "SOLUSDT:1h": {
+      "age_seconds": 83,
+      "field_count": 556,
+      "key": "unified_features:SOLUSDT:1h",
+      "sample": {
+        "_truncated": 544,
+        "btc_corr_120": 0.0,
+        "coinank_marketOrder_getCvd_data_col2_last": -32354.06,
+        "coinank_netPositions_getNetPositions_data_0_begin": 1778468400000.0,
+        "ind_ind_SOLUSDT_ta_AROON_up_25_1h": 100.0,
+        "ind_ind_SOLUSDT_ta_CDLHANGINGMAN_1h": -100.0,
+        "ind_ind_SOLUSDT_ta_EMA_5_1h": 91.35185557460139,
+        "ind_ind_SOLUSDT_ta_HT_DCPERIOD_1h": 21.845868524069164,
+        "ind_ind_SOLUSDT_ta_HT_PHASOR_inphase_1h": 0.004172335326460712,
+        "ind_ind_SOLUSDT_ta_MACD_signal_fastperiod12_slowperiod26_signalperiod9_1h": -0.007954669657858508,
+        "ind_ind_SOLUSDT_ta_WMA_20_1h": 91.35957142857143,
+        "ind_ta_CDLGAPSIDESIDEWHITE_1h": -100.0,
+        "xtf_1m_atr_14": 0.05148581034669096
+      },
+      "status": "CURRENT",
+      "type": "hash"
+    }
+  }
 }
