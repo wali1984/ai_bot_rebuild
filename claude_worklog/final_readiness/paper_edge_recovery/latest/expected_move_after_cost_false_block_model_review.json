@@ -1,0 +1,39 @@
+{
+  "allowed_paper_fill_count": 0,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "classification": "EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_READY_EDGE_PENDING",
+  "completed_observations": 44,
+  "does_not_permit_fills_from_future_outcomes": true,
+  "edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
+  "false_block_classification": {
+    "expected_move_present_model_review": 9,
+    "expected_move_source_unknown": 6,
+    "historical_missing_expected_move": 5,
+    "native_expected_move_model_review": 3
+  },
+  "false_block_count": 14,
+  "false_block_reason_counts": {
+    "confidence_below_canary_threshold": 5,
+    "deny_low_confidence": 1,
+    "expected_edge_below_costs": 4,
+    "missing_expected_move_after_costs": 4,
+    "paper_outcome_model_missing": 1,
+    "same_symbol_same_direction_cooldown": 3
+  },
+  "generated_at": "2026-05-15T09:10:40Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "no_trade_correct_count": 30,
+  "post_lifecycle_runtime": {
+    "blocked": 47,
+    "events": 47,
+    "fees_usdt": 0.0,
+    "fills": 0,
+    "latest_paper_pnl_usdt": -49.15
+  },
+  "required_next_action": "improve native expected_move_after_cost coverage and calibration from trainer/feature evidence without loosening the strict paper fill gate",
+  "sample_status": "PRELIMINARY_SAMPLE",
+  "task_id": "claude_improve_expected_move_after_cost_coverage_from_shadow_false_blocks"
+}

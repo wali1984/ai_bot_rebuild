@@ -16,19 +16,15 @@ def build_decision_improvement_recommendations(
     risk_status: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     shadow_outcome_status = shadow_outcome_status or {}
+    paper_edge_status = paper_edge_status or {}
     false_block_count = int(shadow_outcome_status.get("false_block_count") or 0)
+    resolved_controls = set(paper_edge_status.get("resolved_controls") or [])
     tasks = [
         {
             "task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection",
             "priority": "P0",
             "reason": "Paper loss attribution found fee/slippage/churn loss and missing edge-after-cost evidence.",
             "required_result": "Confidence alone cannot permit paper fills; missing expected edge blocks and records shadow observation.",
-        },
-        {
-            "task_id": "claude_add_per_fill_trainer_source_and_feature_freshness",
-            "priority": "P0",
-            "reason": "Per-fill trainer source and feature freshness are missing from paper events.",
-            "required_result": "Every intent/fill/block carries trainer_source and feature_freshness_state.",
         },
         {
             "task_id": "claude_add_shadow_outcome_learning_for_blocked_intents",
@@ -43,6 +39,19 @@ def build_decision_improvement_recommendations(
             "required_result": "Each protective behavior is implemented in paper-only form or emitted as an explicit blocker.",
         },
     ]
+    if not {
+        "missing_trainer_source_blocks_fill",
+        "missing_feature_freshness_state_blocks_fill",
+    }.issubset(resolved_controls):
+        tasks.insert(
+            1,
+            {
+                "task_id": "claude_add_per_fill_trainer_source_and_feature_freshness",
+                "priority": "P0",
+                "reason": "Per-fill trainer source and feature freshness are missing or not yet enforced in current paper recovery evidence.",
+                "required_result": "Every intent/fill/block carries trainer_source and feature_freshness_state.",
+            },
+        )
     if false_block_count > 0:
         tasks.insert(
             0,

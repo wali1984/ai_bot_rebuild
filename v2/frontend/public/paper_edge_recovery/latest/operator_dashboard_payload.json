@@ -4,23 +4,37 @@
   "approves_live": false,
   "current_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
   "edge_proven": false,
-  "edge_status": "PAPER_OUTCOME_MODEL_READY_EDGE_PENDING",
+  "edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
   "final_approval_token": "absent",
-  "generated_at": "2026-05-15T09:00:09Z",
+  "expected_move_after_cost_model_review": {
+    "classification": "EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_READY_EDGE_PENDING",
+    "false_block_count": 14,
+    "false_block_reason_counts": {
+      "confidence_below_canary_threshold": 5,
+      "deny_low_confidence": 1,
+      "expected_edge_below_costs": 4,
+      "missing_expected_move_after_costs": 4,
+      "paper_outcome_model_missing": 1,
+      "same_symbol_same_direction_cooldown": 3
+    },
+    "sample_status": "PRELIMINARY_SAMPLE"
+  },
+  "generated_at": "2026-05-15T09:10:40Z",
   "go_no_go": "V2_PAPER_EDGE_RECOVERY_READY_NO_UNSAFE_FILLS_EDGE_PENDING",
   "live_gate": "blocked_human_only",
   "live_symbols": [],
-  "next_automatic_action": "continue post-lifecycle paper/shadow observation; do not claim edge until qualified fills close net-positive after costs",
+  "next_automatic_action": "improve native expected_move_after_cost coverage/calibration from trainer and feature evidence; do not loosen the strict paper fill gate",
   "paper_fill_boundary_status": "HARD_GATE_PLUS_POSITION_LIFECYCLE_IMPLEMENTED",
   "paper_pnl": {
     "current_cumulative_paper_pnl_usdt": -49.15,
-    "post_lifecycle_blocked_intents": 26,
+    "post_lifecycle_blocked_intents": 47,
     "post_lifecycle_fees_usdt": 0.0,
     "post_lifecycle_fills": 0,
     "post_lifecycle_pnl_delta_usdt": 0.0
   },
   "remaining_blockers": [
     "POST_FILTER_POSITIVE_EDGE_NOT_PROVEN_INSUFFICIENT_POST_LIFECYCLE_SAMPLE",
+    "EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_REQUIRED_FROM_SHADOW_FALSE_BLOCKS",
     "TRAINER_PARITY_DERIVED_EVIDENCE_OPERATOR_DECISION_STILL_OPEN",
     "TRADE_PERMISSION_UNKNOWN_REMAINS_LIVE_CANARY_BLOCKER"
   ],

@@ -1,15 +1,14 @@
 {
   "agent": "claude",
   "allowed_output_prefixes": [
-    "claude_worklog/final_readiness/paper_expected_move_coverage/latest/",
+    "claude_worklog/final_readiness/paper_edge_recovery/latest/",
+    "claude_worklog/final_readiness/legacy_v2_realtime_decision_observatory/latest/",
     "v2/backend/app/cli/",
-    "v2/backend/app/composition/",
     "v2/backend/app/services/",
     "v2/backend/tests/",
-    "v2/frontend/public/paper_expected_move_coverage/latest/",
     "v2/frontend/public/operator_runtime/paper_shadow_outcome_observer/latest/",
-    "claude_worklog/final_readiness/paper_shadow_outcome_observer/latest/",
-    "claude_worklog/final_readiness/legacy_v2_realtime_decision_observatory/latest/"
+    "v2/frontend/public/operator_runtime/decision_quality_scoreboard/latest/",
+    "v2/frontend/public/paper_edge_recovery/latest/"
   ],
   "allowed_paths": [
     "v2/**",
@@ -20,29 +19,31 @@
   "emit_files": true,
   "forbidden": [
     "legacy_mutation",
+    "old_redis_write",
     "exchange_action",
     "leverage_change",
     "margin_mode_change",
     "live_gate_unlock",
     "approval_token_creation",
     "redis_trim_approval_creation",
+    "using_future_outcomes_to_permit_current_fills",
+    "loosening_paper_fill_gate_without_native_evidence",
+    "paper_edge_proven_without_positive_net_post_filter_fills",
     "confidence_only_fill_permission",
     "expected_move_after_costs_missing_fill_permission",
-    "future_outcome_label_used_for_entry_gate",
-    "unvalidated_proxy_edge_used_for_fill_permission",
-    "paper_edge_proven_without_post_filter_net_fills",
-    "live_readiness_implied"
+    "trainer_source_missing_fill_permission",
+    "feature_freshness_missing_fill_permission"
   ],
   "lane": "shutdown_readiness_remediation",
   "live_gate": "blocked_human_only",
-  "managed_by": "codex_shadow_outcome_monitor",
+  "managed_by": "codex_legacy_shutdown_readiness_takeover",
   "max_attempts": 1,
-  "prompt": "Build PAPER_EXPECTED_MOVE_AFTER_COST_COVERAGE_REMEDIATION_READY.\n\nPurpose: The paper shadow outcome observer found blocked V2 paper intents that later beat estimated costs. The false blocks were caused by missing expected_move_after_cost_bps, not by a fill-gate failure. Repair expected-move coverage honestly while keeping the strict paper fill gate in place.\n\nHard constraints:\n- Work only inside /home/wali/Desktop/AI BOT REBUILD.\n- Do not modify /home/wali/Desktop/AI BOT.\n- Treat legacy Redis as read-only reference evidence only.\n- Do not place/cancel/modify exchange orders.\n- Do not change leverage or margin mode.\n- Do not enable live.\n- Do not create final approval or Redis trim approval tokens.\n- live_gate remains blocked_human_only.\n- live_symbols remains [].\n\nInputs to inspect:\n- v2/frontend/public/operator_runtime/paper_shadow_outcome_observer/latest/paper_shadow_outcome_observer_status.json\n- claude_worklog/final_readiness/paper_shadow_outcome_observer/latest/paper_shadow_outcome_observer_status.json\n- v2/backend/app/cli/paper_online_runtime.py\n- v2/backend/app/cli/v2_paper_execution_worker.py\n- v2/backend/app/composition/paper_edge_scoring/runtime.py\n- v2/backend/app/composition/canary_profile_tightening/runtime.py\n- v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json\n- v2/frontend/public/operator_runtime/v2_feature_pipeline_and_ta_worker/latest/v2_feature_pipeline_and_ta_worker_status.json\n- v2/frontend/public/operator_runtime/v2_feature_snapshot_builder/latest/v2_feature_snapshot_builder_status.json if present\n- v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json\n\nRequired behavior:\n1. Preserve the invariant that a missing expected_move_after_cost_bps cannot permit a paper fill.\n2. Do not use future shadow outcomes as an entry signal or fill permission source.\n3. If native or explicitly accepted expected-move evidence exists in the trainer, feature, risk, or signal payloads, wire it into paper runtime and paper execution status with source labeling.\n4. If only a heuristic/proxy can be produced, label it as candidate/proxy evidence and keep it non-fill-eligible until validation criteria are met.\n5. Add source/status fields such as expected_move_source and expected_move_coverage_status where useful.\n6. Ensure shadow outcome reports summarize false_block_reason_counts and examples.\n7. Keep positive edge unproven unless qualified post-filter fills are net positive after fees/slippage.\n\nTests required:\n- missing expected_move_after_cost_bps still blocks fill\n- future shadow outcome labels cannot permit fills\n- unvalidated proxy expected move cannot permit fills\n- native/accepted expected_move_after_cost_bps can pass only when all existing trainer/source/freshness/symbol/risk gates pass\n- false block reason counts are reported\n- live_gate remains blocked_human_only and live_symbols remains []\n- legacy datastore mutations and exchange methods remain absent\n\nOutputs required:\nBEGIN_FILE: claude_worklog/final_readiness/paper_expected_move_coverage/latest/GO_NO_GO.md\nPAPER_EXPECTED_MOVE_COVERAGE_REMEDIATION_BLOCKED\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/paper_expected_move_coverage/latest/PAPER_EXPECTED_MOVE_COVERAGE_REMEDIATION_REPORT.md\n...report evidence, implementation details, tests, safety status, and remaining blockers...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/paper_expected_move_coverage/latest/paper_expected_move_coverage_status.json\n{\"task_id\":\"claude_improve_expected_move_after_cost_coverage_from_shadow_false_blocks\",\"live_gate\":\"blocked_human_only\",\"live_symbols\":[],\"approves_live\":false,\"approves_legacy_shutdown\":false}\nEND_FILE\n\nBEGIN_FILE: v2/frontend/public/paper_expected_move_coverage/latest/operator_dashboard_payload.json\n{\"live_gate\":\"blocked_human_only\",\"live_symbols\":[],\"approves_live\":false,\"expected_move_coverage_status\":\"BLOCKED_OR_REMEDIATED\"}\nEND_FILE\n\nGO_NO_GO.md must contain exactly one of:\nPAPER_EXPECTED_MOVE_COVERAGE_REMEDIATION_READY\nPAPER_EXPECTED_MOVE_COVERAGE_REMEDIATION_BLOCKED\n\nDo not mark READY unless expected-move coverage is genuinely improved or explicitly blocked with tests and honest status. Do not claim live readiness.",
+  "prompt": "Task: Improve expected_move_after_cost coverage from shadow false-block evidence without loosening the strict V2 paper fill gate.\n\nHard constraints: Work only inside /home/wali/Desktop/AI BOT REBUILD. Do not modify /home/wali/Desktop/AI BOT. Do not write old Redis. Do not place, cancel, or modify exchange orders. Do not change leverage or margin mode. Do not enable live. Do not create final approval or Redis trim approval tokens. Keep live_gate=blocked_human_only and live_symbols=[].\n\nCurrent evidence: paper_shadow_outcome_observer reports blocked intents that later beat estimated costs. These are model-review signals, not permission to trade from hindsight. V2 paper runtime now has strict gating, per-event trainer_source, feature_freshness_state, expected_move_after_cost fields, and a non-live paper position lifecycle. Positive paper edge remains unproven and legacy shutdown remains blocked.\n\nRequired work:\n1. Read current paper_shadow_outcome_observer status, decision improvement recommendations, paper edge recovery status, trainer bridge status, and paper event JSONL.\n2. Classify false blocks by reason, expected_move_source, confidence bucket, symbol, side, feature freshness, and whether expected_move_after_cost_bps was native, missing, or below threshold at decision time.\n3. Produce a model-improvement packet that identifies exactly which native expected_move_after_cost sources need improvement. Do not use future outcome labels to authorize current fills.\n4. If a safe code change is available, add only fail-closed reporting/scoring improvements that increase evidence coverage. Do not lower min_expected_move_after_cost_bps, do not lower confidence thresholds, and do not permit fills from historical false-block labels.\n5. Preserve no-trade correctness tracking and mark insufficient sample honestly.\n6. Update public/operator payloads with edge_status, false_block_count, no_trade_correct_count, allowed_paper_fill_count, sample status, live_gate, and live_symbols.\n7. Add tests proving future outcome labels cannot permit fills and the strict edge gate still blocks missing expected_move_after_cost, missing trainer_source, missing feature_freshness_state, low confidence, and symbols outside paper scope.\n8. Create Codex review marker codex_review_expected_move_after_cost_false_block_model_improvement.\n\nRequired outputs:\n- claude_worklog/final_readiness/paper_edge_recovery/latest/EXPECTED_MOVE_AFTER_COST_FALSE_BLOCK_MODEL_REVIEW.md\n- claude_worklog/final_readiness/paper_edge_recovery/latest/expected_move_after_cost_false_block_model_review.json\n- claude_worklog/final_readiness/paper_edge_recovery/latest/operator_dashboard_payload.json\n- v2/frontend/public/paper_edge_recovery/latest/operator_dashboard_payload.json\n\nGO/NO-GO classification must be one of:\n- EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_READY_EDGE_PENDING\n- EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_BLOCKED_INSUFFICIENT_EVIDENCE\n- EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_BLOCKED_SAFETY_REGRESSION\n\nValidation required: py_compile, targeted tests, JSON validation, secret scan, forbidden mutation scan. Do not claim live-ready, canary-ready, positive edge, or legacy shutdown readiness.",
   "required_output_files": [
-    "claude_worklog/final_readiness/paper_expected_move_coverage/latest/GO_NO_GO.md",
-    "claude_worklog/final_readiness/paper_expected_move_coverage/latest/PAPER_EXPECTED_MOVE_COVERAGE_REMEDIATION_REPORT.md",
-    "claude_worklog/final_readiness/paper_expected_move_coverage/latest/paper_expected_move_coverage_status.json",
-    "v2/frontend/public/paper_expected_move_coverage/latest/operator_dashboard_payload.json"
+    "claude_worklog/final_readiness/paper_edge_recovery/latest/EXPECTED_MOVE_AFTER_COST_FALSE_BLOCK_MODEL_REVIEW.md",
+    "claude_worklog/final_readiness/paper_edge_recovery/latest/expected_move_after_cost_false_block_model_review.json",
+    "claude_worklog/final_readiness/paper_edge_recovery/latest/operator_dashboard_payload.json",
+    "v2/frontend/public/paper_edge_recovery/latest/operator_dashboard_payload.json"
   ],
   "risk_level": "L2",
   "status": "pending",

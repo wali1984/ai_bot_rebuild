@@ -3,7 +3,7 @@
   "approves_legacy_shutdown": false,
   "approves_live": false,
   "edge_proven": false,
-  "edge_status": "PAPER_OUTCOME_MODEL_READY_EDGE_PENDING",
+  "edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
   "forbidden_action_scan_summary": {
     "approval_token_created": false,
     "exchange_mutations": "absent_in_touched_runtime_code_and_audited_events",
@@ -11,7 +11,7 @@
     "old_redis_writes": "absent_in_touched_runtime_code_and_audited_events",
     "redis_trim_approval_created": false
   },
-  "generated_at": "2026-05-15T09:00:09Z",
+  "generated_at": "2026-05-15T09:10:40Z",
   "go_no_go": "V2_PAPER_EDGE_RECOVERY_READY_NO_UNSAFE_FILLS_EDGE_PENDING",
   "live_gate": "blocked_human_only",
   "live_symbols": [],
@@ -19,7 +19,12 @@
   "paper_pnl": {
     "current_cumulative_paper_pnl_usdt": -49.15,
     "observed_pre_filter_loss_usdt": -22.75,
-    "post_lifecycle_blocked_intents": 26,
+    "expected_move_after_cost_false_block_model_review": {
+      "classification": "EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_READY_EDGE_PENDING",
+      "false_block_count": 14,
+      "sample_status": "PRELIMINARY_SAMPLE"
+    },
+    "post_lifecycle_blocked_intents": 47,
     "post_lifecycle_closed_positions": 0,
     "post_lifecycle_fees_usdt": 0.0,
     "post_lifecycle_fills": 0,
@@ -53,13 +58,13 @@
   ],
   "runtime_observation": {
     "lifecycle_start_utc": "2026-05-15T08:47:22Z",
-    "post_lifecycle_blocked": 26,
+    "post_lifecycle_blocked": 47,
     "post_lifecycle_closed_positions": 0,
-    "post_lifecycle_events": 26,
+    "post_lifecycle_events": 47,
     "post_lifecycle_fee_usdt": 0.0,
     "post_lifecycle_fills": 0,
     "post_lifecycle_held_positions": 0,
-    "post_lifecycle_latest_event_utc": "2026-05-15T08:59:56Z",
+    "post_lifecycle_latest_event_utc": "2026-05-15T09:10:19Z",
     "post_lifecycle_pnl_delta_usdt": 0.0,
     "post_lifecycle_unsafe_fills": 0
   },
@@ -71,7 +76,7 @@
   },
   "task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection",
   "validation": {
-    "focused_pytest": "PASS_20_TESTS",
+    "focused_pytest": "PASS_22_TESTS",
     "positive_edge_proven": false,
     "post_lifecycle_no_fee_bleed": true,
     "py_compile": "PASS"

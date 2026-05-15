@@ -1,6 +1,6 @@
 # V2 Paper Edge Recovery And Cost-Aware Trade Selection Report
 
-Generated: `2026-05-15T09:00:09Z`
+Generated: `2026-05-15T09:10:40Z`
 Task: `claude_v2_paper_edge_recovery_and_cost_aware_trade_selection`
 
 ## Decision
@@ -22,15 +22,15 @@ After restarting only `ai-bot-v2-paper-online-runtime.service` at `2026-05-15T08
 
 | Metric | Value |
 | --- | ---: |
-| observed events | 26 |
+| observed events | 47 |
 | fills | 0 |
 | held positions | 0 |
 | closed positions | 0 |
-| blocked intents | 26 |
+| blocked intents | 47 |
 | fees charged | 0.0 |
 | latest paper PnL | -49.15 |
 
-The first post-lifecycle ticks were blocked because confidence and/or edge-after-cost were below threshold. Latest observed event: `2026-05-15T08:59:56Z`, blocked by `deny_low_confidence` with `confidence=0.560401`. That is correct behavior: no edge means no fill.
+The first post-lifecycle ticks were blocked because confidence and/or edge-after-cost were below threshold. Latest model-review evidence shows `14` blocked intents later beat estimated costs, so edge remains pending and model calibration/coverage needs improvement. That is not permission to trade from hindsight.
 
 ## Fill Boundary
 
@@ -56,5 +56,5 @@ A V2 paper fill is blocked unless all of these pass:
 ## Validation
 
 - `py_compile`: PASS for `v2/backend/app/cli/paper_online_runtime.py`.
-- Focused tests: `20 passed`.
+- Focused tests: `22 passed`.
 - Runtime safety: old Redis writes absent, exchange actions absent, top-level `live_gate=blocked_human_only`, top-level `live_symbols=[]`.
