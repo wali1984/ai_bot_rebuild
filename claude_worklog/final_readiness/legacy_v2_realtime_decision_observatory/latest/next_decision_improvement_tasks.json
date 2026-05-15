@@ -4,7 +4,7 @@
   "does_not_approve_legacy_shutdown": true,
   "does_not_approve_live": true,
   "exchange_action_taken": false,
-  "generated_at": "2026-05-15T11:14:30Z",
+  "generated_at": "2026-05-15T11:16:30Z",
   "legacy_mutation_performed": false,
   "live_blocked": true,
   "live_gate": "blocked_human_only",
@@ -39,9 +39,9 @@
   "shadow_false_block_count": 19,
   "shadow_false_block_reason_counts": {
     "confidence_below_canary_threshold": 7,
-    "deny_canary_profile_tightening": 8,
+    "deny_canary_profile_tightening": 7,
     "deny_low_confidence": 1,
-    "expected_edge_below_costs": 4,
+    "expected_edge_below_costs": 5,
     "same_symbol_same_direction_cooldown": 3
   },
   "shadow_outcome_status": "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED",

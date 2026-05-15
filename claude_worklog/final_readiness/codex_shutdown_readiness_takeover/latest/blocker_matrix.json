@@ -1,5 +1,5 @@
 {
-  "as_of_utc": "2026-05-15T11:04:38Z",
+  "as_of_utc": "2026-05-15T11:17:04Z",
   "blockers": [
     {
       "category": "OPERATOR_DECISION_REQUIRED",
@@ -33,7 +33,7 @@
     },
     {
       "category": "P0_SHUTDOWN_BLOCKER",
-      "evidence": "paper_runtime: paper_position_outcome_pending",
+      "evidence": "paper_runtime: current_paper_intent_blocked_or_unfilled",
       "id": "PAPER_EDGE_UNPROVEN",
       "remediation_task_id": "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
     },

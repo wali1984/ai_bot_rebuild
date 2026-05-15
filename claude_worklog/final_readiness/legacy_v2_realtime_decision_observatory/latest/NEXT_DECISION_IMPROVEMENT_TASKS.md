@@ -1,6 +1,6 @@
 # Next Decision Improvement Tasks
 
-Generated: `2026-05-15T11:14:30Z`
+Generated: `2026-05-15T11:16:30Z`
 
 This queue is V2 paper/shadow only and does not approve live trading or legacy shutdown.
 
