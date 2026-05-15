@@ -38,12 +38,14 @@ def build_decision_improvement_recommendations(
     paper_edge_status: Mapping[str, Any] | None = None,
     shadow_outcome_status: Mapping[str, Any] | None = None,
     shadow_learning_status: Mapping[str, Any] | None = None,
+    expected_move_model_review_status: Mapping[str, Any] | None = None,
     protective_behavior_status: Mapping[str, Any] | None = None,
     symbol_status: Mapping[str, Any] | None = None,
     risk_status: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     shadow_outcome_status = shadow_outcome_status or {}
     shadow_learning_status = shadow_learning_status or {}
+    expected_move_model_review_status = expected_move_model_review_status or {}
     paper_edge_status = paper_edge_status or {}
     protective_behavior_status = protective_behavior_status or {}
     false_block_count = int(shadow_outcome_status.get("false_block_count") or 0)
@@ -65,6 +67,37 @@ def build_decision_improvement_recommendations(
             reviewed=reviewed_false_block_count,
             current=false_block_count,
         )
+    )
+    expected_move_model_review_go_no_go = (
+        expected_move_model_review_status.get("go_no_go")
+        or expected_move_model_review_status.get("classification")
+    )
+    expected_move_model_review_false_block_count = int(
+        expected_move_model_review_status.get("false_block_count")
+        or _nested_get(expected_move_model_review_status, "false_block_audit", "false_block_count")
+        or 0
+    )
+    expected_move_model_review_ready = (
+        expected_move_model_review_go_no_go
+        in {
+            "V2_EXPECTED_MOVE_MODEL_REVIEW_READY_KEEP_GATE_STRICT",
+            "V2_EXPECTED_MOVE_MODEL_REVIEW_READY_SELECTIVE_THRESHOLD_UPDATE",
+            "V2_EXPECTED_MOVE_MODEL_REVIEW_BLOCKED_EDGE_NOT_FOUND",
+            "V2_EXPECTED_MOVE_MODEL_REVIEW_BLOCKED_INSUFFICIENT_SAMPLE",
+        }
+        and _reviewed_false_block_count_is_current_enough(
+            reviewed=expected_move_model_review_false_block_count,
+            current=false_block_count,
+        )
+    )
+    recommended_paper_gate_action = (
+        expected_move_model_review_status.get("recommended_gate_action")
+        or _nested_get(
+            expected_move_model_review_status,
+            "recommended_paper_gate_changes",
+            "recommended_gate_action",
+        )
+        or "PENDING_EXPECTED_MOVE_MODEL_REVIEW"
     )
     shadow_learning_ready = (
         shadow_learning_status.get("go_no_go")
@@ -164,6 +197,43 @@ def build_decision_improvement_recommendations(
                 ),
             },
         )
+    elif false_block_count > 0 and not expected_move_model_review_ready:
+        tasks.insert(
+            0,
+            {
+                "task_id": "claude_v2_expected_move_model_review_and_false_block_calibration",
+                "priority": "P0",
+                "reason": (
+                    f"Shadow outcome observer found {false_block_count} false blocks after expected-move "
+                    "coverage was added; calibrate the model and thresholds without using hindsight labels "
+                    "as fill permission."
+                ),
+                "required_result": (
+                    "Audit false blocks by symbol, side, reason, expected-edge bucket, trainer source, and "
+                    "feature freshness; replay thresholds; recommend keep-strict or selective paper-only "
+                    "changes without live/canary/shutdown approval."
+                ),
+            },
+        )
+    elif (
+        expected_move_model_review_go_no_go
+        == "V2_EXPECTED_MOVE_MODEL_REVIEW_READY_SELECTIVE_THRESHOLD_UPDATE"
+        and recommended_paper_gate_action == "SELECTIVE_THRESHOLD_UPDATE_RECOMMENDED"
+    ):
+        tasks.insert(
+            0,
+            {
+                "task_id": "claude_apply_v2_expected_move_selective_threshold_update",
+                "priority": "P0",
+                "reason": (
+                    "Expected-move model review found evidence for a selective paper-only gate adjustment."
+                ),
+                "required_result": (
+                    "Apply only the reviewed symbol/timeframe-specific paper gate change, keep confidence "
+                    "from authorizing fills alone, and keep live blocked."
+                ),
+            },
+        )
     if not tasks:
         tasks.append(
             {
@@ -201,6 +271,9 @@ def build_decision_improvement_recommendations(
         "remaining_protective_behavior_gaps": remaining_protective_gaps,
         "shadow_false_block_count": false_block_count,
         "shadow_false_block_reason_counts": shadow_outcome_status.get("false_block_reason_counts") or {},
+        "expected_move_model_review_go_no_go": expected_move_model_review_go_no_go,
+        "expected_move_model_review_false_block_count": expected_move_model_review_false_block_count,
+        "recommended_paper_gate_action": recommended_paper_gate_action,
         "next_tasks": tasks,
         "claude_task_ready": tasks[0]["task_id"],
         "live_gate": LIVE_GATE_STATUS,

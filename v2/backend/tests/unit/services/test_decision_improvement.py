@@ -55,7 +55,7 @@ def test_resolved_per_fill_fields_are_not_requeued() -> None:
     assert status["live_symbols"] == []
 
 
-def test_completed_expected_move_review_is_not_requeued_for_historical_false_blocks() -> None:
+def test_completed_expected_move_coverage_routes_to_false_block_calibration() -> None:
     status = build_decision_improvement_recommendations(
         scoreboard_status={},
         paper_edge_status={
@@ -79,14 +79,16 @@ def test_completed_expected_move_review_is_not_requeued_for_historical_false_blo
         },
     )
 
-    task_ids = [task["task_id"] for task in status["next_tasks"]]
-    assert "claude_improve_expected_move_after_cost_coverage_from_shadow_false_blocks" not in task_ids
+    assert (
+        status["claude_task_ready"]
+        == "claude_v2_expected_move_model_review_and_false_block_calibration"
+    )
     assert status["shadow_false_block_count"] == 15
     assert status["live_gate"] == "blocked_human_only"
     assert status["live_symbols"] == []
 
 
-def test_small_expected_move_review_sample_drift_does_not_requeue_completed_review() -> None:
+def test_small_expected_move_coverage_drift_routes_to_false_block_calibration() -> None:
     status = build_decision_improvement_recommendations(
         scoreboard_status={},
         paper_edge_status={
@@ -110,8 +112,10 @@ def test_small_expected_move_review_sample_drift_does_not_requeue_completed_revi
         },
     )
 
-    task_ids = [task["task_id"] for task in status["next_tasks"]]
-    assert "claude_improve_expected_move_after_cost_coverage_from_shadow_false_blocks" not in task_ids
+    assert (
+        status["claude_task_ready"]
+        == "claude_v2_expected_move_model_review_and_false_block_calibration"
+    )
     assert status["shadow_false_block_count"] == 18
     assert status["live_gate"] == "blocked_human_only"
     assert status["live_symbols"] == []
@@ -176,6 +180,11 @@ def test_completed_shadow_learning_is_not_requeued() -> None:
         shadow_learning_status={
             "go_no_go": "SHADOW_OUTCOME_LEARNING_READY_EDGE_PENDING",
         },
+        expected_move_model_review_status={
+            "go_no_go": "V2_EXPECTED_MOVE_MODEL_REVIEW_READY_KEEP_GATE_STRICT",
+            "false_block_count": 9,
+            "recommended_gate_action": "KEEP_GATE_STRICT",
+        },
     )
 
     task_ids = [task["task_id"] for task in status["next_tasks"]]
@@ -210,6 +219,11 @@ def test_ready_protective_map_routes_to_remaining_gap_implementation() -> None:
         },
         shadow_learning_status={
             "go_no_go": "SHADOW_OUTCOME_LEARNING_READY_EDGE_PENDING",
+        },
+        expected_move_model_review_status={
+            "go_no_go": "V2_EXPECTED_MOVE_MODEL_REVIEW_READY_KEEP_GATE_STRICT",
+            "false_block_count": 8,
+            "recommended_gate_action": "KEEP_GATE_STRICT",
         },
         protective_behavior_status={
             "go_no_go": "LEGACY_PROTECTIVE_BEHAVIOR_TO_V2_PAPER_MAP_READY_EDGE_PENDING",
@@ -259,6 +273,11 @@ def test_ready_protective_equivalents_route_to_monitoring_when_no_task_remains()
         shadow_learning_status={
             "go_no_go": "SHADOW_OUTCOME_LEARNING_READY_EDGE_PENDING",
         },
+        expected_move_model_review_status={
+            "go_no_go": "V2_EXPECTED_MOVE_MODEL_REVIEW_READY_KEEP_GATE_STRICT",
+            "false_block_count": 8,
+            "recommended_gate_action": "KEEP_GATE_STRICT",
+        },
         protective_behavior_status={
             "mapping_status": "READY_EDGE_PENDING_WITH_PAPER_ONLY_EQUIVALENTS",
             "remaining_protective_behavior_gaps": [],
@@ -268,5 +287,89 @@ def test_ready_protective_equivalents_route_to_monitoring_when_no_task_remains()
     assert status["claude_task_ready"] == "monitor_shadow_outcome_observer_and_trainer_parity"
     assert status["next_tasks"][0]["priority"] == "INFO"
     assert status["remaining_protective_behavior_gaps"] == []
+    assert status["live_gate"] == "blocked_human_only"
+    assert status["live_symbols"] == []
+
+
+def test_small_expected_move_model_review_sample_drift_does_not_requeue_calibration() -> None:
+    status = build_decision_improvement_recommendations(
+        scoreboard_status={},
+        paper_edge_status={
+            "resolved_controls": [
+                "missing_expected_move_after_cost_bps_blocks_fill",
+                "missing_trainer_source_blocks_fill",
+                "missing_feature_freshness_state_blocks_fill",
+                "symbol_not_in_paper_symbols_blocks_fill",
+                "confidence_alone_cannot_allow_fill",
+            ],
+            "paper_pnl": {
+                "expected_move_after_cost_false_block_model_review": {
+                    "classification": "EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_READY_EDGE_PENDING",
+                    "false_block_count": 90,
+                }
+            },
+        },
+        shadow_outcome_status={
+            "false_block_count": 94,
+            "outcome_status": "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED",
+        },
+        shadow_learning_status={
+            "go_no_go": "SHADOW_OUTCOME_LEARNING_READY_EDGE_PENDING",
+        },
+        expected_move_model_review_status={
+            "go_no_go": "V2_EXPECTED_MOVE_MODEL_REVIEW_READY_KEEP_GATE_STRICT",
+            "false_block_count": 90,
+            "recommended_gate_action": "KEEP_GATE_STRICT",
+        },
+        protective_behavior_status={
+            "mapping_status": "READY_EDGE_PENDING_WITH_PAPER_ONLY_EQUIVALENTS",
+            "remaining_protective_behavior_gaps": [],
+        },
+    )
+
+    assert status["claude_task_ready"] == "monitor_shadow_outcome_observer_and_trainer_parity"
+    assert status["next_tasks"][0]["priority"] == "INFO"
+    assert status["expected_move_model_review_go_no_go"] == (
+        "V2_EXPECTED_MOVE_MODEL_REVIEW_READY_KEEP_GATE_STRICT"
+    )
+    assert status["recommended_paper_gate_action"] == "KEEP_GATE_STRICT"
+    assert status["live_gate"] == "blocked_human_only"
+    assert status["live_symbols"] == []
+
+
+def test_material_expected_move_model_review_sample_drift_requeues_calibration() -> None:
+    status = build_decision_improvement_recommendations(
+        scoreboard_status={},
+        paper_edge_status={
+            "resolved_controls": [
+                "missing_expected_move_after_cost_bps_blocks_fill",
+                "missing_trainer_source_blocks_fill",
+                "missing_feature_freshness_state_blocks_fill",
+                "symbol_not_in_paper_symbols_blocks_fill",
+                "confidence_alone_cannot_allow_fill",
+            ],
+            "paper_pnl": {
+                "expected_move_after_cost_false_block_model_review": {
+                    "classification": "EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_READY_EDGE_PENDING",
+                    "false_block_count": 80,
+                }
+            },
+        },
+        shadow_outcome_status={
+            "false_block_count": 80,
+            "outcome_status": "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED",
+        },
+        expected_move_model_review_status={
+            "go_no_go": "V2_EXPECTED_MOVE_MODEL_REVIEW_READY_KEEP_GATE_STRICT",
+            "false_block_count": 20,
+            "recommended_gate_action": "KEEP_GATE_STRICT",
+        },
+    )
+
+    assert (
+        status["claude_task_ready"]
+        == "claude_v2_expected_move_model_review_and_false_block_calibration"
+    )
+    assert status["next_tasks"][0]["priority"] == "P0"
     assert status["live_gate"] == "blocked_human_only"
     assert status["live_symbols"] == []

@@ -1,0 +1,19 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "blocking_findings": [],
+  "generated_at": "2026-05-15T17:31:17Z",
+  "go_no_go": "CODEX_REVIEW_V2_EXPECTED_MOVE_MODEL_REVIEW_AND_FALSE_BLOCK_CALIBRATION_PASS",
+  "reviewed_go_no_go": "V2_EXPECTED_MOVE_MODEL_REVIEW_READY_KEEP_GATE_STRICT",
+  "verified_invariants": [
+    "false_block_evidence_analysis_only",
+    "confidence_alone_cannot_permit_fills",
+    "missing_expected_move_after_cost_bps_blocks_fill",
+    "missing_trainer_source_blocks_fill",
+    "missing_feature_freshness_blocks_fill",
+    "positive_edge_not_claimed",
+    "live_gate_blocked_human_only",
+    "live_symbols_empty"
+  ]
+}

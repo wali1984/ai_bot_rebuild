@@ -1,0 +1,63 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "best_strict_replay_row": {
+    "allow_precision_after_costs": 0.375,
+    "allowed_fills_proxy_count": 8,
+    "analysis_only": false,
+    "classification": "UNSAFE_LOW_PRECISION",
+    "cooldown_mode": "60m_observed_strict",
+    "false_allow_count": 5,
+    "false_block_count": 92,
+    "min_confidence_calibrated": 0.75,
+    "min_expected_move_after_cost_bps": 6,
+    "missing_required_field_count": 3,
+    "net_bps_proxy_sum_after_costs": 89.072309,
+    "net_usdt_proxy_at_25_usdt_notional": 0.22268077,
+    "no_trade_correct_count": 159,
+    "no_trade_correct_rate": 0.633466,
+    "sample_size": 259,
+    "true_allow_count": 3
+  },
+  "completed_observations": 259,
+  "edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
+  "false_block_count": 95,
+  "false_block_rate": 0.366795,
+  "generated_at": "2026-05-15T17:31:17Z",
+  "go_no_go": "V2_EXPECTED_MOVE_MODEL_REVIEW_READY_KEEP_GATE_STRICT",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "no_trade_correct_count": 164,
+  "no_trade_correct_rate": 0.633205,
+  "observations_total": 317,
+  "outcome_status": "BLOCKED_INTENTS_BEAT_COSTS_MODEL_REVIEW_REQUIRED",
+  "paper_pnl": {
+    "current_cumulative_paper_pnl_usdt": -49.345535,
+    "current_unrealized_pnl_usdt": 0.0,
+    "expected_move_after_cost_false_block_model_review": {
+      "classification": "EXPECTED_MOVE_AFTER_COST_MODEL_REVIEW_READY_EDGE_PENDING",
+      "false_block_count": 91,
+      "sample_status": "PRELIMINARY_SAMPLE"
+    },
+    "last_closed_position_realized_delta_usdt": -0.035486,
+    "observed_pre_filter_loss_usdt": -22.75,
+    "open_position_count": 0,
+    "open_position_pending": false,
+    "source_limited_prior_baseline_usdt": -26.37
+  },
+  "paper_symbols": [
+    "BTCUSDT"
+  ],
+  "pending_observations": 58,
+  "recommendation": "EDGE_PENDING_MODEL_REVIEW_COMPLETE_KEEP_GATE_STRICT",
+  "recommended_gate_action": "KEEP_GATE_STRICT",
+  "safe_threshold_candidate_count": 0,
+  "trainer_parity_status": "BLOCKS_LEGACY_SHUTDOWN",
+  "trainer_remaining_parity_gaps": [
+    "LEGACY_LOG_CONFIDENCE_CALIBRATION_DERIVED",
+    "LEGACY_LOG_FEATURE_ATTRIBUTION_INCOMPLETE",
+    "LEGACY_LOG_FEATURE_SNAPSHOT_ID_DERIVED"
+  ],
+  "worker_id": "expected_move_model_review"
+}

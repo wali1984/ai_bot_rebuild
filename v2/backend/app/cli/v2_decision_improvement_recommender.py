@@ -60,6 +60,24 @@ SHADOW_LEARNING_CANDIDATES = [
     / "latest"
     / "operator_dashboard_payload.json",
 ]
+EXPECTED_MOVE_MODEL_REVIEW_CANDIDATES = [
+    REPO_ROOT
+    / "claude_worklog"
+    / "final_readiness"
+    / "expected_move_model_review"
+    / "latest"
+    / "recommended_paper_gate_changes.json",
+    REPO_ROOT
+    / "claude_worklog"
+    / "final_readiness"
+    / "expected_move_model_review"
+    / "latest"
+    / "false_block_audit.json",
+    V2_PUBLIC
+    / "expected_move_model_review"
+    / "latest"
+    / "operator_dashboard_payload.json",
+]
 PROTECTIVE_BEHAVIOR_CANDIDATES = [
     REPO_ROOT
     / "claude_worklog"
@@ -127,6 +145,7 @@ def run_once(args: argparse.Namespace | None = None) -> dict[str, Any]:
         paper_edge_status=_load(PAPER_EDGE_CANDIDATES),
         shadow_outcome_status=_load(SHADOW_OUTCOME_CANDIDATES),
         shadow_learning_status=_load(SHADOW_LEARNING_CANDIDATES),
+        expected_move_model_review_status=_load(EXPECTED_MOVE_MODEL_REVIEW_CANDIDATES),
         protective_behavior_status=_load(PROTECTIVE_BEHAVIOR_CANDIDATES),
         symbol_status=_load(SYMBOL_CANDIDATES),
         risk_status=_load(RISK_CANDIDATES),
