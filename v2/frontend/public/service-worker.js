@@ -8,8 +8,35 @@
  *   - All API responses are passed through to the network without caching.
  */
 
-const STATIC_CACHE = 'aibot-v2-static-v2';
+// Bump on any SPA bundle change so the new SW invalidates older caches
+// that may still hold a stale built bundle. The activate handler deletes
+// every cache whose name differs from STATIC_CACHE on the next page load,
+// so changing this constant is sufficient to evict stale assets.
+const STATIC_CACHE = 'aibot-v2-static-v4-20260523';
 const STATIC_ASSETS = ['/manifest.webmanifest'];
+
+// Hard list of root paths that must never be served from cache. The
+// activate handler also deletes them from the current cache so a user
+// whose browser cached an older index.html or root document picks up the
+// freshly built SPA on the next reload.
+const FORCE_NETWORK_ROOT_PATHS = ['/', '/index.html', '/landing', '/landing-legacy'];
+
+function isRealtimePayload(url) {
+  const path = url.pathname;
+  return (
+    path.endsWith('.json') ||
+    path.endsWith('.md') ||
+    path.startsWith('/operator_runtime/') ||
+    path.startsWith('/v2_') ||
+    path.startsWith('/dashboards/') ||
+    path.startsWith('/production_') ||
+    path.startsWith('/active_autonomous_dispatch/') ||
+    path.startsWith('/autonomous_governor/') ||
+    path.startsWith('/paper_') ||
+    path.startsWith('/runtime_') ||
+    path.includes('/latest/')
+  );
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -20,11 +47,30 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== STATIC_CACHE).map((k) => caches.delete(k))),
-    ),
+    (async () => {
+      // 1. Drop every cache other than the current STATIC_CACHE — this
+      //    evicts older static bundles a previous SW version installed.
+      const keys = await caches.keys();
+      await Promise.all(
+        keys.filter((k) => k !== STATIC_CACHE).map((k) => caches.delete(k)),
+      );
+      // 2. Inside the current cache, force-evict the SPA shell entries so
+      //    the next navigation re-fetches index.html from the network and
+      //    picks up the freshly hashed asset URLs.
+      try {
+        const cache = await caches.open(STATIC_CACHE);
+        await Promise.all(
+          FORCE_NETWORK_ROOT_PATHS.map((path) => cache.delete(path)),
+        );
+      } catch (_err) {
+        // Cache eviction is best-effort; the network-first index handler
+        // below will still return fresh HTML for these paths.
+      }
+      // 3. Take control of all open tabs so the new SW handles their next
+      //    fetch immediately, without requiring a manual reload.
+      await self.clients.claim();
+    })(),
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
@@ -38,13 +84,20 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(req.url);
 
-  // API responses are always network-only and never cached.
-  if (url.pathname.startsWith('/api/')) {
+  // API and runtime/report payloads are always network-only and never cached.
+  if (url.pathname.startsWith('/api/') || isRealtimePayload(url)) {
+    event.respondWith(fetch(req, { cache: 'no-store' }));
     return;
   }
 
-  if (url.pathname === '/' || url.pathname === '/index.html') {
-    event.respondWith(fetch(req).catch(() => caches.match('/index.html')));
+  // SPA shell paths are always network-first. We never want to serve a
+  // cached older HTML/landing that points at a stale bundle hash.
+  if (FORCE_NETWORK_ROOT_PATHS.includes(url.pathname)) {
+    event.respondWith(
+      fetch(req, { cache: 'no-store' }).catch(() =>
+        caches.match('/index.html'),
+      ),
+    );
     return;
   }
 
