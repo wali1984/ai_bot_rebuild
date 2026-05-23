@@ -1,0 +1,89 @@
+{
+  "analysis_only": true,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "baselines": {
+    "hold": {
+      "enters": 0,
+      "mean_after_cost_bps": 0.0,
+      "samples": 7,
+      "stdev_after_cost_bps": 0.0,
+      "sum_after_cost_bps": 0.0
+    },
+    "legacy_reference": {
+      "evidence_state": "MISSING_EVIDENCE",
+      "note": "legacy_reference_action is null in all replay bundles"
+    },
+    "logistic_baseline_1d_expected_move": {
+      "enters": 6,
+      "mean_after_cost_bps": -0.7737513709878174,
+      "meta": {
+        "grid": [
+          {
+            "threshold_bps": 0.0,
+            "train_pnl_bps": -195.11193357660767
+          },
+          {
+            "threshold_bps": 1.0,
+            "train_pnl_bps": -195.11193357660767
+          },
+          {
+            "threshold_bps": 3.0,
+            "train_pnl_bps": -195.11193357660767
+          },
+          {
+            "threshold_bps": 5.0,
+            "train_pnl_bps": -195.11193357660767
+          },
+          {
+            "threshold_bps": 10.0,
+            "train_pnl_bps": -171.62849204347674
+          },
+          {
+            "threshold_bps": 15.0,
+            "train_pnl_bps": -171.62849204347674
+          },
+          {
+            "threshold_bps": 25.0,
+            "train_pnl_bps": -161.0583385268754
+          },
+          {
+            "threshold_bps": 50.0,
+            "train_pnl_bps": -161.0583385268754
+          }
+        ],
+        "note": "trivial 1-feature baseline",
+        "selected_threshold_bps": 25.0,
+        "selected_train_pnl_bps": -161.0583385268754
+      },
+      "samples": 7,
+      "stdev_after_cost_bps": 6.465046117607162,
+      "sum_after_cost_bps": -5.416259596914722
+    },
+    "naive_threshold_expected_move_10bps": {
+      "enters": 7,
+      "mean_after_cost_bps": -3.468982685300559,
+      "samples": 7,
+      "stdev_after_cost_bps": 9.011746472218457,
+      "sum_after_cost_bps": -24.282878797103912
+    },
+    "v2_deterministic_policy_shadow_only": {
+      "enters": 0,
+      "mean_after_cost_bps": 0.0,
+      "samples": 7,
+      "stdev_after_cost_bps": 0.0,
+      "sum_after_cost_bps": 0.0
+    }
+  },
+  "checkpoint_compatibility_claimed": false,
+  "edge_claimed": false,
+  "generated_utc": "2026-05-23T18:21:16Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "policy_architecture_parity_claimed": false,
+  "schema_version": "v2_24h_parallel_recovery_war_room_v1_model_baseline_metrics",
+  "train_samples": 26,
+  "validation_samples": 7
+}

@@ -1,0 +1,33 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "generated_utc": "2026-05-23T18:21:16Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "schema_version": "v2_24h_parallel_recovery_war_room_v1_fn_remediation_tasks",
+  "tasks": [
+    {
+      "automatable": true,
+      "owner_lane": "v2_paper_fill_gate",
+      "rationale": "False-negative bundles show paper_fill_allowed=False with empty paper_fill_gate_block_reasons; the gate is opaque.",
+      "task_id": "paper_fill_gate_record_block_reason",
+      "title": "Record paper_fill_gate block reason on every paper_fill_allowed=False decision"
+    },
+    {
+      "automatable": true,
+      "owner_lane": "v2_observation",
+      "rationale": "False-negative bundles cannot be explained from the persisted observation alone.",
+      "task_id": "observation_gap_inventory_for_false_negatives",
+      "title": "Inventory all observation gaps for false-negative bundles and emit per-cause backfill tasks"
+    },
+    {
+      "automatable": true,
+      "owner_lane": "v2_replay_miner",
+      "rationale": "Replay bundles record altdata_snapshot=null even though v2 altdata candidate scoring is running.",
+      "task_id": "altdata_snapshot_attached_to_replay_bundle",
+      "title": "Attach v2 altdata symbol-score snapshot to every replay bundle when present"
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "active_lanes": 3,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "dispatches": [
+    {
+      "activated_by": "V2_HIGH_THROUGHPUT_AI_WAR_ROOM_SCHEDULER",
+      "activated_utc": "2026-05-23T20:31:25Z",
+      "automatable": true,
+      "codex_fast_mode_enabled": false,
+      "dispatch_id": "v2_high_throughput_dispatch_1_paper_fill_gate_record_block_reason",
+      "file_locks": [
+        "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+        "v2/backend/app/cli/v2_orchestrator_arbitration_loop.py",
+        "claude_worklog/final_readiness/v2_high_throughput_ai_war_room_scheduler/dispatch/paper_fill_gate_record_block_reason/**"
+      ],
+      "gpu_allowed": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "owner": "claude",
+      "resource_class": "low_cpu_no_gpu",
+      "reviewer": "codex",
+      "scope_prompt": "Work only on paper_fill_gate_record_block_reason. Do not enable live/canary/shutdown, do not write old Redis, do not call exchange mutation, do not run GPU jobs.",
+      "status": "active",
+      "task_id": "paper_fill_gate_record_block_reason",
+      "title": "Record paper_fill_gate block reason on every paper_fill_allowed=False decision"
+    },
+    {
+      "activated_by": "V2_HIGH_THROUGHPUT_AI_WAR_ROOM_SCHEDULER",
+      "activated_utc": "2026-05-23T20:31:25Z",
+      "automatable": true,
+      "codex_fast_mode_enabled": false,
+      "dispatch_id": "v2_high_throughput_dispatch_2_observation_gap_inventory_for_false_negatives",
+      "file_locks": [
+        "v2/backend/app/services/war_room/parallel_recovery_24h.py:false_negative_observation_gap_inventory",
+        "claude_worklog/final_readiness/v2_high_throughput_ai_war_room_scheduler/dispatch/observation_gap_inventory_for_false_negatives/**"
+      ],
+      "gpu_allowed": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "owner": "claude",
+      "resource_class": "low_cpu_no_gpu",
+      "reviewer": "codex",
+      "scope_prompt": "Work only on observation_gap_inventory_for_false_negatives. Do not enable live/canary/shutdown, do not write old Redis, do not call exchange mutation, do not run GPU jobs.",
+      "status": "active",
+      "task_id": "observation_gap_inventory_for_false_negatives",
+      "title": "Inventory all observation gaps for false-negative bundles and emit per-cause backfill tasks"
+    },
+    {
+      "activated_by": "V2_HIGH_THROUGHPUT_AI_WAR_ROOM_SCHEDULER",
+      "activated_utc": "2026-05-23T20:31:25Z",
+      "automatable": true,
+      "codex_fast_mode_enabled": false,
+      "dispatch_id": "v2_high_throughput_dispatch_3_altdata_snapshot_attached_to_replay_bundle",
+      "file_locks": [
+        "v2/backend/app/services/edge_proof/replay_miner.py:altdata_snapshot_attachment",
+        "claude_worklog/final_readiness/v2_high_throughput_ai_war_room_scheduler/dispatch/altdata_snapshot_attached_to_replay_bundle/**"
+      ],
+      "gpu_allowed": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "owner": "claude",
+      "resource_class": "low_cpu_no_gpu",
+      "reviewer": "codex",
+      "scope_prompt": "Work only on altdata_snapshot_attached_to_replay_bundle. Do not enable live/canary/shutdown, do not write old Redis, do not call exchange mutation, do not run GPU jobs.",
+      "status": "active",
+      "task_id": "altdata_snapshot_attached_to_replay_bundle",
+      "title": "Attach v2 altdata symbol-score snapshot to every replay bundle when present"
+    }
+  ],
+  "generated_utc": "2026-05-23T20:31:25Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "minimum_required_active_lanes_when_work_exists": 3,
+  "schema_version": "v2_high_throughput_ai_war_room_scheduler_active_lanes_v1"
+}

@@ -1,0 +1,215 @@
+{
+  "schema_version": "codex_24h_parallel_recovery_war_room_governor_status_v1",
+  "generated_utc": "2026-05-23T18:27:53Z",
+  "go_no_go": "CODEX_24H_PARALLEL_RECOVERY_WAR_ROOM_GOVERNOR_BLOCKED",
+  "decision": "BLOCKED",
+  "purpose": "govern 24-hour parallel recovery war-room automation without approving edge, canary, live, shutdown, Redis trim, or symbol adoption",
+  "blocking_findings": [
+    {
+      "code": "WAR_ROOM_ACTIVE_LANES_BELOW_MINIMUM",
+      "severity": "blocking",
+      "detail": "War-room utilization reports active_lanes=0 while three automatable next tasks exist. The governor requires at least 3 active automatable lanes whenever automatable work exists."
+    }
+  ],
+  "current_evidence": {
+    "replay_miner_timer": {
+      "unit": "ai-bot-v2-post-hoc-replay-outcome-miner.timer",
+      "active_state": "active",
+      "unit_file_state": "enabled",
+      "cadence": "OnUnitActiveSec=60s",
+      "service_unit": "ai-bot-v2-post-hoc-replay-outcome-miner.service",
+      "service_result": "success",
+      "service_exec_main_status": 0,
+      "command_contains": "v2.backend.app.cli.v2_post_hoc_replay_outcome_miner",
+      "passed": true
+    },
+    "edge_metrics": {
+      "generated_at": "2026-05-23T18:27:42Z",
+      "bundles_total": 1267,
+      "sample_count": 1267,
+      "label_counts": {
+        "correct_no_trade": 27,
+        "false_negative": 6,
+        "insufficient_evidence": 1234
+      },
+      "windows_filled": {
+        "1m": 46,
+        "5m": 33,
+        "15m": 31,
+        "1h": 70
+      },
+      "windows_insufficient_5m_evidence": 1234,
+      "verdict": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED",
+      "minimum_sample_satisfied": false,
+      "after_cost_pnl_delta": -6.648327647688229,
+      "after_cost_ci_lower_bps": -9.972796045733514,
+      "false_negative_rate": 0.18181818181818182,
+      "fresh": true,
+      "edge_claimed": false,
+      "passed": true
+    },
+    "false_negative_analyzer": {
+      "required": true,
+      "false_negative_count": 6,
+      "artifact": "claude_worklog/final_readiness/v2_24h_parallel_recovery_war_room/latest/lane2/false_negative_root_cause_report.json",
+      "generated_utc": "2026-05-23T18:21:16Z",
+      "cause_counts": {
+        "altdata_missing": 6,
+        "observation_gap": 6,
+        "paper_fill_gate_block": 6,
+        "paper_fill_gate_block_unrecorded_reason": 6
+      },
+      "analyzed": true,
+      "next_tasks_emitted": 3,
+      "passed": true
+    },
+    "dataset_builder": {
+      "required": true,
+      "artifact": "claude_worklog/final_readiness/v2_24h_parallel_recovery_war_room/latest/lane3/v2_native_training_dataset_status.json",
+      "generated_utc": "2026-05-23T18:21:16Z",
+      "dataset_total_rows": 33,
+      "train_rows": 26,
+      "validation_rows": 7,
+      "excluded_insufficient_evidence": 1226,
+      "attempted": true,
+      "approves_live": false,
+      "approves_canary": false,
+      "passed": true
+    },
+    "baseline_evaluator": {
+      "artifact": "claude_worklog/final_readiness/v2_24h_parallel_recovery_war_room/latest/lane4/model_baseline_metrics.json",
+      "generated_utc": "2026-05-23T18:21:16Z",
+      "analysis_only": true,
+      "train_samples": 26,
+      "validation_samples": 7,
+      "baseline_names": [
+        "hold",
+        "v2_deterministic_policy_shadow_only",
+        "naive_threshold_expected_move_10bps",
+        "logistic_baseline_1d_expected_move"
+      ],
+      "edge_claimed": false,
+      "checkpoint_compatibility_claimed": false,
+      "policy_architecture_parity_claimed": false,
+      "production_readiness_claimed": false,
+      "uses_only_v2_owned_replay_data": true,
+      "passed": true
+    },
+    "observation_blocker_live_recheck": {
+      "artifact": "claude_worklog/final_readiness/v2_24h_parallel_recovery_war_room/latest/lane5/observation_blocker_live_recheck.json",
+      "generated_utc": "2026-05-23T18:21:16Z",
+      "v2_buildable_now_count": 0,
+      "no_new_buildable_now_fields_identified": true,
+      "passed": true
+    },
+    "automation_utilization": {
+      "artifact": "claude_worklog/final_readiness/v2_24h_parallel_recovery_war_room/latest/lane6/war_room_utilization_status.json",
+      "generated_utc": "2026-05-23T18:21:16Z",
+      "fresh": true,
+      "active_lanes": 0,
+      "completed_lanes": 7,
+      "stalled_lanes": 0,
+      "automatable_task_count": 3,
+      "minimum_required_active_lanes_when_automatable_work_exists": 3,
+      "passed": false
+    },
+    "task_dispatch": {
+      "artifact": "claude_worklog/final_readiness/v2_24h_parallel_recovery_war_room/latest/lane6/war_room_task_dispatch_status.json",
+      "generated_utc": "2026-05-23T18:21:16Z",
+      "automatable_tasks": [
+        "paper_fill_gate_record_block_reason",
+        "observation_gap_inventory_for_false_negatives",
+        "altdata_snapshot_attached_to_replay_bundle"
+      ],
+      "no_broad_audit_task_while_automatable_work_exists": true,
+      "no_ui_only_drift_while_edge_or_model_blockers_remain": true,
+      "passed": true
+    },
+    "frontend_and_report_center": {
+      "frontend_public_war_room_payload": "v2/frontend/public/v2_24h_parallel_recovery_war_room/latest/operator_dashboard_payload.json",
+      "codex_governor_public_payload": "v2/frontend/public/v2_24h_parallel_recovery_war_room/latest/codex_governor/codex_24h_war_room_governor_status.json",
+      "report_center_registry_updated": true,
+      "report_center_exposes_war_room_progress": true,
+      "report_center_generated_at": "2026-05-23T18:30:06Z",
+      "report_center_report_count": 32,
+      "report_center_top_blocker": "codex_24h_parallel_recovery_war_room_governor",
+      "report_center_hides_blockers": false,
+      "passed": true
+    },
+    "replay_bundle_integrity": {
+      "stores_checked": [
+        "claude_worklog/final_readiness/v2_post_hoc_replay_outcome_miner/latest/replay_outcome_bundles.jsonl",
+        "v2/frontend/public/v2_post_hoc_replay_outcome_miner/latest/replay_outcome_bundles.jsonl",
+        "claude_worklog/final_readiness/v2_post_hoc_replay_outcome_miner/state/replay_bundles.jsonl"
+      ],
+      "rows_per_store": 1267,
+      "bad_cost_model_marker_count": 0,
+      "missing_visible_override_field_count": 0,
+      "fabricated_insufficient_window_count": 0,
+      "prediction_id_duplicate_count": 0,
+      "intent_id_duplicate_count": 0,
+      "passed": true
+    },
+    "safety_scans": {
+      "old_redis_write_hits_in_reviewed_scope": 0,
+      "exchange_mutation_hits_in_reviewed_scope": 0,
+      "raw_secret_hits_in_reviewed_scope": 0,
+      "approval_truthy_hits_in_reviewed_scope": 0,
+      "passed": true
+    }
+  },
+  "safety_scoreboard": {
+    "did_not_modify_legacy": true,
+    "did_not_stop_v2_runtime": true,
+    "did_not_write_old_redis": true,
+    "did_not_call_exchange_mutation": true,
+    "did_not_enable_live": true,
+    "did_not_create_approvals": true,
+    "did_not_fabricate_future_outcome_windows": true,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false
+  },
+  "required_next_actions": [
+    {
+      "owner": "claude",
+      "task_id": "paper_fill_gate_record_block_reason",
+      "required_state": "active"
+    },
+    {
+      "owner": "claude",
+      "task_id": "observation_gap_inventory_for_false_negatives",
+      "required_state": "active"
+    },
+    {
+      "owner": "claude",
+      "task_id": "altdata_snapshot_attached_to_replay_bundle",
+      "required_state": "active"
+    }
+  ],
+  "verification": [
+    {
+      "command": "PYTHONPATH=$PWD .venv/bin/python -m v2.backend.app.cli.v2_report_center_indexer --once --json",
+      "result": "pass; report center surfaces codex_24h_parallel_recovery_war_room_governor as top blocker"
+    },
+    {
+      "command": "python -m py_compile v2/backend/app/services/report_center/report_registry.py v2/backend/app/cli/v2_report_center_indexer.py",
+      "result": "pass"
+    },
+    {
+      "command": "PYTHONPATH=$PWD .venv/bin/pytest v2/backend/tests/unit/services/report_center/test_report_center.py -q",
+      "result": "13 passed"
+    },
+    {
+      "command": "PYTHONPATH=$PWD .venv/bin/pytest v2/backend/tests/integration/cli/test_v2_24h_parallel_recovery_war_room.py -q",
+      "result": "10 passed"
+    },
+    {
+      "command": "jq empty codex/report-center JSON artifacts",
+      "result": "pass"
+    }
+  ]
+}

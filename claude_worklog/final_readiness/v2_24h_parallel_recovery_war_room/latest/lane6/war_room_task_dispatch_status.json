@@ -1,0 +1,154 @@
+{
+  "active_dispatches": [
+    {
+      "activated_by": "V2_HIGH_THROUGHPUT_AI_WAR_ROOM_SCHEDULER",
+      "activated_utc": "2026-05-23T20:31:25Z",
+      "automatable": true,
+      "codex_fast_mode_enabled": false,
+      "dispatch_id": "v2_high_throughput_dispatch_1_paper_fill_gate_record_block_reason",
+      "file_locks": [
+        "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+        "v2/backend/app/cli/v2_orchestrator_arbitration_loop.py",
+        "claude_worklog/final_readiness/v2_high_throughput_ai_war_room_scheduler/dispatch/paper_fill_gate_record_block_reason/**"
+      ],
+      "gpu_allowed": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "owner": "claude",
+      "resource_class": "low_cpu_no_gpu",
+      "reviewer": "codex",
+      "scope_prompt": "Work only on paper_fill_gate_record_block_reason. Do not enable live/canary/shutdown, do not write old Redis, do not call exchange mutation, do not run GPU jobs.",
+      "status": "active",
+      "task_id": "paper_fill_gate_record_block_reason",
+      "title": "Record paper_fill_gate block reason on every paper_fill_allowed=False decision"
+    },
+    {
+      "activated_by": "V2_HIGH_THROUGHPUT_AI_WAR_ROOM_SCHEDULER",
+      "activated_utc": "2026-05-23T20:31:25Z",
+      "automatable": true,
+      "codex_fast_mode_enabled": false,
+      "dispatch_id": "v2_high_throughput_dispatch_2_observation_gap_inventory_for_false_negatives",
+      "file_locks": [
+        "v2/backend/app/services/war_room/parallel_recovery_24h.py:false_negative_observation_gap_inventory",
+        "claude_worklog/final_readiness/v2_high_throughput_ai_war_room_scheduler/dispatch/observation_gap_inventory_for_false_negatives/**"
+      ],
+      "gpu_allowed": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "owner": "claude",
+      "resource_class": "low_cpu_no_gpu",
+      "reviewer": "codex",
+      "scope_prompt": "Work only on observation_gap_inventory_for_false_negatives. Do not enable live/canary/shutdown, do not write old Redis, do not call exchange mutation, do not run GPU jobs.",
+      "status": "active",
+      "task_id": "observation_gap_inventory_for_false_negatives",
+      "title": "Inventory all observation gaps for false-negative bundles and emit per-cause backfill tasks"
+    },
+    {
+      "activated_by": "V2_HIGH_THROUGHPUT_AI_WAR_ROOM_SCHEDULER",
+      "activated_utc": "2026-05-23T20:31:25Z",
+      "automatable": true,
+      "codex_fast_mode_enabled": false,
+      "dispatch_id": "v2_high_throughput_dispatch_3_altdata_snapshot_attached_to_replay_bundle",
+      "file_locks": [
+        "v2/backend/app/services/edge_proof/replay_miner.py:altdata_snapshot_attachment",
+        "claude_worklog/final_readiness/v2_high_throughput_ai_war_room_scheduler/dispatch/altdata_snapshot_attached_to_replay_bundle/**"
+      ],
+      "gpu_allowed": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "owner": "claude",
+      "resource_class": "low_cpu_no_gpu",
+      "reviewer": "codex",
+      "scope_prompt": "Work only on altdata_snapshot_attached_to_replay_bundle. Do not enable live/canary/shutdown, do not write old Redis, do not call exchange mutation, do not run GPU jobs.",
+      "status": "active",
+      "task_id": "altdata_snapshot_attached_to_replay_bundle",
+      "title": "Attach v2 altdata symbol-score snapshot to every replay bundle when present"
+    }
+  ],
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "generated_utc": "2026-05-23T20:31:25Z",
+  "lane_statuses": [
+    {
+      "lane_id": "lane1_edge_proof_and_threshold_analytics",
+      "owner": "claude",
+      "reviewer": "codex",
+      "status": "completed",
+      "verdict": "ANALYSIS_ONLY_EDGE_NOT_CLAIMED"
+    },
+    {
+      "lane_id": "lane2_false_negative_root_cause",
+      "owner": "claude",
+      "reviewer": "codex",
+      "status": "completed",
+      "verdict": "CLASSIFIED_ROOT_CAUSES_AVAILABLE"
+    },
+    {
+      "lane_id": "lane3_v2_native_training_dataset",
+      "owner": "claude",
+      "reviewer": "codex",
+      "status": "completed",
+      "verdict": "DATASET_BUILT_ANALYSIS_ONLY"
+    },
+    {
+      "lane_id": "lane4_model_baseline_evaluator",
+      "owner": "claude",
+      "reviewer": "codex",
+      "status": "completed",
+      "verdict": "BASELINES_COMPUTED_NO_MODEL_CLAIM"
+    },
+    {
+      "lane_id": "lane5_observation_blocker_classifier",
+      "owner": "claude",
+      "reviewer": "codex",
+      "status": "completed",
+      "verdict": "RECLASSIFIED_NO_NEW_BUILDABLE_NOW_FIELDS"
+    },
+    {
+      "lane_id": "lane6_automation_utilization_takeover",
+      "owner": "claude",
+      "reviewer": "codex",
+      "status": "completed",
+      "verdict": "UTILIZATION_AND_DISPATCH_REPORTED"
+    },
+    {
+      "lane_id": "lane7_website_report_center_truth",
+      "owner": "claude",
+      "reviewer": "codex",
+      "status": "completed",
+      "verdict": "PUBLIC_MIRROR_WRITTEN_NO_CONTROLS_NO_FAKE_READINESS"
+    }
+  ],
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "minimum_required_active_lanes_when_work_exists": 3,
+  "next_automatable_tasks": [
+    {
+      "automatable": true,
+      "owner_lane": "v2_paper_fill_gate",
+      "rationale": "False-negative bundles show paper_fill_allowed=False with empty paper_fill_gate_block_reasons; the gate is opaque.",
+      "task_id": "paper_fill_gate_record_block_reason",
+      "title": "Record paper_fill_gate block reason on every paper_fill_allowed=False decision"
+    },
+    {
+      "automatable": true,
+      "owner_lane": "v2_observation",
+      "rationale": "False-negative bundles cannot be explained from the persisted observation alone.",
+      "task_id": "observation_gap_inventory_for_false_negatives",
+      "title": "Inventory all observation gaps for false-negative bundles and emit per-cause backfill tasks"
+    },
+    {
+      "automatable": true,
+      "owner_lane": "v2_replay_miner",
+      "rationale": "Replay bundles record altdata_snapshot=null even though v2 altdata candidate scoring is running.",
+      "task_id": "altdata_snapshot_attached_to_replay_bundle",
+      "title": "Attach v2 altdata symbol-score snapshot to every replay bundle when present"
+    }
+  ],
+  "no_idle_claude_lane_with_automatable_work": true,
+  "scheduler_activated_count": 3,
+  "schema_version": "v2_24h_parallel_recovery_war_room_v1_task_dispatch_status",
+  "war_room_active_lanes_below_minimum_remediated": true
+}

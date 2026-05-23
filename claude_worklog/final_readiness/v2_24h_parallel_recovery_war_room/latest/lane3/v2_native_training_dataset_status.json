@@ -1,0 +1,19 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "bundles_total": 1259,
+  "checkpoint_compatibility_claimed": false,
+  "dataset_total_rows": 33,
+  "excluded_insufficient_evidence": 1226,
+  "excluded_missing_5m_outcome": 0,
+  "generated_utc": "2026-05-23T18:21:16Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "policy_architecture_parity_claimed": false,
+  "schema_version": "v2_24h_parallel_recovery_war_room_v1_native_training_dataset_status",
+  "split_ratio": 0.8,
+  "train_rows": 26,
+  "validation_rows": 7
+}

@@ -1,0 +1,54 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "edge_claim_blocked_reason": "operator_thresholds_required_and_not_set",
+  "edge_claimed": false,
+  "generated_utc": "2026-05-23T18:21:16Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "no_live_approval_implied": true,
+  "operator_decision_required": true,
+  "preliminary_only_for_analysis": true,
+  "schema_version": "v2_24h_parallel_recovery_war_room_v1_edge_gate_analysis",
+  "verdict_per_profile": {
+    "aggressive": {
+      "fail_thresholds": [
+        "min_sample_count",
+        "min_after_cost_expectancy_bps",
+        "min_after_cost_lower_ci_bps"
+      ],
+      "inconclusive_thresholds": [
+        "max_false_positive_rate"
+      ],
+      "verdict": "INCONCLUSIVE_OBSERVED_EVIDENCE_MISSING"
+    },
+    "balanced": {
+      "fail_thresholds": [
+        "min_sample_count",
+        "min_after_cost_expectancy_bps",
+        "min_after_cost_lower_ci_bps",
+        "max_drawdown_bps_rolling",
+        "max_false_negative_rate"
+      ],
+      "inconclusive_thresholds": [
+        "max_false_positive_rate"
+      ],
+      "verdict": "INCONCLUSIVE_OBSERVED_EVIDENCE_MISSING"
+    },
+    "conservative": {
+      "fail_thresholds": [
+        "min_sample_count",
+        "min_after_cost_expectancy_bps",
+        "min_after_cost_lower_ci_bps",
+        "max_drawdown_bps_rolling",
+        "max_false_negative_rate"
+      ],
+      "inconclusive_thresholds": [
+        "max_false_positive_rate"
+      ],
+      "verdict": "INCONCLUSIVE_OBSERVED_EVIDENCE_MISSING"
+    }
+  }
+}
