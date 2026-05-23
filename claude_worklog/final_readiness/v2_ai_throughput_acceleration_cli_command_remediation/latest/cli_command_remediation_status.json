@@ -1,0 +1,87 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "codex_blocker_addressed": "CODEX_NONINTERACTIVE_REVIEW_COMMANDS_INVALID_FOR_INSTALLED_CLI",
+  "codex_cli_capability_probe": {
+    "codex_version": "codex-cli 0.128.0",
+    "invalid_form_rejected_observed": true,
+    "supports_codex_exec": true,
+    "supports_codex_exec_review": true,
+    "supports_codex_review": true
+  },
+  "codex_fast_mode_enabled": false,
+  "generated_utc": "2026-05-23T20:19:48Z",
+  "gpu_training_dispatched": false,
+  "invalid_review_command_forms_removed": [
+    "codex exec --review",
+    "codex --review"
+  ],
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "recommended_review_command_templates": [
+    "codex review --uncommitted \"<scoped review prompt>\"",
+    "codex exec review --uncommitted \"<scoped review prompt>\"",
+    "codex exec \"<scoped scripted prompt>\""
+  ],
+  "refreshed_public_dir": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_ai_throughput_acceleration/latest",
+  "refreshed_throughput_packet_dir": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_ai_throughput_acceleration/latest",
+  "refreshed_throughput_packet_summary": {
+    "go_no_go": "V2_AI_THROUGHPUT_ACCELERATION_AND_RESOURCE_PLAN_READY",
+    "paths_written": [
+      "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_ai_throughput_acceleration/latest/GO_NO_GO.md",
+      "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_ai_throughput_acceleration/latest/V2_AI_THROUGHPUT_ACCELERATION_AND_RESOURCE_PLAN_REPORT.md",
+      "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_ai_throughput_acceleration/latest/local_resource_inventory.json",
+      "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_ai_throughput_acceleration/latest/ai_execution_mode_inventory.json",
+      "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_ai_throughput_acceleration/latest/throughput_sla.json",
+      "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_ai_throughput_acceleration/latest/parallel_lane_matrix.json",
+      "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_ai_throughput_acceleration/latest/local_speedup_plan.json",
+      "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_ai_throughput_acceleration/latest/gpu_usage_plan.json",
+      "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_ai_throughput_acceleration/latest/cloud_acceleration_options.json",
+      "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_ai_throughput_acceleration/latest/high_throughput_scheduler_design.json",
+      "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_ai_throughput_acceleration/latest/operator_dashboard_payload.json"
+    ]
+  },
+  "remediation_passed": true,
+  "scan_after": {
+    "files_scanned": 11,
+    "generated_utc": "2026-05-23T20:19:48Z",
+    "hits": [],
+    "passed": true,
+    "roots_scanned": [
+      "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_ai_throughput_acceleration/latest",
+      "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_ai_throughput_acceleration/latest"
+    ],
+    "schema_version": "v2_ai_throughput_acceleration_cli_command_remediation_v1_invalid_command_scan",
+    "skipped_evidence_dir_names": [
+      "codex_review",
+      "codex_governor"
+    ],
+    "skipped_evidence_files": [
+      "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_ai_throughput_acceleration/latest/codex_review/CODEX_GO_NO_GO.md",
+      "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_ai_throughput_acceleration/latest/codex_review/CODEX_REVIEW.md"
+    ]
+  },
+  "scan_before": {
+    "files_scanned": 11,
+    "generated_utc": "2026-05-23T20:19:48Z",
+    "hits": [],
+    "passed": true,
+    "roots_scanned": [
+      "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_ai_throughput_acceleration/latest",
+      "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_ai_throughput_acceleration/latest"
+    ],
+    "schema_version": "v2_ai_throughput_acceleration_cli_command_remediation_v1_invalid_command_scan",
+    "skipped_evidence_dir_names": [
+      "codex_review",
+      "codex_governor"
+    ],
+    "skipped_evidence_files": [
+      "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_ai_throughput_acceleration/latest/codex_review/CODEX_GO_NO_GO.md",
+      "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_ai_throughput_acceleration/latest/codex_review/CODEX_REVIEW.md"
+    ]
+  },
+  "scheduler_installed": false,
+  "schema_version": "v2_ai_throughput_acceleration_cli_command_remediation_v1_cli_command_remediation_status"
+}

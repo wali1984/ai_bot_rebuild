@@ -1,0 +1,54 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "generated_utc": "2026-05-23T20:19:48Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "options": [
+    {
+      "automation_hint": "Document the per-task model in the codex governor verification block.",
+      "available_if": "operator uses ChatGPT-auth Codex CLI/app with a fast-mode capable model",
+      "benefit": "Reduces per-turn latency on Codex review tasks.",
+      "id": "codex_fast_mode_for_supported_models",
+      "safety_caveat": "No effect on safety scoreboard; review verdicts unchanged."
+    },
+    {
+      "automation_hint": "Installed codex-cli 0.128.0 has no path flag for review. Use `codex exec review --uncommitted \"<scoped review prompt>\"` (or `codex review --uncommitted \"<scoped review prompt>\"`) and put the scope/path inside the prompt text.",
+      "available_if": "operator has Codex CLI installed",
+      "benefit": "Scriptable parallel reviews via codex exec.",
+      "id": "codex_non_interactive_exec",
+      "safety_caveat": "Same code-review safety contract as interactive Codex."
+    },
+    {
+      "automation_hint": "Queue cloud reviews per PR / per packet.",
+      "available_if": "operator has Codex web/app access",
+      "benefit": "Run additional review lanes in OpenAI cloud while local CLI lanes are busy.",
+      "id": "codex_cloud_web_app_tasks",
+      "safety_caveat": "Cloud tasks obey the same safety contract; no approvals."
+    },
+    {
+      "automation_hint": "Use /schedule and /loop skills.",
+      "available_if": "operator subscription supports background/routine agents",
+      "benefit": "Recurring tasks can run as background routines.",
+      "id": "claude_code_background_agents_and_routines",
+      "safety_caveat": "Routines must never write old Redis, approve shutdown, or enable production trading."
+    },
+    {
+      "automation_hint": "Each pane reads file_lock_registry.json before claiming a lane.",
+      "available_if": "operator runs multiple Claude Code panes",
+      "benefit": "Disjoint file-lock groups enable parallel lane work.",
+      "id": "claude_code_local_terminal_multi_pane",
+      "safety_caveat": "File-lock registry must remain authoritative."
+    },
+    {
+      "automation_hint": "Out-of-scope for this packet; documented only.",
+      "available_if": "operator approves a cloud CI runner",
+      "benefit": "Long-running training/evaluation can run on cloud GPU.",
+      "id": "cloud_runner_for_isolated_ci_gpu",
+      "safety_caveat": "No API key may leave the local secret store without operator decision."
+    }
+  ],
+  "schema_version": "v2_ai_throughput_acceleration_v1_cloud_acceleration_options"
+}

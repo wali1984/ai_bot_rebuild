@@ -1,0 +1,33 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "generated_utc": "2026-05-23T20:19:48Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "non_targets": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_paper_only_shutdown_acceptance_file": false,
+    "approves_redis_trim": false
+  },
+  "schema_version": "v2_ai_throughput_acceleration_v1_throughput_sla",
+  "sla_drift_signals": [
+    "claude_active_lanes_below_3_with_work_remaining",
+    "codex_active_lanes_below_3_with_work_remaining",
+    "any_task_pending_over_10_min_with_automatable_flag",
+    "two_writers_observed_on_same_file_lock_group",
+    "replay_miner_or_evaluator_job_idle_over_5_min"
+  ],
+  "targets": {
+    "claude_implementation_lanes_min_active_when_work_exists": 3,
+    "codex_review_lanes_min_active_when_work_exists": 3,
+    "codex_takeover_if_claude_task_stale": true,
+    "frontend_test_jobs": "parallel_resource_capped",
+    "max_pending_minutes_for_automatable_task": 10,
+    "max_writers_per_file_lock_group": 1,
+    "replay_evaluator_jobs": "continuous"
+  }
+}

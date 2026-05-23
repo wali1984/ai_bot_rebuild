@@ -1,0 +1,333 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "cpu": {
+    "loadavg_1_5_15": [
+      15.25,
+      11.62,
+      10.94
+    ],
+    "logical_cpus": 32,
+    "model_name": "AMD Ryzen 9 9950X 16-Core Processor",
+    "physical_cores_observed": 16
+  },
+  "disk_repo_root": {
+    "free_bytes": 719372673024,
+    "path": "/home/wali/Desktop/AI BOT REBUILD",
+    "total_bytes": 1966736678912,
+    "used_bytes": 1147383754752
+  },
+  "env_paths": {
+    "control_plane_env": "PYTHON",
+    "legacy_bot_root_env": "LEGACY_BOT_ROOT",
+    "legacy_redis_url_env": "LEGACY_REDIS_URL",
+    "trainer_runtime_env": "LEGACY_TRAINER_PYTHON",
+    "v2_redis_prefix_env": "V2_REDIS_PREFIX"
+  },
+  "generated_utc": "2026-05-23T20:19:48Z",
+  "gpu": {
+    "cuda_libs_count": 7,
+    "cuda_libs_observed": [
+      "libcudart.so.12 (libc6,x86-64) => /lib/x86_64-linux-gnu/libcudart.so.12",
+      "libcudart.so (libc6,x86-64) => /lib/x86_64-linux-gnu/libcudart.so",
+      "libcudadebugger.so.1 (libc6,x86-64) => /lib/x86_64-linux-gnu/libcudadebugger.so.1",
+      "libcuda.so.1 (libc6,x86-64) => /lib/x86_64-linux-gnu/libcuda.so.1",
+      "libcuda.so.1 (libc6) => /lib/i386-linux-gnu/libcuda.so.1",
+      "libcuda.so (libc6,x86-64) => /lib/x86_64-linux-gnu/libcuda.so",
+      "libcuda.so (libc6) => /lib/i386-linux-gnu/libcuda.so"
+    ],
+    "device_count": 1,
+    "devices": [
+      {
+        "driver_version": "580.126.09",
+        "memory_total_mib": 16303,
+        "memory_used_mib": 2339,
+        "name": "NVIDIA GeForce RTX 5080"
+      }
+    ],
+    "nvidia_smi_available": true,
+    "torch_import_attempted": false,
+    "torch_import_attempted_reason": "trainer_venv_protected_no_import_from_control_plane"
+  },
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "memory": {
+    "buffers_kb": 1688088,
+    "cached_kb": 64080752,
+    "mem_available_kb": 75109328,
+    "mem_free_kb": 6475912,
+    "mem_total_kb": 129371888,
+    "swap_free_kb": 8387188,
+    "swap_total_kb": 8388604
+  },
+  "processes": {
+    "ai_assistant_processes": [
+      {
+        "args_head_redacted": "/usr/local/bin/ollama serve",
+        "comm": "ollama",
+        "etime": "9-23:49:11",
+        "pid": "5128"
+      },
+      {
+        "args_head_redacted": "/home/wali/.vscode/extensions/openai.chatgpt-26.506.31421-linux-x64/bin/linux-x86_64/codex app-server --analytics-defaul",
+        "comm": "codex",
+        "etime": "9-23:46:26",
+        "pid": "10436"
+      },
+      {
+        "args_head_redacted": "/home/wali/.vscode/extensions/anthropic.claude-code-2.1.140-linux-x64/resources/native-binary/claude --output-format str",
+        "comm": "claude",
+        "etime": "9-23:46:25",
+        "pid": "11126"
+      },
+      {
+        "args_head_redacted": "/home/wali/.vscode/extensions/anthropic.claude-code-2.1.140-linux-x64/resources/native-binary/claude --output-format str",
+        "comm": "claude",
+        "etime": "9-23:46:18",
+        "pid": "12270"
+      },
+      {
+        "args_head_redacted": "watch -n 10  echo \"=== current worker ===\" cat claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/work",
+        "comm": "watch",
+        "etime": "9-20:59:30",
+        "pid": "67228"
+      },
+      {
+        "args_head_redacted": "./.venv/bin/python3 claude_worklog/tools/parallel_capacity_scheduler.py --daemon --poll-seconds 600",
+        "comm": "python3",
+        "etime": "9-20:46:54",
+        "pid": "73164"
+      },
+      {
+        "args_head_redacted": "./.venv/bin/python3 claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll-seconds 300",
+        "comm": "python3",
+        "etime": "9-20:46:53",
+        "pid": "73192"
+      },
+      {
+        "args_head_redacted": "/home/wali/.vscode/extensions/anthropic.claude-code-2.1.140-linux-x64/resources/native-binary/claude --output-format str",
+        "comm": "claude",
+        "etime": "4-17:24:11",
+        "pid": "306398"
+      },
+      {
+        "args_head_redacted": "/home/wali/.vscode/extensions/anthropic.claude-code-2.1.140-linux-x64/resources/native-binary/claude --output-format str",
+        "comm": "claude",
+        "etime": "02:09:39",
+        "pid": "388415"
+      },
+      {
+        "args_head_redacted": "./.venv/bin/python3 claude_worklog/tools/v2_worker_porting_orchestrator.py --daemon --poll-seconds 120",
+        "comm": "python3",
+        "etime": "9-09:46:11",
+        "pid": "430848"
+      },
+      {
+        "args_head_redacted": "/bin/bash -c source /home/wali/.claude/shell-snapshots/snapshot-bash-1779559827383-373x2n.sh 2>/dev/null || true && shop",
+        "comm": "bash",
+        "etime": "00:00",
+        "pid": "487827"
+      },
+      {
+        "args_head_redacted": "server    tmux new-session -d -s ai_bot_codex_non_live_watchdog cd '/home/wali/Desktop/AI BOT REBUILD' && python3 claude",
+        "comm": "tmux:",
+        "etime": "9-04:24:36",
+        "pid": "559208"
+      },
+      {
+        "args_head_redacted": "python3 claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll-seconds 300",
+        "comm": "python3",
+        "etime": "9-04:24:36",
+        "pid": "559209"
+      },
+      {
+        "args_head_redacted": "./.venv/bin/python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30",
+        "comm": "python3",
+        "etime": "8-20:04:10",
+        "pid": "859673"
+      },
+      {
+        "args_head_redacted": "./.venv/bin/python3 claude_worklog/tools/codex_legacy_v2_realtime_decision_observatory.py --daemon --poll-seconds 120",
+        "comm": "python3",
+        "etime": "8-02:43:16",
+        "pid": "1506056"
+      },
+      {
+        "args_head_redacted": "./.venv/bin/python3 claude_worklog/tools/codex_legacy_shutdown_readiness_takeover.py --daemon --poll-seconds 120",
+        "comm": "python3",
+        "etime": "8-02:43:16",
+        "pid": "1506099"
+      },
+      {
+        "args_head_redacted": "/home/wali/.vscode/extensions/anthropic.claude-code-2.1.140-linux-x64/resources/native-binary/claude --output-format str",
+        "comm": "claude",
+        "etime": "8-02:34:30",
+        "pid": "1512179"
+      },
+      {
+        "args_head_redacted": "/home/wali/.vscode/extensions/anthropic.claude-code-2.1.140-linux-x64/resources/native-binary/claude --output-format str",
+        "comm": "claude",
+        "etime": "7-17:05:43",
+        "pid": "1892964"
+      },
+      {
+        "args_head_redacted": "/home/wali/.vscode/extensions/anthropic.claude-code-2.1.140-linux-x64/resources/native-binary/claude --output-format str",
+        "comm": "claude",
+        "etime": "2-17:00:54",
+        "pid": "2107698"
+      },
+      {
+        "args_head_redacted": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 /home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_production",
+        "comm": "python3",
+        "etime": "6-18:35:22",
+        "pid": "2620199"
+      },
+      {
+        "args_head_redacted": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 /home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_legacy_v2_",
+        "comm": "python3",
+        "etime": "6-18:35:22",
+        "pid": "2620203"
+      },
+      {
+        "args_head_redacted": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 /home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_continuous",
+        "comm": "python3",
+        "etime": "6-14:51:22",
+        "pid": "2779663"
+      },
+      {
+        "args_head_redacted": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 claude_worklog/tools/v2_continuous_legacy_log_to_rebuild_remediation",
+        "comm": "python3",
+        "etime": "6-14:51:04",
+        "pid": "2779876"
+      },
+      {
+        "args_head_redacted": "/home/wali/.vscode/extensions/anthropic.claude-code-2.1.140-linux-x64/resources/native-binary/claude --output-format str",
+        "comm": "claude",
+        "etime": "1-16:15:36",
+        "pid": "3078562"
+      },
+      {
+        "args_head_redacted": "/home/wali/.vscode/extensions/anthropic.claude-code-2.1.140-linux-x64/resources/native-binary/claude --output-format str",
+        "comm": "claude",
+        "etime": "5-02:46:49",
+        "pid": "4140324"
+      }
+    ],
+    "v2_runtime_processes": [
+      {
+        "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_trade_management_paper_loop --loop --interval-seconds 60",
+        "comm": "python3",
+        "etime": "5-00:43:39",
+        "pid": "31327"
+      },
+      {
+        "args_head": "bash -lc mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.paper_shadow_observation --write >> v2/runtime/paper_shadow_observation.l",
+        "comm": "bash",
+        "etime": "9-20:46:53",
+        "pid": "73348"
+      },
+      {
+        "args_head": "./.venv/bin/python3 -m v2.backend.app.cli.v2_feature_snapshot_builder --loop --read-from-paper-runtime --interval 60",
+        "comm": "python3",
+        "etime": "9-20:46:53",
+        "pid": "73368"
+      },
+      {
+        "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_position_history_persistent_tracker --loop --symbols BTCUSDT,ETHUSDT,SOLUSDT --tota",
+        "comm": "python3",
+        "etime": "06:46",
+        "pid": "481486"
+      },
+      {
+        "args_head": "bash -lc mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.symbol_universe_public_payload --write >> v2/runtime/symbol_universe_publ",
+        "comm": "bash",
+        "etime": "9-04:30:46",
+        "pid": "556142"
+      },
+      {
+        "args_head": "bash -lc mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.v2_trainer_bridge --once --readonly-only >> v2/runtime/v2_trainer_bridge.",
+        "comm": "bash",
+        "etime": "8-12:17:52",
+        "pid": "1141558"
+      },
+      {
+        "args_head": "./.venv/bin/python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30",
+        "comm": "python3",
+        "etime": "8-03:55:46",
+        "pid": "1456707"
+      },
+      {
+        "args_head": "./.venv/bin/python -m v2.backend.app.cli.v2_native_ingestors_live_loop --loop --interval-seconds 60",
+        "comm": "python",
+        "etime": "6-19:10:48",
+        "pid": "2598888"
+      },
+      {
+        "args_head": "./.venv/bin/python -m v2.backend.app.cli.v2_feature_pipeline_native_loop --loop --interval-seconds 60",
+        "comm": "python",
+        "etime": "6-19:10:48",
+        "pid": "2598890"
+      },
+      {
+        "args_head": "./.venv/bin/python -m v2.backend.app.cli.v2_rl_core_inference_loop --loop --interval-seconds 60",
+        "comm": "python",
+        "etime": "6-19:10:48",
+        "pid": "2598892"
+      },
+      {
+        "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_production_payload_freshness_refresher --loop --interval-seconds 60",
+        "comm": "python3",
+        "etime": "6-18:33:09",
+        "pid": "2622359"
+      },
+      {
+        "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_production_replacement_soak_observer --loop --interval-seconds 300",
+        "comm": "python3",
+        "etime": "6-18:30:00",
+        "pid": "2624946"
+      },
+      {
+        "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_legacy_log_intelligence_observer --loop --interval-seconds 60",
+        "comm": "python3",
+        "etime": "6-17:20:42",
+        "pid": "2677063"
+      },
+      {
+        "args_head": "./.venv/bin/python -m v2.backend.app.cli.v2_orchestrator_arbitration_loop --loop --interval-seconds 60",
+        "comm": "python",
+        "etime": "6-14:51:05",
+        "pid": "2779871"
+      },
+      {
+        "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_production_equivalence_comparator --loop --interval-seconds 300",
+        "comm": "python3",
+        "etime": "6-02:28:28",
+        "pid": "3228969"
+      },
+      {
+        "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_liquidation_wss_loop --total-seconds 86400 --max-seconds-per-session 600 --max-even",
+        "comm": "python3",
+        "etime": "17:38:25",
+        "pid": "3948079"
+      },
+      {
+        "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m uvicorn app.main:create_app --factory --host 127.0.0.1 --port 5173 --workers 1 --log-level info",
+        "comm": "python3",
+        "etime": "15:55:39",
+        "pid": "4031210"
+      }
+    ]
+  },
+  "raw_secrets_exposed": false,
+  "redis": {
+    "available": true,
+    "evidence_state": "PROBED",
+    "maxmemory_human": "8.00G",
+    "mem_fragmentation_ratio": "1.00",
+    "used_memory_human": "7.78G",
+    "used_memory_peak_human": "14.73G"
+  },
+  "schema_version": "v2_ai_throughput_acceleration_v1_local_resource_inventory"
+}
