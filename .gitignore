@@ -1,5 +1,52 @@
 legacy_reference/
 
+# Large runtime data files — never commit these (git history bloat prevention)
+# These caused 624GB of git history bloat and were purged on 2026-06-15.
+# DO NOT remove these rules.
+*.jsonl
+*.ndjson
+
+# Live runtime data directories — large JSONL feeds, must stay off git
+legacy_owned_runtime/
+v2/legacy_owned_runtime/data/
+v2/legacy_owned_runtime/logs/*.log.*
+
+# Training datasets and replay bundles — regeneratable, too large for git
+claude_worklog/final_readiness/v2_post_hoc_replay_outcome_miner/
+claude_worklog/final_readiness/v2_native_trainer_dataset_and_baseline_model/
+claude_worklog/final_readiness/redis_liquidations_full_export/
+claude_worklog/final_readiness/production_dashboard_*/
+claude_worklog/final_readiness/full_legacy_root_filesystem_inventory/
+claude_worklog/final_readiness/v2_legacy_log_intelligence/
+
+# Pipeline trust evidence run directories — candles.jsonl per run, very large
+pipeline_trust_evidence/
+pipeline_trust_evidence_*/
+pipeline_trust_quarantine/
+quarantine_pipeline_trust_stale_records/
+recorded_state_verification_*/
+
+# Frontend soak/alpha observation files
+v2/frontend/public/v2_runtime_alpha_remediated_adaptive_lifecycle_24h_paper_soak/
+
+raw_evidence/trainer_config_audit/
+
+# ML model artifacts — use git-lfs if versioning is needed
+*.pt
+*.pth
+*.onnx
+*.safetensors
+*.bin
+*.pkl
+*.joblib
+*.h5
+*.hdf5
+*.npz
+*.npy
+
+# IDE and editor caches
+.vscode/
+
 # Python cache artifacts
 __pycache__/
 *.py[cod]
