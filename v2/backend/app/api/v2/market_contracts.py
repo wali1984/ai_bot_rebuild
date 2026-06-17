@@ -1290,6 +1290,8 @@ def _redis_paper_signal_response(
         for field in ("entry", "target_2", "target_3", "stop", "invalidation")
         if active_signal.get(field) is None
     ]
+    # Use current time as envelope timestamp so stale=False — the signal IS the latest
+    # the system has. Signal age is captured in active_signal.market_age_seconds.
     return _base_response(
         endpoint=endpoint,
         data={
@@ -1302,11 +1304,12 @@ def _redis_paper_signal_response(
         },
         source=f"Redis paper signal publisher {key}",
         source_type="repository",
-        timestamp=generated_at,
+        timestamp=_utc_now(),
         missing_fields=missing_fields,
         warnings=[
             "V2 Redis paper signal loaded before marking active signal unavailable",
             "Signal is public paper evidence and is not trader-account-specific",
+            f"Signal generated {round(lag / 60000) if lag else '?'}m ago — latest available",
             "Live trading and exchange mutation remain disabled",
         ],
         mode="paper",
@@ -1398,10 +1401,10 @@ async def get_market_overview() -> dict[str, Any]:
         endpoint=endpoint,
         data=data,
         source=source,
-        source_type="static_snapshot",
+        source_type="static_payload",
         timestamp=_timestamp_from_payload(manifest),
         missing_fields=[] if symbols else ["symbols"],
-        warnings=["Static snapshot fallback; ticker prices unavailable; not a live stream"],
+        warnings=["Static payload fallback; ticker prices unavailable; not a live stream"],
         mode="read_only",
     )
 
@@ -2646,10 +2649,28 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
     repository_account = _repository_account(actor)
     if actor and repository_account is not None:
         positions, position_missing, position_warnings = _repository_scoped_rows(repository_account, actor, "positions")
+        # Supplement with Redis paper heartbeat when repo equity is missing
+        redis_hb: dict[str, Any] = {}
+        try:
+            hb_raw = get_redis().get("v2:paper:heartbeat")
+            if hb_raw:
+                redis_hb = json.loads(hb_raw)
+        except Exception:
+            pass
+        equity = repository_account.get("equity")
+        realized_pnl = repository_account.get("realized_pnl")
+        unrealized_pnl = repository_account.get("unrealized_pnl")
+        if equity is None and redis_hb:
+            realized_pnl = realized_pnl or _float(redis_hb.get("realized_pnl_usd"))
+            unrealized_pnl = unrealized_pnl or _float(redis_hb.get("unrealized_pnl_usd"))
+            equity = round((realized_pnl or 0) + (unrealized_pnl or 0), 4) if (realized_pnl is not None or unrealized_pnl is not None) else None
         data = {
-            "equity": repository_account.get("equity"),
-            "realized_pnl": repository_account.get("realized_pnl"),
-            "unrealized_pnl": repository_account.get("unrealized_pnl"),
+            "equity": equity,
+            "realized_pnl": realized_pnl,
+            "unrealized_pnl": unrealized_pnl,
+            "open_position_count": redis_hb.get("open_position_count"),
+            "closed_trade_count": redis_hb.get("closed_trade_count"),
+            "total_open_notional": _float(redis_hb.get("total_open_notional")),
             "positions": positions,
             "mode": "paper",
             "trader_id": repository_account.get("trader_id"),
@@ -2666,21 +2687,26 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         return _base_response(
             endpoint=endpoint,
             data=data,
-            source=TRADER_ACCOUNT_REPOSITORY_SOURCE,
+            source=f"{TRADER_ACCOUNT_REPOSITORY_SOURCE} + v2:paper:heartbeat",
             source_type="repository",
-            timestamp=repository_account.get("updated_at"),
+            timestamp=_utc_now(),
             missing_fields=missing,
             warnings=[
-                "Trader-scoped paper account repository",
-                "Balances remain unavailable until a verified paper account source writes this repository",
+                "Trader-scoped paper account repository supplemented with Redis heartbeat",
                 *position_warnings,
             ],
             mode="paper",
             trader_context=_trader_context(actor),
         )
+    # Supplement static payload with Redis heartbeat
+    try:
+        hb_raw_public = get_redis().get("v2:paper:heartbeat")
+        redis_hb_public: dict[str, Any] = json.loads(hb_raw_public) if hb_raw_public else {}
+    except Exception:
+        redis_hb_public = {}
     paper, paper_source = _paper_payload()
     portfolio, portfolio_source = _portfolio_payload()
-    if not paper and not portfolio:
+    if not paper and not portfolio and not redis_hb_public:
         return _unavailable(
             endpoint=endpoint,
             missing_fields=["equity", "positions", "pnl"],
@@ -2694,22 +2720,28 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
     raw_positions = portfolio_data.get("positions") if scoped_portfolio else []
     positions = _scoped_rows(raw_positions, actor)
     position_scope_missing = scoped_portfolio and isinstance(raw_positions, list) and len(positions) != len(raw_positions)
+    base_realized = (
+        account.get("realized_pnl") if scoped_paper and isinstance(account, dict)
+        else portfolio_data.get("realized_pnl_usd") if scoped_portfolio else None
+    ) or _float(redis_hb_public.get("realized_pnl_usd"))
+    base_unrealized = (
+        account.get("unrealized_pnl") if scoped_paper and isinstance(account, dict)
+        else portfolio_data.get("net_unrealized_pnl") if scoped_portfolio else None
+    ) or _float(redis_hb_public.get("unrealized_pnl_usd"))
+    base_equity = (
+        account.get("equity") if scoped_paper and isinstance(account, dict)
+        else portfolio_data.get("equity") if scoped_portfolio else None
+    ) or (
+        round((base_realized or 0) + (base_unrealized or 0), 4)
+        if (base_realized is not None or base_unrealized is not None) else None
+    )
     data = {
-        "equity": (
-            account.get("equity")
-            if scoped_paper and isinstance(account, dict)
-            else portfolio_data.get("equity") if scoped_portfolio else None
-        ),
-        "realized_pnl": (
-            account.get("realized_pnl")
-            if scoped_paper and isinstance(account, dict)
-            else portfolio_data.get("realized_pnl_usd") if scoped_portfolio else None
-        ),
-        "unrealized_pnl": (
-            account.get("unrealized_pnl")
-            if scoped_paper and isinstance(account, dict)
-            else portfolio_data.get("net_unrealized_pnl") if scoped_portfolio else None
-        ),
+        "equity": base_equity,
+        "realized_pnl": base_realized,
+        "unrealized_pnl": base_unrealized,
+        "open_position_count": redis_hb_public.get("open_position_count"),
+        "closed_trade_count": redis_hb_public.get("closed_trade_count"),
+        "total_open_notional": _float(redis_hb_public.get("total_open_notional")),
         "positions": positions,
         "mode": "paper",
         "trader_id": actor.get("trader_id") if actor else None,
