@@ -1304,6 +1304,7 @@ def _redis_paper_signal_response(
         },
         source=f"Redis paper signal publisher {key}",
         source_type="repository",
+        symbol=symbol,
         timestamp=_utc_now(),
         missing_fields=missing_fields,
         warnings=[
