@@ -5575,3 +5575,155 @@ async def get_backtest_status(run_id: str) -> dict[str, Any]:
         "endpoint": endpoint,
         "received_at": _utc_now(),
     }
+
+
+# ── Paper Trading Status ──────────────────────────────────────────────────────
+
+@router.get("/paper/status")
+async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) -> dict[str, Any]:
+    endpoint = "/api/v2/paper/status"
+
+    def _load() -> dict[str, Any]:
+        try:
+            client = get_redis()
+            hb_raw = client.get("v2:paper:heartbeat")
+            heartbeat: dict[str, Any] = json.loads(hb_raw) if hb_raw else {}
+
+            pos_raw = client.get("v2:paper:positions")
+            positions_raw: list[Any] = json.loads(pos_raw) if pos_raw else []
+            if isinstance(positions_raw, dict):
+                positions_raw = list(positions_raw.values())
+
+            ct_raw = client.get("v2:paper:closed_trades")
+            closed_raw: list[Any] = json.loads(ct_raw) if ct_raw else []
+            if isinstance(closed_raw, dict):
+                closed_raw = list(closed_raw.values())
+
+            rp_raw = client.get("v2:risk:active_profile")
+            risk_profile: dict[str, Any] = json.loads(rp_raw) if rp_raw else {}
+            risk_fields: dict[str, Any] = risk_profile.get("fields", {})
+            max_leverage = float(risk_fields.get("max_leverage") or 1.0)
+
+            positions = []
+            for p in positions_raw:
+                if not isinstance(p, dict):
+                    continue
+                positions.append({
+                    "position_id": p.get("position_id"),
+                    "symbol": p.get("symbol"),
+                    "side": str(p.get("side", "")).upper(),
+                    "net_quantity": p.get("net_quantity"),
+                    "avg_entry_price": p.get("avg_entry_price"),
+                    "last_mark_price": p.get("last_mark_price"),
+                    "notional_usd": p.get("notional") or p.get("gross_notional"),
+                    "leverage": max_leverage,
+                    "unrealized_pnl": p.get("unrealized_pnl"),
+                    "unrealized_pnl_bps": p.get("unrealized_pnl_bps"),
+                    "timeframe": p.get("timeframe"),
+                    "strategy_id": p.get("strategy_id"),
+                    "market_regime_at_entry": p.get("market_regime_at_entry"),
+                    "position_age_seconds": p.get("position_age_seconds"),
+                    "opened_est": p.get("opened_est"),
+                    "paper_fill_allowed": p.get("paper_fill_allowed"),
+                    "places_real_order": p.get("places_real_order"),
+                    "hedge_state": p.get("hedge_state"),
+                })
+
+            trades = []
+            for t in closed_raw:
+                if not isinstance(t, dict):
+                    continue
+                trades.append({
+                    "close_id": t.get("close_id"),
+                    "position_id": t.get("position_id"),
+                    "symbol": t.get("symbol"),
+                    "side": str(t.get("side", "")).upper(),
+                    "entry_price": t.get("entry_price"),
+                    "exit_price": t.get("exit_price"),
+                    "realized_pnl_usd": t.get("realized_pnl_usd"),
+                    "realized_pnl_bps": t.get("realized_pnl_bps"),
+                    "close_reason": t.get("close_reason") or t.get("exit_reason"),
+                    "hold_time_seconds": t.get("hold_time_seconds"),
+                    "fees": t.get("fees"),
+                    "slippage": t.get("slippage"),
+                    "winner": t.get("winner"),
+                    "strategy_id": t.get("strategy_id"),
+                    "market_regime_at_entry": t.get("market_regime_at_entry"),
+                    "timeframe": t.get("timeframe"),
+                    "exit_price_utc": t.get("exit_price_utc"),
+                })
+            trades.sort(key=lambda x: x.get("exit_price_utc") or "", reverse=True)
+
+            # Equity curve: cumulative realized PnL from oldest to newest
+            trades_asc = list(reversed(trades))
+            cumulative = 0.0
+            equity_curve: list[dict[str, Any]] = []
+            for t in trades_asc:
+                cumulative += float(t.get("realized_pnl_usd") or 0)
+                equity_curve.append({
+                    "t": t.get("exit_price_utc"),
+                    "pnl": round(cumulative, 4),
+                    "winner": t.get("winner"),
+                })
+
+            # Close reason breakdown
+            reason_counts: dict[str, int] = {}
+            for t in trades:
+                r = str(t.get("close_reason") or "UNKNOWN")
+                reason_counts[r] = reason_counts.get(r, 0) + 1
+
+            return {
+                "positions": positions,
+                "closed_trades": trades[:200],
+                "equity_curve": equity_curve,
+                "reason_breakdown": reason_counts,
+                "risk_profile": {
+                    "profile_id": risk_profile.get("profile_id"),
+                    "max_leverage": max_leverage,
+                    "max_notional_per_trade": risk_fields.get("max_notional_per_trade"),
+                    "max_open_positions": risk_fields.get("max_open_positions"),
+                    "min_confidence_calibrated": risk_fields.get("min_confidence_calibrated"),
+                    "max_daily_loss": risk_fields.get("max_daily_loss"),
+                    "max_drawdown": risk_fields.get("max_drawdown"),
+                    "max_spread_bps": risk_fields.get("max_spread_bps"),
+                    "min_expected_move_after_cost_bps": risk_fields.get("min_expected_move_after_cost_bps"),
+                    "cooldown_seconds": risk_fields.get("cooldown_seconds"),
+                },
+                "summary": {
+                    "open_position_count": int(heartbeat.get("open_position_count") or len(positions)),
+                    "closed_trade_count": int(heartbeat.get("closed_trade_count") or len(closed_raw)),
+                    "realized_pnl_usd": heartbeat.get("realized_pnl_usd"),
+                    "unrealized_pnl_usd": heartbeat.get("unrealized_pnl_usd"),
+                    "total_open_notional": heartbeat.get("total_open_notional"),
+                    "paper_signals_seen": heartbeat.get("paper_signals_seen"),
+                    "intents_accepted": heartbeat.get("intents_accepted"),
+                    "intents_blocked": heartbeat.get("intents_blocked"),
+                    "persistent_accepted_fill_count": heartbeat.get("persistent_accepted_fill_count"),
+                    "worker_id": heartbeat.get("worker_id"),
+                    "started_at": heartbeat.get("started_at"),
+                    "finished_at": heartbeat.get("finished_at"),
+                },
+            }
+        except Exception as exc:
+            return {
+                "error": str(exc),
+                "positions": [],
+                "closed_trades": [],
+                "equity_curve": [],
+                "reason_breakdown": {},
+                "risk_profile": {},
+                "summary": {},
+            }
+
+    data = await run_in_threadpool(_load)
+    return _base_response(
+        endpoint=endpoint,
+        data=data,
+        source="v2:paper:* Redis",
+        source_type="redis_live",
+        timestamp=_utc_now(),
+        missing_fields=[],
+        warnings=[],
+        mode="paper",
+        trader_context=_trader_context(actor),
+    )
