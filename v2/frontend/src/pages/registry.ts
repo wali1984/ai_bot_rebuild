@@ -1,4 +1,10 @@
 import type { PageModule } from '../types/page';
+import { resolvePageModule } from './productNavigation';
+
+import DashboardPage from './dashboard';
+import dashboardMeta from './dashboard/meta';
+import dashboardRbac from './dashboard/rbac';
+import dashboardRoute from './dashboard/route';
 
 import MissionControlPage from './mission-control';
 import missionControlMeta from './mission-control/meta';
@@ -170,7 +176,128 @@ import permanentMigrationMeta from './permanent-migration/meta';
 import permanentMigrationRbac from './permanent-migration/rbac';
 import permanentMigrationRoute from './permanent-migration/route';
 
-export const PAGES: ReadonlyArray<PageModule> = [
+import AccountSettingsPage from './account-settings';
+import accountSettingsMeta from './account-settings/meta';
+import accountSettingsRbac from './account-settings/rbac';
+import accountSettingsRoute from './account-settings/route';
+
+import AdminWarRoomPage from './admin-war-room';
+import adminWarRoomMeta from './admin-war-room/meta';
+import adminWarRoomRbac from './admin-war-room/rbac';
+import adminWarRoomRoute from './admin-war-room/route';
+
+import AiBrainPage from './ai-brain';
+import aiBrainMeta from './ai-brain/meta';
+import aiBrainRbac from './ai-brain/rbac';
+import aiBrainRoute from './ai-brain/route';
+
+import AiPredictionsPage from './ai-predictions';
+import aiPredictionsMeta from './ai-predictions/meta';
+import aiPredictionsRbac from './ai-predictions/rbac';
+import aiPredictionsRoute from './ai-predictions/route';
+
+import BinancePage from './binance';
+import binanceMeta from './binance/meta';
+import binanceRbac from './binance/rbac';
+import binanceRoute from './binance/route';
+
+import AlertsPage from './alerts';
+import alertsMeta from './alerts/meta';
+import alertsRbac from './alerts/rbac';
+import alertsRoute from './alerts/route';
+
+import ExecutiveStatusPage from './executive-status';
+import executiveStatusMeta from './executive-status/meta';
+import executiveStatusRbac from './executive-status/rbac';
+import executiveStatusRoute from './executive-status/route';
+
+import HistoryPage from './history';
+import historyMeta from './history/meta';
+import historyRbac from './history/rbac';
+import historyRoute from './history/route';
+
+import IngestorsPage from './ingestors';
+import ingestorsMeta from './ingestors/meta';
+import ingestorsRbac from './ingestors/rbac';
+import ingestorsRoute from './ingestors/route';
+
+import LiquidationBridgePage from './liquidation-bridge';
+import liquidationBridgeMeta from './liquidation-bridge/meta';
+import liquidationBridgeRbac from './liquidation-bridge/rbac';
+import liquidationBridgeRoute from './liquidation-bridge/route';
+
+import LogsErrorsPage from './logs-errors';
+import logsErrorsMeta from './logs-errors/meta';
+import logsErrorsRbac from './logs-errors/rbac';
+import logsErrorsRoute from './logs-errors/route';
+
+import MarketPage from './market';
+import marketMeta from './market/meta';
+import marketRbac from './market/rbac';
+import marketRoute from './market/route';
+
+import MarketRootAliasPage from './market-root';
+import marketRootAliasMeta from './market-root/meta';
+import marketRootAliasRbac from './market-root/rbac';
+import marketRootAliasRoute from './market-root/route';
+
+import MarketsPage from './markets';
+import marketsMeta from './markets/meta';
+import marketsRbac from './markets/rbac';
+import marketsRoute from './markets/route';
+
+import ProChartPage from './pro-chart';
+import proChartMeta from './pro-chart/meta';
+import proChartRbac from './pro-chart/rbac';
+import proChartRoute from './pro-chart/route';
+
+import PublicLandingV2Page from './public-landing-v2';
+import publicLandingV2Meta from './public-landing-v2/meta';
+import publicLandingV2Rbac from './public-landing-v2/rbac';
+import publicLandingV2Route from './public-landing-v2/route';
+
+import ReportCenterPage from './report-center';
+import reportCenterMeta from './report-center/meta';
+import reportCenterRbac from './report-center/rbac';
+import reportCenterRoute from './report-center/route';
+
+import StrategyBacktestingPage from './strategy-backtesting';
+import strategyBacktestingMeta from './strategy-backtesting/meta';
+import strategyBacktestingRbac from './strategy-backtesting/rbac';
+import strategyBacktestingRoute from './strategy-backtesting/route';
+
+import BacktestsReplayPage from './backtests-replay';
+import backtestsReplayMeta from './backtests-replay/meta';
+import backtestsReplayRbac from './backtests-replay/rbac';
+import backtestsReplayRoute from './backtests-replay/route';
+
+import TechnicalAnalysisPage from './technical-analysis';
+import technicalAnalysisMeta from './technical-analysis/meta';
+import technicalAnalysisRbac from './technical-analysis/rbac';
+import technicalAnalysisRoute from './technical-analysis/route';
+
+import TraderPage from './trader';
+import traderMeta from './trader/meta';
+import traderRbac from './trader/rbac';
+import traderRoute from './trader/route';
+
+import TraderLegacyAliasPage from './trader-legacy';
+import traderLegacyAliasMeta from './trader-legacy/meta';
+import traderLegacyAliasRbac from './trader-legacy/rbac';
+import traderLegacyAliasRoute from './trader-legacy/route';
+
+import UserStatusPage from './user-status';
+import userStatusMeta from './user-status/meta';
+import userStatusRbac from './user-status/rbac';
+import userStatusRoute from './user-status/route';
+
+import MarketBrainPage from './market-brain';
+import marketBrainMeta from './market-brain/meta';
+import marketBrainRbac from './market-brain/rbac';
+import marketBrainRoute from './market-brain/route';
+
+const RAW_PAGES: ReadonlyArray<PageModule> = [
+  { meta: dashboardMeta, rbac: dashboardRbac, route: dashboardRoute, Component: DashboardPage },
   { meta: permanentMigrationMeta, rbac: permanentMigrationRbac, route: permanentMigrationRoute, Component: PermanentMigrationPage },
   { meta: missionControlMeta, rbac: missionControlRbac, route: missionControlRoute, Component: MissionControlPage },
   { meta: monitorCenterMeta, rbac: monitorCenterRbac, route: monitorCenterRoute, Component: MonitorCenterPage },
@@ -205,7 +332,36 @@ export const PAGES: ReadonlyArray<PageModule> = [
   { meta: publicLandingMeta, rbac: publicLandingRbac, route: publicLandingRoute, Component: PublicLandingPage },
   { meta: publicStatusMeta, rbac: publicStatusRbac, route: publicStatusRoute, Component: PublicStatusPage },
   { meta: loginMeta, rbac: loginRbac, route: loginRoute, Component: LoginPage },
+  { meta: accountSettingsMeta, rbac: accountSettingsRbac, route: accountSettingsRoute, Component: AccountSettingsPage },
+  { meta: adminWarRoomMeta, rbac: adminWarRoomRbac, route: adminWarRoomRoute, Component: AdminWarRoomPage },
+  { meta: aiBrainMeta, rbac: aiBrainRbac, route: aiBrainRoute, Component: AiBrainPage },
+  { meta: aiPredictionsMeta, rbac: aiPredictionsRbac, route: aiPredictionsRoute, Component: AiPredictionsPage },
+  { meta: binanceMeta, rbac: binanceRbac, route: binanceRoute, Component: BinancePage },
+  { meta: alertsMeta, rbac: alertsRbac, route: alertsRoute, Component: AlertsPage },
+  { meta: executiveStatusMeta, rbac: executiveStatusRbac, route: executiveStatusRoute, Component: ExecutiveStatusPage },
+  { meta: historyMeta, rbac: historyRbac, route: historyRoute, Component: HistoryPage },
+  { meta: ingestorsMeta, rbac: ingestorsRbac, route: ingestorsRoute, Component: IngestorsPage },
+  { meta: liquidationBridgeMeta, rbac: liquidationBridgeRbac, route: liquidationBridgeRoute, Component: LiquidationBridgePage },
+  { meta: logsErrorsMeta, rbac: logsErrorsRbac, route: logsErrorsRoute, Component: LogsErrorsPage },
+  { meta: marketMeta, rbac: marketRbac, route: marketRoute, Component: MarketPage },
+  { meta: marketRootAliasMeta, rbac: marketRootAliasRbac, route: marketRootAliasRoute, Component: MarketRootAliasPage },
+  { meta: marketsMeta, rbac: marketsRbac, route: marketsRoute, Component: MarketsPage },
+  { meta: proChartMeta, rbac: proChartRbac, route: proChartRoute, Component: ProChartPage },
+  { meta: publicLandingV2Meta, rbac: publicLandingV2Rbac, route: publicLandingV2Route, Component: PublicLandingV2Page },
+  { meta: reportCenterMeta, rbac: reportCenterRbac, route: reportCenterRoute, Component: ReportCenterPage },
+  { meta: strategyBacktestingMeta, rbac: strategyBacktestingRbac, route: strategyBacktestingRoute, Component: StrategyBacktestingPage },
+  { meta: backtestsReplayMeta, rbac: backtestsReplayRbac, route: backtestsReplayRoute, Component: BacktestsReplayPage },
+  { meta: technicalAnalysisMeta, rbac: technicalAnalysisRbac, route: technicalAnalysisRoute, Component: TechnicalAnalysisPage },
+  { meta: traderMeta, rbac: traderRbac, route: traderRoute, Component: TraderPage },
+  { meta: traderLegacyAliasMeta, rbac: traderLegacyAliasRbac, route: traderLegacyAliasRoute, Component: TraderLegacyAliasPage },
+  { meta: userStatusMeta, rbac: userStatusRbac, route: userStatusRoute, Component: UserStatusPage },
+  { meta: marketBrainMeta, rbac: marketBrainRbac, route: marketBrainRoute, Component: MarketBrainPage },
 ];
 
-export const ADMIN_PAGES: ReadonlyArray<PageModule> = PAGES.filter((p) => p.meta.surface === 'admin');
+export const PAGES: ReadonlyArray<PageModule> = RAW_PAGES.map(resolvePageModule);
+
+export const ADMIN_PAGES: ReadonlyArray<PageModule> = PAGES.filter(
+  (p) => p.meta.surface === 'admin' || p.meta.surface === 'system',
+);
 export const PUBLIC_PAGES: ReadonlyArray<PageModule> = PAGES.filter((p) => p.meta.surface === 'public');
+export const APP_PAGES: ReadonlyArray<PageModule> = PAGES.filter((p) => p.meta.surface === 'app');

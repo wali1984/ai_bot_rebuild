@@ -1,5 +1,23 @@
 {
   "permissions": {
+    "allow": [
+      "Bash(which pytest *)",
+      "Read(//home/wali/**)",
+      "Bash(curl -s http://127.0.0.1:5173/)",
+      "Bash(pkill -f \"vite --port 5173\")",
+      "Bash(pkill -f \"vite.*5173\")",
+      "Bash(xargs kill -9)",
+      "Bash(echo \"Started PID $!\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/)",
+      "Bash(node -e ' *)",
+      "Bash(python3 -m pytest v2/backend/tests/unit/domain/risk_gateway/ v2/backend/tests/unit/services/risk_gateway/ -x -q)",
+      "Bash(.venv/bin/pytest v2/backend/tests/unit/domain/risk_gateway/ v2/backend/tests/unit/services/risk_gateway/ -x -q)",
+      "Bash(../.venv/bin/pytest backend/tests/unit/domain/risk_gateway/ backend/tests/unit/services/risk_gateway/ -x -q)",
+      "Bash(.venv/bin/pytest v2/backend/tests/unit/domain/risk_gateway/ v2/backend/tests/unit/services/risk_gateway/ -q)",
+      "Bash(.venv/bin/pytest v2/backend/tests/unit/domain/risk_gateway/test_risk_gateway_domain_forbidden_tokens.py -q)",
+      "Bash(.venv/bin/pytest v2/backend/tests/unit/services/risk_gateway/test_assembler_service_forbidden_tokens.py -q)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/src/main.tsx)"
+    ],
     "deny": [
       "Read(./legacy_reference/.env)",
       "Read(./legacy_reference/.env.*)",

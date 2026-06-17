@@ -1,82 +1,210 @@
-import { useEffect } from 'react';
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { useRoles, canSeePage, type Role } from '../../auth/rbac';
-import { sessionStore } from '../../auth/session';
+import { Navigate, Outlet, useLocation, NavLink } from 'react-router-dom';
+import { canSeePage, normalizeRole, useRoles, type RoleLike } from '../../auth/rbac';
+import { useAuth } from '../../hooks/useAuth';
 import { LiveBlockBanner } from '../banners/LiveBlockBanner';
 import { Nav } from './Nav';
 import { PAGES } from '../../pages/registry';
-import { useOperatorTruthPayload, usePaperOnlineRuntimePayload, useTonightReadinessPayload } from '../../pages/operatorTruthData';
+const ADMIN_NAV_SECTIONS: Array<{ label: string; paths: string[] }> = [
+  {
+    label: 'System',
+    paths: ['/admin/system', '/admin', '/admin/monitor-center', '/admin/ingestors', '/admin/logs'],
+  },
+  {
+    label: 'Data',
+    paths: ['/admin/coverage', '/admin/scripts', '/admin/signal-explainability'],
+  },
+  {
+    label: 'AI / Trainer',
+    paths: ['/admin/trainer', '/system/build-code-review', '/admin/ai-tools'],
+  },
+  {
+    label: 'Risk',
+    paths: ['/admin/risk', '/admin/readiness', '/admin/external-manual-position-quarantine'],
+  },
+  {
+    label: 'Config',
+    paths: ['/admin/config', '/admin/traders', '/admin/orchestrator', '/admin/execution', '/admin/exchanges'],
+  },
+  {
+    label: 'Audit',
+    paths: ['/admin/audit', '/admin/build-validation', '/admin/evidence', '/system/executive-summary', '/admin/migrations'],
+  },
+  {
+    label: 'Reports',
+    paths: ['/admin/reports', '/admin/readiness/mobile'],
+  },
+];
 
-const VALID_ROLES = new Set<Role>(['public', 'viewer', 'operator', 'reviewer', 'admin', 'live_approver']);
+function StatusChip({ label, value, ok }: { label: string; value: string; ok?: boolean }): JSX.Element {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        padding: '3px 9px',
+        borderRadius: 6,
+        border: `1px solid ${ok === true ? 'var(--ok)' : ok === false ? 'var(--error)' : 'var(--border)'}`,
+        background: ok === true ? 'var(--buy-bg)' : ok === false ? 'var(--sell-bg)' : 'var(--bg-elevated)',
+        color: ok === true ? 'var(--ok)' : ok === false ? 'var(--error)' : 'var(--text-secondary)',
+        fontSize: 11,
+        fontFamily: 'var(--font-mono)',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <span style={{ opacity: 0.7 }}>{label}</span>
+      <strong style={{ fontWeight: 700 }}>{value}</strong>
+    </span>
+  );
+}
 
-function roleFromSearch(search: string): Role | null {
-  const role = new URLSearchParams(search).get('role') as Role | null;
-  return role && VALID_ROLES.has(role) ? role : null;
+function roleLabel(role: RoleLike): string {
+  return normalizeRole(role) === 'live_approver' ? 'superadmin' : String(role);
 }
 
 export function AdminShell(): JSX.Element {
   const sessionRole = useRoles();
+  const { user, loading, logout } = useAuth();
   const location = useLocation();
-  const { payload } = useOperatorTruthPayload();
-  const { payload: paperRuntime } = usePaperOnlineRuntimePayload(15_000);
-  const { payload: tonightReadiness } = useTonightReadinessPayload(15_000);
-  const queryRole = roleFromSearch(location.search);
-  const role = queryRole ?? sessionRole;
-  const paperLineageIds = paperRuntime?.current_signal_lineage?.lineage_ids as Record<string, unknown> | undefined;
-  const currentRiskDecision = paperRuntime?.current_risk_decision as Record<string, unknown> | undefined;
+  const effectiveRole: RoleLike = user?.role ? normalizeRole(user.role) : sessionRole;
+  const routeLookupPath = location.pathname;
 
-  useEffect(() => {
-    if (queryRole && queryRole !== sessionRole) {
-      sessionStore.setRole(queryRole);
-    }
-  }, [queryRole, sessionRole]);
-
-  if (role === 'public') {
-    return <Navigate to="/" replace />;
+  if (loading) {
+    return (
+      <div data-testid="admin-auth-loading" style={{ minHeight: '60vh', display: 'grid', placeItems: 'center' }}>
+        Checking backend session...
+      </div>
+    );
   }
 
-  const page = PAGES.find((p) => p.route.path === location.pathname && p.meta.surface === 'admin');
-  if (page && !canSeePage(role, page.rbac.minRole)) {
-    return <Navigate to="/" replace />;
+  if (!user && effectiveRole === 'public') {
+    return <Navigate to="/login" replace />;
+  }
+
+  const page = PAGES.find(
+    (p) => p.route.path === routeLookupPath && (p.meta.surface === 'admin' || p.meta.surface === 'system'),
+  );
+  if (page && !canSeePage(effectiveRole, page.rbac.minRole)) {
+    return (
+      <div
+        data-testid="access-denied"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '60vh',
+          gap: 12,
+          color: 'var(--text-secondary)',
+          textAlign: 'center',
+          padding: 32,
+        }}
+      >
+        <span style={{ fontSize: 32 }}>🔒</span>
+        <h2 style={{ margin: 0, color: 'var(--text-primary)' }}>Access Restricted</h2>
+        <p style={{ margin: 0 }}>
+          Minimum role required: <strong style={{ color: 'var(--admin-accent)' }}>{roleLabel(page.rbac.minRole)}</strong>
+        </p>
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
+          Your role: {String(effectiveRole)}
+        </p>
+      </div>
+    );
   }
 
   return (
-    <div className="admin-shell">
+    <div
+      className="platform-shell"
+      data-testid="admin-shell"
+      style={{ fontFamily: 'var(--font-sans)' }}
+    >
       <LiveBlockBanner />
+
+      {/* Top bar */}
       <header className="admin-shell__header">
-        <div>
-          <p className="eyebrow">Production operator cockpit / paper-shadow twin</p>
-          <h1>AI BOT V2 Shadow Desk</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: 'var(--admin-bg)',
+              border: '1px solid var(--admin-border)',
+              color: 'var(--admin-accent)',
+              fontWeight: 700,
+              fontSize: 14,
+              fontFamily: 'var(--font-mono)',
+            }}
+          >
+            A
+          </span>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>
+              AlphaForge V2
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--admin-accent)', fontFamily: 'var(--font-mono)' }}>
+              Control Portal
+            </div>
+          </div>
         </div>
-        <div className="admin-command-rail" aria-label="Global operator runtime state">
-          <span className="chip solid-block">LIVE: {payload?.live_gate_status ?? 'blocked_human_only'}</span>
-          <span className={paperRuntime?.runtime_state === 'PAPER_RUNTIME_ONLINE_ACTIVE' ? 'chip solid-ok' : 'chip solid-warn'}>
-            Paper: {paperRuntime?.runtime_state ?? 'loading'}
-          </span>
-          <span className={tonightReadiness?.legacy_bridge_status === 'CURRENT' ? 'chip solid-ok' : 'chip solid-warn'}>
-            Bridge: {tonightReadiness?.legacy_bridge_status ?? 'loading'}
-          </span>
-          <span className="chip">BTCUSDT: {paperRuntime?.market_feed?.price ?? 'loading'}</span>
-          <span className={payload?.supervisor_status.stale_or_conflicting ? 'chip solid-warn' : 'chip solid-ok'}>
-            Supervisor: {payload?.supervisor_status.stale_or_conflicting ? 'stale/conflicting' : 'current'}
-          </span>
-          <span className="chip">Routes: {tonightReadiness ? `${tonightReadiness.public_route_failed_count ?? 'n/a'} public fails` : 'loading'}</span>
-          <span className="chip">Next: {payload?.current_next_task ?? 'missing'}</span>
-          <span className={payload?.trainer_monitor_status.status === 'V2_PAPER_TRAINER_WRAPPER_CURRENT' ? 'chip solid-ok' : 'chip solid-warn'}>
-            Trainer: {payload?.trainer_monitor_status.status ?? 'loading'}
-          </span>
+
+        <div className="admin-shell__top-chips">
+          <StatusChip label="MODE" value="PAPER/READ-ONLY" />
+          <StatusChip label="LIVE" value="BLOCKED" ok={false} />
+          <StatusChip label="ROLE" value={String(effectiveRole).toUpperCase()} />
+        </div>
+
+        <div className="admin-shell__topright">
+          {user && (
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+              {user.email}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => { void logout(); }}
+            style={{
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              background: 'var(--bg-elevated)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              fontSize: 12,
+              padding: '6px 10px',
+            }}
+          >
+            Sign out
+          </button>
         </div>
       </header>
-      <section className="admin-shell__ticker" aria-label="Current trading desk ticker">
-        <span>Mode: paper_shadow_live_blocked</span>
-        <strong>{String(paperLineageIds?.signal_id ?? 'signal loading')}</strong>
-        <span>Risk: {String(currentRiskDecision?.risk_result ?? 'loading')}</span>
-        <span>Paper equity: {paperRuntime?.paper_account?.equity ?? 'loading'}</span>
-        <span>Canary: approval required, not created</span>
-      </section>
+
+      {/* Horizontal secondary nav */}
+      <nav className="admin-shell__topnav" aria-label="Admin section navigation">
+        {ADMIN_NAV_SECTIONS.map((section) => {
+          const isActive = section.paths.some((p) => location.pathname.startsWith(p));
+          return (
+            <NavLink
+              key={section.label}
+              to={section.paths[0]}
+              className={`admin-shell__topnav-link${isActive ? ' admin-shell__topnav-link--active' : ''}`}
+            >
+              {section.label}
+            </NavLink>
+          );
+        })}
+      </nav>
+
+      {/* Body: sidebar + main */}
       <div className="admin-shell__body">
-        <Nav />
-        <main className="admin-shell__main" data-testid="admin-main">
+        <Nav role={effectiveRole} />
+        <main
+          className="admin-shell__main"
+          data-testid="admin-main"
+          style={{ padding: 16, minWidth: 0 }}
+        >
           <Outlet />
         </main>
       </div>

@@ -219,12 +219,69 @@ def _run_trainer_status() -> dict[str, Any]:
     return _normalize_subprocess_output(data)
 
 
+def _redis_fallback_shape(r: Any) -> dict[str, Any] | None:
+    """Try to build a trainer status shape directly from Redis prediction evidence.
+
+    Returns a shape dict if useful evidence is found, else None.
+    """
+    if r is None:
+        return None
+    try:
+        raw = r.get("v2:prediction:BTCUSDT:1h")
+    except Exception:
+        return None
+    if raw is None:
+        return None
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", errors="replace")
+    try:
+        pred = json.loads(str(raw))
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(pred, dict):
+        return None
+
+    checkpoint_id = pred.get("checkpoint_id")
+    cuda_active = pred.get("cuda_active")
+    data_coverage = pred.get("data_coverage_percent")
+    model_source = pred.get("model_source") or pred.get("trainer_source") or pred.get("checkpoint_source")
+    model_id = pred.get("model_id")
+
+    shape = _empty_shape("ACTIVE_REDIS_EVIDENCE")
+    shape["checkpoint_id"] = checkpoint_id
+    # cuda_active is a bool; store as-is
+    if cuda_active is not None:
+        shape["cuda_active"] = cuda_active  # type: ignore[assignment]
+    if data_coverage is not None:
+        shape["data_coverage"] = float(data_coverage)  # type: ignore[assignment]
+    if model_source is not None:
+        shape["model_source"] = str(model_source)  # type: ignore[assignment]
+    if model_id is not None:
+        shape["model_id"] = str(model_id)  # type: ignore[assignment]
+    return shape
+
+
 @router.get("/summary")
 async def get_trainer_summary() -> dict[str, Any]:
     r = get_redis()
     decision_id = f"trainer-summary-{uuid.uuid4().hex[:12]}"
 
     if _stub_mode_active():
+        # Before returning MISSING_EVIDENCE, try Redis fallback
+        redis_shape = _redis_fallback_shape(r)
+        if redis_shape is not None:
+            _audit(
+                r,
+                source="trainer.summary.redis_fallback",
+                payload=json.dumps(redis_shape, sort_keys=True),
+                decision_id=decision_id,
+            )
+            if r is not None:
+                try:
+                    r.set(CACHE_KEY, json.dumps(redis_shape), ex=_ttl_seconds())
+                except Exception:
+                    pass
+            return redis_shape
         shape = _empty_shape("MISSING_EVIDENCE")
         _audit(
             r,
@@ -254,6 +311,13 @@ async def get_trainer_summary() -> dict[str, Any]:
                 return cached
 
     shape = _run_trainer_status()
+
+    # If subprocess returned MISSING_EVIDENCE, try Redis fallback before giving up
+    if shape.get("state") == "MISSING_EVIDENCE":
+        redis_shape = _redis_fallback_shape(r)
+        if redis_shape is not None:
+            shape = redis_shape
+
     _audit(
         r,
         source="trainer.summary.subprocess",
