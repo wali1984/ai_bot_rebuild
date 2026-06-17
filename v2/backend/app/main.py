@@ -15,14 +15,24 @@ milestone D proper.
 
 from __future__ import annotations
 
+import os
+from datetime import UTC, datetime
+
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.middleware import MIDDLEWARE_ORDER
+from app.api.auth_rbac import router as auth_rbac_router
+from app.api.v2 import router as v2_router
+from app.api.v2.market_contracts import stream_router as market_stream_router
 from app.api.v1 import (
     accounts,
     audit,
     auth,
+    chart,
     claude_admin,
+    live_gate,
     codex_review,
     decisions,
     discovery,
@@ -82,6 +92,7 @@ def _register_routers(app: FastAPI) -> None:
         health.router,
         auth.router,
         accounts.router,
+        chart.router,
         # §7: /exchanges/, /universe/, /discovery/, /selection/
         exchanges.router,
         universe.router,
@@ -116,9 +127,91 @@ def _register_routers(app: FastAPI) -> None:
         mission_control.router,
         ingestors.router,
         live_readiness.router,
+        live_gate.public_status_router,
+        live_gate.router,
     )
     for r in routers:
         app.include_router(r, prefix="/api/v1")
+    app.include_router(auth_rbac_router)
+    app.include_router(v2_router)
+    app.include_router(market_stream_router)
+
+
+def _register_health_aliases(app: FastAPI) -> None:
+    """Register canonical /health and /api/health endpoints.
+
+    The v1 health router lives at /api/v1/_meta/health; these aliases give
+    load-balancers and Playwright tests a stable canonical liveness check
+    without depending on versioned paths.
+    """
+    @app.get("/health", tags=["health"], include_in_schema=False)
+    async def root_health() -> dict:
+        return {
+            "status": "ok",
+            "service": "v2-backend",
+            "places_real_order": False,
+            "live_gate": "blocked_human_only",
+            "generated_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        }
+
+    @app.get("/api/health", tags=["health"], include_in_schema=False)
+    async def api_health() -> dict:
+        return {
+            "status": "ok",
+            "service": "v2-backend",
+            "places_real_order": False,
+            "live_gate": "blocked_human_only",
+            "generated_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        }
+
+
+_REBUILD_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+_DIST_DIR = os.path.join(_REBUILD_ROOT, "frontend", "dist")
+
+
+def _register_spa(app: FastAPI) -> None:
+    """Serve the built React SPA from v2/frontend/dist/.
+
+    Mount order matters — /assets and /operator_runtime are mounted as
+    StaticFiles sub-apps first so they take prefix-matched precedence over the
+    catch-all SPA route. The catch-all is registered last so it never shadows
+    API routes that were registered earlier via _register_routers().
+    """
+    if not os.path.isdir(_DIST_DIR):
+        return
+
+    assets_dir = os.path.join(_DIST_DIR, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="static-assets")
+
+    operator_runtime_dir = os.path.join(_DIST_DIR, "operator_runtime")
+    if os.path.isdir(operator_runtime_dir):
+        app.mount(
+            "/operator_runtime",
+            StaticFiles(directory=operator_runtime_dir),
+            name="operator-runtime",
+        )
+
+    index_html = os.path.join(_DIST_DIR, "index.html")
+    sw_js = os.path.join(_DIST_DIR, "service-worker.js")
+    manifest_file = os.path.join(_DIST_DIR, "manifest.webmanifest")
+
+    if os.path.isfile(sw_js):
+        @app.get("/service-worker.js", include_in_schema=False)
+        async def serve_sw() -> FileResponse:
+            return FileResponse(sw_js, media_type="application/javascript")
+
+    if os.path.isfile(manifest_file):
+        @app.get("/manifest.webmanifest", include_in_schema=False)
+        async def serve_manifest() -> FileResponse:
+            return FileResponse(manifest_file, media_type="application/manifest+json")
+
+    if os.path.isfile(index_html):
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def serve_spa(full_path: str) -> FileResponse:
+            return FileResponse(index_html, media_type="text/html")
 
 
 def create_app() -> FastAPI:
@@ -127,5 +220,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="AI BOT V2", version="0.0.0", docs_url="/api/docs")
     _register_middleware(app)
     _register_routers(app)
+    _register_health_aliases(app)
     _assert_middleware_order(app)
+    _register_spa(app)
     return app
