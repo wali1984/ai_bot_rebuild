@@ -3,6 +3,13 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { registerServiceWorker } from './pwa/registerServiceWorker';
 import './styles.css';
+import './styles/tokens.css';
+import './styles/layout.css';
+import './styles/components.css';
+import './styles/charts.css';
+import './styles/tables.css';
+import './styles/admin.css';
+import './styles/responsive.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('root element missing');
