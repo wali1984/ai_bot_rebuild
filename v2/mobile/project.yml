@@ -33,20 +33,9 @@ targets:
     deploymentTarget: "17.0"
     sources:
       - path: Sources/AIBotV2
+    info:
+      path: Sources/AIBotV2/Info.plist
     dependencies: []
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.wali1984.aibot-v2
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: "AI Bot V2"
-        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: >-
-          UIInterfaceOrientationPortrait
-          UIInterfaceOrientationPortraitUpsideDown
-          UIInterfaceOrientationLandscapeLeft
-          UIInterfaceOrientationLandscapeRight
-        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: >-
-          UIInterfaceOrientationPortrait
-          UIInterfaceOrientationLandscapeLeft
-          UIInterfaceOrientationLandscapeRight
