@@ -2,21 +2,27 @@ workflows:
 
   # ─────────────────────────────────────────────────────────────────────────
   # iOS + iPadOS — TestFlight & App Store
+  #
+  # PREREQUISITES before this workflow can succeed:
+  #   1. Enroll Apple Developer Program (developer.apple.com, $99/yr)
+  #   2. Create App ID com.wali1984.aibot-v2 in developer portal
+  #   3. In App Store Connect → Users → Keys: create API key (role: App Manager)
+  #   4. In Codemagic → Teams → Integrations → App Store Connect:
+  #      upload that key and name it exactly: ASC_API_KEY
+  #   5. Create the app in App Store Connect → My Apps → New App
+  #
+  # Trigger: MANUAL ONLY until Apple Developer is set up.
+  # Run it from Codemagic dashboard → Start new build → ios-workflow
   # ─────────────────────────────────────────────────────────────────────────
   ios-workflow:
     name: AI Bot V2 — iOS Release
     max_build_duration: 60
     instance_type: mac_mini_m2
 
-    # ── App Store Connect API key ─────────────────────────────────────────
-    # In Codemagic → Teams → Integrations → App Store Connect
-    # Create a key there and paste the name you gave it below.
     integrations:
-      app_store_connect: ASC_API_KEY
+      app_store_connect: ASC_API_KEY   # Must match name in Codemagic → Teams → Integrations
 
     environment:
-      # Codemagic fetches matching certificate + provisioning profile
-      # automatically when app_store_connect integration is configured.
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.wali1984.aibot-v2
@@ -26,16 +32,11 @@ workflows:
         XCODE_SCHEME: "AIBotV2"
         PACKAGE_PATH: "v2/mobile"
 
-      xcode: latest        # Xcode 15.x — always use latest stable
+      xcode: latest
 
+    # Manual trigger only — no auto-run on push until Apple Developer is set up
     triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: master
-          include: true
-        - pattern: codex/pipeline-trust-refresh
-          include: true
+      events: []
 
     scripts:
       - name: Resolve Swift package dependencies
