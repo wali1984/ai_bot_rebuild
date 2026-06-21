@@ -1,0 +1,53 @@
+name: AIBotV2
+options:
+  bundleIdPrefix: com.wali1984
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  xcodeVersion: "15"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_BITCODE: NO
+
+targets:
+
+  AIBotV2Core:
+    type: framework
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Sources/AIBotV2Core
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.wali1984.aibot-v2.core
+        SKIP_INSTALL: YES
+        BUILD_LIBRARY_FOR_DISTRIBUTION: NO
+
+  AIBotV2:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Sources/AIBotV2
+    dependencies:
+      - target: AIBotV2Core
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.wali1984.aibot-v2
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: "AI Bot V2"
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: >-
+          UIInterfaceOrientationPortrait
+          UIInterfaceOrientationPortraitUpsideDown
+          UIInterfaceOrientationLandscapeLeft
+          UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: >-
+          UIInterfaceOrientationPortrait
+          UIInterfaceOrientationLandscapeLeft
+          UIInterfaceOrientationLandscapeRight

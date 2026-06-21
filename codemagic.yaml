@@ -42,15 +42,20 @@ workflows:
       events: []
 
     scripts:
-      - name: Resolve Swift package dependencies
+      - name: Install xcodegen
+        script: brew install xcodegen
+
+      - name: Generate Xcode project from project.yml
         script: |
           cd $PACKAGE_PATH
-          swift package resolve
+          xcodegen generate
+          echo "Generated project:"
+          ls -la AIBotV2.xcodeproj/
 
       - name: Build IPA
         script: |
           xcode-project build-ipa \
-            --project $PACKAGE_PATH \
+            --project $PACKAGE_PATH/AIBotV2.xcodeproj \
             --scheme $XCODE_SCHEME \
             --config Release
 

@@ -1,5 +1,5 @@
 .build/
 .swiftpm/
-*.xcodeproj
-*.xcworkspace
+*.xcodeproj/
+*.xcworkspace/
 DerivedData/
