@@ -1,0 +1,122 @@
+workflows:
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # iOS + iPadOS — TestFlight & App Store
+  # ─────────────────────────────────────────────────────────────────────────
+  ios-workflow:
+    name: AI Bot V2 — iOS Release
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    # ── App Store Connect API key ─────────────────────────────────────────
+    # In Codemagic → Teams → Integrations → App Store Connect
+    # Create a key there and paste the name you gave it below.
+    integrations:
+      app_store_connect: ASC_API_KEY
+
+    environment:
+      # Codemagic fetches matching certificate + provisioning profile
+      # automatically when app_store_connect integration is configured.
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.wali1984.aibot-v2
+
+      vars:
+        BUNDLE_ID: "com.wali1984.aibot-v2"
+        XCODE_SCHEME: "AIBotV2"
+        PACKAGE_PATH: "v2/mobile"
+
+      xcode: latest        # Xcode 15.x — always use latest stable
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: master
+          include: true
+        - pattern: codex/pipeline-trust-refresh
+          include: true
+
+    scripts:
+      - name: Resolve Swift package dependencies
+        script: |
+          cd $PACKAGE_PATH
+          swift package resolve
+
+      - name: Set up code signing profiles
+        script: xcode-project use-profiles
+
+      - name: Build and archive iOS app
+        script: |
+          cd $PACKAGE_PATH
+          xcodebuild \
+            -scheme "$XCODE_SCHEME" \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -archivePath ../../build/AIBotV2.xcarchive \
+            archive \
+            CODE_SIGN_STYLE=Automatic \
+            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+            | xcpretty
+
+      - name: Export IPA for App Store
+        script: |
+          xcodebuild -exportArchive \
+            -archivePath build/AIBotV2.xcarchive \
+            -exportOptionsPlist $PACKAGE_PATH/ExportOptions.plist \
+            -exportPath build/ios/ipa \
+            | xcpretty
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - build/AIBotV2.xcarchive
+      - /tmp/xcodebuild_logs/*.log
+
+    publishing:
+      email:
+        recipients:
+          - wajidali1984@hotmail.com
+        notify:
+          success: true
+          failure: true
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true    # Install on iPhone via TestFlight
+        submit_to_app_store: false    # Flip to true when ready for public release
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Linux CLI build + tests (runs on every push, no Apple credentials needed)
+  # ─────────────────────────────────────────────────────────────────────────
+  linux-cli-workflow:
+    name: AI Bot V2 — Linux CLI + Tests
+    max_build_duration: 20
+    instance_type: linux_x2
+
+    environment:
+      vars:
+        PACKAGE_PATH: "v2/mobile"
+
+    triggering:
+      events:
+        - push
+        - pull_request
+
+    scripts:
+      - name: Install Swift
+        script: |
+          # Codemagic Linux instances have Swift pre-installed on linux_x2
+          swift --version
+
+      - name: Build AIBotV2Core + CLI
+        script: |
+          cd $PACKAGE_PATH
+          swift build --target AIBotV2Core
+          swift build --target AIBotV2CLI
+
+      - name: Run unit tests
+        script: |
+          cd $PACKAGE_PATH
+          swift test --filter AIBotV2CoreTests
+
+    artifacts:
+      - v2/mobile/.build/release/aibot
