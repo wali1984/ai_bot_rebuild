@@ -8,7 +8,7 @@ public final class AppState {
 
     public let auth = AuthManager()
     public private(set) var baseURL: String = AppConfiguration.baseURL
-    public private(set) var selectedTab: AppTab = .dashboard
+    public var selectedTab: AppTab = .dashboard
 
     public func setBaseURL(_ url: String) {
         AppConfiguration.baseURL = url
