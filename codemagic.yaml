@@ -19,10 +19,13 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
 
+    # App Store Connect API key — used for TestFlight upload only (not signing)
     integrations:
-      app_store_connect: ASC_API_KEY   # Must match name in Codemagic → Teams → Integrations
+      app_store_connect: ASC_API_KEY
 
     environment:
+      # Certificate (.p12) and profile (.mobileprovision) uploaded manually
+      # in Codemagic → Code signing. Codemagic matches by bundle ID + type.
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.wali1984.aibot-v2
