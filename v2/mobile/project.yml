@@ -33,8 +33,7 @@ targets:
     deploymentTarget: "17.0"
     sources:
       - path: Sources/AIBotV2
-    dependencies:
-      - target: AIBotV2Core
+    dependencies: []
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.wali1984.aibot-v2
