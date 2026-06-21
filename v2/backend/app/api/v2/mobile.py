@@ -64,20 +64,58 @@ def _paper_heartbeat(r: Any) -> dict[str, Any]:
 
 
 def _trainer_status_from_redis(r: Any) -> dict[str, Any]:
-    return _redis_get_json(r, "v2:trainer:status") or {}
+    """Read trainer state from v2:trainer:hybrid_cuda:metrics (real key)."""
+    metrics = _redis_get_json(r, "v2:trainer:hybrid_cuda:metrics") or {}
+    training = metrics.get("training") or {}
+    checkpoint = metrics.get("checkpoint") or {}
+    return {
+        "state": str(training.get("status") or ("ACTIVE_TRAINING" if training.get("cuda_active") else "IDLE")),
+        "checkpoint": str(checkpoint.get("checkpoint_id") or ""),
+        "model_source": str(checkpoint.get("checkpoint_source") or ""),
+        "cuda_active": bool(training.get("cuda_active")),
+        "data_coverage": _safe_float(metrics.get("data_coverage_avg")),
+        "training_steps_total": _safe_int(training.get("training_steps")),
+        "training_steps_last_hour": _safe_int(
+            _safe_float(
+                (metrics.get("cuda_cpu_resource_utilization") or {}).get("training_steps_per_minute")
+            ) * 60
+        ),
+        "training_active": bool(training.get("cuda_active")),
+        "gpu_name": str(training.get("gpu_name") or ""),
+    }
 
 
 def _gpu_status_from_redis(r: Any) -> dict[str, Any]:
-    return _redis_get_json(r, "v2:gpu:status") or {}
+    """Read GPU state from v2:trainer:hybrid_cuda:metrics (real key)."""
+    metrics = _redis_get_json(r, "v2:trainer:hybrid_cuda:metrics") or {}
+    util = metrics.get("cuda_cpu_resource_utilization") or {}
+    training = metrics.get("training") or {}
+    return {
+        "name": str(util.get("gpu_name") or training.get("gpu_name") or ""),
+        "utilization_pct": _safe_float(util.get("current_gpu_utilization")),
+        "vram_used_mb": _safe_int(_safe_float(util.get("current_vram_used_mb"))),
+        "vram_total_mb": _safe_int(_safe_float(util.get("vram_reserved_mb") or 0)),
+        "temperature_c": 0.0,
+    }
 
 
-def _signal_matrix_from_redis(r: Any, limit: int = 20) -> list[dict[str, Any]]:
+def _signal_matrix_from_redis(r: Any, limit: int = 50) -> list[dict[str, Any]]:
+    """Aggregate signals from v2:signals:latest:{SYMBOL} keys (real key pattern)."""
     rows: list[dict[str, Any]] = []
     try:
-        raw = r.get("v2:signals:matrix")
-        if raw:
-            matrix = json.loads(raw)
-            rows = list(matrix) if isinstance(matrix, list) else []
+        cursor = 0
+        while len(rows) < limit * 2:
+            cursor, keys = r.scan(cursor, match="v2:signals:latest:*", count=200)
+            for key in keys:
+                raw = r.get(key)
+                if raw:
+                    try:
+                        rows.append(json.loads(raw))
+                    except Exception:
+                        pass
+            if cursor == 0:
+                break
+        rows.sort(key=lambda s: s.get("available_at") or s.get("decision_time") or "", reverse=True)
     except Exception:
         pass
     return rows[:limit]
@@ -95,11 +133,25 @@ def _paper_positions_from_redis(r: Any) -> list[dict[str, Any]]:
 
 
 def _alerts_from_redis(r: Any, limit: int = 30) -> list[dict[str, Any]]:
-    return _redis_lrange_json(r, "v2:market:alerts", 0, limit - 1)
+    # Try list key first, then fallback to risk gateway decisions
+    items = _redis_lrange_json(r, "v2:market:alerts", 0, limit - 1)
+    if not items:
+        items = _redis_lrange_json(r, "v2:risk:decisions", 0, limit - 1)
+    return items[:limit]
 
 
 def _risk_status_from_redis(r: Any) -> dict[str, Any]:
-    return _redis_get_json(r, "v2:risk:status") or {}
+    """Read risk state from v2:risk:gateway:heartbeat (real key)."""
+    gw = _redis_get_json(r, "v2:risk:gateway:heartbeat") or {}
+    profile = _redis_get_json(r, "v2:risk:active_profile") or {}
+    return {
+        "state": str(gw.get("current_gate_state") or gw.get("classification") or "UNKNOWN"),
+        "kill_switch_active": bool(gw.get("fail_closed") or gw.get("live_blocked")),
+        "max_position_size_usd": _safe_float(profile.get("max_position_size_usd")),
+        "daily_loss_limit_usd": _safe_float(profile.get("daily_loss_limit_usd")),
+        "current_daily_loss_usd": _safe_float(profile.get("current_daily_loss_usd")),
+        "classification": str(gw.get("classification") or ""),
+    }
 
 
 def _live_gate_status() -> dict[str, Any]:
@@ -134,11 +186,11 @@ def _compact_signal(sig: dict[str, Any]) -> dict[str, Any]:
         "symbol": str(sig.get("symbol") or ""),
         "timeframe": str(sig.get("timeframe") or ""),
         "action": str(sig.get("action") or ""),
-        "confidence": _safe_float(sig.get("confidence")),
-        "actionable": bool(sig.get("actionable")),
+        "confidence": _safe_float(sig.get("confidence") or sig.get("confidence_calibrated")),
+        "actionable": bool(sig.get("paper_fill_allowed") or sig.get("actionable")),
         "risk_state": str(sig.get("risk_state") or ""),
         "paper_fill_status": str(sig.get("paper_fill_status") or ""),
-        "published_at": str(sig.get("published_at") or ""),
+        "published_at": str(sig.get("available_at") or sig.get("decision_time") or sig.get("published_at") or ""),
     }
 
 
@@ -266,7 +318,7 @@ async def get_mobile_signals(
     raw = _signal_matrix_from_redis(r, limit=limit * 2) if r else []
 
     if actionable_only:
-        raw = [s for s in raw if s.get("actionable")]
+        raw = [s for s in raw if s.get("paper_fill_allowed") or s.get("actionable")]
 
     signals = [_compact_signal(s) for s in raw[:limit]]
 
