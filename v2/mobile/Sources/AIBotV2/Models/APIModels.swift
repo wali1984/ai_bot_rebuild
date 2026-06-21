@@ -311,7 +311,7 @@ public struct AdminRisk: Decodable, Equatable {
 
 public struct AppConfiguration {
     public static var baseURL: String {
-        get { KeychainHelper.shared.loadBaseURL() ?? "http://127.0.0.1:5173" }
+        get { KeychainHelper.shared.loadBaseURL() ?? "https://dashboard.wajidali.us" }
         set { KeychainHelper.shared.saveBaseURL(newValue) }
     }
 
