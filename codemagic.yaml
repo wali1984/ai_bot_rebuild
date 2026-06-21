@@ -52,6 +52,9 @@ workflows:
           echo "Generated project:"
           ls -la AIBotV2.xcodeproj/
 
+      - name: Set up code signing profiles
+        script: xcode-project use-profiles
+
       - name: Build IPA
         script: |
           xcode-project build-ipa \
