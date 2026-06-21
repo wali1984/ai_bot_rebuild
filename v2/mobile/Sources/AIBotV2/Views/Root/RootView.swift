@@ -71,29 +71,28 @@ struct iPadLayout: View {
     @Environment(AuthManager.self) private var auth
 
     var body: some View {
-        @Bindable var state = appState
         NavigationSplitView {
-            List(selection: $state.selectedTab) {
+            List {
                 Section("Trading") {
-                    Label("Dashboard", systemImage: "gauge.high").tag(AppTab.dashboard)
-                    Label("Positions", systemImage: "chart.line.uptrend.xyaxis").tag(AppTab.positions)
-                    Label("Signals", systemImage: "antenna.radiowaves.left.and.right").tag(AppTab.signals)
-                    Label("Paper Trading", systemImage: "doc.plaintext").tag(AppTab.paper)
-                    Label("Alerts", systemImage: "bell.badge").tag(AppTab.alerts)
+                    sidebarRow(.dashboard,  "Dashboard",     "gauge.high")
+                    sidebarRow(.positions,  "Positions",     "chart.line.uptrend.xyaxis")
+                    sidebarRow(.signals,    "Signals",       "antenna.radiowaves.left.and.right")
+                    sidebarRow(.paper,      "Paper Trading", "doc.plaintext")
+                    sidebarRow(.alerts,     "Alerts",        "bell.badge")
                 }
                 Section("Risk & Control") {
-                    Label("Risk Control", systemImage: "shield.lefthalf.filled").tag(AppTab.risk)
+                    sidebarRow(.risk,    "Risk Control", "shield.lefthalf.filled")
                 }
                 Section("System") {
-                    Label("Monitor", systemImage: "server.rack").tag(AppTab.monitor)
+                    sidebarRow(.monitor, "Monitor",      "server.rack")
                 }
                 if auth.currentSession?.isAdmin == true {
                     Section("Admin") {
-                        Label("Admin", systemImage: "person.badge.key").tag(AppTab.admin)
+                        sidebarRow(.admin, "Admin", "person.badge.key")
                     }
                 }
                 Section("Account") {
-                    Label("Settings", systemImage: "gear").tag(AppTab.settings)
+                    sidebarRow(.settings, "Settings", "gear")
                 }
             }
             .navigationTitle("AI BOT V2")
@@ -104,17 +103,28 @@ struct iPadLayout: View {
     }
 
     @ViewBuilder
+    private func sidebarRow(_ tab: AppTab, _ title: String, _ icon: String) -> some View {
+        Button(action: { appState.selectedTab = tab }) {
+            Label(title, systemImage: icon)
+        }
+        .listRowBackground(
+            appState.selectedTab == tab ? Color.accentColor.opacity(0.15) : Color.clear
+        )
+        .foregroundStyle(appState.selectedTab == tab ? Color.accentColor : Color.primary)
+    }
+
+    @ViewBuilder
     private func detailView(for tab: AppTab) -> some View {
         switch tab {
         case .dashboard: DashboardView()
         case .positions: PositionsView()
-        case .signals: SignalsView()
-        case .paper: PaperTradingView()
-        case .alerts: AlertsView()
-        case .risk: RiskControlView()
-        case .monitor: MonitorView()
-        case .admin: AdminDashboardView()
-        case .settings: SettingsView()
+        case .signals:   SignalsView()
+        case .paper:     PaperTradingView()
+        case .alerts:    AlertsView()
+        case .risk:      RiskControlView()
+        case .monitor:   MonitorView()
+        case .admin:     AdminDashboardView()
+        case .settings:  SettingsView()
         }
     }
 }

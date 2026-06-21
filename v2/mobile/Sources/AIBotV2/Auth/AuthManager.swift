@@ -52,7 +52,7 @@ public final class AuthManager {
 
     public func logout(baseURL: String) async {
         if case .loggedIn(let session) = state {
-            try? await APIClient.shared.post(
+            _ = try? await APIClient.shared.post(
                 path: APIEndpoints.logout,
                 body: Empty(),
                 token: session.accessToken,
