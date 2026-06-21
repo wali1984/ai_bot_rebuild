@@ -1,0 +1,58 @@
+import Foundation
+
+/// All backend API endpoint paths for the AIBotV2 mobile app.
+/// Base URL is configured at startup via AppConfiguration.
+public enum APIEndpoints {
+
+    // MARK: - Auth
+    public static let login = "/api/auth/login"
+    public static let logout = "/api/auth/logout"
+    public static let refresh = "/api/auth/refresh"
+    public static let me = "/api/auth/me"
+
+    // MARK: - Mobile compact (v2/mobile)
+    public static let mobileDashboard = "/api/v2/mobile/dashboard"
+    public static let mobilePositions = "/api/v2/mobile/positions"
+    public static let mobileSignals = "/api/v2/mobile/signals"
+    public static let mobileAlerts = "/api/v2/mobile/alerts"
+    public static let mobileHealth = "/api/v2/mobile/health"
+    public static let mobileRiskStatus = "/api/v2/mobile/risk-status"
+    public static let mobilePaperSummary = "/api/v2/mobile/paper-summary"
+    public static let mobileAdminSummary = "/api/v2/mobile/admin/summary"
+    public static let mobilePushRegister = "/api/v2/mobile/push/register"
+
+    // MARK: - WebSocket streams
+    public static let wsMarketData = "/ws/market-data"
+    public static let wsPaperActivity = "/ws/paper-activity"
+
+    // MARK: - System health
+    public static let health = "/health"
+    public static let publicStatus = "/api/v2/public/status"
+
+    // MARK: - Trainer (v2)
+    public static let trainerStatus = "/api/v2/status"
+
+    // MARK: - Audit
+    public static let auditLedger = "/api/v2/audit-ledger"
+    public static let auditEvents = "/api/v2/execution/audit-events"
+
+    // MARK: - Live gate
+    public static let liveGateStatus = "/api/v2/live-gate/status"
+
+    // MARK: - Paper activity
+    public static let paperActivity = "/api/v2/paper/activity"
+    public static let paperStatus = "/api/v2/paper/status"
+
+    // MARK: - Signals / predictions
+    public static let signalMatrix = "/api/v2/signals/matrix"
+    public static let predictionMatrix = "/api/v2/predictions/matrix"
+
+    // MARK: - Helpers
+    public static func pushUnregister(token: String) -> String {
+        "/api/v2/mobile/push/\(token)"
+    }
+
+    public static func wsMarketDataURL(baseWS: String, symbol: String, timeframe: String) -> URL? {
+        URL(string: "\(baseWS)\(wsMarketData)?symbol=\(symbol)&timeframe=\(timeframe)")
+    }
+}
