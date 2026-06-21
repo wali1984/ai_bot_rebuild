@@ -121,7 +121,7 @@ struct LoginView: View {
                     Text("Server URL")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    TextField("http://127.0.0.1:5173", text: $serverURL)
+                    TextField("https://dashboard.wajidali.us", text: $serverURL)
                         .textContentType(.URL)
                         .autocapitalization(.none)
                         .keyboardType(.URL)
@@ -129,7 +129,7 @@ struct LoginView: View {
                         .textFieldStyle(.roundedBorder)
                         .font(.caption)
                     Button("Save") {
-                        appState.setBaseURL(serverURL.isEmpty ? "http://127.0.0.1:5173" : serverURL)
+                        appState.setBaseURL(serverURL.isEmpty ? "https://dashboard.wajidali.us" : serverURL)
                     }
                     .font(.caption)
                     .buttonStyle(.bordered)

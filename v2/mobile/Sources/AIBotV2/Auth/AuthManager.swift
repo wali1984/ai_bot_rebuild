@@ -84,7 +84,7 @@ public final class AuthManager {
             let user: UserPayload
         }
         struct UserPayload: Decodable {
-            let user_id: String
+            let id: String          // backend safe_user() returns "id", not "user_id"
             let email: String
             let role: String
         }
@@ -98,7 +98,7 @@ public final class AuthManager {
             accessToken: response.access_token,
             email: response.user.email,
             role: response.user.role,
-            userId: response.user.user_id
+            userId: response.user.id
         )
     }
 
@@ -109,7 +109,7 @@ public final class AuthManager {
         }
         do {
             struct MeResponse: Decodable {
-                let user_id: String
+                let id: String      // backend safe_user() returns "id", not "user_id"
                 let email: String
                 let role: String
             }
@@ -122,7 +122,7 @@ public final class AuthManager {
                 accessToken: token,
                 email: me.email,
                 role: me.role,
-                userId: me.user_id
+                userId: me.id
             )
             state = .loggedIn(session)
         } catch {
