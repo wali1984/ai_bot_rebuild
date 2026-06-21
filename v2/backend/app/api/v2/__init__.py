@@ -18,18 +18,28 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.api.v2 import (
+    alerts_contracts,
     audit_ledger,
     codex_reviews,
+    hourly_monitor,
+    live_gate_status,
     live_readiness,
+    market_contracts,
+    mobile,
+    monitoring_contracts,
     ollama,
     pipeline,
     public_status,
     replay,
+    status_contracts,
     trainer,
 )
 
 router = APIRouter(prefix="/api/v2", tags=["v2-landing"])
 
+router.include_router(market_contracts.router)
+router.include_router(alerts_contracts.router)
+router.include_router(status_contracts.router)
 router.include_router(audit_ledger.router)
 router.include_router(codex_reviews.router)
 router.include_router(trainer.router)
@@ -37,6 +47,10 @@ router.include_router(ollama.router)
 router.include_router(replay.router)
 router.include_router(pipeline.router)
 router.include_router(live_readiness.router)
+router.include_router(live_gate_status.router)
 router.include_router(public_status.router)
+router.include_router(monitoring_contracts.router)
+router.include_router(hourly_monitor.router)
+router.include_router(mobile.router)
 
 __all__ = ["router"]
