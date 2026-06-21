@@ -44,29 +44,12 @@ workflows:
           cd $PACKAGE_PATH
           swift package resolve
 
-      - name: Set up code signing profiles
-        script: xcode-project use-profiles
-
-      - name: Build and archive iOS app
+      - name: Build IPA
         script: |
-          cd $PACKAGE_PATH
-          xcodebuild \
-            -scheme "$XCODE_SCHEME" \
-            -sdk iphoneos \
-            -destination "generic/platform=iOS" \
-            -archivePath ../../build/AIBotV2.xcarchive \
-            archive \
-            CODE_SIGN_STYLE=Automatic \
-            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-            | xcpretty
-
-      - name: Export IPA for App Store
-        script: |
-          xcodebuild -exportArchive \
-            -archivePath build/AIBotV2.xcarchive \
-            -exportOptionsPlist $PACKAGE_PATH/ExportOptions.plist \
-            -exportPath build/ios/ipa \
-            | xcpretty
+          xcode-project build-ipa \
+            --project $PACKAGE_PATH \
+            --scheme $XCODE_SCHEME \
+            --config Release
 
     artifacts:
       - build/ios/ipa/*.ipa
