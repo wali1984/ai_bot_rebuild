@@ -8,22 +8,29 @@ struct AdminDashboardView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if vm.isLoading && vm.summary == nil {
-                    LoadingView()
-                } else if let err = vm.error {
-                    if err.contains("admin") {
-                        adminAccessRequired
-                    } else {
-                        ErrorStateView(message: err) {
-                            Task { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
+            ZStack {
+                NerVyx.bg.ignoresSafeArea()
+                Group {
+                    if vm.isLoading && vm.summary == nil {
+                        VStack(spacing: 12) {
+                            ProgressView().tint(NerVyx.primary)
+                            Text("Loading admin…").font(.system(size: 14)).foregroundStyle(NerVyx.textMuted)
                         }
+                    } else if let err = vm.error {
+                        if err.contains("admin") {
+                            adminAccessRequired
+                        } else {
+                            ErrorStateView(message: err) {
+                                Task { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
+                            }
+                        }
+                    } else if let summary = vm.summary {
+                        adminContent(summary)
                     }
-                } else if let summary = vm.summary {
-                    adminContent(summary)
                 }
             }
-            .navigationTitle("NERVYX OBSERVE")
+            .navigationTitle("Ops Terminal")
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
@@ -34,7 +41,7 @@ struct AdminDashboardView: View {
                             showLogoutConfirm = true
                         }
                     } label: {
-                        Image(systemName: "ellipsis.circle")
+                        Image(systemName: "ellipsis.circle").foregroundStyle(NerVyx.signal)
                     }
                 }
             }
@@ -53,168 +60,247 @@ struct AdminDashboardView: View {
 
     private func adminContent(_ s: MobileAdminSummary) -> some View {
         ScrollView {
-            VStack(spacing: 16) {
-                // Actor info
+            VStack(spacing: 14) {
                 actorCard(s.actor)
-
-                // Live gate
                 liveGateCard(s.live_gate)
-
-                // Trainer
                 trainerCard(s.trainer)
-
-                // GPU
                 gpuCard(s.gpu)
-
-                // Paper
                 paperCard(s.paper)
-
-                // Risk
                 riskCard(s.risk)
-
-                // Warning
-                dangerousControlsNote()
-
-                // Navigation
+                dangerousControlsNote(s)
                 adminNavLinks()
             }
-            .padding()
+            .padding(16)
+            .padding(.bottom, 24)
         }
     }
 
+    // MARK: - Cards
+
     private func actorCard(_ actor: AdminActor) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "person.circle.fill")
-                .font(.largeTitle)
-                .foregroundStyle(.blue)
-            VStack(alignment: .leading) {
-                Text(actor.email).font(.subheadline.weight(.semibold))
-                StatusBadge(label: actor.role.uppercased(), color: .blue)
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(NerVyx.primary.opacity(0.15))
+                    .frame(width: 48, height: 48)
+                Image(systemName: "person.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(NerVyx.primary)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(actor.email)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(NerVyx.textPrimary)
+                NerVyxBadge(text: actor.role.uppercased(), color: NerVyx.primary)
             }
             Spacer()
+            NerVyxBadge(text: "ADMIN", color: NerVyx.validation, small: true)
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .nerVyxElevatedCard(accent: NerVyx.primary)
     }
 
     private func liveGateCard(_ gate: LiveGateState) -> some View {
-        HStack {
-            Image(systemName: "lock.shield.fill").foregroundStyle(.red)
-            VStack(alignment: .leading) {
-                Text(gate.label).font(.subheadline.weight(.bold)).foregroundStyle(.red)
-                Text("Places real order: \(gate.places_real_order ? "YES ⚠️" : "NO ✓")")
-                    .font(.caption).foregroundStyle(.secondary)
+        HStack(spacing: 12) {
+            Image(systemName: "lock.shield.fill")
+                .font(.system(size: 22))
+                .foregroundStyle(NerVyx.sell)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(gate.label)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(NerVyx.sell)
+                Text("Places real order: \(gate.places_real_order ? "YES" : "NO")")
+                    .font(.system(size: 12))
+                    .foregroundStyle(NerVyx.textMuted)
             }
             Spacer()
         }
-        .padding()
-        .background(Color.red.opacity(0.08))
+        .padding(14)
+        .background(NerVyx.sell.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(NerVyx.sell.opacity(0.3), lineWidth: 1))
     }
 
     private func trainerCard(_ t: AdminTrainer) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("NERVYX CORE · Trainer", systemImage: "brain").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-            MetricRow(label: "State", value: t.state, valueColor: t.state.hasPrefix("ACTIVE") ? .green : .orange)
-            MetricRow(label: "CUDA", value: t.cuda_active ? "Active" : "Off", valueColor: t.cuda_active ? .green : .red)
-            MetricRow(label: "Steps/hr", value: "\(t.training_steps_last_hour.formatted())")
-            MetricRow(label: "Steps total", value: "\(t.training_steps_total.formatted())")
+        VStack(spacing: 10) {
+            SectionHeader(title: "Trainer · NERVYX CORE", accent: NerVyx.primary)
+            DataRow(
+                label: "State",
+                value: t.state,
+                valueColor: t.state.hasPrefix("ACTIVE") ? NerVyx.validation : NerVyx.warning
+            )
+            DataRow(
+                label: "Device",
+                value: t.device ?? (t.cuda_active ? "cuda:0" : "cpu"),
+                valueColor: t.cuda_active ? NerVyx.signal : NerVyx.textMuted,
+                mono: true
+            )
+            DataRow(
+                label: "GPU",
+                value: t.gpu_name ?? (t.cuda_active ? "Active" : "—"),
+                valueColor: t.cuda_active ? NerVyx.validation : NerVyx.textMuted
+            )
+            DataRow(label: "Steps/hr", value: "\(t.training_steps_last_hour.formatted())", mono: true)
+            DataRow(label: "Steps total", value: "\(t.training_steps_total.formatted())", mono: true)
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .nerVyxCard()
     }
 
-    private func gpuCard(_ gpu: GPUState) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("NERVYX CORE · GPU — \(gpu.name.isEmpty ? "Unknown" : gpu.name)", systemImage: "cpu.fill")
-                .font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-            GaugeCard(title: "Utilization", value: gpu.utilization_pct, max: 100, unit: "%",
-                      color: gpu.utilization_pct > 90 ? .orange : .blue)
-            GaugeCard(title: "VRAM", value: gpu.vramUsedGB, max: gpu.vramTotalGB, unit: " GB",
-                      color: gpu.vramPercent > 90 ? .orange : .purple)
+    private func gpuCard(_ gpu: AdminGPU) -> some View {
+        let vramUsedGB = Double(gpu.vram_used_mb) / 1024
+        let vramTotalGB = Double(gpu.vram_total_mb) / 1024
+        let vramFraction = gpu.vram_total_mb > 0 ? Double(gpu.vram_used_mb) / Double(gpu.vram_total_mb) : 0
+
+        return VStack(spacing: 10) {
+            SectionHeader(title: "GPU · \(gpu.displayName)", accent: NerVyx.inference)
+            VStack(spacing: 6) {
+                DataRow(
+                    label: "Utilization",
+                    value: "\(Int(gpu.utilization_pct))%",
+                    valueColor: gpu.utilization_pct > 85 ? NerVyx.warning : NerVyx.inference,
+                    mono: true
+                )
+                ConfidenceBar(value: gpu.utilization_pct / 100)
+            }
+            VStack(spacing: 6) {
+                DataRow(
+                    label: "VRAM",
+                    value: String(format: "%.1f / %.1f GB", vramUsedGB, vramTotalGB),
+                    valueColor: vramFraction > 0.9 ? NerVyx.warning : NerVyx.signal,
+                    mono: true
+                )
+                ConfidenceBar(value: vramFraction)
+            }
         }
+        .nerVyxCard(accent: NerVyx.inference.opacity(0.3))
     }
 
     private func paperCard(_ p: AdminPaper) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("NERVYX EXECUTE · Runtime", systemImage: "bolt.horizontal.circle").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-            HStack(spacing: 12) {
-                MetricCard(title: "Open", value: "\(p.open_positions)", icon: "chart.line.uptrend.xyaxis")
-                MetricCard(title: "Closed", value: "\(p.closed_trades)", icon: "checkmark.circle")
+        VStack(spacing: 10) {
+            SectionHeader(title: "Runtime · NERVYX EXECUTE", accent: NerVyx.paper)
+            HStack(spacing: 10) {
+                NerVyxStatCard(label: "OPEN", value: "\(p.open_positions)", accent: NerVyx.paper)
+                NerVyxStatCard(label: "CLOSED", value: "\(p.closed_trades)", accent: NerVyx.borderStrong)
             }
-            MetricRow(label: "Realized PnL", value: String(format: "$%.2f", p.realized_pnl_usd),
-                      valueColor: p.realized_pnl_usd >= 0 ? .green : .red)
-            MetricRow(label: "Unrealized PnL", value: String(format: "$%.2f", p.unrealized_pnl_usd),
-                      valueColor: p.unrealized_pnl_usd >= 0 ? .green : .red)
+            DataRow(
+                label: "Realized PnL",
+                value: String(format: "$%.2f", p.realized_pnl_usd),
+                valueColor: NerVyx.pnlColor(p.realized_pnl_usd),
+                mono: true
+            )
+            DataRow(
+                label: "Unrealized PnL",
+                value: String(format: "$%.2f", p.unrealized_pnl_usd),
+                valueColor: NerVyx.pnlColor(p.unrealized_pnl_usd),
+                mono: true
+            )
+            DataRow(label: "Accepted", value: "\(p.intents_accepted)", valueColor: NerVyx.buy)
+            DataRow(label: "Blocked", value: "\(p.intents_blocked)", valueColor: NerVyx.sell)
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .nerVyxCard()
     }
 
     private func riskCard(_ r: AdminRisk) -> some View {
-        HStack {
-            Label("NERVYX GUARD · Risk", systemImage: r.kill_switch_active ? "exclamationmark.shield.fill" : "shield.fill")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(r.kill_switch_active ? .red : .secondary)
+        HStack(spacing: 12) {
+            Image(
+                systemName: r.kill_switch_active ? "exclamationmark.shield.fill" : "shield.checkmark.fill"
+            )
+            .font(.system(size: 18))
+            .foregroundStyle(r.kill_switch_active ? NerVyx.sell : NerVyx.validation)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("NERVYX GUARD · Risk")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(NerVyx.textSecondary)
+                Text(r.state)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(NerVyx.textMuted)
+                if let cls = r.classification {
+                    Text(cls).font(.system(size: 11)).foregroundStyle(NerVyx.paper)
+                }
+            }
             Spacer()
-            Text(r.state)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(r.state == "UNKNOWN" ? .secondary : .primary)
             if r.kill_switch_active {
-                StatusBadge(label: "KILL SWITCH", color: .red)
+                NerVyxBadge(text: "KILL SWITCH", color: NerVyx.sell)
             }
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .nerVyxCard(accent: r.kill_switch_active ? NerVyx.sell.opacity(0.4) : NerVyx.borderSubtle)
     }
 
-    private func dangerousControlsNote() -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("NERVYX GUARD · Dangerous Controls", systemImage: "exclamationmark.triangle.fill")
-                .font(.subheadline.weight(.semibold)).foregroundStyle(.orange)
-            Text("Live trading, leverage changes, and kill switch controls require explicit human approval via the web admin interface. These actions are NOT available from mobile for safety.")
-                .font(.caption).foregroundStyle(.secondary)
+    private func dangerousControlsNote(_ s: MobileAdminSummary) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(NerVyx.warning)
+                Text("Dangerous Controls")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(NerVyx.warning)
+            }
+            Text("Live trading, leverage, and kill switch controls require explicit human approval via web admin. These actions are blocked on mobile.")
+                .font(.system(size: 12))
+                .foregroundStyle(NerVyx.textMuted)
+            if s.mobile_live_trading_blocked {
+                HStack(spacing: 4) {
+                    Image(systemName: "lock.fill").font(.system(size: 10)).foregroundStyle(NerVyx.sell)
+                    Text("Mobile live trading: BLOCKED")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(NerVyx.sell)
+                }
+            }
         }
-        .padding()
-        .background(Color.orange.opacity(0.08))
+        .padding(14)
+        .background(NerVyx.warning.opacity(0.07))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(NerVyx.warning.opacity(0.3), lineWidth: 1))
     }
 
     private func adminNavLinks() -> some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             NavigationLink(destination: AuditLedgerView()) {
-                Label("NERVYX REPLAY · Audit Ledger", systemImage: "list.clipboard")
+                HStack {
+                    Image(systemName: "list.clipboard").foregroundStyle(NerVyx.signal)
+                    Text("Audit Ledger")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(NerVyx.textPrimary)
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(NerVyx.textMuted)
+                }
+                .padding(14)
+                .background(NerVyx.panel)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(NerVyx.borderSubtle, lineWidth: 1))
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.secondary)
+            .buttonStyle(.plain)
 
-            Link("Open Web Admin ↗", destination: URL(string: appState.baseURL + "/admin")!)
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.blue.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+            Link(destination: URL(string: appState.baseURL + "/admin")!) {
+                HStack {
+                    Image(systemName: "safari").foregroundStyle(NerVyx.signal)
+                    Text("Open Web Admin")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(NerVyx.signal)
+                    Spacer()
+                    Image(systemName: "arrow.up.right").foregroundStyle(NerVyx.signal)
+                }
+                .padding(14)
+                .background(NerVyx.signal.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(NerVyx.signal.opacity(0.3), lineWidth: 1))
+            }
         }
     }
 
     private var adminAccessRequired: some View {
         VStack(spacing: 16) {
             Image(systemName: "person.badge.key.fill")
-                .font(.system(size: 52))
-                .foregroundStyle(.orange)
+                .font(.system(size: 48))
+                .foregroundStyle(NerVyx.warning)
             Text("Admin Access Required")
-                .font(.headline)
-            Text("Your account role does not have admin access. Contact your administrator.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(NerVyx.textPrimary)
+            Text("Your account role does not have admin access.")
+                .font(.system(size: 13))
+                .foregroundStyle(NerVyx.textMuted)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
     }
 }
 
@@ -224,14 +310,33 @@ struct AuditLedgerView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
-        Text("Audit Ledger — Open in Web Admin for full details")
-            .foregroundStyle(.secondary)
-            .navigationTitle("Audit Ledger")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Link("Web ↗", destination: URL(string: appState.baseURL + "/audit-ledger")!)
-                }
+        ZStack {
+            NerVyx.bg.ignoresSafeArea()
+            VStack(spacing: 16) {
+                Image(systemName: "list.clipboard")
+                    .font(.system(size: 36))
+                    .foregroundStyle(NerVyx.signal)
+                Text("Audit Ledger")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(NerVyx.textPrimary)
+                Text("Open Web Admin for the full audit ledger with search, filtering, and export.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(NerVyx.textMuted)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                Link("Open Audit Ledger ↗", destination: URL(string: appState.baseURL + "/audit-ledger")!)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(NerVyx.signal)
             }
+        }
+        .navigationTitle("Audit Ledger")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Link("Web ↗", destination: URL(string: appState.baseURL + "/audit-ledger")!)
+                    .foregroundStyle(NerVyx.signal)
+            }
+        }
     }
 }
 
@@ -245,25 +350,64 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                if let session = auth.currentSession {
-                    Section("Account") {
-                        MetricRow(label: "Email", value: session.email)
-                        MetricRow(label: "Role", value: session.role.uppercased())
+            ZStack {
+                NerVyx.bg.ignoresSafeArea()
+                ScrollView {
+                    VStack(spacing: 14) {
+                        if let session = auth.currentSession {
+                            VStack(spacing: 10) {
+                                SectionHeader(title: "Account", accent: NerVyx.primary)
+                                DataRow(label: "Email", value: session.email)
+                                DataRow(label: "Role", value: session.role.uppercased(), valueColor: NerVyx.primary)
+                            }
+                            .nerVyxCard()
+                        }
+
+                        VStack(spacing: 10) {
+                            SectionHeader(title: "Server", accent: NerVyx.signal)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("BACKEND URL")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(NerVyx.textMuted)
+                                    .tracking(0.8)
+                                TextField("https://dashboard.wajidali.us", text: $serverURL)
+                                    .autocapitalization(.none)
+                                    .keyboardType(.URL)
+                                    .foregroundStyle(NerVyx.textPrimary)
+                                    .font(.system(size: 13, design: .monospaced))
+                                    .padding(10)
+                                    .background(NerVyx.panelElevated)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(NerVyx.borderSubtle, lineWidth: 1))
+                                Button("Save URL") {
+                                    appState.setBaseURL(serverURL.isEmpty ? "https://dashboard.wajidali.us" : serverURL)
+                                }
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(NerVyx.signal)
+                            }
+                        }
+                        .nerVyxCard()
+
+                        Button(role: .destructive) {
+                            showLogoutConfirm = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "rectangle.portrait.and.arrow.right")
+                                    .foregroundStyle(NerVyx.sell)
+                                Text("Sign Out")
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundStyle(NerVyx.sell)
+                                Spacer()
+                            }
+                            .padding(14)
+                            .background(NerVyx.sell.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(NerVyx.sell.opacity(0.3), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
                     }
-                }
-                Section("Server") {
-                    TextField("Server URL", text: $serverURL)
-                        .autocapitalization(.none)
-                        .keyboardType(.URL)
-                    Button("Save Server URL") {
-                        appState.setBaseURL(serverURL.isEmpty ? "http://127.0.0.1:5173" : serverURL)
-                    }
-                }
-                Section {
-                    Button("Sign Out", role: .destructive) {
-                        showLogoutConfirm = true
-                    }
+                    .padding(16)
+                    .padding(.bottom, 24)
                 }
             }
             .navigationTitle("Settings")

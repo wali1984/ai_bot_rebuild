@@ -64,60 +64,99 @@ def _paper_heartbeat(r: Any) -> dict[str, Any]:
 
 
 def _trainer_status_from_redis(r: Any) -> dict[str, Any]:
-    """Read trainer state from v2:trainer:hybrid_cuda:metrics (real key)."""
+    """Read trainer status from v2:trainer:hybrid_cuda:metrics (real data)."""
     metrics = _redis_get_json(r, "v2:trainer:hybrid_cuda:metrics") or {}
+    heartbeat = _redis_get_json(r, "v2:trainer:hybrid_cuda:heartbeat") or {}
     training = metrics.get("training") or {}
-    checkpoint = metrics.get("checkpoint") or {}
+    cpu_util = metrics.get("cuda_cpu_resource_utilization") or {}
+    checkpoint_data = metrics.get("checkpoint") or {}
+    inner_metrics = training.get("metrics") or {}
+
+    # Derive trainer state
+    effective_mode = inner_metrics.get("effective_trainer_mode") or ""
+    trainer_source = heartbeat.get("trainer_source") or ""
+    if effective_mode:
+        state = effective_mode
+    elif trainer_source:
+        state = trainer_source.replace("V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_", "").replace("_", " ")
+    else:
+        state = "UNKNOWN"
+
+    cuda_active = bool(training.get("cuda_active") or cpu_util.get("cuda_available"))
+    gpu_name = training.get("gpu_name") or cpu_util.get("gpu_name") or ""
+    device = training.get("device") or ""
+    checkpoint_id = checkpoint_data.get("checkpoint_id") or ""
+    checkpoint_source = checkpoint_data.get("checkpoint_source") or ""
+
+    steps_total = _safe_int(inner_metrics.get("optimizer_steps_total"))
+    tpm = _safe_float(cpu_util.get("training_steps_per_minute"))
+    steps_last_hour = int(tpm * 60) if tpm > 0 else 0
+
+    data_cov = _safe_float(metrics.get("data_coverage_avg"))
+
     return {
-        "state": str(training.get("status") or ("ACTIVE_TRAINING" if training.get("cuda_active") else "IDLE")),
-        "checkpoint": str(checkpoint.get("checkpoint_id") or ""),
-        "model_source": str(checkpoint.get("checkpoint_source") or ""),
-        "cuda_active": bool(training.get("cuda_active")),
-        "data_coverage": _safe_float(metrics.get("data_coverage_avg")),
-        "training_steps_total": _safe_int(training.get("training_steps")),
-        "training_steps_last_hour": _safe_int(
-            _safe_float(
-                (metrics.get("cuda_cpu_resource_utilization") or {}).get("training_steps_per_minute")
-            ) * 60
-        ),
-        "training_active": bool(training.get("cuda_active")),
-        "gpu_name": str(training.get("gpu_name") or ""),
+        "state": state,
+        "checkpoint": checkpoint_id,
+        "model_source": checkpoint_source,
+        "cuda_active": cuda_active,
+        "device": device,
+        "gpu_name": gpu_name,
+        "data_coverage": data_cov,
+        "training_steps_total": steps_total,
+        "training_steps_last_hour": steps_last_hour,
     }
 
 
 def _gpu_status_from_redis(r: Any) -> dict[str, Any]:
-    """Read GPU state from v2:trainer:hybrid_cuda:metrics (real key)."""
+    """Read GPU status from v2:trainer:hybrid_cuda:metrics."""
     metrics = _redis_get_json(r, "v2:trainer:hybrid_cuda:metrics") or {}
-    util = metrics.get("cuda_cpu_resource_utilization") or {}
     training = metrics.get("training") or {}
+    cpu_util = metrics.get("cuda_cpu_resource_utilization") or {}
+
+    name = training.get("gpu_name") or cpu_util.get("gpu_name") or ""
+    vram_used = _safe_float(training.get("vram_allocated_mb") or cpu_util.get("current_vram_used_mb"))
+    vram_total = _safe_float(cpu_util.get("vram_target_mb") or cpu_util.get("vram_reserved_mb"))
+    util_pct = _safe_float(cpu_util.get("current_gpu_utilization"))
+    device = training.get("device") or ""
+    temp = _safe_float(cpu_util.get("temperature_c"))
+
     return {
-        "name": str(util.get("gpu_name") or training.get("gpu_name") or ""),
-        "utilization_pct": _safe_float(util.get("current_gpu_utilization")),
-        "vram_used_mb": _safe_int(_safe_float(util.get("current_vram_used_mb"))),
-        "vram_total_mb": _safe_int(_safe_float(util.get("vram_reserved_mb") or 0)),
-        "temperature_c": 0.0,
+        "name": name,
+        "device": device,
+        "utilization_pct": util_pct,
+        "vram_used_mb": int(vram_used),
+        "vram_total_mb": int(vram_total),
+        "temperature_c": temp,
     }
 
 
 def _signal_matrix_from_redis(r: Any, limit: int = 50) -> list[dict[str, Any]]:
-    """Aggregate signals from v2:signals:latest:{SYMBOL} keys (real key pattern)."""
+    """Scan v2:signals:latest:* (per-symbol keys) and return sorted list."""
     rows: list[dict[str, Any]] = []
     try:
+        # Use pipeline to batch all per-symbol reads
         cursor = 0
-        while len(rows) < limit * 2:
-            cursor, keys = r.scan(cursor, match="v2:signals:latest:*", count=200)
-            for key in keys:
-                raw = r.get(key)
+        keys: list[str] = []
+        while True:
+            cursor, batch = r.scan(cursor, match="v2:signals:latest:*", count=200)
+            keys.extend(batch)
+            if cursor == 0:
+                break
+        if keys:
+            with r.pipeline(transaction=False) as pipe:
+                for k in keys:
+                    pipe.get(k)
+                values = pipe.execute()
+            for raw in values:
                 if raw:
                     try:
                         rows.append(json.loads(raw))
                     except Exception:
                         pass
-            if cursor == 0:
-                break
-        rows.sort(key=lambda s: s.get("available_at") or s.get("decision_time") or "", reverse=True)
     except Exception:
         pass
+    # Sort by confidence descending — show most confident first
+    rows.sort(key=lambda x: _safe_float(x.get("confidence")), reverse=True)
     return rows[:limit]
 
 
@@ -133,24 +172,21 @@ def _paper_positions_from_redis(r: Any) -> list[dict[str, Any]]:
 
 
 def _alerts_from_redis(r: Any, limit: int = 30) -> list[dict[str, Any]]:
-    # Try list key first, then fallback to risk gateway decisions
-    items = _redis_lrange_json(r, "v2:market:alerts", 0, limit - 1)
-    if not items:
-        items = _redis_lrange_json(r, "v2:risk:decisions", 0, limit - 1)
-    return items[:limit]
+    return _redis_lrange_json(r, "v2:market:alerts", 0, limit - 1)
 
 
 def _risk_status_from_redis(r: Any) -> dict[str, Any]:
-    """Read risk state from v2:risk:gateway:heartbeat (real key)."""
+    """Read risk status from v2:risk:gateway:heartbeat (real data)."""
     gw = _redis_get_json(r, "v2:risk:gateway:heartbeat") or {}
-    profile = _redis_get_json(r, "v2:risk:active_profile") or {}
     return {
-        "state": str(gw.get("current_gate_state") or gw.get("classification") or "UNKNOWN"),
-        "kill_switch_active": bool(gw.get("fail_closed") or gw.get("live_blocked")),
-        "max_position_size_usd": _safe_float(profile.get("max_position_size_usd")),
-        "daily_loss_limit_usd": _safe_float(profile.get("daily_loss_limit_usd")),
-        "current_daily_loss_usd": _safe_float(profile.get("current_daily_loss_usd")),
-        "classification": str(gw.get("classification") or ""),
+        "state": gw.get("current_gate_state") or gw.get("classification") or "UNKNOWN",
+        "classification": gw.get("classification") or "",
+        "kill_switch_active": bool(gw.get("live_blocked", True)),
+        "fail_closed": bool(gw.get("fail_closed", True)),
+        "decisions_processed_total": _safe_int(gw.get("decisions_processed_total")),
+        "max_position_size_usd": _safe_float(gw.get("max_position_size_usd")),
+        "daily_loss_limit_usd": _safe_float(gw.get("daily_loss_limit_usd")),
+        "current_daily_loss_usd": _safe_float(gw.get("current_daily_loss_usd")),
     }
 
 
@@ -186,11 +222,14 @@ def _compact_signal(sig: dict[str, Any]) -> dict[str, Any]:
         "symbol": str(sig.get("symbol") or ""),
         "timeframe": str(sig.get("timeframe") or ""),
         "action": str(sig.get("action") or ""),
-        "confidence": _safe_float(sig.get("confidence") or sig.get("confidence_calibrated")),
-        "actionable": bool(sig.get("paper_fill_allowed") or sig.get("actionable")),
+        "confidence": _safe_float(sig.get("confidence")),
+        "actionable": bool(sig.get("paper_fill_allowed")),
         "risk_state": str(sig.get("risk_state") or ""),
         "paper_fill_status": str(sig.get("paper_fill_status") or ""),
-        "published_at": str(sig.get("available_at") or sig.get("decision_time") or sig.get("published_at") or ""),
+        "published_at": str(sig.get("available_at") or sig.get("decision_time") or ""),
+        "last_price": _safe_float(sig.get("last_price")),
+        "expected_move_bps": _safe_float(sig.get("expected_move_bps")),
+        "data_coverage": _safe_float(sig.get("data_coverage_percent")),
     }
 
 
@@ -211,10 +250,7 @@ def _compact_alert(alert: dict[str, Any]) -> dict[str, Any]:
 async def get_mobile_dashboard(
     actor: UserRecord | None = Depends(optional_auth),
 ) -> dict[str, Any]:
-    """Compact system overview for mobile home screen.
-    Returns trainer state, GPU, paper loop, open positions summary, top alerts.
-    No auth required (public state only).
-    """
+    """Compact system overview for mobile home screen."""
     try:
         r = get_redis()
     except Exception:
@@ -235,6 +271,21 @@ async def get_mobile_dashboard(
         raw_alerts = _alerts_from_redis(r, limit=5)
         alerts_preview = [_compact_alert(a) for a in raw_alerts]
 
+    # Signal count from live keys
+    signal_count = 0
+    if r:
+        try:
+            cursor, keys = r.scan(0, match="v2:signals:latest:*", count=1)
+            signal_count = _safe_int(r.object("encoding", keys[0]) if keys else 0)
+            # Actually scan all
+            all_sig_keys: list[str] = keys
+            while cursor != 0:
+                cursor, batch = r.scan(cursor, match="v2:signals:latest:*", count=200)
+                all_sig_keys.extend(batch)
+            signal_count = len(all_sig_keys)
+        except Exception:
+            signal_count = 0
+
     return {
         "generated_utc": _utc_now(),
         "live_gate": live_gate,
@@ -250,22 +301,26 @@ async def get_mobile_dashboard(
             "places_real_order": False,
         },
         "trainer": {
-            "state": str(trainer.get("state") or "UNKNOWN"),
-            "checkpoint": str(trainer.get("checkpoint") or ""),
-            "model_source": str(trainer.get("model_source") or ""),
+            "state": trainer.get("state", "UNKNOWN"),
+            "checkpoint": trainer.get("checkpoint", ""),
+            "model_source": trainer.get("model_source", ""),
             "cuda_active": bool(trainer.get("cuda_active")),
+            "device": str(trainer.get("device") or ""),
+            "gpu_name": str(trainer.get("gpu_name") or ""),
             "data_coverage": _safe_float(trainer.get("data_coverage")),
             "training_steps_total": _safe_int(trainer.get("training_steps_total")),
             "training_steps_last_hour": _safe_int(trainer.get("training_steps_last_hour")),
         },
         "gpu": {
             "name": str(gpu.get("name") or ""),
+            "device": str(gpu.get("device") or ""),
             "utilization_pct": _safe_float(gpu.get("utilization_pct")),
             "vram_used_mb": _safe_int(gpu.get("vram_used_mb")),
             "vram_total_mb": _safe_int(gpu.get("vram_total_mb")),
         },
         "alerts_preview": alerts_preview,
         "redis_connected": r is not None,
+        "active_signal_count": signal_count,
     }
 
 
@@ -304,12 +359,12 @@ async def get_mobile_positions(
 
 @router.get("/signals")
 async def get_mobile_signals(
-    limit: int = 20,
+    limit: int = 50,
     actionable_only: bool = False,
     actor: UserRecord | None = Depends(optional_auth),
 ) -> dict[str, Any]:
-    """Compact signals feed for mobile signals tab. Max 50 rows."""
-    limit = min(max(1, limit), 50)
+    """Compact signals feed from v2:signals:latest:* per-symbol keys. Max 100."""
+    limit = min(max(1, limit), 100)
     try:
         r = get_redis()
     except Exception:
@@ -318,7 +373,7 @@ async def get_mobile_signals(
     raw = _signal_matrix_from_redis(r, limit=limit * 2) if r else []
 
     if actionable_only:
-        raw = [s for s in raw if s.get("paper_fill_allowed") or s.get("actionable")]
+        raw = [s for s in raw if s.get("paper_fill_allowed")]
 
     signals = [_compact_signal(s) for s in raw[:limit]]
 
@@ -370,7 +425,7 @@ async def get_mobile_health(
 
     trainer_state = str(trainer.get("state") or "UNKNOWN")
     cuda_active = bool(trainer.get("cuda_active"))
-    training_active = bool(trainer.get("training_active") or trainer_state.startswith("ACTIVE"))
+    training_active = cuda_active or "ACTIVE" in trainer_state.upper()
     paper_classification = str(hb.get("classification") or "UNKNOWN")
 
     overall = "healthy" if (redis_ok and training_active) else "degraded" if redis_ok else "unavailable"
@@ -384,9 +439,12 @@ async def get_mobile_health(
             "cuda_active": cuda_active,
             "training_active": training_active,
             "checkpoint": str(trainer.get("checkpoint") or ""),
+            "device": str(trainer.get("device") or ""),
+            "gpu_name": str(trainer.get("gpu_name") or ""),
         },
         "gpu": {
             "name": str(gpu.get("name") or ""),
+            "device": str(gpu.get("device") or ""),
             "utilization_pct": _safe_float(gpu.get("utilization_pct")),
             "vram_used_mb": _safe_int(gpu.get("vram_used_mb")),
             "vram_total_mb": _safe_int(gpu.get("vram_total_mb")),
@@ -420,9 +478,12 @@ async def get_mobile_risk_status(
         "generated_utc": _utc_now(),
         "live_gate": _live_gate_status(),
         "risk_state": str(risk.get("state") or "UNKNOWN"),
+        "risk_classification": str(risk.get("classification") or ""),
         "paper_blocked_count": _safe_int(hb.get("intents_blocked")),
         "paper_accepted_count": _safe_int(hb.get("intents_accepted")),
-        "kill_switch_active": bool(risk.get("kill_switch_active")),
+        "kill_switch_active": bool(risk.get("kill_switch_active", True)),
+        "fail_closed": bool(risk.get("fail_closed", True)),
+        "decisions_processed_total": _safe_int(risk.get("decisions_processed_total")),
         "max_position_size_usd": _safe_float(risk.get("max_position_size_usd")),
         "daily_loss_limit_usd": _safe_float(risk.get("daily_loss_limit_usd")),
         "current_daily_loss_usd": _safe_float(risk.get("current_daily_loss_usd")),
@@ -510,9 +571,7 @@ async def register_push_token(
     request: PushRegistrationRequest,
     actor: UserRecord = Depends(require_auth),
 ) -> dict[str, Any]:
-    """Register an APNS/FCM device token for push notifications.
-    Requires authentication.
-    """
+    """Register an APNS/FCM device token for push notifications."""
     if not request.device_token or len(request.device_token) < 8:
         raise HTTPException(status_code=400, detail="invalid_device_token")
     if request.platform not in {"apns", "fcm"}:
@@ -521,7 +580,7 @@ async def register_push_token(
     try:
         r = get_redis()
         entry = json.dumps({
-            "user_id": str(actor.user_id),
+            "user_id": str(actor.get("user_id", "") if actor else ""),
             "device_token": request.device_token,
             "platform": request.platform,
             "environment": request.environment,
@@ -530,14 +589,14 @@ async def register_push_token(
         })
         r.hset(_PUSH_STORE_KEY, request.device_token, entry)
     except Exception:
-        pass  # non-fatal; push is best-effort
+        pass
 
     return {
         "status": "registered",
         "device_token": request.device_token[:8] + "...",
         "platform": request.platform,
         "registered_at": _utc_now(),
-        "note": "Push notifications are best-effort. Delivery depends on APNS/FCM connectivity.",
+        "note": "Push notifications are best-effort.",
     }
 
 
@@ -552,7 +611,6 @@ async def unregister_push_token(
         r.hdel(_PUSH_STORE_KEY, device_token)
     except Exception:
         pass
-
     return {"status": "unregistered", "registered_at": _utc_now()}
 
 
@@ -563,10 +621,6 @@ async def get_mobile_admin_summary(
     actor: UserRecord = Depends(require_auth),
 ) -> dict[str, Any]:
     """Admin overview for mobile admin dashboard. Requires admin role."""
-    from app.auth.security import require_admin
-    from fastapi import Request as FastAPIRequest
-    import inspect
-
     role_val = str(actor.get("role", "viewer") if actor else "viewer")
     if role_val not in {"admin", "superadmin"}:
         raise HTTPException(status_code=403, detail="admin_required")
@@ -590,14 +644,17 @@ async def get_mobile_admin_summary(
         },
         "live_gate": _live_gate_status(),
         "trainer": {
-            "state": str(trainer.get("state") or "UNKNOWN"),
-            "checkpoint": str(trainer.get("checkpoint") or ""),
+            "state": trainer.get("state", "UNKNOWN"),
+            "checkpoint": trainer.get("checkpoint", ""),
+            "device": str(trainer.get("device") or ""),
+            "gpu_name": str(trainer.get("gpu_name") or ""),
             "cuda_active": bool(trainer.get("cuda_active")),
             "training_steps_total": _safe_int(trainer.get("training_steps_total")),
             "training_steps_last_hour": _safe_int(trainer.get("training_steps_last_hour")),
         },
         "gpu": {
             "name": str(gpu.get("name") or ""),
+            "device": str(gpu.get("device") or ""),
             "utilization_pct": _safe_float(gpu.get("utilization_pct")),
             "vram_used_mb": _safe_int(gpu.get("vram_used_mb")),
             "vram_total_mb": _safe_int(gpu.get("vram_total_mb")),
@@ -613,7 +670,8 @@ async def get_mobile_admin_summary(
         },
         "risk": {
             "state": str(risk.get("state") or "UNKNOWN"),
-            "kill_switch_active": bool(risk.get("kill_switch_active")),
+            "classification": str(risk.get("classification") or ""),
+            "kill_switch_active": bool(risk.get("kill_switch_active", True)),
         },
         "dangerous_controls_require_web_approval": True,
         "mobile_live_trading_blocked": True,

@@ -7,19 +7,35 @@ struct PositionsView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if vm.isLoading && vm.positions.isEmpty {
-                    LoadingView()
-                } else if let err = vm.error, vm.positions.isEmpty {
-                    ErrorStateView(message: err) {
-                        Task { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
+            ZStack {
+                NerVyx.bg.ignoresSafeArea()
+                Group {
+                    if vm.isLoading && vm.positions.isEmpty {
+                        VStack(spacing: 12) {
+                            ProgressView().tint(NerVyx.primary)
+                            Text("Loading positions…").font(.system(size: 14)).foregroundStyle(NerVyx.textMuted)
+                        }
+                    } else if let err = vm.error, vm.positions.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "exclamationmark.triangle").font(.system(size: 32)).foregroundStyle(NerVyx.warning)
+                            Text(err).foregroundStyle(NerVyx.textSecondary).multilineTextAlignment(.center)
+                            Button("Retry") { Task { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) } }
+                                .foregroundStyle(NerVyx.signal)
+                        }.padding(32)
+                    } else {
+                        positionsList
                     }
-                } else {
-                    positionsList
                 }
             }
-            .navigationTitle("NERVYX EXECUTE")
-            .toolbar { refreshButton }
+            .navigationTitle("Portfolio")
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button { Task { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) } } label: {
+                        Image(systemName: "arrow.clockwise").foregroundStyle(NerVyx.signal)
+                    }
+                }
+            }
             .refreshable { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
         }
         .task { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
@@ -28,160 +44,232 @@ struct PositionsView: View {
     }
 
     private var positionsList: some View {
-        List {
-            if let summary = vm.summary {
-                Section {
-                    summaryHeader(summary)
+        ScrollView {
+            VStack(spacing: 12) {
+                // Summary card
+                if let s = vm.summary {
+                    summaryCard(s)
                 }
-            }
-            Section("NERVYX EXECUTE · Open Positions (\(vm.positions.count))") {
+
+                // Positions list
                 if vm.positions.isEmpty {
-                    ContentUnavailableView(
-                        "No Open Positions",
-                        systemImage: "chart.line.downtrend.xyaxis",
-                        description: Text("Open positions will appear here")
-                    )
+                    VStack(spacing: 12) {
+                        Image(systemName: "chart.line.downtrend.xyaxis")
+                            .font(.system(size: 36))
+                            .foregroundStyle(NerVyx.textMuted)
+                        Text("No open positions")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(NerVyx.textSecondary)
+                        Text("Paper positions open automatically\nwhen signals are accepted by the risk gateway.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(NerVyx.textMuted)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(32)
                 } else {
-                    ForEach(vm.positions) { pos in
-                        NavigationLink(destination: PositionDetailView(position: pos)) {
-                            PositionRowView(position: pos)
+                    VStack(spacing: 0) {
+                        SectionHeader(title: "Open Positions (\(vm.positions.count))", accent: NerVyx.buy)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+
+                        ForEach(vm.positions) { pos in
+                            NavigationLink(destination: PositionDetailView(position: pos)) {
+                                PositionRowView(position: pos)
+                            }
+                            .buttonStyle(.plain)
+                            NerVyxDivider().padding(.horizontal, 16)
                         }
                     }
+                    .background(NerVyx.panel)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(NerVyx.borderSubtle, lineWidth: 1))
+                    .padding(.horizontal, 0)
                 }
             }
+            .padding(16)
+            .padding(.bottom, 24)
         }
-        .listStyle(.insetGrouped)
     }
 
-    private func summaryHeader(_ s: PositionSummary) -> some View {
+    private func summaryCard(_ s: PositionSummary) -> some View {
         VStack(spacing: 12) {
             HStack {
-                VStack(alignment: .leading) {
-                    Text("Total PnL")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Text(String(format: "$%.2f", s.total_pnl_usd))
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(s.total_pnl_usd >= 0 ? .green : .red)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("TOTAL PnL")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(NerVyx.textMuted)
+                        .tracking(0.6)
+                    Text(String(format: "%@$%.2f", s.total_pnl_usd >= 0 ? "+" : "", s.total_pnl_usd))
+                        .font(.system(size: 30, weight: .bold, design: .monospaced))
+                        .foregroundStyle(NerVyx.pnlColor(s.total_pnl_usd))
                 }
                 Spacer()
-                VStack(alignment: .trailing) {
-                    Text("Open")
-                        .font(.caption).foregroundStyle(.secondary)
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("OPEN")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(NerVyx.textMuted)
+                        .tracking(0.6)
                     Text("\(s.open_count)")
-                        .font(.title2.weight(.bold))
+                        .font(.system(size: 30, weight: .bold, design: .monospaced))
+                        .foregroundStyle(NerVyx.textPrimary)
                 }
             }
-            HStack(spacing: 20) {
-                VStack {
-                    Text("Realized").font(.caption2).foregroundStyle(.secondary)
+            NerVyxDivider()
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Realized")
+                        .font(.system(size: 11))
+                        .foregroundStyle(NerVyx.textMuted)
                     Text(String(format: "$%.2f", s.realized_pnl_usd))
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(s.realized_pnl_usd >= 0 ? .green : .red)
-                }
-                Divider().frame(height: 30)
-                VStack {
-                    Text("Unrealized").font(.caption2).foregroundStyle(.secondary)
-                    Text(String(format: "$%.2f", s.unrealized_pnl_usd))
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(s.unrealized_pnl_usd >= 0 ? .green : .red)
+                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(NerVyx.pnlColor(s.realized_pnl_usd))
                 }
                 Spacer()
-                Text("LIVE")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.orange)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(.orange.opacity(0.1))
-                    .clipShape(Capsule())
+                VStack(alignment: .center, spacing: 3) {
+                    Text("Unrealized")
+                        .font(.system(size: 11))
+                        .foregroundStyle(NerVyx.textMuted)
+                    Text(String(format: "$%.2f", s.unrealized_pnl_usd))
+                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(NerVyx.pnlColor(s.unrealized_pnl_usd))
+                }
+                Spacer()
+                NerVyxBadge(text: "PAPER", color: NerVyx.paper)
             }
         }
-        .padding(.vertical, 8)
-    }
-
-    private var refreshButton: some ToolbarContent {
-        ToolbarItem(placement: .navigationBarTrailing) {
-            Button(action: {
-                Task { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
-            }) {
-                Image(systemName: "arrow.clockwise")
-            }
-        }
+        .nerVyxElevatedCard(accent: NerVyx.pnlColor(s.total_pnl_usd))
     }
 }
+
+// MARK: - Position Row
 
 struct PositionRowView: View {
     let position: MobilePosition
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(position.symbol)
-                    .font(.headline)
-                Spacer()
-                StatusBadge(
-                    label: position.side.uppercased(),
-                    color: position.isBuy ? .green : .red
-                )
-            }
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Entry: \(String(format: "%.4f", position.entry_price))")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Text("Mark: \(String(format: "%.4f", position.mark_price))")
-                        .font(.caption).foregroundStyle(.secondary)
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 3)
+                .fill(position.isBuy ? NerVyx.buy : NerVyx.sell)
+                .frame(width: 4, height: 44)
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    Text(position.shortSymbol)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(NerVyx.textPrimary)
+                    Text("×\(String(format: "%.4f", position.qty))")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(NerVyx.textMuted)
+                    Spacer()
+                    NerVyxBadge(
+                        text: position.side.uppercased(),
+                        color: position.isBuy ? NerVyx.buy : NerVyx.sell
+                    )
                 }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("PnL")
-                        .font(.caption2).foregroundStyle(.secondary)
-                    Text(String(format: "$%.2f", position.unrealized_pnl))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(position.unrealized_pnl >= 0 ? .green : .red)
+                HStack {
+                    Text("Entry \(String(format: "%.4f", position.entry_price))")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(NerVyx.textMuted)
+                    Text("→")
+                        .font(.system(size: 11))
+                        .foregroundStyle(NerVyx.textMuted)
+                    Text("Mark \(String(format: "%.4f", position.mark_price))")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(NerVyx.textSecondary)
+                    Spacer()
+                    Text(String(format: "%@$%.2f", position.unrealized_pnl >= 0 ? "+" : "", position.unrealized_pnl))
+                        .font(.system(size: 13, weight: .bold, design: .monospaced))
+                        .foregroundStyle(NerVyx.pnlColor(position.unrealized_pnl))
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(NerVyx.panel)
+        .contentShape(Rectangle())
     }
 }
+
+// MARK: - Position Detail
 
 struct PositionDetailView: View {
     let position: MobilePosition
 
     var body: some View {
-        List {
-            Section("Position") {
-                MetricRow(label: "Symbol", value: position.symbol)
-                MetricRow(label: "Side", value: position.side.uppercased())
-                MetricRow(label: "Status", value: position.status.uppercased())
-                MetricRow(label: "Quantity", value: "\(position.qty)")
-            }
-            Section("Prices") {
-                MetricRow(label: "Entry Price", value: String(format: "%.6f", position.entry_price))
-                MetricRow(label: "Mark Price", value: String(format: "%.6f", position.mark_price))
-            }
-            Section("PnL") {
-                MetricRow(
-                    label: "Unrealized PnL",
-                    value: String(format: "$%.2f", position.unrealized_pnl),
-                    valueColor: position.unrealized_pnl >= 0 ? .green : .red
-                )
-                MetricRow(
-                    label: "Realized PnL",
-                    value: String(format: "$%.2f", position.realized_pnl),
-                    valueColor: position.realized_pnl >= 0 ? .green : .red
-                )
-                MetricRow(
-                    label: "Total PnL",
-                    value: String(format: "$%.2f", position.total_pnl),
-                    valueColor: position.total_pnl >= 0 ? .green : .red
-                )
-            }
-            Section("Meta") {
-                MetricRow(label: "Position ID", value: String(position.id.prefix(16)) + "…")
-                MetricRow(label: "Opened", value: position.opened_at)
+        ZStack {
+            NerVyx.bg.ignoresSafeArea()
+            ScrollView {
+                VStack(spacing: 12) {
+                    // Header
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(position.shortSymbol)
+                                .font(.system(size: 28, weight: .bold))
+                                .foregroundStyle(NerVyx.textPrimary)
+                            Text(position.symbol).font(.system(size: 13)).foregroundStyle(NerVyx.textMuted)
+                        }
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 6) {
+                            NerVyxBadge(
+                                text: position.side.uppercased(),
+                                color: position.isBuy ? NerVyx.buy : NerVyx.sell
+                            )
+                            NerVyxBadge(text: position.status.uppercased(), color: NerVyx.paper, small: true)
+                        }
+                    }
+                    .nerVyxElevatedCard(accent: position.isBuy ? NerVyx.buy : NerVyx.sell)
+
+                    // PnL card
+                    VStack(spacing: 10) {
+                        SectionHeader(title: "PnL", accent: NerVyx.pnlColor(position.total_pnl))
+                        HStack {
+                            Text("TOTAL")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(NerVyx.textMuted)
+                                .tracking(0.6)
+                            Spacer()
+                            Text(String(format: "%@$%.4f", position.total_pnl >= 0 ? "+" : "", position.total_pnl))
+                                .font(.system(size: 22, weight: .bold, design: .monospaced))
+                                .foregroundStyle(NerVyx.pnlColor(position.total_pnl))
+                        }
+                        NerVyxDivider()
+                        DataRow(
+                            label: "Unrealized",
+                            value: String(format: "$%.4f", position.unrealized_pnl),
+                            valueColor: NerVyx.pnlColor(position.unrealized_pnl),
+                            mono: true
+                        )
+                        DataRow(
+                            label: "Realized",
+                            value: String(format: "$%.4f", position.realized_pnl),
+                            valueColor: NerVyx.pnlColor(position.realized_pnl),
+                            mono: true
+                        )
+                    }
+                    .nerVyxCard()
+
+                    // Prices card
+                    VStack(spacing: 10) {
+                        SectionHeader(title: "Prices", accent: NerVyx.inference)
+                        DataRow(label: "Quantity", value: String(format: "%.6f", position.qty), mono: true)
+                        DataRow(label: "Entry Price", value: String(format: "%.6f", position.entry_price), mono: true)
+                        DataRow(label: "Mark Price", value: String(format: "%.6f", position.mark_price), mono: true)
+                    }
+                    .nerVyxCard()
+
+                    // Meta card
+                    VStack(spacing: 10) {
+                        SectionHeader(title: "Meta", accent: NerVyx.textMuted)
+                        DataRow(label: "ID", value: String(position.id.prefix(20)) + "…", mono: true)
+                        DataRow(label: "Opened", value: String(position.opened_at.prefix(19)), mono: true)
+                    }
+                    .nerVyxCard(accent: NerVyx.borderSubtle)
+                }
+                .padding(16)
+                .padding(.bottom, 24)
             }
         }
-        .navigationTitle(position.symbol)
+        .navigationTitle(position.shortSymbol)
         .navigationBarTitleDisplayMode(.inline)
     }
 }

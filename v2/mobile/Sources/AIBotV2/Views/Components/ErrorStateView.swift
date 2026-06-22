@@ -7,18 +7,20 @@ struct ErrorStateView: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.largeTitle)
-                .foregroundStyle(.orange)
+                .font(.system(size: 32))
+                .foregroundStyle(NerVyx.warning)
             Text("Failed to load data")
-                .font(.headline)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(NerVyx.textPrimary)
             Text(message)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 13))
+                .foregroundStyle(NerVyx.textMuted)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
             if let retry = retryAction {
                 Button("Retry", action: retry)
-                    .buttonStyle(.borderedProminent)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(NerVyx.signal)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -27,13 +29,13 @@ struct ErrorStateView: View {
 }
 
 struct LoadingView: View {
-    var message: String = "Loading..."
+    var message: String = "Loading…"
     var body: some View {
         VStack(spacing: 12) {
-            ProgressView()
+            ProgressView().tint(NerVyx.primary)
             Text(message)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 13))
+                .foregroundStyle(NerVyx.textMuted)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

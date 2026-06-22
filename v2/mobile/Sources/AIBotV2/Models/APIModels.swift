@@ -10,6 +10,7 @@ public struct MobileDashboard: Decodable, Equatable {
     public let gpu: GPUState
     public let alerts_preview: [MobileAlert]
     public let redis_connected: Bool
+    public let active_signal_count: Int?
 }
 
 public struct LiveGateState: Decodable, Equatable {
@@ -46,8 +47,20 @@ public struct TrainerState: Decodable, Equatable {
     public let data_coverage: Double
     public let training_steps_total: Int
     public let training_steps_last_hour: Int
+    public let device: String?
+    public let gpu_name: String?
 
-    public var isActive: Bool { state.hasPrefix("ACTIVE") }
+    public var isActive: Bool { state.uppercased().contains("ACTIVE") }
+    public var shortState: String {
+        let s = state.replacingOccurrences(of: "_", with: " ")
+        return s.count > 20 ? String(s.prefix(20)) + "…" : s
+    }
+    public var shortCheckpoint: String {
+        guard !checkpoint.isEmpty else { return "—" }
+        let parts = checkpoint.split(separator: "_")
+        if parts.count >= 2 { return parts.suffix(2).joined(separator: "_") }
+        return String(checkpoint.suffix(16))
+    }
 }
 
 public struct GPUState: Decodable, Equatable {
@@ -55,6 +68,7 @@ public struct GPUState: Decodable, Equatable {
     public let utilization_pct: Double
     public let vram_used_mb: Int
     public let vram_total_mb: Int
+    public let device: String?
 
     public var vramPercent: Double {
         guard vram_total_mb > 0 else { return 0 }
@@ -62,6 +76,11 @@ public struct GPUState: Decodable, Equatable {
     }
     public var vramUsedGB: Double { Double(vram_used_mb) / 1024 }
     public var vramTotalGB: Double { Double(vram_total_mb) / 1024 }
+    public var displayName: String {
+        if !name.isEmpty { return name }
+        if let d = device, !d.isEmpty { return d }
+        return "No GPU"
+    }
 }
 
 // MARK: - Position
@@ -79,11 +98,12 @@ public struct MobilePosition: Decodable, Identifiable, Equatable {
     public let status: String
 
     public var total_pnl: Double { unrealized_pnl + realized_pnl }
-    public var pnlColor: PnLColor { total_pnl >= 0 ? .green : .red }
     public var isBuy: Bool { side.lowercased() == "long" || side.lowercased() == "buy" }
+    public var pnlSign: String { total_pnl >= 0 ? "+" : "" }
+    public var shortSymbol: String {
+        symbol.hasSuffix("USDT") ? String(symbol.dropLast(4)) : symbol
+    }
 }
-
-public enum PnLColor { case green, red }
 
 public struct MobilePositionsResponse: Decodable {
     public let generated_utc: String
@@ -113,19 +133,22 @@ public struct MobileSignal: Decodable, Identifiable, Equatable {
     public let risk_state: String
     public let paper_fill_status: String
     public let published_at: String
+    public let last_price: Double?
+    public let expected_move_bps: Double?
+    public let data_coverage: Double?
 
     public var confidencePct: String { "\(Int(confidence * 100))%" }
-    public var isActionable: Bool { actionable }
-    public var actionColor: ActionColor {
-        switch action.lowercased() {
-        case "buy", "long": return .green
-        case "sell", "short": return .red
-        default: return .neutral
-        }
+    public var isDirectional: Bool { action.lowercased() != "hold" }
+    public var shortSymbol: String {
+        symbol.hasSuffix("USDT") ? String(symbol.dropLast(4)) : symbol
+    }
+    public var shortFillStatus: String {
+        paper_fill_status
+            .replacingOccurrences(of: "PAPER_FILL_GATE_", with: "")
+            .replacingOccurrences(of: "PAPER_LEDGER_", with: "")
+            .replacingOccurrences(of: "_", with: " ")
     }
 }
-
-public enum ActionColor { case green, red, neutral }
 
 public struct MobileSignalsResponse: Decodable {
     public let generated_utc: String
@@ -143,18 +166,7 @@ public struct MobileAlert: Decodable, Identifiable, Equatable {
     public let message: String
     public let severity: String
     public let triggered_at: String
-
-    public var severityLevel: AlertSeverity {
-        switch severity.lowercased() {
-        case "critical": return .critical
-        case "warning": return .warning
-        case "error": return .error
-        default: return .info
-        }
-    }
 }
-
-public enum AlertSeverity { case critical, error, warning, info }
 
 public struct MobileAlertsResponse: Decodable {
     public let generated_utc: String
@@ -175,30 +187,38 @@ public struct MobileHealth: Decodable, Equatable {
     public let places_real_order: Bool
 
     public var isHealthy: Bool { overall == "healthy" }
-    public var overallColor: HealthColor {
-        switch overall {
-        case "healthy": return .green
-        case "degraded": return .yellow
-        default: return .red
-        }
-    }
 }
-
-public enum HealthColor { case green, yellow, red }
 
 public struct HealthTrainer: Decodable, Equatable {
     public let state: String
     public let cuda_active: Bool
     public let training_active: Bool
     public let checkpoint: String
+    public let device: String?
+    public let gpu_name: String?
+
+    public var shortState: String {
+        let s = state.replacingOccurrences(of: "_", with: " ")
+        return s.count > 22 ? String(s.prefix(22)) + "…" : s
+    }
+    public var shortCheckpoint: String {
+        guard !checkpoint.isEmpty else { return "—" }
+        return String(checkpoint.suffix(16))
+    }
 }
 
 public struct HealthGPU: Decodable, Equatable {
     public let name: String
+    public let device: String?
     public let utilization_pct: Double
     public let vram_used_mb: Int
     public let vram_total_mb: Int
     public let temperature_c: Double
+    public var displayName: String {
+        if !name.isEmpty { return name }
+        if let d = device, !d.isEmpty { return d }
+        return "cuda:0"
+    }
 }
 
 public struct HealthPaper: Decodable, Equatable {
@@ -214,9 +234,12 @@ public struct MobileRiskStatus: Decodable, Equatable {
     public let generated_utc: String
     public let live_gate: LiveGateState
     public let risk_state: String
+    public let risk_classification: String?
     public let paper_blocked_count: Int
     public let paper_accepted_count: Int
     public let kill_switch_active: Bool
+    public let fail_closed: Bool?
+    public let decisions_processed_total: Int?
     public let max_position_size_usd: Double
     public let daily_loss_limit_usd: Double
     public let current_daily_loss_usd: Double
@@ -243,6 +266,12 @@ public struct PaperLoop: Decodable, Equatable {
     public let intents_accepted: Int
     public let intents_blocked: Int
     public let classification: String
+
+    public var blockRate: Double {
+        let total = intents_accepted + intents_blocked
+        guard total > 0 else { return 0 }
+        return Double(intents_blocked) / Double(total) * 100
+    }
 }
 
 public struct PaperPositions: Decodable, Equatable {
@@ -271,7 +300,7 @@ public struct MobileAdminSummary: Decodable, Equatable {
     public let actor: AdminActor
     public let live_gate: LiveGateState
     public let trainer: AdminTrainer
-    public let gpu: GPUState
+    public let gpu: AdminGPU
     public let paper: AdminPaper
     public let risk: AdminRisk
     public let dangerous_controls_require_web_approval: Bool
@@ -287,9 +316,24 @@ public struct AdminActor: Decodable, Equatable {
 public struct AdminTrainer: Decodable, Equatable {
     public let state: String
     public let checkpoint: String
+    public let device: String?
+    public let gpu_name: String?
     public let cuda_active: Bool
     public let training_steps_total: Int
     public let training_steps_last_hour: Int
+}
+
+public struct AdminGPU: Decodable, Equatable {
+    public let name: String
+    public let device: String?
+    public let utilization_pct: Double
+    public let vram_used_mb: Int
+    public let vram_total_mb: Int
+    public var displayName: String {
+        if !name.isEmpty { return name }
+        if let d = device, !d.isEmpty { return d }
+        return "cuda:0"
+    }
 }
 
 public struct AdminPaper: Decodable, Equatable {
@@ -304,6 +348,7 @@ public struct AdminPaper: Decodable, Equatable {
 
 public struct AdminRisk: Decodable, Equatable {
     public let state: String
+    public let classification: String?
     public let kill_switch_active: Bool
 }
 
@@ -316,7 +361,8 @@ public struct AppConfiguration {
     }
 
     public static var baseWSURL: String {
-        baseURL.replacingOccurrences(of: "http://", with: "ws://")
-               .replacingOccurrences(of: "https://", with: "wss://")
+        baseURL
+            .replacingOccurrences(of: "http://", with: "ws://")
+            .replacingOccurrences(of: "https://", with: "wss://")
     }
 }
